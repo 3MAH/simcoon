@@ -10,6 +10,10 @@ build/
 # `T*` would otherwise also catch lowercase fixtures such as tab_file_1.txt.
 testBin/**/T*
 !testBin/**/*.*
+# UMEXT / UMABA plugins built by the tests
+testBin/**/external/*.dylib
+testBin/**/external/*.so
+testBin/**/external/*.dll
 
 # ── Python / OS noise ─────────────────────────────────────────────────────
 __pycache__/

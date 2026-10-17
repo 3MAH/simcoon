@@ -299,20 +299,16 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
 
 void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
                                 arma::vec& sigma, arma::mat& Lt) const {
+    (void)nshr;
     if (!configured_) {
         throw std::runtime_error("ElasticityModule: not configured");
     }
     if (type_ != ElasticityType::HYPER_INVARIANTS) {
-        // el_pred rather than a bare L_ * eps_el: it carries the ndi condensation.
-        sigma = el_pred(L_, eps_el, ndi, nshr);
+        sigma = L_ * eps_el;
         Lt = L_;
         return;
     }
-    if (ndi != 3) {
-        // el_pred's condensation is the linearisation of plane stress; the
-        // nonlinear statement is sigma_33 = 0 solved by iterating on eps_33,
-        // which belongs one level up. Refuse rather than silently condense a
-        // tangent that is not the derivative of the returned stress.
+    if (ndi != 3) {   // condensed states are solved around the whole law (condensed_state.hpp)
         throw std::runtime_error(
             "ElasticityModule: a hyperelastic block supports ndi = 3 only (got "
             + std::to_string(ndi) + ")");

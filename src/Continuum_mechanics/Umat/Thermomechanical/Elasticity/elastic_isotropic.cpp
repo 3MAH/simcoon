@@ -25,6 +25,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_isotropic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -87,7 +88,7 @@ void umat_elasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
 	
 	//Compute the elastic strain and the related stress
 	vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
-    sigma = el_pred(dSdE, Eel, ndi, nshr);
+    sigma = el_pred(dSdE, Eel);
     
     //Computation of the increments of variables
     vec Dsigma = sigma - sigma_start;
@@ -106,29 +107,9 @@ void umat_elasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
     
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-    
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-    
-    if(DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        Gamma_epsilon = zeros(6);
-        Gamma_theta = 0.;
-        
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
-        
-        drdE = N_epsilon;// + Gamma_epsilon;
-        drdT = N_theta;// + Gamma_theta;
-        
-        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
-    }
+    // heat of the increment (no dissipation) and its derivatives (heat_source_increment)
+    const double T1 = T + DT;
+    heat_source_increment(0., zeros(6), 0., Deta, dSdE.t()*alpha, c_0/T1 + sum(dSdT%alpha), T1, r, drdE, drdT);
     
     double Dgamma_loc = 0.;
     
@@ -138,9 +119,9 @@ void umat_elasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
     
     statev(0) = T_init;
 }

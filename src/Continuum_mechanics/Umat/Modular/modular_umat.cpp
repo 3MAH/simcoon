@@ -493,7 +493,7 @@ bool ModularUMAT::return_mapping(
     }
 
     // Dispatch: closest-point when every multiplier row has that form, else cutting plane.
-    bool all_cpp = (tangent_mode == tangent_closest_point && ndi == 3);
+    bool all_cpp = (tangent_mode == tangent_closest_point);
     for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
         all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
     }

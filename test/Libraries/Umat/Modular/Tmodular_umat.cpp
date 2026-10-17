@@ -602,10 +602,10 @@ TEST_F(ElasticityModuleTest, EvaluateThrowsWhenNotConfigured) {
     EXPECT_THROW(em.evaluate(arma::zeros<vec>(6), 3, 3, sigma, Lt), std::runtime_error);
 }
 
-// ndi < 3 condenses the STRESS only; the tangent stays the full 6x6. That
-// asymmetry is the pre-existing contract (the mechanisms have always received
-// an uncondensed stiffness) — pin it so it cannot change silently.
-TEST_F(ElasticityModuleTest, EvaluateCondensesStressOnlyForPlaneStress) {
+// The module is 3D whatever ndi: a condensed state (ndi < 3) is solved around the whole law
+// (condensed_state.hpp, select_umat_M / sim.umat), never inside the elasticity block. Pin it: a
+// stress-only condensation here was a different integrator, inconsistent with the tangent.
+TEST_F(ElasticityModuleTest, EvaluateIs3DForEveryStressState) {
     ElasticityModule em;
     vec props = {0.0, 210000.0, 0.3, 1.2e-5};
     int offset = 0;
@@ -616,9 +616,8 @@ TEST_F(ElasticityModuleTest, EvaluateCondensesStressOnlyForPlaneStress) {
     mat Lt;
     em.evaluate(eps, 2, 1, sigma, Lt);
 
-    EXPECT_LT(norm(sigma - el_pred(em.L0(), eps, 2), 2), 1e-12);
-    EXPECT_NEAR(sigma(2), 0.0, 1e-12);   // out-of-plane stress condensed away
-    EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12);  // tangent NOT condensed
+    EXPECT_LT(norm(sigma - em.L0()*eps, 2), 1e-12);
+    EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12);
 }
 
 TEST_F(ElasticityModuleTest, IsotropicConfiguration) {

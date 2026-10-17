@@ -164,7 +164,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    stress = el_pred(L, Eel, ndi, nshr);
+    stress = el_pred(L, Eel);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -190,7 +190,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     // to the local tolerance, with the helper's exact operator. Condensed states keep the loop.
     // Bhat / K of the tail only feed the cutting-plane tangent.
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::NONE, vec{sigmaY, k, m});
         auto &iv = mech.variables();
@@ -238,7 +238,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         
         //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        stress = el_pred(L, Eel, ndi, nshr);
+        stress = el_pred(L, Eel);
     }
     }
     

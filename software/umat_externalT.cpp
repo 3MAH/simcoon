@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
@@ -47,10 +48,10 @@
 ///@param sse unused
 ///@param spd unused
 ///@param scd unused
-///@param rpl unused
+///@param rpl heat source (rate, r/dtime: the kernels return the heat of the increment r)
 ///@param ddsddt array containing the thermal tangent operator
-///@param drple unused
-///@param drpldt unused
+///@param drplde derivative of rpl with respect to the strain increment (ntens)
+///@param drpldt derivative of rpl with respect to the temperature
 ///@param stran array containing total strain component (dimension ntens) at the beginning of increment
 ///@param dstran array containing the component of total strain increment (dimension ntens)
 ///@param time two compoenent array : first component is the value of step time at the beginning of the current increment and second component is the value of total time at the beginning of the current increment
@@ -114,7 +115,8 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	double DTime = 0.;
     int solver_type = 0;
     
-	int nstatev_smart = nstatev-7;
+	// STATEV: Wm, Wt, then the stress-free strain when ndi < 3 (abaqus2smart_T), then the law
+	int nstatev_smart = nstatev - 7 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem);
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -133,14 +135,29 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     double r = 0.;
     
 	abaqus2smart_T(stress, ddsdde, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, sigma, dSdE, dSdT, drpldE, drpldT, Etot, DEtot, T, DT, Time, DTime, props_smart, Wm, Wt, statev_smart, DR, start);
-    external_umat_T(Etot, DEtot, sigma, r, dSdE, dSdT, drpldE, drpldT, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3),  Wt(0), Wt(1), Wt(2), ndi, nshr, start, pnewdt);
-	smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma, statev_smart, r, Wm, Wt, dSdE, dSdT, drpldE, drpldT, abaqus_nlgeom(dfgrd1));
+    // ndi < 3: solved around the 3D law (condensed_state.hpp)
+    if (ndi == 3) {
+        external_umat_T(Etot, DEtot, sigma, r, dSdE, dSdT, drpldE, drpldT, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3),  Wt(0), Wt(1), Wt(2), ndi, nshr, start, pnewdt);
+    }
+    else {
+        const condensed_state cs = make_condensed_state(ndi, nshr);
+        const vec sigma0 = sigma, statev0 = statev_smart, Wm0 = Wm, Wt0 = Wt;
+        auto restore = [&]() { sigma = sigma0; statev_smart = statev0; Wm = Wm0; Wt = Wt0; r = 0.; };
+        auto run = [&](double &tnew) { external_umat_T(Etot, DEtot, sigma, r, dSdE, dSdT, drpldE, drpldT, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3),  Wt(0), Wt(1), Wt(2), 3, 3, start, tnew); };
+        if (solve_condensed(cs, DEtot, sigma, dSdE, run, restore, pnewdt))
+            condense_tangent_T(cs, dSdE, dSdT, drpldE, drpldT);
+    }
+	// r is the heat of the increment (simcoon contract, see heat_source_increment); Abaqus takes the rates
+	const double inv_dtime = (dtime > simcoon::iota) ? 1./dtime : 0.;
+	smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma, statev_smart, r*inv_dtime, Wm, Wt, dSdE, dSdT, drpldE*inv_dtime, drpldT*inv_dtime, abaqus_nlgeom(dfgrd1), Etot + DEtot);
 }
 
 void external_umat_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
 {  	
 
-    //Write here your UMAT
+    //Write here your UMAT. Contract of the simcoon thermomechanical kernels: r is the heat of the
+    //increment per unit reference volume, storage included, r = Dgamma - (T+DT)(eta_{n+1} - eta_n)
+    //(heat_source_increment, tangent_assembly.hpp), drdE / drdT its derivatives.
 
 }
 

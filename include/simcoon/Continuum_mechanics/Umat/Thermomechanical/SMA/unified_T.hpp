@@ -154,7 +154,7 @@ namespace simcoon{
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6x1)
  * @param DEtot Strain increment tensor (Voigt notation: 6x1)
  * @param sigma Cauchy stress tensor (Voigt notation: 6x1) [output]
- * @param r Heat source rate [output]
+ * @param r Heat of the increment per reference volume, storage included (heat_source_increment()) [output]
  * @param dSdE Mechanical tangent modulus \f$ \partial \sigma / \partial \varepsilon \f$ (6x6) [output]
  * @param dSdT Thermal stress tangent \f$ \partial \sigma / \partial T \f$ (6x1) [output]
  * @param drdE Thermal-mechanical tangent \f$ \partial r / \partial \varepsilon \f$ (1x6) [output]

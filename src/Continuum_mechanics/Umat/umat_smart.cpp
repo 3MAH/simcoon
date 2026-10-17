@@ -29,6 +29,8 @@
 #include <string.h>
 #include <math.h>
 #include <vector>
+#include <functional>
+#include <algorithm>
 #include <armadillo>
 #include <memory>
 #include <dylib.hpp>
@@ -43,6 +45,7 @@
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
@@ -306,7 +309,7 @@ vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, con
     return sigma;
 }
 
-void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+static void select_umat_T_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
     UNUSED(solver_type);
     static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10}};
@@ -401,6 +404,11 @@ vec transport_convected(const vec &v, const mat &M, const int &corate_type, cons
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
+    // The finite route runs 3D (the solver imposes stress-free components through mixed boundary
+    // conditions); condensed states go through select_umat_M or sim.umat.
+    if (ndi < 3) {
+        throw std::invalid_argument("select_umat_M_finite: condensed stress states (ndi < 3) are not supported on the finite route");
+    }
     const std::map<string, int> &list_umat = finite_umat_names();
 
     // guarded lookup: operator[] would default-insert 0 (=UMEXT, a no-op) for an
@@ -627,7 +635,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         rve.local2global();
 }
     
-void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
 
     static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"EPJCK",25},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200},{"PYEXT",300}};
@@ -764,6 +772,93 @@ void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double
     rve.local2global();
 }
     
+namespace {
+
+// State a kernel call overwrites, sub-phases included, restored before each condensed evaluation.
+// Not to_start(): the Abaqus entries do not fill the *_start fields (same field list as to_start).
+struct phase_snapshot {
+    state_variables *sv;
+    vec *Wm = nullptr, *Wt = nullptr;
+    vec sigma, tau, PKII, statev, Wm0, Wt0;
+    std::vector<phase_snapshot> sub;
+};
+
+phase_snapshot take_snapshot(phase_characteristics &pc) {
+    phase_snapshot s;
+    s.sv = pc.sptr_sv_global.get();
+    if (auto sv_M = dynamic_cast<state_variables_M *>(s.sv)) s.Wm = &sv_M->Wm;
+    if (auto sv_T = dynamic_cast<state_variables_T *>(s.sv)) {
+        s.Wm = &sv_T->Wm;
+        s.Wt = &sv_T->Wt;
+    }
+    s.sigma = s.sv->sigma;
+    s.tau = s.sv->tau;
+    s.PKII = s.sv->PKII;
+    s.statev = s.sv->statev;
+    if (s.Wm) s.Wm0 = *s.Wm;
+    if (s.Wt) s.Wt0 = *s.Wt;
+    s.sub.reserve(pc.sub_phases.size());
+    for (auto &sub : pc.sub_phases) s.sub.push_back(take_snapshot(sub));
+    return s;
+}
+
+void restore_snapshot(const phase_snapshot &s) {
+    s.sv->sigma = s.sigma;
+    s.sv->tau = s.tau;
+    s.sv->PKII = s.PKII;
+    s.sv->statev = s.statev;
+    if (s.Wm) *s.Wm = s.Wm0;
+    if (s.Wt) *s.Wt = s.Wt0;
+    for (const auto &sub : s.sub) restore_snapshot(sub);
+}
+
+// Condensed state around the 3D dispatch run_3D (solve_condensed); no convergence: start state
+// restored, step cut requested
+template <class Run>
+bool select_condensed(phase_characteristics &rve, const condensed_state &cs, bool &start, double &tnew_dt,
+                      const mat &Lt, Run &&run_3D) {
+    state_variables &sv = *rve.sptr_sv_global;
+    const phase_snapshot snap = take_snapshot(rve);
+    const bool start0 = start;
+    auto restore = [&]() {
+        restore_snapshot(snap);
+        start = start0;
+    };
+    if (!solve_condensed(cs, sv.DEtot, sv.sigma, Lt, [&](double &tn) { run_3D(start, tn); }, restore, tnew_dt))
+        return false;
+    sv.tau(cs.C).zeros();
+    sv.PKII(cs.C).zeros();
+    return true;
+}
+
+}  // namespace
+
+void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+{
+    if (ndi == 3) {
+        select_umat_M_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+        return;
+    }
+    const condensed_state cs = make_condensed_state(ndi, nshr);
+    auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
+    if (select_condensed(rve, cs, start, tnew_dt, sv->Lt,
+                         [&](bool &st, double &tn) { select_umat_M_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
+        condense_tangent(cs, sv->Lt);
+}
+
+void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+{
+    if (ndi == 3) {
+        select_umat_T_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+        return;
+    }
+    const condensed_state cs = make_condensed_state(ndi, nshr);
+    auto sv = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
+    if (select_condensed(rve, cs, start, tnew_dt, sv->dSdE,
+                         [&](bool &st, double &tn) { select_umat_T_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
+        condense_tangent_T(cs, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT);
+}
+
 void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt)
 {
     

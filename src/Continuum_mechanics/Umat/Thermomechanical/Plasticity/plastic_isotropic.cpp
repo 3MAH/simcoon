@@ -172,7 +172,7 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     
 	///Elastic prediction - Accounting for the thermal prediction
 	vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi, nshr);
+    sigma = el_pred(L, Eel);
     
 	//Define the plastic function and the stress
 	vec Phi = zeros(1);
@@ -197,7 +197,7 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     // this kernel's props and state (same branch as the mechanical kernel). Condensed states keep
     // the loop; the thermal tail reads dPhidsigma / Lambdap / kappa_j / dHpdp.
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::NONE, vec{sigmaY, k, m});
         auto &iv = mech.variables();
@@ -250,7 +250,7 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
         
         //the stress is now computed using the relationship sigma = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi, nshr);
+        sigma = el_pred(L, Eel);
     }
     }
     
@@ -307,35 +307,20 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
     
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-    
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-    
     double A_p = -Hp;
     double dA_pdp = -dHpdp;
-//    double A_theta = 0;
-    
-    if(DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        Gamma_epsilon = dA_pdp*P_epsilon[0]*(Dp/DTime) + A_p/DTime*P_epsilon[0] + (dSdE*DEP)*(1./DTime) + sum(sigma%Lambdap)*P_epsilon[0]/DTime;
-        Gamma_theta = dA_pdp*P_theta[0]*(Dp/DTime) + A_p/DTime*P_theta[0] + sum(dSdT%DEP)*(1./DTime) + sum(sigma%Lambdap)*P_theta[0]/DTime;
-        
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
-        
-        drdE = N_epsilon + Gamma_epsilon;
-        drdT = N_theta + Gamma_theta;
 
-        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
-    }
-
+    // Dissipation of the increment (the quantity Wm_d accumulates) and its derivatives through
+    // dDp = P and dDEP = Lambdap P (flow direction held fixed over the increment)
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
+    const double f_p = 0.5*(sum((sigma_start+sigma)%Lambdap) + A_p_start + A_p + dA_pdp*Dp);
+    const vec dDgamma_dE = 0.5*dSdE.t()*DEP + f_p*P_epsilon[0];
+    const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0];
+
+    // heat of the increment and its derivatives (heat_source_increment)
+    const double T1 = T + DT;
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, dSdE.t()*alpha, c_0/T1 + sum(dSdT%alpha),
+                          T1, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
@@ -343,9 +328,9 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
     
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
     
     ///@brief statev evolving variables
     //statev

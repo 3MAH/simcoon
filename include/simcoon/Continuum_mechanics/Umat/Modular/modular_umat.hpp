@@ -362,7 +362,7 @@ private:
      *
      * "Every multiplier row has the closest-point form" = every mechanism
      * with carries_multipliers() answers supports_closest_point(); otherwise
-     * (Tresca or Drucker row, condensed stress state ndi < 3) the
+     * (Tresca or Drucker row) the
      * cutting-plane loop runs under mode 3 too and compute_tangent returns
      * the algorithmic operator — the documented degradation. A hyperelastic
      * block is handed to the helper as its elastic response (evaluated at

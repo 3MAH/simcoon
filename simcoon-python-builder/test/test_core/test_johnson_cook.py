@@ -36,11 +36,20 @@ def _power_hardening(p, B, n, p_reg=1.0e-6):
     return a * p + b * p * p if p > 0.0 else a * p
 
 
+def _softening(Tstar, m, c=1.0e-3):
+    """T*^m, continued below c by the C2 cubic of johnson_cook_softening for m < 2."""
+    if m >= 2.0 or Tstar >= c:
+        return Tstar**m
+    d, b = 0.5 * (m - 1.0) * (m - 2.0), (m - 1.0) * (3.0 - m)
+    u = Tstar / c
+    return c**m * u * ((1.0 - b - d) + u * (b + u * d))
+
+
 def _jc_yield(p, pdot, T):
     A, B, n, C, edot0, m, T_ref, T_melt = JC[3:11]
     rate = 1.0 + C * max(np.log(pdot / edot0), 0.0) if pdot > 0.0 else 1.0
     Tstar = min(max((T - T_ref) / (T_melt - T_ref), 0.0), 1.0)
-    return (A + _power_hardening(p, B, n)) * rate * (1.0 - Tstar**m)
+    return (A + _power_hardening(p, B, n)) * rate * (1.0 - _softening(Tstar, m))
 
 
 @pytest.mark.parametrize("time, pdot_expected", [(10.0, 0.01), (1.0, 0.1), (1.0e-3, 100.0)])

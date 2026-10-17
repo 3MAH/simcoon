@@ -321,7 +321,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     //Define the value of DM_sig
     vec DM_sig = (DM*stress_start);
     //Define the value of Dalpha_T
-    vec Dalpha_T = Dalpha*(T+DT);
+    vec Dalpha_T = Dalpha*(T+DT-T_init);
 
     //Set the thermo forces
     double A_xiF = rhoDs0*(T+DT) - rhoDE0 + 0.5*sum(stress%DM_sig) + sum(stress%Dalpha)*(T+DT-T_init) - HfF;
@@ -348,7 +348,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    stress = el_pred(L, Eel, ndi, nshr);
+    stress = el_pred(L, Eel);
 
     //Define the functions for the system to solve
     vec Phi = zeros(2);
@@ -411,7 +411,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     // is rebuilt from the start values at every iterate (ETMean in closed form) and the callbacks
     // return the analytic TOTAL derivatives of that composed map (linearise below).
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
         const double xi_n = xi;
@@ -583,7 +583,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         L = inv(M_eff);
 
         DM_sig = DM*stress;
-        Dalpha_T = Dalpha*(T+DT);
+        Dalpha_T = Dalpha*(T+DT-T_init);
 
         if (aniso_criteria) {
             lambdaTF = Hcur * dDrucker_ani_stress(stress, DFA_params, prager_b, prager_n);
@@ -698,7 +698,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         dPhihatFdxiF = 0.;
         dPhihatFdxiR = 0.;
 
-        dA_xiFdsigma = DM_sig + Dalpha*(T+DT);
+        dA_xiFdsigma = DM_sig + Dalpha*(T+DT-T_init);
         dA_xiFdxiF = -dHfF;
         dA_xiFdxiR = dHfF;
 
@@ -790,7 +790,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
         //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-        stress = el_pred(L, Eel, ndi, nshr);
+        stress = el_pred(L, Eel);
     }
     }
 

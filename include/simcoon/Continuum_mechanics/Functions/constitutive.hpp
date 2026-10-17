@@ -400,10 +400,11 @@ arma::vec el_pred(const arma::vec &sigma_start, const arma::mat &L, const arma::
  \f]
  * The components of Eel on \f$ C \f$ are not read. Supported states: (1, 0) truss, uniaxial \f$ \sigma = E \varepsilon \f$;
  * (1, 2) beam fibre, 11-12-13 (Abaqus B31); (2, 1) plane stress, 11-22-12; (2, 3) plane stress with transverse shears.
- * nshr = -1 picks (1, 0) and (2, 1). The condensation applies to the elastic strain only: with an additive split
- * \f$ \boldsymbol{\varepsilon}^{el} = \boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{in} \f$ the inelastic strain on \f$ C \f$ stays free,
- * so a return mapping that calls el_pred at every iterate converges to the exact condensed state. The tangent returned by
- * the UMATs stays 6x6: condensing it on \f$ K \f$ is the caller's job.
+ * nshr = -1 picks (1, 0) and (2, 1). This is the condensed state of a linear elastic law. The UMATs do not use it:
+ * they run 3D, and a condensed state is solved around the whole law, inelastic and viscous strains included
+ * (condensed_state.hpp, used by select_umat_M / select_umat_T, sim.umat and the Abaqus bridges). Condensing the elastic
+ * predictor inside a return mapping is a different integrator: its result is not the 3D backward-Euler map at the
+ * stress-free strain, and the 3D consistent tangent is no longer its derivative.
  * @code 
         mat L = L_iso(70000, 0.3,"Enu");
         vec Eel;

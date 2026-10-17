@@ -72,11 +72,11 @@ namespace simcoon {
  * @param Etot Total strain at the beginning of the increment (Voigt notation: \f$6 \times 1\f$ vector)
  * @param DEtot Strain increment (Voigt notation: \f$6 \times 1\f$ vector)
  * @param sigma Stress (Voigt notation: \f$6 \times 1\f$ vector) [input/output]
- * @param r Heat source per unit volume (thermoelastic coupling + viscous dissipation) [output]
+ * @param r Heat of the increment per reference volume, storage included (heat_source_increment()) [output]
  * @param dSdE Consistent mechanical tangent \f$ \partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon} \f$ (\f$6 \times 6\f$) [output]
  * @param dSdT Stress sensitivity to temperature \f$ \partial \boldsymbol{\sigma} / \partial T \f$ (\f$6 \times 1\f$) [output]
- * @param drdE Heat source sensitivity to strain \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$ (\f$1 \times 6\f$) [output]
- * @param drdT Heat source sensitivity to temperature \f$ \partial r / \partial T \f$ (\f$1 \times 1\f$) [output]
+ * @param drdE Strain derivative of the heat of the increment \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$ (\f$1 \times 6\f$) [output]
+ * @param drdT Temperature derivative of the heat of the increment \f$ \partial r / \partial T \f$ (\f$1 \times 1\f$) [output]
  * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)

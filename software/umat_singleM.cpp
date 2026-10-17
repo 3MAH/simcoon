@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 
 ///@param stress array containing the components of the stress tensor (dimension ntens)
 ///@param statev array containing the evolution variables (dimension nstatev)
@@ -102,7 +103,8 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	double DTime = 0.;
     int solver_type = 0;
     
-	int nstatev_smart = nstatev-4;
+	// STATEV: Wm, then the stress-free strain when ndi < 3 (abaqus2smart_M), then the law
+	int nstatev_smart = nstatev - 4 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem);
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -126,5 +128,5 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
     
-	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt, abaqus_nlgeom(dfgrd1));
+	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt, abaqus_nlgeom(dfgrd1), rve_sv_M->Etot + rve_sv_M->DEtot);
 }

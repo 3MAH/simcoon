@@ -250,4 +250,39 @@ ContinuumTangent compute_tangent_operator(
     const arma::mat& L,
     const std::function<arma::mat()>& dLambda_dsigma = nullptr);
 
+/**
+ * @brief Heat released over a thermomechanical increment and its exact derivatives.
+ *
+ * The thermomechanical UMATs return the heat of the increment, per unit reference volume,
+ * \f[ R = \Delta t \, r = \Delta\gamma - \theta_{n+1} \left( \eta_{n+1} - \eta_n \right), \f]
+ * with \f$ \Delta\gamma \f$ the dissipation the kernel adds to \f$ W_m^d \f$ and \f$ \eta \f$ its
+ * entropy, a state function. \f$ R \f$ includes the thermal storage, \f$ R = 0 \f$ is the adiabatic
+ * condition (also at \f$ \Delta t = 0 \f$, where it gives the instantaneous adiabatic temperature
+ * jump) and a closed elastic cycle under \f$ R = 0 \f$ returns to its initial temperature. The
+ * derivatives follow from those of \f$ \Delta\gamma \f$ and \f$ \eta_{n+1} \f$:
+ * \f[ \frac{\partial R}{\partial \boldsymbol{\varepsilon}} = \frac{\partial \Delta\gamma}{\partial \boldsymbol{\varepsilon}}
+ *     - \theta_{n+1} \frac{\partial \eta_{n+1}}{\partial \boldsymbol{\varepsilon}}, \qquad
+ *     \frac{\partial R}{\partial \theta} = \frac{\partial \Delta\gamma}{\partial \theta} - \Delta\eta
+ *     - \theta_{n+1} \frac{\partial \eta_{n+1}}{\partial \theta}. \f]
+ * For the Gibbs energies of the thermomechanical kernels,
+ * \f$ \eta = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha} : \boldsymbol{\sigma} + \ldots \f$, so that
+ * \f$ \theta \, \partial\eta/\partial\theta \f$ at fixed strain is the heat capacity at constant strain
+ * \f$ c_0 - \theta \, \boldsymbol{\alpha} : \mathbf{L} : \boldsymbol{\alpha} \f$ (with \f$ c_0 = \rho c_p \f$
+ * the heat capacity at constant stress).
+ *
+ * @param Dgamma dissipation of the increment, \f$ \Delta\gamma \f$
+ * @param dDgamma_dE \f$ \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} \f$ (6)
+ * @param dDgamma_dT \f$ \partial\Delta\gamma/\partial\theta \f$
+ * @param Deta entropy increment \f$ \eta_{n+1} - \eta_n \f$
+ * @param deta_dE \f$ \partial\eta_{n+1}/\partial\boldsymbol{\varepsilon} \f$ (6)
+ * @param deta_dT \f$ \partial\eta_{n+1}/\partial\theta \f$
+ * @param T1 temperature at the end of the increment, \f$ \theta_{n+1} \f$
+ * @param[out] r heat of the increment \f$ R \f$ (MPa, i.e. MJ/m\f$^3\f$)
+ * @param[out] drdE \f$ \partial R/\partial\boldsymbol{\varepsilon} \f$ (6x1, the thermomechanical UMAT layout)
+ * @param[out] drdT \f$ \partial R/\partial\theta \f$ (1x1)
+ */
+void heat_source_increment(const double &Dgamma, const arma::vec &dDgamma_dE, const double &dDgamma_dT,
+                           const double &Deta, const arma::vec &deta_dE, const double &deta_dT,
+                           const double &T1, double &r, arma::mat &drdE, arma::mat &drdT);
+
 } // namespace simcoon

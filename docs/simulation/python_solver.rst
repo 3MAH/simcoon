@@ -105,7 +105,13 @@ thermal column and ``q_conv`` applies.
 
 For finite-element couplers, the point-wise thermomechanical UMAT batch entry
 ``sim.umat_T(...)`` complements ``sim.umat(...)``; it returns
-``(sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT)``.
+``(sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT)``, with ``r`` the heat of the
+increment per reference volume (see :doc:`output`). With ``F0`` and ``F1`` it runs
+under finite strain, for ``ELISO`` only so far, in the rate form under log_R
+(``kinematic_form="rate"``, the default) or in the total form
+(``kinematic_form="total"``); the stress is Cauchy in and out, as for ``sim.umat``.
+``sim.umat`` takes the temperature increment as ``DT=`` (with ``temp=``), so that
+thermal expansion follows a prescribed temperature without the heat balance.
 
 Mean-field composites
 ---------------------

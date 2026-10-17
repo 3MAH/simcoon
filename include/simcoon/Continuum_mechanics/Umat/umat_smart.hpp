@@ -299,7 +299,7 @@ void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int 
 	double DTime = 0.;
     int solver_type = 0;
     
-	int nstatev_smart = nstatev-4;
+	int nstatev_smart = nstatev - 4 - make_condensed_state(ndi, nshr).C.n_elem;   // Wm, free strain (ndi < 3), law
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -404,14 +404,18 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
  * @param start bolean that states if it is the beginning of the simulation (or not)
  * @param solver_type type of solver to be used (0 = Newton-Raphson)
  * @param tnew_dt New increment of time if the max number of iteration has not converged
- * @details Example: 
+ * @details With ndi < 3 the components outside the (ndi, nshr) state are stress-free: the law runs
+ * 3D and their strain increment is solved around it (condensed_state.hpp), the global state being
+ * restored before every evaluation; the stress and the tangent leave condensed on the kept
+ * components (zero elsewhere), ready for smart2abaqus. No convergence: start state kept, tnew_dt < 1.
+ * Example: 
  * @code 
     bool start = false;
     double Time = 0.;
     double DTime = 0.;
     int solver_type = 0;
     
-    int nstatev_smart = nstatev-7;
+    int nstatev_smart = nstatev - 7 - make_condensed_state(ndi, nshr).C.n_elem;   // Wm, Wt, free strain (ndi < 3), law
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -614,7 +618,11 @@ void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global
  * @param start bolean that states if it is the beginning of the simulation (or not)
  * @param solver_type type of solver to be used (0 = Newton-Raphson)
  * @param tnew_dt New increment of time if the max number of iteration has not converged
- * @details Example: 
+ * @details With ndi < 3 the components outside the (ndi, nshr) state are stress-free: the law runs
+ * 3D and their strain increment is solved around it (condensed_state.hpp), the global state being
+ * restored before every evaluation; the stress and the tangent leave condensed on the kept
+ * components (zero elsewhere), ready for smart2abaqus. No convergence: start state kept, tnew_dt < 1.
+ * Example: 
  * @code 
     bool start = false;
     double Time = 0.;
@@ -712,7 +720,7 @@ void run_umat_M(phase_characteristics &, const arma::mat &, const double &, cons
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
  * @endcode
 */	
-void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const arma::vec &Wm, const arma::mat &Lt, const bool &nlgeom);
+void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const arma::vec &Wm, const arma::mat &Lt, const bool &nlgeom, const arma::vec &Etot_end);
 
 /**
  * @brief Transfer variables from simcoon to Abaqus format, considering a mechanical constitutive law, returning all Abaqus variables
@@ -806,7 +814,8 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
  * @param nshr number of shear stress components
  * @param sigma arma::vec containing the components of the stress tensor
  * @param statev_smart evolution variables in the form of an arma::vec
- * @param r Volumetric heat generation per unit time (total)
+ * @param r Volumetric heat generation per unit time (total, storage included): the kernel's heat of the
+ *        increment divided by the time increment
  * @param Wm variables related to mechanical work
  * @param Wt variables related to thermal work 
  * @param dSdE arma::mat containing the mechanical tangent operator
@@ -820,7 +829,7 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     double DTime = 0.;
     int solver_type = 0;
     
-    int nstatev_smart = nstatev-7;
+    int nstatev_smart = nstatev - 7 - make_condensed_state(ndi, nshr).C.n_elem;   // Wm, Wt, free strain (ndi < 3), law
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -850,10 +859,12 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
 
-    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE, rve_sv_T->drdT);
+    // r is the heat of the increment; Abaqus takes the rates
+    const double inv_dtime = (dtime > simcoon::iota) ? 1./dtime : 0.;
+    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r*inv_dtime, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE*inv_dtime, rve_sv_T->drdT*inv_dtime);
  * @endcode
 */ 
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom);
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom, const arma::vec &Etot_end);
             
 
 /** @} */ // end of umat_mechanical group

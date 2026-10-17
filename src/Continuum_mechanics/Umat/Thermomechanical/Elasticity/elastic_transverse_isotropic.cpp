@@ -25,6 +25,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_transverse_isotropic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -101,32 +102,7 @@ void umat_elasticity_trans_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, 
     
     //Compute the elastic strain and the related stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
-    sigma = el_pred(dSdE, Eel, ndi, nshr);
-    
-    if (ndi == 1) {
-        if (axis == 1)
-            sigma(0) = EL*Eel(0);
-        else
-            sigma(0) = ET*Eel(0);
-    }
-    else if (ndi == 2) {
-        
-        double Q11 = dSdE(0,0)-dSdE(0,2)*dSdE(2,0)/dSdE(2,2);
-        double Q12 = dSdE(0,1)-dSdE(0,2)*dSdE(2,1)/dSdE(2,2);
-        double Q14 = dSdE(0,3)-dSdE(0,2)*dSdE(2,3)/dSdE(2,2);
-        double Q21 = dSdE(1,0)-dSdE(1,2)*dSdE(2,0)/dSdE(2,2);
-        double Q22 = dSdE(1,1)-dSdE(1,2)*dSdE(2,1)/dSdE(2,2);
-        double Q24 = dSdE(1,3)-dSdE(1,2)*dSdE(2,3)/dSdE(2,2);
-        double Q41 = dSdE(3,0)-dSdE(3,2)*dSdE(2,0)/dSdE(2,2);
-        double Q42 = dSdE(3,1)-dSdE(3,2)*dSdE(2,1)/dSdE(2,2);
-        double Q44 = dSdE(3,3)-dSdE(3,2)*dSdE(2,3)/dSdE(2,2);
-        
-        sigma(0) = Q11*Eel(0) + Q12*Eel(1) + Q14*Eel(3);
-        sigma(1) = Q21*Eel(0) + Q22*Eel(1) + Q24*Eel(3);
-        sigma(3) = Q41*Eel(0) + Q42*Eel(1) + Q44*Eel(3);
-    }
-    else
-    sigma = dSdE*Eel;
+    sigma = el_pred(dSdE, Eel);
     
     //Computation of the increments of variables
     vec Dsigma = sigma - sigma_start;
@@ -145,29 +121,9 @@ void umat_elasticity_trans_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, 
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
     
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-    
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-    
-    if(DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        Gamma_epsilon = zeros(6);
-        Gamma_theta = 0.;
-        
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
-        
-        drdE = N_epsilon;
-        drdT = N_theta;
-        
-        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
-    }
+    // heat of the increment (no dissipation) and its derivatives (heat_source_increment)
+    const double T1 = T + DT;
+    heat_source_increment(0., zeros(6), 0., Deta, dSdE.t()*alpha, c_0/T1 + sum(dSdT%alpha), T1, r, drdE, drdT);
     
     double Dgamma_loc = 0.;
     
@@ -177,9 +133,9 @@ void umat_elasticity_trans_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, 
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
     
     statev(0) = T_init;
 }

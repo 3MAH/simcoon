@@ -11,6 +11,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 using namespace std;
 using namespace arma;
 
@@ -116,8 +117,12 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     //Variables at the start of the increment
     const std::vector<vec> EV_i_start = EV_i;
+    // start strain from the start state, not Etot: condensed callers do not know every component
+    vec sigma_EV = sigma_start;
+    for (int i=0; i<N_prony; i++) sigma_EV += L_i[i]*EV_i_start[i];
+    const vec eps_e_start = M0*sigma_EV;   // sigma = L0 (eps_e - EV_tilde), EV_tilde = M0 sum L_i EV_i
     for (int i=0; i<N_prony; i++) {
-        A_v_start[i] = L_i[i]*(Etot - alpha*(T-T_init) - EV_i[i]);   // start state: T, EV_i before the update
+        A_v_start[i] = L_i[i]*(eps_e_start - EV_i[i]);
     }
 
     // Implicit (backward-Euler) step of the Maxwell branches in closed form: the exact solution of
@@ -131,7 +136,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         v(i) += norm_strain(DEV_i[i]);
         EV_tilde += (M0*L_i[i])*EV_i[i];
     }
-    sigma = el_pred(L0, eps_e - EV_tilde, ndi, nshr);
+    sigma = el_pred(L0, eps_e - EV_tilde);
     if (tangent_mode == tangent_none) {
         dSdE = L0;
         dSdT = -L0*alpha;
@@ -170,9 +175,10 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         dDgamma_dT += 0.5*(-sum((L_i[i]*(alpha + dEVdT))%DEV_i[i]) + sum(dEVdT%A_mid2));
     }
 
-    // heat source of the actual increments and its exact derivatives (linear_viscoelastic.hpp)
-    viscous_heat_source(Dgamma_loc, dDgamma_dE, dDgamma_dT, st, alpha, sigma, sigma_start, T, DT,
-                        rho*c_p, DTime, r, drdE, drdT);
+    // heat of the increment and its derivatives (heat_source_increment)
+    const double T1 = T + DT;
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, st.dSdE.t()*alpha,
+                          c_0/T1 + dot(alpha, st.dSdT), T1, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
@@ -180,9 +186,9 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
     
     //Return the statev;
     statev(0) = T_init;

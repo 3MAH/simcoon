@@ -160,10 +160,10 @@ histories and, with ``record_tangent``, the coupled tangents in place of
      - Content
    * - ``Q``
      - (N,)
-     - Heat flux prescribed on the RVE
+     - Heat flux exchanged with the surroundings (a rate)
    * - ``r``
      - (N,)
-     - Heat source
+     - Heat of the increment, per reference volume (MPa)
    * - ``Wt``
      - (3, N)
      - Thermal energies :math:`[W_t, W_t^r, W_t^{ir}]`
@@ -180,12 +180,23 @@ histories and, with ``record_tangent``, the coupled tangents in place of
      - (N,)
      - :math:`\partial r/\partial T`
 
-``Q`` and ``r`` are of opposite signs: the solver enforces the 0D heat balance
-of the RVE, :math:`Q = -r`, at every increment. ``r`` is the heat rate the
-constitutive model produces (thermomechanical couplings and dissipation, net of
-the heat stored as :math:`\rho c_p \dot T`) and ``Q`` the flux exchanged with
-the surroundings that balances it. An adiabatic step (``thermal_control="heat_flux"``,
-``Q = 0``) therefore reads ``r = 0``, the temperature rise absorbing the sources.
+``r`` is the heat the constitutive model releases over the increment, storage
+included,
+
+.. math::
+
+   r = \Delta\gamma - T_{n+1} \left( \eta_{n+1} - \eta_n \right),
+
+with :math:`\Delta\gamma` the dissipation added to :math:`W_m^d` and
+:math:`\eta = \rho c_p \ln(T/T_{init}) + \boldsymbol{\alpha} : \boldsymbol{\sigma} + \ldots`
+the entropy of the law. It is the time increment times the heat source, and is
+defined at :math:`\Delta t = 0`. The solver enforces the 0D heat balance of the RVE
+on increments, :math:`-r = \Delta t \, Q`; the output ``Q`` is the flux
+:math:`-r/\Delta t` (zero at :math:`\Delta t = 0`). An adiabatic step
+(``thermal_control="heat_flux"``, ``Q = 0``) therefore reads ``r = 0``: an elastic
+cycle returns to its initial temperature, and the dissipated work heats the
+material at every increment, :math:`T_{n+1} \Delta\eta = \Delta W_m^d`. The total heat
+released over a path is the sum of ``r``, not a time integral.
 
 Completion status
 -----------------

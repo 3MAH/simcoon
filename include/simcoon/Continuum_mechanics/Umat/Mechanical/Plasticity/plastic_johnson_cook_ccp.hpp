@@ -22,10 +22,45 @@
 
 #pragma once
 #include <string>
+#include <cmath>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 
 namespace simcoon{
+
+/**
+ * @brief Johnson-Cook thermal softening \f$ g = T^{*m} \f$ (the factor is \f$ 1 - g \f$) and its first two
+ * derivatives with respect to the homologous temperature \f$ T^* \f$.
+ * @param Tstar Homologous temperature, in [0, 1)
+ * @param m Thermal softening exponent
+ * @param g [out] \f$ g(T^*) \f$
+ * @param dg [out] \f$ g'(T^*) \f$
+ * @param d2g [out] \f$ g''(T^*) \f$
+ * @details For \f$ m < 2 \f$, \f$ g'' \f$ (and \f$ g' \f$ for \f$ m < 1 \f$) is singular at
+ * \f$ T^* = 0 \f$, where the entropy and the heat derivatives of the thermomechanical law read it.
+ * Below the cutoff \f$ c = 10^{-3} \f$ the power is continued by a cubic, exact in value, slope and
+ * curvature at \f$ c \f$ (C2), zero at \f$ T^* = 0 \f$ with a finite slope (the kink of the
+ * clamped law at \f$ \theta_{ref} \f$, as for \f$ m \geq 1 \f$), \f$ u = T^{*} / c \f$:
+ \f[
+    g = c^m \left( a u + b u^2 + d u^3 \right), \quad d = \frac{(m-1)(m-2)}{2}, \quad b = (m-1)(3-m), \quad a = 1 - b - d
+ \f]
+ * monotone for \f$ 0 < m < 2 \f$, exact for \f$ m = 1 \f$. Above the cutoff, or for \f$ m \geq 2 \f$,
+ * \f$ g = T^{*m} \f$ exactly.
+ */
+inline void johnson_cook_softening(const double &Tstar, const double &m, double &g, double &dg, double &d2g) {
+    const double c = 1.e-3;
+    if (m >= 2. || Tstar >= c) {
+        g = pow(Tstar, m);
+        dg = (Tstar > 0.) ? m*pow(Tstar, m - 1.) : 0.;
+        d2g = (Tstar > 0. || m == 2.) ? m*(m - 1.)*pow(Tstar, m - 2.) : 0.;
+        return;
+    }
+    const double d = 0.5*(m - 1.)*(m - 2.), b = (m - 1.)*(3. - m), a = 1. - b - d;
+    const double u = Tstar/c, g0 = pow(c, m);
+    g = g0*u*(a + u*(b + u*d));
+    dg = g0/c*(a + u*(2.*b + u*3.*d));
+    d2g = g0/(c*c)*(2.*b + u*6.*d);
+}
 
 /** @addtogroup umat_mechanical
  *  @{
@@ -59,7 +94,10 @@ namespace simcoon{
  * the material responds with its quasi-static, reference-rate yield stress (a \f$ C^0 \f$ kink
  * of \f$ \Phi \f$ at \f$ \dot p = \dot\varepsilon_0 \f$, the definition of the law). The homologous
  * temperature is clamped to \f$ [0, 1) \f$ so that the law is defined below
- * \f$ \theta_{\mathrm{ref}} \f$ and never reaches the singular melting point. The power-law
+ * \f$ \theta_{\mathrm{ref}} \f$ and never reaches the singular melting point; for \f$ m < 2 \f$
+ * the softening \f$ T^{*m} \f$ is continued below \f$ T^* = 10^{-3} \f$ by a \f$ C^2 \f$ cubic
+ * (johnson_cook_softening), so that its temperature derivatives, read by the entropy and the
+ * heat of the thermomechanical law, stay bounded at \f$ \theta_{\mathrm{ref}} \f$. The power-law
  * hardening \f$ B p^{n} \f$ with \f$ n < 1 \f$ has an infinite slope at the onset, which makes the
  * cutting-plane Newton overshoot and cycle on the first plastic increment: it is evaluated through
  * PowerLawHardening, i.e. exact for \f$ p \geq 10^{-6} \f$ and a \f$ C^1 \f$ quadratic blend below.
