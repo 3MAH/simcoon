@@ -225,15 +225,14 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 	// The laws whose condensed point is validated against the 3D law at the stress-free strain, with
 	// the Schur complement of the law's own tangent (test_umat_condensed.py, which checks this table
-	// against its fixtures): as exact as that tangent, i.e. under tangent_mode=3 for EPHIL, EPKCP, EPCHA
-	bool condensation_serves(const std::string &umat_name, const int &ndi, const std::optional<int> &nshr_py, const py::object &kinematic_form_py, const std::string &condense) {
+	// against its fixtures): as exact as that tangent, i.e. under tangent_mode=3 for EPHIL, EPKCP, EPCHA.
+	// condense='approximate' and 'exact' serve the same laws (identical at small strain)
+	bool condensation_serves(const std::string &umat_name, const int &ndi, const std::optional<int> &nshr_py, const py::object &kinematic_form_py) {
 		static const std::set<std::string> rate = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "EPCHA", "EPHIL", "EPJCK",
 		                                           "ZENER", "ZENNK", "PRONK", "SMADI", "MODUL",
 		                                           "NEOHC", "NEOHI", "SNTVE", "MOORI", "YEOHH"};
 		static const std::set<std::string> total = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "EPCHA", "EPHIL", "EPJCK",
 		                                            "MODUL", "NEOHC", "NEOHI", "SNTVE", "MOORI", "YEOHH"};
-		static const std::set<std::string> exact = {"ELISO", "ELORT", "EPICP", "EPJCK", "MODUL", "NEOHC", "NEOHI", "SNTVE"};
-		const bool exact_form = condense_exact(condense);
 		const int form = kinematic_code(kinematic_form_py);
 		if (ndi == 3) return true;
 		try {
@@ -244,7 +243,6 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		}
 		const bool total_form = (form == simcoon::corate_type_total);
 		if (!total_form && form >= 0 && form != 3) return false;   // validated under log_R only
-		if (exact_form) return exact.count(umat_name) > 0;
 		return (total_form ? total : rate).count(umat_name) > 0;
 	}
 	

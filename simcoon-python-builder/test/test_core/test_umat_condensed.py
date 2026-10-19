@@ -449,8 +449,9 @@ TOTAL_LAWS = {
     "EPCHA": (EPCHA, 33, 0.05, 3),
     "EPHIL": (EPHIL, 33, 0.05, 3),
 }
-# condense='exact', validated on these (both forms: test_exact_rate_form_over_increments)
-EXACT_LAWS = ["NEOHC", "MODUL", "ELISO", "EPICP", "NEOHI", "SNTVE", "ELORT", "EPJCK"]
+# condense='exact': the total-form laws (the rate form: test_exact_rate_form_over_increments; at small
+# strain it is 'approximate', test_small_strain_exact_is_approximate)
+EXACT_LAWS = list(TOTAL_LAWS)
 H_PATH = np.array([0.25, -0.08, 0.0, 0.12, -0.07, 0.05])
 
 
@@ -513,7 +514,7 @@ def test_exact_condensation_frees_the_material_faces(name, ndi, nshr):
     H[K] = TOTAL_LAWS[name][2] * H_PATH[K]
     s, _, _, F1 = _total(name, H.copy(), ndi, nshr, "exact")
     S = _S_of(s, F1)
-    assert np.abs(S[C]).max() < 1e-10 * np.abs(S).max()
+    assert np.abs(S[C]).max() < 1e-9 * np.abs(S).max()   # the Newton stops at 1e-10 |S| + 1e-14 |L_CC|
     P = F1 @ sim.v2t_stress(S)
     faces = {(1, 0): [1, 2], (1, 1): [2], (2, 1): [2]}.get((ndi, nshr), [])
     for f in faces:
@@ -552,7 +553,7 @@ def test_exact_tangent_is_dS_dE_on_the_kept_components(name, ndi, nshr):
     E_of = lambda F: sim.t2v_strain(0.5 * (F.T @ F - np.eye(3))).ravel()
     E = E_of(F1)
     np.testing.assert_array_equal(np.delete(Lt, K, axis=0), 0.0)
-    d = 1e-7
+    d = 1e-5 * TOTAL_LAWS[name][2]   # out of the round-off of the nearly incompressible laws
     fd = np.zeros((len(K), len(K)))
     for j, k in enumerate(K):
         Spm = []
@@ -716,7 +717,7 @@ NOT_VALIDATED = ["HYPOO", "OGDEN", "HOLZA", "SMRDI", "SMAMO", "LLDM0", "MIMTN", 
 
 def test_condensation_serves_exactly_the_validated_laws():
     """True exactly for the laws whose condensed point the tests above check against the 3D law
-    (rate form: LAWS, HYPER, FINITE_LAWS; total: TOTAL_LAWS; condense='exact': EXACT_LAWS); always
+    (rate form: LAWS, HYPER, FINITE_LAWS; total: TOTAL_LAWS; condense='exact' the same); always
     True for ndi = 3, where nothing is condensed."""
     rate, total, exact = set(LAWS) | set(HYPER) | set(FINITE_LAWS), set(TOTAL_LAWS), set(EXACT_LAWS)
     for name in rate | total | set(NOT_VALIDATED):
@@ -724,11 +725,9 @@ def test_condensation_serves_exactly_the_validated_laws():
             assert sim.condensation_serves(name, ndi, nshr) == (name in rate), name
             assert sim.condensation_serves(name, ndi, nshr, kinematic_form="rate") == (name in rate), name
             assert sim.condensation_serves(name, ndi, nshr, kinematic_form="total") == (name in total), name
-            for form in ("rate", "total"):
-                assert sim.condensation_serves(name, ndi, nshr, form, "exact") == (name in exact), name
-        assert sim.condensation_serves(name, 3) and sim.condensation_serves(name, 3, 1, "total", "exact")
+        assert sim.condensation_serves(name, 3) and sim.condensation_serves(name, 3, 1, "total")
     assert all(sim.total_formulation_serves(n) for n in total)
-    assert exact <= total
+    assert exact == total
 
 
 def test_condensation_serves_refusals():
@@ -738,5 +737,14 @@ def test_condensation_serves_refusals():
     assert sim.condensation_serves("EPICP", 2, kinematic_form="logarithmic_R")
     with pytest.raises(ValueError):
         sim.condensation_serves("EPICP", 2, kinematic_form="totl")
-    with pytest.raises(ValueError):
-        sim.condensation_serves("EPICP", 2, condense="exactly")
+
+
+@pytest.mark.parametrize("name", list(LAWS))
+def test_small_strain_exact_is_approximate(name):
+    """Without F there is one stress: condense='exact' gives the 'approximate' point bit for bit."""
+    props, nstatev, T, scale, tm = LAWS[name]
+    out = [sim.umat(name, _col(np.zeros(6)), _col(scale * PATH), np.empty(0), np.empty(0), _col(np.zeros(6)), I3,
+                    _col(props), _col(np.zeros(nstatev)), 0.0, 0.05, _col(np.zeros(4)), temp=np.array([T]), ndi=2,
+                    n_threads=1, start=True, tangent_mode=tm, condense=c) for c in ("approximate", "exact")]
+    for a, b in zip(*out):
+        np.testing.assert_array_equal(a, b)

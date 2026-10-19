@@ -85,11 +85,26 @@ The contract
   ``condense='approximate'`` (default) frees the stress the law returns and
   ``condense='exact'`` the second Piola-Kirchhoff stress, i.e. the traction on
   the free material faces (see :func:`simcoon.umat`).
-  ``sim.condensation_serves(umat_name, ndi, nshr=None, kinematic_form=None,
-  condense='approximate')`` tells a caller (a finite-element code) whether that
-  condensed point is validated for a law: its own stress vanishes on the free
-  components at convergence and the tangent is the Schur complement of its own,
-  exact whenever the 3D tangent is (``tangent_mode=3`` for ``EPHIL``, ``EPKCP``,
+  The two conditions differ by the stress measure and the frame they are written
+  in. ``'approximate'`` cancels the law's own stress on the free components:
+  :math:`\hat{\boldsymbol{\tau}}_C` in the rotated frame under the rate form,
+  :math:`\mathbf{T}_C` under the total one. The face it frees has the normal
+  :math:`\mathbf{R}\mathbf{e}_3`, whereas the material face has the current
+  normal :math:`\mathbf{F}^{-T}\mathbf{e}_3`. The two coincide when the free
+  directions are principal for :math:`\mathbf{U}` (truss, plane stress without
+  transverse shear, isotropic material). Otherwise ``'approximate'`` leaves a
+  traction on the material face: :math:`S_{33} \simeq -\mu\gamma_t^2` for a shell
+  under a transverse shear :math:`\gamma_t`, i.e. of second order in the shears
+  that couple kept and free directions. It is of first order for anisotropy axes
+  tilted out of the free planes. ``'exact'`` cancels
+  :math:`\mathbf{S}\mathbf{e}_3`, the pull-back of
+  :math:`\boldsymbol{\sigma}\mathbf{n} = \mathbf{0}`, i.e. a traction-free
+  material face.
+  ``sim.condensation_serves(umat_name, ndi, nshr=None, kinematic_form=None)``
+  tells a caller (a finite-element code) whether that condensed point is
+  validated for a law, under either ``condense`` option: the condition holds at
+  convergence and the tangent is the Schur complement of the law's own, exact
+  whenever the 3D tangent is (``tangent_mode=3`` for ``EPHIL``, ``EPKCP``,
   ``EPCHA``). It is ``True`` for ``ndi = 3`` and ``False`` for a law not
   validated in that form; a caller selects its path on it rather than on the
   version number.
