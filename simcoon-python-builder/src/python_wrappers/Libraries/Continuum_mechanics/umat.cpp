@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <optional>
+#include <set>
 #include <vector>
 
 #include <simcoon/python_wrappers/arma_to_numpy.hpp>
@@ -221,6 +222,31 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 }
 
 }  // namespace
+
+	// The laws whose condensed point is validated against the 3D law at the stress-free strain, with
+	// the Schur complement of the law's own tangent (test_umat_condensed.py, which checks this table
+	// against its fixtures): as exact as that tangent, i.e. under tangent_mode=3 for EPHIL, EPKCP, EPCHA
+	bool condensation_serves(const std::string &umat_name, const int &ndi, const std::optional<int> &nshr_py, const py::object &kinematic_form_py, const std::string &condense) {
+		static const std::set<std::string> rate = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "EPCHA", "EPHIL", "EPJCK",
+		                                           "ZENER", "ZENNK", "PRONK", "SMADI", "MODUL",
+		                                           "NEOHC", "NEOHI", "SNTVE", "MOORI", "YEOHH"};
+		static const std::set<std::string> total = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "EPCHA", "EPHIL", "EPJCK",
+		                                            "MODUL", "NEOHC", "NEOHI", "SNTVE", "MOORI", "YEOHH"};
+		static const std::set<std::string> exact = {"ELISO", "ELORT", "EPICP", "EPJCK", "MODUL", "NEOHC", "NEOHI", "SNTVE"};
+		const bool exact_form = condense_exact(condense);
+		const int form = kinematic_code(kinematic_form_py);
+		if (ndi == 3) return true;
+		try {
+			if (ndi < 1 || ndi > 3 || !simcoon::make_condensed_state(ndi, nshr_py.value_or(-1)).active()) return false;
+		}
+		catch (const std::invalid_argument &) {
+			return false;
+		}
+		const bool total_form = (form == simcoon::corate_type_total);
+		if (!total_form && form >= 0 && form != 3) return false;   // validated under log_R only
+		if (exact_form) return exact.count(umat_name) > 0;
+		return (total_form ? total : rate).count(umat_name) > 0;
+	}
 	
 	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py, const std::string &condense){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),

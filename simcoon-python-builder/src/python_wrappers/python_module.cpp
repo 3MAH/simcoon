@@ -252,6 +252,7 @@ PYBIND11_MODULE(_core, m)
     m.attr("tangent_default") = simcoon::tangent_default;
     m.attr("corate_type_total") = simcoon::corate_type_total;
     m.def("total_formulation_serves", &simcoon::total_formulation_serves, "umat_name"_a, "Whether the named law can run under kinematic_form='total' (ln U and its dual stress T): the log-strain box laws, MODUL among them, and the hyperelastic laws built on F; not HYPOO nor a law whose stress is not the Kirchhoff stress.");
+    m.def("condensation_serves", &condensation_serves, "umat_name"_a, "ndi"_a, "nshr"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "condense"_a = "approximate", "Whether sim.umat(umat_name, ..., ndi=ndi, nshr=nshr, kinematic_form=kinematic_form, condense=condense) serves the condensed state: the law runs 3D, its own stress vanishes at convergence on the stress-free components (tau_hat under the rate form, T under the total one, the second Piola-Kirchhoff S under condense='exact'), and the tangent is the Schur complement of its own, exact whenever that one is. True for ndi = 3 (nothing condensed); False for a law not validated in that form, an invalid (ndi, nshr), or an objective rate other than log_R. Raises ValueError on an unknown kinematic_form or condense.");
 
     //The file-driven entry points (solver, read_matprops, read_path) are gone: the loading
     //programme is built in Python and handed over in memory. See simcoon.solver.solve.

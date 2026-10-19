@@ -85,6 +85,14 @@ The contract
   ``condense='approximate'`` (default) frees the stress the law returns and
   ``condense='exact'`` the second Piola-Kirchhoff stress, i.e. the traction on
   the free material faces (see :func:`simcoon.umat`).
+  ``sim.condensation_serves(umat_name, ndi, nshr=None, kinematic_form=None,
+  condense='approximate')`` tells a caller (a finite-element code) whether that
+  condensed point is validated for a law: its own stress vanishes on the free
+  components at convergence and the tangent is the Schur complement of its own,
+  exact whenever the 3D tangent is (``tangent_mode=3`` for ``EPHIL``, ``EPKCP``,
+  ``EPCHA``). It is ``True`` for ``ndi = 3`` and ``False`` for a law not
+  validated in that form; a caller selects its path on it rather than on the
+  version number.
 * **tangent_mode**: 0 = return the elastic operator as ``Lt``, 1 = continuum tangent,
   2 = algorithmic (consistent) tangent (default of the solver).
 * **Wm** is the accumulated ``(Wm, Wm_r, Wm_ir, Wm_d)`` at the beginning of the
