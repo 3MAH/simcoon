@@ -86,7 +86,6 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     UNUSED(ntens);
     UNUSED(coords);
     UNUSED(celent);
-    UNUSED(dfgrd0);
     UNUSED(noel);
     UNUSED(npt);
     UNUSED(layer);
@@ -99,8 +98,12 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     double DTime = 0.;
     int solver_type = 0;
     
-    // STATEV: Wm, Wt, then the stress-free strain when ndi < 3 (abaqus2smart_T), then the law
-    int nstatev_smart = nstatev - 7 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem);
+    // STATEV: Wm, Wt, then the stress-free strain when ndi < 3 (abaqus2smart_T), then the law,
+    // then the rate form's strain and frame (abaqus_kinematic_statev, CMNAME suffix _R)
+    const int corate_type = abaqus_kinematic_form(cmname);
+    const int nstatev_kin = abaqus_kinematic_statev(corate_type);
+    double *kin_statev = statev + nstatev - nstatev_kin;
+    int nstatev_smart = nstatev - 7 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem) - nstatev_kin;
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -125,9 +128,22 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     rve.sptr_matprops->resize(nprops);
 
     
-    abaqus2smart_T(stress, ddsdde, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, rve_sv_T->sigma, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE, rve_sv_T->drdT, rve_sv_T->Etot, rve_sv_T->DEtot, rve_sv_T->T, rve_sv_T->DT, Time, DTime, props_smart, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->statev, DR, start);
+    abaqus2smart_T(stress, ddsdde, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev - nstatev_kin, statev, ndi, nshr, drot, rve_sv_T->sigma, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE, rve_sv_T->drdT, rve_sv_T->Etot, rve_sv_T->DEtot, rve_sv_T->T, rve_sv_T->DT, Time, DTime, props_smart, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->statev, DR, start);
     
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
+
+    if (abaqus_finite_route(umat_name, ndi, corate_type, true, dfgrd1)) {
+        // NLGEOM: the law runs on the deformation gradient (total form, or log_R with _R); the
+        // heat goes out per unit current volume and time
+        abaqus2smart_finite(*rve_sv_T, drot, dfgrd0, dfgrd1, kin_statev, corate_type, DTime);
+        run_umat_T(rve, rve_sv_T->DR, Time, DTime, ndi, nshr, start, solver_type, 5, corate_type, pnewdt);
+        vec sigma_abaqus, ddsddt_abaqus, drplde_abaqus;
+        mat ddsdde_abaqus;
+        double rpl_abaqus = 0., drpldt_abaqus = 0.;
+        smart2abaqus_finite_T(*rve_sv_T, corate_type, DTime, sigma_abaqus, ddsdde_abaqus, ddsddt_abaqus, rpl_abaqus, drplde_abaqus, drpldt_abaqus, kin_statev);
+        smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma_abaqus, rve_sv_T->statev, rpl_abaqus, rve_sv_T->Wm, rve_sv_T->Wt, ddsdde_abaqus, ddsddt_abaqus, drplde_abaqus, mat({drpldt_abaqus}), false);
+        return;
+    }
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
 
     // r is the heat of the increment; Abaqus takes the rates (RPL, DRPLDE, DRPLDT)

@@ -82,7 +82,8 @@ Thermomechanical loading
 ------------------------
 
 :class:`~simcoon.solver.StepThermomeca` activates the coupled heat equation
-(block type 2, small strain), with ``thermal_control`` set to
+(block type 2, any control type: under finite strain with ``kinematic_form``
+``"rate"`` (log_R) or ``"total"``, see :doc:`solver`), with ``thermal_control`` set to
 ``'temperature'`` (ramp to ``T_final``), ``'heat_flux'`` (prescribed ``Q``) or
 ``'convection'`` (0D convection with coefficient ``q_conv``):
 
@@ -107,9 +108,11 @@ For finite-element couplers, the point-wise thermomechanical UMAT batch entry
 ``sim.umat_T(...)`` complements ``sim.umat(...)``; it returns
 ``(sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT)``, with ``r`` the heat of the
 increment per reference volume (see :doc:`output`). With ``F0`` and ``F1`` it runs
-under finite strain, for ``ELISO`` only so far, in the rate form under log_R
+under finite strain, for every law, in the rate form under log_R
 (``kinematic_form="rate"``, the default) or in the total form
-(``kinematic_form="total"``); the stress is Cauchy in and out, as for ``sim.umat``.
+(``kinematic_form="total"``); the stress is Cauchy in and out, as for ``sim.umat``,
+and the kernels run in the lab frame transported by ``DR`` (as ``sim.umat``: anisotropy
+axes are not convected there, unlike in the solver).
 ``sim.umat`` takes the temperature increment as ``DT=`` (with ``temp=``), so that
 thermal expansion follows a prescribed temperature without the heat balance.
 

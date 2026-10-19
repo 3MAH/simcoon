@@ -836,10 +836,14 @@ constexpr auto umat_T = R"pbdoc(
         on the kept components.
     F0, F1 : numpy.ndarray, optional
         Deformation gradients at the start and the end of the increment, shape
-        (3, 3, N), keyword only. Given, the call is a finite-strain one: ELISO
-        only for now, under kinematic_form 'rate' (log_R, corate 3, the
-        default) or 'total' (ln U and its dual stress T, DR = I); other laws
-        and rates are refused. The stress stays Cauchy in and out.
+        (3, 3, N), keyword only. Given, the call is a finite-strain one, for
+        every law, under kinematic_form 'rate' (log_R, corate 3, the default)
+        or 'total' (ln U and its dual stress T, DR = I); other rates are
+        refused. The kernels are secant in the strain they are fed, so each
+        reads as a law in the log strain (alpha is a logarithmic expansion
+        coefficient, rho the reference density). As umat, they run in the lab
+        frame transported by DR: anisotropy axes are not convected. The stress
+        stays Cauchy in and out.
     kinematic_form : str or int, optional
         'rate' (or 3) or 'total'; needs F0 and F1.
 

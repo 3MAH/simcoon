@@ -41,6 +41,8 @@ set(TEST_SRCS
   test/Libraries/Umat/Ttangent_EPJCK.cpp
   test/Libraries/Umat/Tumat_conventions.cpp
   test/Libraries/Umat/Tcondensed_states.cpp
+  test/Libraries/Umat/Tthermo_finite.cpp
+  test/Libraries/Umat/Tabaqus_finite.cpp
   test/Libraries/Umat/Tunified_TR.cpp
   test/Libraries/Umat/Modular/Tmodular_umat.cpp
   test/Libraries/Umat/Treference_umats.cpp

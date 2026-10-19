@@ -85,6 +85,21 @@ protected:
 };
 
 
+/**
+ * @brief Increments of a kinematic step (control types 5/6, modes 1/2) on the geodesic from F_prev
+ * to the target: F_i = exp(w_i ln(F_target F_prev^-1)) F_{i-1}, weights w_i = inc_coef / sum(inc_coef).
+ * Shared by step_meca and step_thermomeca.
+ * @param[in] F_prev deformation gradient at the start of the step
+ * @param[in] BC_meca target F, 9 components row-major
+ * @param[in] inc_coef increment weights (ones, or the sinusoidal mode's)
+ * @param[in] BC_Time duration of the step
+ * @param[out] times time increments (sized ninc)
+ * @param[out] mecas increments of F, one row per increment
+ * @param[out] BC_mecas F at the end of each increment
+ */
+void geodesic_F_increments(const arma::mat &F_prev, const arma::vec &BC_meca, const arma::vec &inc_coef, const double &BC_Time,
+                           arma::vec &times, arma::mat &mecas, arma::mat &BC_mecas);
+
 /** @} */ // end of solver group
 
 } //namespace simcoon

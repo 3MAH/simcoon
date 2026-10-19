@@ -154,23 +154,88 @@ not heat the material. Therefore, with these UMATs:
 
 An adiabatic analysis then reads ``rpl = 0`` exactly, as in the simcoon solver.
 
-Material Jacobian convention
-----------------------------
+Geometric nonlinearity (NLGEOM)
+-------------------------------
 
-Abaqus integrates a UMAT in its corotated frame: ``STRESS`` and ``STRAN`` are
-rotated by Abaqus before the call (``DROT`` is the rotation increment, used
-here to rotate the tensorial state variables), ``DSTRAN`` is the logarithmic
-strain increment, and ``STRESS`` is the Cauchy stress. Under ``NLGEOM``
-Abaqus defines ``DDSDDE`` through the Jaumann rate of the Kirchhoff stress
-divided by :math:`J`:
+Under ``NLGEOM`` the bridges run the law on the deformation gradient, exactly as
+the simcoon solver and fedoo do: ``DFGRD0`` and ``DFGRD1`` give the kinematics,
+``STRAN``, ``DSTRAN`` and ``DROT`` play no part, and every law of the finite-strain
+dispatch is available, the hyperelastic ones included. The material name chooses
+the kinematic form:
+
+- ``EPICP`` (the five-character law name alone): the **total form**, the
+  logarithmic strain :math:`\ln\mathbf{U}` read from ``DFGRD1`` with its dual
+  stress. It keeps no kinematic history (``*DEPVAR`` unchanged), satisfies the
+  first law exactly and is exactly objective;
+- ``EPICP_R``: the **rate form** (log_R, ``corate_type = 3``), the accumulated
+  :math:`\ln\mathbf{V}` and its frame. These are history quantities: the last 15
+  ``STATEV`` entries hold them (see `State Variables Layout`_).
+
+The outputs follow Abaqus's definitions:
+
+- ``STRESS`` is the Cauchy stress :math:`\boldsymbol\sigma = \boldsymbol\tau/J`
+  in the global basis (the law works with the Kirchhoff stress
+  :math:`\boldsymbol\tau` per reference volume);
+- ``DDSDDE`` is the Jacobian Abaqus defines with the Jaumann rate of the Kirchhoff
+  stress,
+
+  .. math::
+
+     \mathbf{C}^{\text{Abaqus}} = \frac{1}{J}\frac{\partial \Delta(J\boldsymbol{\sigma})}{\partial \Delta\boldsymbol{\varepsilon}},
+
+  obtained from the law's tangent through :math:`\partial\mathbf{S}/\partial\mathbf{E}`
+  (``smart2abaqus_finite_M``). It is exact in the total form; the rate form's
+  tangent ignores the variation of the log_R frame increment (a few
+  :math:`10^{-3}`, enough for the global Newton loop);
+- in a coupled temperature-displacement step, the heat goes out per unit
+  **current** volume and time, the measure Abaqus integrates over the deformed
+  body: with :math:`r` the heat of the increment per reference volume,
+
+  .. math::
+
+     \mathrm{RPL} = \frac{r}{J\Delta t}, \qquad
+     \mathrm{DRPLDT} = \frac{1}{J\Delta t}\frac{\partial r}{\partial\theta}, \qquad
+     \mathrm{DDSDDT} = \frac{1}{J}\frac{\partial\boldsymbol\tau}{\partial\theta},
+
+  and ``DRPLDE`` the derivative of ``RPL`` for Abaqus's strain increment
+  (:math:`\delta\mathbf{E} = \mathbf{F}^{T}\delta\boldsymbol\varepsilon\,\mathbf{F}`,
+  :math:`\delta J = J\,\mathrm{tr}\,\delta\boldsymbol\varepsilon`), so that
+  :math:`\int \mathrm{RPL}\,\mathrm{d}v\,\Delta t = \int r\,\mathrm{d}V_0`.
+  ``Wm`` and ``Wt`` in ``STATEV`` stay per reference volume.
+
+Rules for the input file under ``NLGEOM``:
+
+- do not define ``*EXPANSION``: the thermal expansion belongs to the simcoon law,
+  and Abaqus would remove its own thermal strain from ``DSTRAN``;
+- do not use ``*ORIENTATION`` on these materials: Abaqus would express ``STRESS``
+  and ``DFGRD`` in a basis rotating with the material, while the bridge returns
+  global components (the laws' own anisotropy axes come from their properties and
+  follow the material inside simcoon);
+- surface convection and radiation stay Abaqus's (``*FILM``, ``*RADIATE``): the
+  UMAT provides the volumetric heat only;
+- ``*USER MATERIAL, UNSYMM=YES`` keeps the coupling terms (``DDSDDT``,
+  ``DRPLDE``) and the non-symmetric part of the Jacobian in the coupled Newton
+  loop; without it Abaqus symmetrizes them.
+
+The finite route serves the 3D, plane-strain and axisymmetric elements. Plane
+stress, shells, beams and trusses, steps without ``NLGEOM`` (Abaqus then hands
+``DFGRD1`` as the identity), the custom-model bridges and the mechanical laws
+that only exist in small strain (``SMADI``, ``LLDM0``, the micromechanics
+schemes, ...) keep the corotational route below; so does a law the total form
+does not serve (``HYPOO``) unless its name carries ``_R``.
+
+**Corotational route.** Abaqus then integrates the UMAT in its corotated frame:
+``STRESS`` and ``STRAN`` are rotated by Abaqus before the call (``DROT`` is the
+rotation increment, used here to rotate the tensorial state variables),
+``DSTRAN`` is the logarithmic strain increment, and ``STRESS`` is the Cauchy
+stress. Abaqus defines ``DDSDDE`` as above, and since
+:math:`\mathrm{d}J = J\,\mathrm{tr}(\mathrm{d}\boldsymbol{\varepsilon})`,
 
 .. math::
 
-   \mathbf{C}^{\text{Abaqus}} = \frac{1}{J}\frac{\partial (J\boldsymbol{\sigma})}{\partial \boldsymbol{\varepsilon}}
-   = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} + \boldsymbol{\sigma} \otimes \mathbf{I}
+   \mathbf{C}^{\text{Abaqus}} = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} + \boldsymbol{\sigma} \otimes \mathbf{I} .
 
-since :math:`\mathrm{d}J = J\,\mathrm{tr}(\mathrm{d}\boldsymbol{\varepsilon})`. The
-simcoon kernels return the first term, the corotational tangent
+The kernels return the first term, the corotational tangent
 :math:`\partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon}`;
 ``smart2abaqus_M`` (and the thermomechanical ``smart2abaqus_T``) add the symmetric
 part of :math:`\boldsymbol{\sigma} \otimes \mathbf{I}`, which is what the default
@@ -178,12 +243,11 @@ symmetric solver of Abaqus keeps (``abaqus_jacobian`` in ``fea_transfer.hpp``).
 This term does not change the stress, hence not the converged solution: it
 restores the quadratic convergence of the global Newton loop when
 :math:`\sigma / E` is not small (elastomers, shape memory alloys). It is added
-only where Abaqus's definition has it: for ``NLGEOM`` steps (Abaqus hands
-``DFGRD1`` as the identity otherwise, which ``abaqus_nlgeom`` reads) and for the
-cases with three direct components (3D, plane strain, axisymmetric). Without
-``NLGEOM`` the Jacobian is the kernel tangent, so linear-perturbation procedures
-(``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress and 1D take
-the condensed tangent as it is, the element owning the thickness change.
+only for ``NLGEOM`` steps and for the cases with three direct components.
+Without ``NLGEOM`` the Jacobian is the kernel tangent, so linear-perturbation
+procedures (``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress
+and 1D take the condensed tangent as it is, the element owning the thickness
+change.
 
 Plane stress, shells, beams and trusses
 ---------------------------------------
@@ -329,7 +393,9 @@ simcoon uses a specific layout for state variables (``statev`` array):
     statev[2]                - Wm_ir (irrecoverable work)
     statev[3]                - Wm_d (dissipated work)
     statev[4:4+nC]           - Stress-free strain components (NDI < 3 only, nC = 6 - NTENS)
-    statev[4+nC:nstatev]     - Model-specific state variables (nstatev_smart of them)
+    statev[4+nC:...]         - Model-specific state variables (nstatev_smart of them)
+    statev[nstatev-15:]      - Rate form only (name suffix _R): the accumulated box strain
+                               (6, Voigt) and the log_R frame rotation (9, column-major)
 
 Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4 + nC``: the four work
 quantities come first, then the solved stress-free strain when ``NDI < 3``
@@ -337,7 +403,8 @@ quantities come first, then the solved stress-free strain when ``NDI < 3``
 and ``B31`` beams, 5 for trusses), then the model's own variables (the same
 layout as the Ansys ``ustatev`` when ``nC = 0``, see :doc:`ansys`). The
 thermomechanical bridge stores the three thermal energies ``Wt, Wt_r, Wt_ir``
-after ``Wm``: ``*DEPVAR`` is then ``nstatev_smart + 7 + nC``.
+after ``Wm``: ``*DEPVAR`` is then ``nstatev_smart + 7 + nC``. A material whose
+name carries the ``_R`` suffix (rate form under ``NLGEOM``) needs 15 more.
 
 Available Models
 ----------------
@@ -495,7 +562,7 @@ Troubleshooting
 
 **Convergence issues**
 
-- Check that ``*DEPVAR`` matches ``nstatev_smart + 4 + nC`` (``+ 7 + nC`` thermomechanical)
+- Check that ``*DEPVAR`` matches ``nstatev_smart + 4 + nC`` (``+ 7 + nC`` thermomechanical, ``+ 15`` with the ``_R`` suffix)
 - Verify material properties are in correct units
 - Start with small load increments
 - Check the tangent modulus is properly computed (symmetric, positive definite for elastic)

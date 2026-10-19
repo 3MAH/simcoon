@@ -1081,6 +1081,35 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
     }
 }
 
+mat dH_dE(const mat &C) {
+    vec c;
+    mat N;
+    eig_sym(c, N, C);
+    mat g(3, 3);
+    for (int a = 0; a < 3; a++)
+        for (int b = 0; b < 3; b++)
+            g(a, b) = (fabs(c(a) - c(b)) > 1.e-12*c.max()) ? 0.5*(log(c(a)) - log(c(b)))/(c(a) - c(b))
+                                                          : 0.5/c(a);
+    mat P(6, 6);
+    for (int j = 0; j < 6; j++) {
+        vec e = zeros(6);
+        e(j) = 1.;
+        P.col(j) = t2v_strain(N*(2.*(g % (N.t()*v2t_strain(e)*N)))*N.t());
+    }
+    return P;
+}
+
+vec box_covector_2_dE(const vec &d_box, const mat &F, const int &corate_type) {
+    mat P = dH_dE(F.t()*F);
+    if (corate_type != corate_type_total) {   // rate form: the box strain is R H R^T
+        mat R, U;
+        RU_decomposition(R, U, F);
+        for (int j = 0; j < 6; j++)
+            P.col(j) = t2v_strain(R*v2t_strain(vec(P.col(j)))*R.t());
+    }
+    return P.t()*d_box;
+}
+
 mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, const mat &tau) {
     switch (corate_type) {
         case 0:  return DtauDe_JaumannDD_2_DSDE(Lt, F, tau);

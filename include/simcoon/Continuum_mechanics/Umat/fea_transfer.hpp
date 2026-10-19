@@ -32,9 +32,13 @@
 */
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon {
+
+class state_variables;
+class state_variables_T;
 
 /** @addtogroup umat_mechanical
  *  @{
@@ -217,6 +221,100 @@ arma::mat abaqus_jacobian(const arma::mat &Lt, const arma::vec &sigma);
  * @param dfgrd1 the DFGRD1 array of the UMAT interface (9 values)
  */
 bool abaqus_nlgeom(const double *dfgrd1);
+
+/**
+ * @brief The kinematic form an Abaqus material name asks for under NLGEOM.
+ * @details The law is the first five characters of CMNAME. The total form (strain space,
+ *          \f$ \ln\mathbf{U} \f$ and its dual stress, read from DFGRD0/DFGRD1, no history) is
+ *          the default; the suffix `_R` (e.g. `EPICP_R`) asks for the rate form (log_R,
+ *          corate 3), whose accumulated strain and frame rotation take the last
+ *          abaqus_kinematic_statev() STATEV entries.
+ * @param cmname the CMNAME argument of the UMAT (space padded, 80 characters)
+ * @return corate_type_total, or 3 for `_R`
+ */
+int abaqus_kinematic_form(const char *cmname);
+
+/**
+ * @brief STATEV entries the kinematic form keeps at the end of STATEV: 15 for the rate form
+ *        (the accumulated box strain, 6, and the log_R frame rotation, 9, column-major), 0 for
+ *        the total form.
+ */
+int abaqus_kinematic_statev(const int &corate_type);
+
+/**
+ * @brief Whether an Abaqus call runs the finite-strain route (the deformation gradient driving
+ *        select_umat_M_finite / the thermomechanical finite dispatch).
+ * @details True for an NLGEOM step (abaqus_nlgeom()) with three direct components (3D, plane
+ *          strain, axisymmetric) and a law the finite dispatch serves in the requested form
+ *          (every thermomechanical law; the mechanical ones of finite_umat_names(), the total
+ *          form only where total_formulation_serves()). Otherwise the bridge keeps the
+ *          corotational small-strain route on STRAN/DSTRAN (plane stress and 1D, NLGEOM=NO,
+ *          the small-strain-only laws).
+ */
+bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int &corate_type, const bool &thermomechanical, const double *dfgrd1);
+
+/**
+ * @brief Abaqus -> the finite-strain state of a material point, from the deformation gradients.
+ * @details Called after abaqus2smart_M / abaqus2smart_T, whose STRESS read (rotated by DROT by
+ *          Abaqus) it turns back into the start Kirchhoff stress in the global basis,
+ *          \f$ \boldsymbol\tau_n = J_0\,\Delta\mathbf{R}^{T}\boldsymbol\sigma\,\Delta\mathbf{R} \f$.
+ *          F0, F1 = DFGRD0, DFGRD1; the box strain is \f$ \ln\mathbf{U}_0 \f$ (total form) or the
+ *          accumulated log_R strain and frame read from @p kin_statev (rate form; zero entries,
+ *          Abaqus's initial STATEV, read as an undeformed start); DR and Detot follow from
+ *          corate_kinematics, the Green-Lagrange pair from F. STRAN, DSTRAN and DROT play no
+ *          further part.
+ * @param sv [in/out] the global state variables of the point
+ * @param drot DROT (9, column-major), the rotation Abaqus applied to STRESS
+ * @param dfgrd0 DFGRD0 (9, column-major)
+ * @param dfgrd1 DFGRD1 (9, column-major)
+ * @param kin_statev the last abaqus_kinematic_statev() entries of STATEV (rate form), unused otherwise
+ * @param corate_type corate_type_total or 3 (abaqus_kinematic_form())
+ * @param DTime time increment
+ */
+void abaqus2smart_finite(state_variables &sv, const double *drot, const double *dfgrd0, const double *dfgrd1, const double *kin_statev, const int &corate_type, const double &DTime);
+
+/**
+ * @brief The finite-strain point -> the Abaqus stress and material Jacobian (mechanical).
+ * @details STRESS is the Cauchy stress \f$ \boldsymbol\tau/J \f$ in the global basis, and
+ *          DDSDDE the Jacobian Abaqus defines under NLGEOM,
+ *          \f$ \frac{1}{J}\,\partial\Delta(J\boldsymbol\sigma)/\partial\Delta\boldsymbol\varepsilon \f$
+ *          with the Jaumann rate of the Kirchhoff stress: the box tangent mapped to
+ *          \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ (DtauDe_corate_2_DSDE) then to that rate
+ *          (DSDE_2_Dsigma_JaumannDD). It replaces abaqus_jacobian, which serves the
+ *          corotational route. The rate form writes its end strain and frame to @p kin_statev.
+ * @param sv the global state variables after the finite dispatch
+ * @param Lt the box tangent of the dispatch (state_variables_M::Lt or state_variables_T::dSdE)
+ * @param corate_type corate_type_total or 3
+ * @param sigma [out] Cauchy stress (6)
+ * @param ddsdde [out] Abaqus Jacobian (6x6)
+ * @param kin_statev [out] the last abaqus_kinematic_statev() entries of STATEV (rate form)
+ */
+void smart2abaqus_finite_M(const state_variables &sv, const arma::mat &Lt, const int &corate_type, arma::vec &sigma, arma::mat &ddsdde, double *kin_statev);
+
+/**
+ * @brief The finite-strain point -> the Abaqus outputs of a coupled temperature-displacement step.
+ * @details smart2abaqus_finite_M for STRESS and DDSDDE, then the heat per unit CURRENT volume
+ *          and time, as Abaqus integrates it over the deformed body. With \f$ r \f$ the heat
+ *          of the increment per reference volume and \f$ J = \det\mathbf{F}_1 \f$:
+ *          \f$ \mathrm{RPL} = r/(J\Delta t) \f$, \f$ \mathrm{DRPLDT} = (\partial r/\partial\theta)/(J\Delta t) \f$,
+ *          \f$ \mathrm{DDSDDT} = (\partial\boldsymbol\tau/\partial\theta)/J \f$ (\f$ J \f$ fixed
+ *          at fixed \f$ \mathbf{F} \f$) and, from \f$ \delta\mathbf{E} = \mathbf{F}^{T}\delta\boldsymbol\varepsilon\,\mathbf{F} \f$
+ *          and \f$ \delta J = J\,\mathrm{tr}\,\delta\boldsymbol\varepsilon \f$,
+ *          \f$ \mathrm{DRPLDE} = \left(\mathbf{F}\,\frac{\partial r}{\partial\mathbf{E}}\,\mathbf{F}^{T} - r\,\mathbf{I}\right)/(J\Delta t) \f$,
+ *          \f$ \partial r/\partial\mathbf{E} \f$ from box_covector_2_dE(). All zero rates at
+ *          \f$ \Delta t = 0 \f$.
+ * @param sv the global state variables after the finite dispatch
+ * @param corate_type corate_type_total or 3
+ * @param DTime time increment
+ * @param sigma [out] Cauchy stress (6)
+ * @param ddsdde [out] Abaqus Jacobian (6x6)
+ * @param ddsddt [out] DDSDDT (6)
+ * @param rpl [out] RPL
+ * @param drplde [out] DRPLDE (6)
+ * @param drpldt [out] DRPLDT
+ * @param kin_statev [out] the last abaqus_kinematic_statev() entries of STATEV (rate form)
+ */
+void smart2abaqus_finite_T(const state_variables_T &sv, const int &corate_type, const double &DTime, arma::vec &sigma, arma::mat &ddsdde, arma::vec &ddsddt, double &rpl, arma::vec &drplde, double &drpldt, double *kin_statev);
 
 /**
  * @brief Full transfer from simcoon to Abaqus format (mechanical)

@@ -90,7 +90,6 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	UNUSED(ntens);
 	UNUSED(coords);
 	UNUSED(celent);
-	UNUSED(dfgrd0);
 	UNUSED(noel);
 	UNUSED(npt);
 	UNUSED(layer);
@@ -103,8 +102,12 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	double DTime = 0.;
     int solver_type = 0;
     
-	// STATEV: Wm, then the stress-free strain when ndi < 3 (abaqus2smart_M), then the law
-	int nstatev_smart = nstatev - 4 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem);
+	// STATEV: Wm, then the stress-free strain when ndi < 3 (abaqus2smart_M), then the law, then
+	// the rate form's strain and frame (abaqus_kinematic_statev, CMNAME suffix _R)
+	const int corate_type = abaqus_kinematic_form(cmname);
+	const int nstatev_kin = abaqus_kinematic_statev(corate_type);
+	double *kin_statev = statev + nstatev - nstatev_kin;
+	int nstatev_smart = nstatev - 4 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem) - nstatev_kin;
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -124,8 +127,20 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     rve_sv_M->resize(nstatev_smart);
     rve.sptr_matprops->resize(nprops);
     
-	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_smart, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
+	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev - nstatev_kin, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_smart, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
+
+    if (abaqus_finite_route(umat_name, ndi, corate_type, false, dfgrd1)) {
+        // NLGEOM: the law runs on the deformation gradient (total form, or log_R with _R) and
+        // returns the Cauchy stress with Abaqus's Jaumann Jacobian
+        abaqus2smart_finite(*rve_sv_M, drot, dfgrd0, dfgrd1, kin_statev, corate_type, DTime);
+        run_umat_M(rve, rve_sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, 5, corate_type, pnewdt);
+        vec sigma_abaqus;
+        mat ddsdde_abaqus;
+        smart2abaqus_finite_M(*rve_sv_M, rve_sv_M->Lt, corate_type, sigma_abaqus, ddsdde_abaqus, kin_statev);
+        smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma_abaqus, rve_sv_M->statev, rve_sv_M->Wm, ddsdde_abaqus, false);
+        return;
+    }
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
     
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt, abaqus_nlgeom(dfgrd1), rve_sv_M->Etot + rve_sv_M->DEtot);

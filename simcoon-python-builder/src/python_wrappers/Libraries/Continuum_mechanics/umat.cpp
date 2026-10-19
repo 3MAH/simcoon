@@ -180,26 +180,6 @@ bool condense_exact(const std::string &condense) {
 	throw std::invalid_argument("condense must be 'approximate' or 'exact'; got '" + condense + "'");
 }
 
-// dH/dE, H = 1/2 ln C, C = I + 2 E (Voigt, engineering shears on both sides): Daleckii-Krein in the
-// eigenbasis of C, dH_ab = 2 g_ab dE_ab with g_ab the divided difference of 1/2 ln
-arma::mat dH_dE(const arma::mat &C) {
-	arma::vec c;
-	arma::mat N;
-	arma::eig_sym(c, N, C);
-	arma::mat g(3, 3);
-	for (int a = 0; a < 3; a++)
-		for (int b = 0; b < 3; b++)
-			g(a, b) = (std::fabs(c(a) - c(b)) > 1.e-12*c.max()) ? 0.5*(std::log(c(a)) - std::log(c(b)))/(c(a) - c(b))
-			                                                     : 0.5/c(a);
-	arma::mat P(6, 6);
-	for (int j = 0; j < 6; j++) {
-		arma::vec e = arma::zeros(6);
-		e(j) = 1.;
-		P.col(j) = simcoon::t2v_strain(N*(2.*(g % (N.t()*simcoon::v2t_strain(e)*N)))*N.t());
-	}
-	return P;
-}
-
 // ndi < 3: the solved strain goes back into the caller's Detot (rows: the free components, or all
 // six under condense='exact', where Detot is the increment of the law's own strain), so that
 // etot + Detot carries it to the next increment. Written once the batch has converged, through the
@@ -746,7 +726,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		mat list_etot = simpy::numpy_to_arma::arr_to_mat_view(etot_py);
 		unsigned int nb_points = list_etot.n_cols; //number of material points
 
-		// Finite strain (F0, F1): ELISO only, isotropic so its frame is immaterial
+		// Finite strain (F0, F1): every thermomechanical law, fed the log_R increment (rate) or
+		// ln U (total); as launch_umat, the kernels run in the lab frame with DR
 		if (F0_py.has_value() != F1_py.has_value())
 			throw std::invalid_argument("umat_T: give both F0 and F1 (finite strain) or neither (small strain)");
 		const bool finite = F0_py.has_value();
@@ -756,8 +737,6 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		const bool total = (form == simcoon::corate_type_total);
 		cube F0, F1;
 		if (finite) {
-			if (umat_name_py != "ELISO")
-				throw std::invalid_argument("umat_T: finite strain serves ELISO only for now; got " + umat_name_py);
 			if (form >= 0 && form != 3 && !total)
 				throw std::invalid_argument("umat_T: finite strain serves kinematic_form='rate' (log_R, corate 3) "
 				                            "or 'total'; got code " + std::to_string(form));
@@ -988,11 +967,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 							// dr/dE = dr/dH dH/dE (rate: dH rotated by R1 into the box)
 							const mat Fi = arma::inv(F1_pt);
 							mat dSdT_S = simcoon::t2v_stress(Fi*kirchhoff(simcoon::v2t_stress(vec(dSdT.slice(pt))))*Fi.t());
-							mat P = dH_dE(F1_pt.t()*F1_pt);
-							if (!total)
-								for (int j = 0; j < 6; j++)
-									P.col(j) = simcoon::t2v_strain(F1_of->R*simcoon::v2t_strain(vec(P.col(j)))*F1_of->R.t());
-							mat drdE_E = P.t()*arma::vectorise(drdE.slice(pt));   // drdE is stored (6, 1)
+							mat drdE_E = simcoon::box_covector_2_dE(arma::vectorise(drdE.slice(pt)), F1_pt, total ? simcoon::corate_type_total : 3);   // drdE is stored (6, 1)
 							simcoon::condense_tangent_T(cs, M, dSdT_S, drdE_E, drdT.slice(pt));
 							dSdE.slice(pt) = M;
 							dSdT.slice(pt) = dSdT_S;
