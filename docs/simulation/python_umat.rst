@@ -82,24 +82,57 @@ The contract
   stress-free strain components around it and condenses its tangent, so a Python
   law never condenses anything. The solved strain comes back in ``Detot`` (in
   place; the caller carries it with ``etot += Detot``). Under finite strain,
-  ``condense='approximate'`` (default) frees the stress the law returns and
-  ``condense='exact'`` the second Piola-Kirchhoff stress, i.e. the traction on
+  ``condense='spatial_face'`` (default) frees the stress the law returns and
+  ``condense='material_face'`` the second Piola-Kirchhoff stress, i.e. the traction on
   the free material faces (see :func:`simcoon.umat`).
   The two conditions differ by the stress measure and the frame they are written
-  in. ``'approximate'`` cancels the law's own stress on the free components:
+  in. ``'spatial_face'`` cancels the law's own stress on the free components:
   :math:`\hat{\boldsymbol{\tau}}_C` in the rotated frame under the rate form,
   :math:`\mathbf{T}_C` under the total one. The face it frees has the normal
   :math:`\mathbf{R}\mathbf{e}_3`, whereas the material face has the current
   normal :math:`\mathbf{F}^{-T}\mathbf{e}_3`. The two coincide when the free
   directions are principal for :math:`\mathbf{U}` (truss, plane stress without
-  transverse shear, isotropic material). Otherwise ``'approximate'`` leaves a
+  transverse shear, isotropic material). Otherwise ``'spatial_face'`` leaves a
   traction on the material face: :math:`S_{33} \simeq -\mu\gamma_t^2` for a shell
   under a transverse shear :math:`\gamma_t`, i.e. of second order in the shears
   that couple kept and free directions. It is of first order for anisotropy axes
-  tilted out of the free planes. ``'exact'`` cancels
+  tilted out of the free planes. ``'material_face'`` cancels
   :math:`\mathbf{S}\mathbf{e}_3`, the pull-back of
   :math:`\boldsymbol{\sigma}\mathbf{n} = \mathbf{0}`, i.e. a traction-free
   material face.
+  Which face is free depends on the element:
+
+  - **plate or shell in plane stress** (``ndi = 2``): the top and bottom faces
+    are material surfaces, and ``'material_face'`` is the traction-free
+    condition;
+  - **beam fibre** (``ndi = 1``, ``nshr = 1`` or ``2``):
+    :math:`\sigma_{22} = \sigma_{33} = \sigma_{23} = 0` is a hypothesis on the
+    section, not a free face, since the kept shears 12 and 13 load the lateral
+    faces. The condition consistent with the beam kinematics frees the stress
+    work-conjugate to the section deformation the element allows: the first
+    Piola-Kirchhoff stress in the section frame :math:`\boldsymbol{\Lambda}`,
+    :math:`\operatorname{sym}(\boldsymbol{\Lambda}^T\mathbf{P})_{\alpha\beta} = 0`.
+    It is neither option. ``'spatial_face'`` poses the condition in the frame
+    :math:`\mathbf{R}` of :math:`\mathbf{F}`, which is the section frame only
+    for a shear-free rod in extension and bending. Transverse shear
+    (Timoshenko, Simo-Reissner) and torsion at a fibre off the axis tilt the
+    section away from :math:`\mathbf{R}` by a first-order angle. All three
+    conditions agree to first order in shear and torsion and differ at second
+    order, the order the rigid-section hypothesis already neglects (Poynting
+    and Wagner effects). ``'spatial_face'``, the cheaper option, is the
+    default for beams;
+  - **truss** (``ndi = 1``, ``nshr = 0``): the free directions are principal
+    for an isotropic material, and the two options coincide.
+
+  ``'spatial_face'`` is the default and the cheaper option. For a shell under
+  transverse shear (``ndi = 2``, ``nshr = 3``), ``'material_face'`` frees the
+  material face exactly where ``'spatial_face'`` leaves
+  :math:`S_{33} \simeq -\mu\gamma_t^2`. It costs 1.3 to 2.9 times more per
+  point, depending on the law and the form, needs ``F0`` and ``F1``, and returns
+  the material tangent :math:`\partial\mathbf{S}/\partial\mathbf{E}`
+  (``tangent_output='material'``). For plane stress without transverse shear
+  on an isotropic material, the two give the same point.
+
   ``sim.condensation_serves(umat_name, ndi, nshr=None, kinematic_form=None)``
   tells a caller (a finite-element code) whether that condensed point is
   validated for a law, under either ``condense`` option: the condition holds at

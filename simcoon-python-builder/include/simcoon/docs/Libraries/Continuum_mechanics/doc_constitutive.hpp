@@ -675,7 +675,7 @@ constexpr auto umat = R"pbdoc(
         stretches), the free stretches come from etot and etot + Detot. The
         tangent (and in umat_T dSdT, drdE, drdT) comes back condensed on the
         kept components, zero elsewhere: the box tangent
-        (tangent_output='box'), or dS/dE under condense='exact'.
+        (tangent_output='box'), or dS/dE under condense='material_face'.
     nshr : int, optional
         Number of shear stress components kept, in the order 12, 13, 23
         (Abaqus convention). Default: 3 for ndi = 3, 1 for ndi = 2 (plane
@@ -737,24 +737,43 @@ constexpr auto umat = R"pbdoc(
         box is then dT/dH, and the stress stays Cauchy in and out (T is
         converted at the two ends). No objective rate is involved.
     condense : str, optional
-        Which stress vanishes on the free components when ndi < 3.
-        'approximate' (default): the stress the law itself returns, tau_hat_C
-        under the rate form, T_C under the total one; Newton on the free
-        components of the law's strain with its own tangent, box tangent out.
-        'exact': the second Piola-Kirchhoff stress S_C, i.e. the traction on
-        the free material faces (P N = 0: the shell normal, the truss sides);
-        Newton on the Green-Lagrange E_C with dS/dE. It needs F0 and F1: the
+        Which face the stress-free condition frees when ndi < 3.
+        'spatial_face' (default): the stress the law itself returns vanishes
+        on the free components, tau_hat_C under the rate form, T_C under the
+        total one, i.e. the face whose current normal is R e_3 (R the rotation
+        of F), the frame that follows the point. Newton on the free components
+        of the law's strain with its own tangent, box tangent out.
+        'material_face': the second Piola-Kirchhoff stress S_C vanishes, i.e.
+        the traction on the free material faces, whose current normal is
+        F^-T e_3 (P N = 0: the shell normal, the truss sides). It is the
+        pull-back of sigma n = 0, the same condition written on a fixed set of
+        components. Newton on the Green-Lagrange E_C with dS/dE. It needs F0 and F1: the
         kept E_K and the rotation come from F1, the law is fed the increment
         of its own strain from F0 to the solved F1 (written back into Detot on
         all six components), and Lt is dS/dE condensed on the kept components
         (tangent_output='material'). The two coincide at small strain and when
         the free directions are principal (truss, plane stress of a material
-        symmetric about the free planes). Otherwise 'approximate' leaves a
+        symmetric about the free planes). Otherwise 'spatial_face' leaves a
         compressive S_C of second order in the shears coupling kept and free
         directions (about -mu gamma^2 on S_33 of a shell under transverse
         shear gamma, lateral stresses of the order of the Poynting effect in
         beam torsion), first order for anisotropy axes tilted out of the free
-        planes: use 'exact' there.
+        planes. Which face is free depends on the element. A plate or shell in
+        plane stress (ndi=2): the top and bottom faces are material surfaces,
+        'material_face' is the traction-free condition. A beam fibre
+        (ndi=1, nshr=1 or 2): sigma_22 = sigma_33 = sigma_23 = 0 is a
+        hypothesis on the section, not a free face (the kept 12, 13 shears
+        load the lateral faces). The condition consistent with the beam
+        kinematics frees the first Piola-Kirchhoff stress in the section
+        frame Lambda, sym(Lambda^T P)_ab = 0: neither option. 'spatial_face'
+        poses it in the frame R of F, the section frame only for a shear-free
+        rod in extension and bending; transverse shear (Timoshenko,
+        Simo-Reissner) and torsion off the axis tilt the section away from R
+        by a first-order angle. The three agree to first order and differ at
+        second order, the order the rigid-section hypothesis already neglects:
+        'spatial_face' is the default for beams. 'spatial_face' is also the
+        cheaper option: 'material_face' costs 1.3 to 2.9 times more per point
+        and returns dS/dE; it pays for a shell under transverse shear.
     DT : numpy.ndarray, optional
         Temperature increment, shared or per point like temp (keyword only;
         needs temp). The kernel
@@ -831,7 +850,7 @@ constexpr auto umat_T = R"pbdoc(
         Temperature at the start of the increment and its increment, one entry
         per point.
     ndi, nshr, n_threads, tangent_mode, start, condense
-        As umat. Under condense='exact' (finite strain, ndi < 3) dSdE, dSdT and
+        As umat. Under condense='material_face' (finite strain, ndi < 3) dSdE, dSdT and
         drdE are the material derivatives dS/dE, dS/dtheta and dr/dE, condensed
         on the kept components.
     F0, F1 : numpy.ndarray, optional
