@@ -15,14 +15,15 @@
  
  */
 
-///@file damage_LLD_m.cpp
-///@brief Modified Ladeveze-Le Dantec model that accounts for uniaxial damage and anisotopic plasticity
-///@brief Damage evolution is considered as a function of time
+///@file damage_LLD_0.cpp
+///@brief Ladeveze-Le Dantec damage model with coupled transverse-shear plasticity in effective
+///       stress (LLDM0); the equations and the integration scheme are in damage_LLD_0.hpp
 
 #include <iostream>
-#include <fstream>
 #include <math.h>
 #include <string>
+#include <array>
+#include <vector>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
@@ -30,22 +31,94 @@
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Simulation/Phase/output.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Damage/damage_LLD_0.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon {
-    
-///@brief Material properties
-///@param props(0) : E Young's modulus
-///@param props(1) : nu Poisson's ration
-///@param props(2) : alpha CTE
-///@param props(3) : alphaD Damage evolution parameter alpha
-///@param props(4) : betaD Damage evolution parameter beta
-///@param props(5) : lambdaD Damage evolution parameter lambda
-///@param props(6) : deltaD Damage evolution parameter delta
+
+namespace {
+
+// d22 at transverse failure (Y_t > Y_22_u): held there, d12 keeps its own law
+constexpr double d_broken = 0.99;
+
+// The fibre frame (fibres along 1), damaged: the compliance of the 22-33 block and of G23 scaled
+// by 1/(1 - d22), of G12 and G13 by 1/(1 - d12); nuTL is the minor Poisson ratio, as in L_isotrans.
+// The stiffness is the inverse of the 11-22-33 block plus the reciprocal shears.
+struct damaged_elasticity {
+    double EL, ET, nuTL, nuTT, GLT;
+
+    mat L(const double &d22, const double &d12) const {
+        const double ET_d = ET*(1. - d22);
+        mat::fixed<3, 3> S;
+        S(0, 0) = 1./EL;
+        S(0, 1) = S(1, 0) = S(0, 2) = S(2, 0) = -nuTL/ET;
+        S(1, 1) = S(2, 2) = 1./ET_d;
+        S(1, 2) = S(2, 1) = -nuTT/ET_d;
+        mat L = zeros(6, 6);
+        L.submat(0, 0, 2, 2) = inv(S);
+        L(3, 3) = L(4, 4) = GLT*(1. - d12);
+        L(5, 5) = ET_d/(2.*(1. + nuTT));
+        return L;
+    }
+    // Lambda_j = dS/dd_j : sigma, the strain the damage releases at fixed stress
+    vec::fixed<6> Lambda_22(const vec &sigma, const double &d22) const {
+        const double c = 1./(ET*(1. - d22)*(1. - d22));
+        vec::fixed<6> v = arma::fill::zeros;
+        v(1) = c*(sigma(1) - nuTT*sigma(2));
+        v(2) = c*(sigma(2) - nuTT*sigma(1));
+        v(5) = c*2.*(1. + nuTT)*sigma(5);
+        return v;
+    }
+    vec::fixed<6> Lambda_12(const vec &sigma, const double &d12) const {
+        const double c = 1./(GLT*(1. - d12)*(1. - d12));
+        vec::fixed<6> v = arma::fill::zeros;
+        v(3) = c*sigma(3);
+        v(4) = c*sigma(4);
+        return v;
+    }
+};
+
+// The rotation that brings the fibre axis (1, 2 or 3) onto 1: local = R^T global R
+mat fibre_frame(const int &axis) {
+    switch (axis) {
+        case 1: return eye(3, 3);
+        case 2: return mat({{0., -1., 0.}, {1., 0., 0.}, {0., 0., 1.}});   // e1 -> e2
+        case 3: return mat({{0., 0., -1.}, {0., 1., 0.}, {1., 0., 0.}});   // e1 -> e3
+        default:
+            throw std::invalid_argument("LLDM0: props(0) is the fibre axis, 1, 2 or 3; got " + std::to_string(axis));
+    }
+}
+
+// The damage driving force of the criterion (unilateral in 22 and 33) and its derivatives
+struct driving_force {
+    double Y22 = 0., Y33 = 0., Y12 = 0., Y13 = 0., Y_t = 0., Y_ts = 0.;
+    vec::fixed<6> dYts_dsigma = arma::fill::zeros;
+    double dYts_dd22 = 0., dYts_dd12 = 0.;
+
+    driving_force(const vec &sigma, const double &d22, const double &d12, const double &ET, const double &GLT, const double &b) {
+        const double s22 = Macaulay_p(sigma(1)), s33 = Macaulay_p(sigma(2));
+        const double c22 = ET*(1. - d22)*(1. - d22), c12 = GLT*(1. - d12)*(1. - d12);
+        Y22 = 0.5*s22*s22/c22;
+        Y33 = 0.5*s33*s33/c22;
+        Y12 = 0.5*sigma(3)*sigma(3)/c12;
+        Y13 = 0.5*sigma(4)*sigma(4)/c12;
+        Y_t = sqrt(Y22 + Y33);
+        Y_ts = sqrt(Y12 + Y13 + b*(Y22 + Y33));
+        if (Y_ts > simcoon::limit) {
+            const double h = 0.5/Y_ts;
+            dYts_dsigma(1) = h*b*s22/c22;
+            dYts_dsigma(2) = h*b*s33/c22;
+            dYts_dsigma(3) = h*sigma(3)/c12;
+            dYts_dsigma(4) = h*sigma(4)/c12;
+            dYts_dd22 = h*b*2.*(Y22 + Y33)/(1. - d22);
+            dYts_dd12 = h*2.*(Y12 + Y13)/(1. - d12);
+        }
+    }
+};
+
+}  // namespace
 
 void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
@@ -54,607 +127,206 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
-    UNUSED(tnew_dt);
-    
+    UNUSED(ndi);
+    UNUSED(nshr);
+    UNUSED(tangent_mode);   // continuum tangent (see the header)
+
     double Tinit = statev(0);
     double d_22 = statev(1);
     double d_12 = statev(2);
-    double p_ts = statev(3);    //Accumulated plasticity
-        
-    vec EP(6);
-    EP(0) = statev(4);
-    EP(1) = statev(5);
-    EP(2) = statev(6);
-    EP(3) = statev(7);
-    EP(4) = statev(8);
-    EP(5) = statev(9);
+    double p_ts = statev(3);
+    vec EP = statev.subvec(4, 9);
 
-    //Rotation of internal variables (tensors)
+    // Rotation of the tensorial internal variables, then everything in the fibre frame
     EP = rotate_strain(EP, DR);
-    
-    double axis = props(0);
-    double EL = props(1);
-    double ET = props(2);
-    double nuTL = props(3);
-    double nuTT = props(4);
-    double GLT = props(5);
-    double alphaL = props(6);
-    double alphaT = props(7);
-    UNUSED(axis);  //Hide a warning
-    
-    //Shear damage
-    double Y_12_0 = props(8);
-    double Y_12_c = props(9);
-    
-    //Transverse damage
-    double Y_22_0 = props(10);
-    double Y_22_c = props(11);
-    double Y_22_u = props(12);
-    double b = props(13);
-    
-    //Coupled transverse-shear yield & plasticity
-    double A_ts = props(14);
-    double sigma_ts_0 = props(15);
-    double alpha_ts = props(16);
-    double beta_ts = props(17);
-    
-    //Set the Lagrange multipliers coefficients
-    double c_lambda = 1.E-2;
-    double p0_lambda = 1.E-1;
-    double n_lambda = 1.0;
-    double alpha_lambda = 0.;
+    const int axis = static_cast<int>(props(0));
+    const mat R_f = fibre_frame(axis);
+    const bool rotated = (axis != 1);
+    const vec Etot_f = rotated ? rotate_strain(Etot, R_f.t()) : Etot;
+    const vec DEtot_f = rotated ? rotate_strain(DEtot, R_f.t()) : DEtot;
+    vec sigma = rotated ? rotate_stress(stress, R_f.t()) : stress;
+    if (rotated)
+        EP = rotate_strain(EP, R_f.t());
 
-    //Elastic stiffness tensor
-    L = L_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
-    
-    ///@brief Initialization
+    const damaged_elasticity C{props(1), props(2), props(3), props(4), props(5)};
+    const double alphaL = props(6);
+    const double alphaT = props(7);
+    const double Y_12_0 = props(8);
+    const double Y_12_c = props(9);
+    const double Y_22_0 = props(10);
+    const double Y_22_c = props(11);
+    const double Y_22_u = props(12);
+    const double b = props(13);
+    const double A_ts = props(14);
+    const double sigma_ts_0 = props(15);
+    const double m_ts = props(16);      // hardening R(p) = beta p^m
+    const double beta_ts = props(17);
+
+    // Lagrange penalty keeping d below 1 (lagrange_pow_1)
+    const double c_lambda = 1.E-2;
+    const double p0_lambda = 1.E-1;
+    const double n_lambda = 1.0;
+    const double alpha_lambda = 0.;
+
     if (start) {
-
         Tinit = T;
         d_22 = 0.;
         d_12 = 0.;
-        
         p_ts = 10.*simcoon::limit;
         EP = zeros(6);
-        stress = zeros(6);
+        sigma = zeros(6);
     }
-    
-    vec stress_start = stress;
-    vec EP_start = EP;
-    
-    double E1 = EL;
-    double E2_0 = ET;
-    double E3_0 = ET;
-    double E2 = ET*(1-d_22);
-    double E3 = ET*(1-d_22);
-    double nu12 = nuTL*(E1/E2_0);
-    double nu13 = nuTL*(E1/E3_0);
-    double nu32 = nuTT;
-    double nu23 = nu32;
-    double G12_0 = GLT;
-    double G12 = G12_0*(1-d_12);
-    double G13 = G12_0*(1-d_12);
-    double G23 = E3/(2.*(1.+nu32));
-    
-    // ######################  Elastic stiffness #################################
-    //defines L
-    L = L_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
-    
-    // cout << "EL = " << EL << "/ ET = " << ET << "/ nuTL = " << nuTL << "/ nuTT = " << nuTT << "/ GLT = " << GLT << endl;
-    // 
-    // cout << "L Iso T = " << L << endl; 
-    
-    //definition of the CTE tensor
-    vec alpha = zeros(6);
-    alpha = alphaT*Ith();
-    alpha(0) += alphaL-alphaT;                              //WARNING CTE tensor is defined according to L is the direction 1
-    
-    //Compute the elastic strain and the related stress
-    vec Eel_start = Etot - alpha*(T-Tinit) - EP;
-    vec DEel_start = DEtot - alpha*DT;
-    vec Eel = Eel_start + DEel_start;
-    
-    vec sigma_eff = zeros(6);
-    vec sigma_eff_ts = zeros(6);
-    
-    ///Compute the Yd_12 and Yd_22 which are the criterium associated with damage
-    double Yd_12 = 0.;
-    double Yd_13 = 0.;
-    double Yd_22 = 0.;
-    double Yd_33 = 0.;
-    
-    //Compute Y_l, Y_t and Y_ts, which are used in the evolution equation of damage
-    double Y_ts = 0.;              //transvers/shear coupling
-    double Y_t = 0.;               //transverse
 
-    double lambda_22 = lagrange_pow_1(d_22, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-    double lambda_12 = lagrange_pow_1(d_12, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-    double dlambda_22 = 0.;
-    double dlambda_12 = 0.;
-    
-    //Compute the Plasticity functions
-    //Compute the explicit flow direction
-    vec Lambdap_ts = zeros(6);
-    
-    //Define the plastic function and the stress
-    double Hp_ts = 0.;
-    
-    double Phi_p_ts = 0.;
+    const mat L0 = C.L(0., 0.);   // undamaged: the effective-stress plasticity
+    vec alpha = alphaT*Ith();
+    alpha(0) += alphaL - alphaT;
 
-    double dPhip_tsdp_ts = 0.;
-    vec dPhi_p_tsd_sigma = zeros(6);
-    
-    //Note : The sup function are not required here, since we utilize Kuhn-Tucker conditions instead (dD >= 0)
-    vec Phi_d = zeros(2);
-    vec Phi_p = zeros(1);
-    vec Dd = zeros(2);
-    vec dd = zeros(2);
-    vec Dp = zeros(1);
-    vec dp = zeros(1);
-    
-    vec Y_dcrit = ones(2);
-    vec Y_pcrit = ones(1);
-    
-    mat denom_d = zeros(2,2);
-    mat denom_p = zeros(1,1);
-    
-    double dYd_22dd = 0.;
-    double dYd_33dd = 0.;
-    double dYd_12dd = 0.;
-    double dYd_13dd = 0.;
-    UNUSED(dYd_33dd);  //Hide a warning
-    
-    double dY_tsdd_22 = 0.;
-    double dY_tsdd_12 = 0.;
+    auto hardening = [&](const double &p) { return (p > simcoon::limit) ? beta_ts*pow(p, m_ts) : simcoon::iota; };
+    auto dhardening = [&](const double &p) { return (p > simcoon::limit) ? m_ts*beta_ts*pow(p, m_ts - 1.) : simcoon::iota; };
 
-    int compteur = 0;
+    // Start of the increment, for the work split
+    const vec sigma_start = sigma;
+    const vec EP_start = EP;
+    const double Hp_start = hardening(p_ts);
+    const vec d_start = {d_22, d_12};
+    const vec Yth_start = {0.5*sum(sigma_start % C.Lambda_22(sigma_start, d_22)), 0.5*sum(sigma_start % C.Lambda_12(sigma_start, d_12))};
+    bool broken_22 = (d_22 >= d_broken);
+
+    const vec theta = {0., A_ts, A_ts, 1., 1., 0.};   // the diagonal of Theta
+
+    // ---- 1. Plasticity in effective stress (independent of the damage) ----
+    vec Eel = Etot_f + DEtot_f - alpha*(T + DT - Tinit) - EP;
+    vec Lambda_p = zeros(6);
+    vec Phi_p = zeros(1), Dp = zeros(1), dp = zeros(1);
+    const vec Y_pcrit = {sigma_ts_0};
+    mat denom_p = zeros(1, 1);
     double error = 1.;
-    
-    mat Theta_ts = zeros(6,6);
-    Theta_ts(1,1) = A_ts;
-    Theta_ts(2,2) = A_ts;
-    Theta_ts(3,3) = 1.;
-    Theta_ts(4,4) = 1.;
-    
-    error = 1.;
-    if (Y_t > Y_22_u) {
-        d_22 = 0.99;
-        d_12 = 0.99;
-        error = 0.;
-    }
-    
-    //First we find the plasticity
-    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
-        //Plasticity computations
-                //Compute the hardening
-        if (p_ts > simcoon::limit)
-            Hp_ts = beta_ts*pow(p_ts, alpha_ts);
-        else
-            Hp_ts = simcoon::iota;
-        
-        //effective stress
-        sigma_eff = el_pred(L,Eel);
-        sigma_eff_ts = Theta_ts*sigma_eff;
-        
-        //Determine the Phi functions and their derivatives
-        Phi_p_ts = Mises_stress(sigma_eff_ts) - Hp_ts - sigma_ts_0;
-
-        //Compute the explicit flow direction
-        Lambdap_ts = eta_stress(sigma_eff_ts);
-        
-        if (p_ts > simcoon::limit)
-            dPhip_tsdp_ts = -1.*alpha_ts*beta_ts*pow(p_ts, alpha_ts-1.);
-        else
-            dPhip_tsdp_ts = simcoon::iota;
-        
-        dPhi_p_tsd_sigma = Theta_ts*eta_stress(sigma_eff_ts); //Here as well
-        
-        //compute Phi and the derivatives
-        Phi_p(0) = Phi_p_ts;
-        
-        denom_p(0, 0) = -1.*sum(dPhi_p_tsd_sigma % (L*Lambdap_ts)) + dPhip_tsdp_ts;
-        
-        Y_pcrit(0) = sigma_ts_0;
-        
+    int compteur = 0;
+    for (compteur = 0; (compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat); compteur++) {
+        const vec sigma_eff_ts = theta % (L0*Eel);
+        Phi_p(0) = Mises_stress(sigma_eff_ts) - hardening(p_ts) - sigma_ts_0;
+        Lambda_p = theta % eta_stress(sigma_eff_ts);   // associated: the gradient of the criterion in effective stress
+        denom_p(0, 0) = -sum(Lambda_p % (L0*Lambda_p)) - dhardening(p_ts);
         Fischer_Burmeister_m(Phi_p, Y_pcrit, denom_p, Dp, dp, error);
-        
         p_ts += dp(0);
-        
-        EP = EP + dp(0)*Lambdap_ts;
-        Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
+        EP += dp(0)*Lambda_p;
+        Eel = Etot_f + DEtot_f - alpha*(T + DT - Tinit) - EP;
     }
-    
-    if(compteur == simcoon::maxiter_umat)
+    if (compteur == simcoon::maxiter_umat)
         tnew_dt = 0.2;
-    
+    Lambda_p = theta % eta_stress(vec(theta % (L0*Eel)));
+
+    // ---- 2. Damage at fixed plastic strain: d22 and d12 driven by the same Y_ts ----
+    const double Yc[2] = {Y_22_c, Y_12_c};
+    const double Y0[2] = {Y_22_0, Y_12_0};
+    vec d = {d_22, d_12};
+    vec Dd_all = zeros(2);
+    mat L_t = C.L(d(0), d(1));
+    sigma = L_t*Eel;
+    // dPhi_l/dd_j at fixed strain: through sigma = L~(d) Eel and explicitly through Y_ts
+    auto dPhi_dd = [&](const driving_force &Y, const std::array<vec::fixed<6>, 2> &Lambda_d, const int &l, const int &j) {
+        const double dYts_dd = (j == 0) ? Y.dYts_dd22 : Y.dYts_dd12;
+        double J = ((Y.Y_ts > Y0[l]) ? (-sum(Y.dYts_dsigma % (L_t*Lambda_d[j])) + dYts_dd)/Yc[l] : 0.);
+        if (l == j)
+            J -= dlagrange_pow_1(d(l), c_lambda, p0_lambda, n_lambda, alpha_lambda) + 1.;
+        return J;
+    };
     error = 1.;
-    if (Y_t > Y_22_u) {
-        d_22 = 0.99;
-        d_12 = 0.99;
-        error = 0.;
-    }
-    
-    //Derivatives specific to damage:
-    double dPhi_d_22d_Yts = 1./Y_22_c;
-    double dPhi_d_12d_Yts = 1./Y_12_c;
-    
-    double dYts_d_Y22 = 0.;
-    double dYts_d_Y33 = 0.;
-    double dYts_d_Y12 = 0.;
-    double dYts_d_Y13 = 0.;
-    
-    double dY22_d_s22 = 0.;
-    double dY33_d_s33 = 0.;
-    double dY12_d_s12 = 0.;
-    double dY13_d_s13 = 0.;
-    
-    vec dPhi_d_22d_sigma = zeros(6);
-    vec dPhi_d_12d_sigma = zeros(6);
-    
-    double dPhi_d_12d_12 = 0.;
-    double dPhi_d_12d_22 = 0.;
-    double dPhi_d_22d_12 = 0.;
-    double dPhi_d_22d_22 = 0.;
-    
-    mat dStildedd22 = zeros(6,6);
-    mat dStildedd12 = zeros(6,6);
-    
-    vec Lambdad_22 = zeros(6);
-    vec Lambdad_12 = zeros(6);
-    
-    
-    //So it is forced to enter the damage loop once
-    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
-        mat L_tilde = L_ortho(E1,E2,E3,nu12,nu13,nu23,G12,G13,G23, "EnuG");
-        
-        // cout << "d22 = " << d_22 << "/ d12 = " << d_12 << endl;
-        // 
-		// cout << "E1 = " << E1 << "/ E2 = " << E2 << "/ E3 = " << E3 << "/ nu12 = " << nu12 << "/ nu13 = " << nu13 << "/ nu23 = " << nu23 << "/ G12 = " << G12 << "/ G13 = " << G13 << "/ G23 = " << G23 << endl;
-    // 
-		// cout << "L ortho = " << L_tilde << endl;
-        
-        //damaged modulus
-        //Compute the elastic strain and the related stress
-        Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
-        stress = el_pred(L_tilde, Eel);
-        
-        if (fabs(stress(1)) < simcoon::iota )
-            Yd_22 = 0.;
-        else
-            Yd_22 = 0.5*(pow(Macaulay_p(stress(1)),2.)/(E2_0*pow(1.-d_22,2.)));
-
-        if (fabs(stress(2)) < simcoon::iota )
-            Yd_33 = 0.;
-        else
-            Yd_33 = 0.5*(pow(Macaulay_p(stress(2)),2.)/(E2_0*pow(1.-d_22,2.)));
-        
-        if (fabs(stress(3)) < simcoon::iota )
-            Yd_12 = 0.;
-        else
-            Yd_12 = 0.5*(pow(stress(3),2.)/(G12_0*pow(1.-d_12,2.)));
-
-        if (fabs(stress(4)) < simcoon::iota )
-            Yd_13 = 0.;
-        else
-            Yd_13 = 0.5*(pow(stress(4),2.)/(G12_0*pow(1.-d_12,2.)));
-                
-        //Compute Y_t and Y_ts, which are used in the evolution equation of damage
-        Y_ts = sqrt(Yd_12 + Yd_13 + b*(Yd_22 + Yd_33));     //transvers/shear coupling
-        Y_t = sqrt(Yd_22 + Yd_33);               //transverse
-        
-        lambda_12 = lagrange_pow_1(d_12, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        lambda_22 = lagrange_pow_1(d_22, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        
-        //Preliminaries to compute damage the derivatives of Phi
-        if (fabs(stress(1)) < simcoon::iota )
-            dYd_22dd = 0.;
-        else
-            dYd_22dd = -0.25*(pow(Macaulay_p(stress(1)),2.)/(E2_0*pow(1-d_22,3.)));
-
-        if (fabs(stress(2)) < simcoon::iota )
-            dYd_33dd = 0.;
-        else
-            dYd_33dd = -0.25*(pow(Macaulay_p(stress(2)),2.)/(E2_0*pow(1-d_22,3.)));
-        
-        if (fabs(stress(3)) < simcoon::iota )
-            dYd_12dd = 0.;
-        else
-            dYd_12dd = -0.25*(pow(stress(3),2.)/(G12_0*pow(1-d_12,3.)));
-
-        if (fabs(stress(4)) < simcoon::iota )
-            dYd_13dd = 0.;
-        else
-            dYd_13dd = -0.25*(pow(stress(4),2.)/(G12_0*pow(1-d_12,3.)));
-
-        
-        
-        if (fabs(Yd_12 + Yd_13 + b*(Yd_22 + Yd_33)) < simcoon::iota ) {
-            dY_tsdd_22 = 0.;
-            dY_tsdd_12 = 0.;
+    for (compteur = 0; (compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat); compteur++) {
+        const driving_force Y(sigma, d(0), d(1), C.ET, C.GLT, b);
+        if (!broken_22 && Y.Y_t > Y_22_u) {   // transverse failure
+            Dd_all(0) += d_broken - d(0);
+            d(0) = d_broken;
+            broken_22 = true;
+            L_t = C.L(d(0), d(1));
+            sigma = L_t*Eel;
+            continue;
         }
-        else {
-            dY_tsdd_22 = 0.5*(b*(dYd_22dd+dYd_22dd))*pow(Yd_12 + Yd_13+ b*(Yd_22+Yd_33),-0.5);
-            dY_tsdd_12 = 0.5*(dYd_12dd + dYd_13dd)*pow(Yd_12 + Yd_13+ b*(Yd_22+Yd_33),-0.5);
+        const std::vector<int> mech = broken_22 ? std::vector<int>{1} : std::vector<int>{0, 1};
+        const int n = mech.size();
+        const std::array<vec::fixed<6>, 2> Lambda_d = {C.Lambda_22(sigma, d(0)), C.Lambda_12(sigma, d(1))};
+        vec Phi_d(n), Y_dcrit = ones(n), Dd(n), dd(n);
+        mat denom_d(n, n);
+        for (int a = 0; a < n; a++) {
+            const int l = mech[a];
+            Phi_d(a) = Macaulay_p(Y.Y_ts - Y0[l])/Yc[l] - lagrange_pow_1(d(l), c_lambda, p0_lambda, n_lambda, alpha_lambda) - d(l);
+            Dd(a) = Dd_all(l);
+            for (int c = 0; c < n; c++)
+                denom_d(a, c) = dPhi_dd(Y, Lambda_d, l, mech[c]);
         }
-                    
-        dlambda_22 = dlagrange_pow_1(d_22, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        dlambda_12 = dlagrange_pow_1(d_12, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        
-        //Compute the derivatives of stress
-        dPhi_d_22d_Yts = 1./Y_22_c;
-        dPhi_d_12d_Yts = 1./Y_12_c;
-        
-        dYts_d_Y22 = 0.;
-        dYts_d_Y33 = 0.;
-        dYts_d_Y12 = 0.;
-        dYts_d_Y13 = 0.;
-        
-        if (Y_ts > simcoon::limit) {
-            dYts_d_Y22 = b/(2.*Y_ts);
-            dYts_d_Y33 = b/(2.*Y_ts);
-            dYts_d_Y12 = 1./(2.*Y_ts);
-            dYts_d_Y13 = 1./(2.*Y_ts);
-        }
-        
-        dY22_d_s22 = Macaulay_p(stress(1))/(E2_0*(1.-d_22));
-        dY33_d_s33 = Macaulay_p(stress(2))/(E2_0*(1.-d_22));
-        dY12_d_s12 = Macaulay_p(stress(3))/(G12_0*(1.-d_12));
-        dY13_d_s13 = Macaulay_p(stress(4))/(G12_0*(1.-d_12));
-        
-        dPhi_d_22d_sigma(0) = 0.;
-        dPhi_d_22d_sigma(1) = dPhi_d_22d_Yts*dYts_d_Y22*dY22_d_s22;
-        dPhi_d_22d_sigma(2) = dPhi_d_22d_Yts*dYts_d_Y33*dY33_d_s33;
-        dPhi_d_22d_sigma(3) = dPhi_d_22d_Yts*dYts_d_Y12*dY12_d_s12;
-        dPhi_d_22d_sigma(4) = dPhi_d_22d_Yts*dYts_d_Y13*dY13_d_s13;
-        dPhi_d_22d_sigma(5) = 0.;
-        
-        dPhi_d_12d_sigma(0) = 0.;
-        dPhi_d_12d_sigma(1) = dPhi_d_12d_Yts*dYts_d_Y22*dY22_d_s22;
-        dPhi_d_12d_sigma(2) = dPhi_d_12d_Yts*dYts_d_Y33*dY33_d_s33;
-        dPhi_d_12d_sigma(3) = dPhi_d_12d_Yts*dYts_d_Y12*dY12_d_s12;
-        dPhi_d_12d_sigma(4) = dPhi_d_12d_Yts*dYts_d_Y13*dY13_d_s13;
-        dPhi_d_12d_sigma(5) = 0.;
-        
-        //Compute the explicit "damage direction" and flow direction
-        dStildedd22 = { {0.,0.,0.,0.,0.,0.},
-            {0,E2_0/pow(E2,2.),-nu23*E2_0/pow(E2,2.),0,0,0},
-            {0,-nu23*E2_0/pow(E2,2.),E2_0/pow(E2,2.),0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0} };
-        
-        dStildedd12 = { {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,0,0,0},
-            {0,0,0,G12_0/pow(G12,2.),0,0},
-            {0,0,0,0,G12_0/pow(G12,2.),0},
-            {0,0,0,0,0,0} };
-
-        Lambdad_22 = dStildedd22*stress;
-        Lambdad_12 = dStildedd12*stress;
-        
-        //compute Phi and the derivatives
-        Phi_d(0) = Macaulay_p(Y_ts - Y_22_0)/Y_22_c - lambda_22 - d_22;
-        Phi_d(1) = Macaulay_p(Y_ts - Y_12_0)/Y_12_c - lambda_12 - d_12;
-        
-        denom_d(0, 0) = -1.*sum(dPhi_d_22d_sigma%Lambdad_22) + Macaulay_p(dY_tsdd_22)/Y_22_c - dlambda_22 - 1.;
-        denom_d(0, 1) = -1.*sum(dPhi_d_22d_sigma%Lambdad_12) + Macaulay_p(dY_tsdd_12)/Y_22_c;
-        
-        denom_d(1, 0) = -1.*sum(dPhi_d_12d_sigma%Lambdad_22) + Macaulay_p(dY_tsdd_22)/Y_12_c;
-        denom_d(1, 1) = -1.*sum(dPhi_d_12d_sigma%Lambdad_12) + Macaulay_p(dY_tsdd_12)/Y_12_c - dlambda_12 - 1.;
-        
-        
         Fischer_Burmeister_m(Phi_d, Y_dcrit, denom_d, Dd, dd, error);
-        
-        d_22 += dd(0);
-        d_12 += dd(1);
-        
-        //Transverse Damage term
-        if (Y_t > Y_22_u) {
-            d_22 = 0.99;
-            d_12 = 0.99;
-            error = 0.;
+        for (int a = 0; a < n; a++) {
+            d(mech[a]) += dd(a);
+            Dd_all(mech[a]) = Dd(a);
         }
-        
-        //Update constitutive parameters
-        E2 = ET*(1.-d_22);
-        E3 = ET*(1.-d_22);
-        G12 = G12_0*(1.-d_12);
-        G13 = G12_0*(1.-d_12);
+        L_t = C.L(d(0), d(1));
+        sigma = L_t*Eel;
     }
-    
-    if(compteur == simcoon::maxiter_umat)
+    if (compteur == simcoon::maxiter_umat)
         tnew_dt = 0.2;
-    
-    //Update constitutive parameters
-    E2 = ET*(1.-d_22);
-    E3 = ET*(1.-d_22);
-    G12 = G12_0*(1.-d_12);
-    G13 = G12_0*(1.-d_12);
-    
-    mat L_tilde = L_ortho(E1,E2,E3,nu12,nu13,nu23,G12,G13,G23, "EnuG");
-    
-    //damaged modulus
-    //Compute the elastic strain and the related stress
-    Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
-    stress = el_pred(L_tilde, Eel);
-    
-    {
-		//Tangent modulus
-		mat B = L*inv(L_tilde);         //stress "localization factor" in damage
-		
-		//Compute the derivatives
-		dPhi_d_22d_Yts = 1./Y_22_c;
-		dPhi_d_12d_Yts = 1./Y_12_c;
+    d_22 = d(0);
+    d_12 = d(1);
 
-		dYts_d_Y22 = 0.;
-		dYts_d_Y33 = 0.;
-		dYts_d_Y12 = 0.;
-		dYts_d_Y13 = 0.;
-		
-		if (Y_ts > simcoon::limit) {
-			dYts_d_Y22 = b/(2.*Y_ts);
-			dYts_d_Y33 = b/(2.*Y_ts);
-			dYts_d_Y12 = 1./(2.*Y_ts);
-			dYts_d_Y13 = 1./(2.*Y_ts);
-		}
-		
-		dY22_d_s22 = Macaulay_p(stress(1))/(E2_0*(1.-d_22));
-		dY33_d_s33 = Macaulay_p(stress(2))/(E2_0*(1.-d_22));
-		dY12_d_s12 = Macaulay_p(stress(3))/(G12_0*(1.-d_12));
-		dY13_d_s13 = Macaulay_p(stress(4))/(G12_0*(1.-d_12));
-		
-		dPhi_d_22d_sigma(0) = 0.;
-		dPhi_d_22d_sigma(1) = dPhi_d_22d_Yts*dYts_d_Y22*dY22_d_s22;
-		dPhi_d_22d_sigma(2) = dPhi_d_22d_Yts*dYts_d_Y33*dY33_d_s33;
-		dPhi_d_22d_sigma(3) = dPhi_d_22d_Yts*dYts_d_Y12*dY12_d_s12;
-		dPhi_d_22d_sigma(4) = dPhi_d_22d_Yts*dYts_d_Y13*dY13_d_s13;
-		dPhi_d_22d_sigma(5) = 0.;
-		
-		dPhi_d_12d_sigma(0) = 0.;
-		dPhi_d_12d_sigma(1) = dPhi_d_12d_Yts*dYts_d_Y22*dY22_d_s22;
-		dPhi_d_12d_sigma(2) = dPhi_d_12d_Yts*dYts_d_Y33*dY33_d_s33;
-		dPhi_d_12d_sigma(3) = dPhi_d_12d_Yts*dYts_d_Y12*dY12_d_s12;
-		dPhi_d_12d_sigma(4) = dPhi_d_12d_Yts*dYts_d_Y13*dY13_d_s13;
-		dPhi_d_12d_sigma(5) = 0.;
-		
-		dPhi_d_22d_22 = Macaulay_p(dY_tsdd_22)/Y_22_c - dlambda_22 - 1.;
-		dPhi_d_22d_12 = Macaulay_p(dY_tsdd_12)/Y_22_c;
-		
-		dPhi_d_12d_22 = Macaulay_p(dY_tsdd_22)/Y_12_c;
-		dPhi_d_12d_12 = Macaulay_p(dY_tsdd_12)/Y_12_c - dlambda_12 - 1.;
-    
-		// dPhi_p_tsd_sigma = (B*Theta_ts*eta_stress(sigma_eff_ts));
-		dPhi_p_tsd_sigma = (Theta_ts*eta_stress(sigma_eff_ts));
-		
-		//Compute the explicit "damage direction" and flow direction
-		dStildedd22 = { {0.,0.,0.,0.,0.,0.},
-							{0,E2_0/pow(E2,2.),-nu23*E2_0/pow(E2,2.),0,0,0},
-							{0,-nu23*E2_0/pow(E2,2.),E2_0/pow(E2,2.),0,0,0},
-							{0,0,0,0,0,0},
-							{0,0,0,0,0,0},
-							{0,0,0,0,0,0} };
-		
-		dStildedd12 = { {0,0,0,0,0,0},
-							{0,0,0,0,0,0},
-							{0,0,0,0,0,0},
-							{0,0,0,G12_0/pow(G12,2.),0,0},
-							{0,0,0,0,G12_0/pow(G12,2.),0},
-							{0,0,0,0,0,0} };
-
-		Lambdad_22 = dStildedd22*stress;
-		Lambdad_12 = dStildedd12*stress;    
-		Lambdap_ts = eta_stress(sigma_eff_ts);
-
-		std::vector<vec> kappa_j(3);
-		std::vector<vec> kappa_tilde_j(3);
-		kappa_j[0] = L_tilde*Lambdad_22;
-		kappa_j[1] = L_tilde*Lambdad_12;
-		kappa_j[2] = L_tilde*Lambdap_ts;
-		
-		kappa_tilde_j[0] = L*Lambdad_22;
-		kappa_tilde_j[1] = L*Lambdad_12;
-		kappa_tilde_j[2] = L*Lambdap_ts;    
-		
-		mat K = zeros(3,3);
-		K(0,0) = dPhi_d_22d_22;
-		K(0,1) = dPhi_d_22d_12;
-		K(0,2) = 0.;
-		
-		K(1,0) = dPhi_d_12d_22;
-		K(1,1) = dPhi_d_12d_12;
-		K(1,2) = 0.;
-		
-		K(2,0) = 0.;
-		K(2,1) = 0.;
-		K(2,2) = dPhip_tsdp_ts;
-
-		
-		mat Bhat = zeros(3, 3);
-		Bhat(0, 0) = sum(dPhi_d_22d_sigma % kappa_j[0]) - K(0,0);
-		Bhat(0, 1) = sum(dPhi_d_22d_sigma % kappa_j[1]) - K(0,1);
-		Bhat(0, 2) = sum(dPhi_d_22d_sigma % kappa_j[2]) - K(0,2);
-
-		Bhat(1, 0) = sum(dPhi_d_12d_sigma % kappa_j[0]) - K(1,0);
-		Bhat(1, 1) = sum(dPhi_d_12d_sigma % kappa_j[1]) - K(1,1);
-		Bhat(1, 2) = sum(dPhi_d_12d_sigma % kappa_j[2]) - K(1,2);
-		
-		Bhat(2, 0) = sum(dPhi_p_tsd_sigma % kappa_tilde_j[0]) - K(2,0);
-		Bhat(2, 1) = sum(dPhi_p_tsd_sigma % kappa_tilde_j[1]) - K(2,1);
-		Bhat(2, 2) = sum(dPhi_p_tsd_sigma % kappa_tilde_j[2]) - K(2,2);
-    
-		vec op = zeros(3);
-		mat delta = eye(3,3);
-
-		if(Dd(0) > simcoon::iota)
-			op(0) = 1.;
-		if(Dd(1) > simcoon::iota)
-			op(1) = 1.;
-		if(Dp(0) > simcoon::iota)
-			op(2) = 1.;
-		
-		
-		mat Bbar = zeros(3,3);
-		for (int i = 0; i < 3; i++) {
-			for (int j = 0; j < 3; j++) {
-				Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-			}
-		}
-		
-		mat invBbar = zeros(3, 3);
-		mat invBhat = zeros(3, 3);
-		invBbar = inv(Bbar);
-		for (int i = 0; i < 3; i++) {
-			for (int j = 0; j < 3; j++) {
-				invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-			}
-		} 
-		
-		std::vector<vec> P_epsilon(3);
-		P_epsilon[0] = invBhat(0, 0)*dPhi_d_22d_sigma + invBhat(1, 0)*dPhi_d_12d_sigma + invBhat(2, 0)*dPhi_p_tsd_sigma;
-		P_epsilon[1] = invBhat(0, 1)*dPhi_d_22d_sigma + invBhat(1, 1)*dPhi_d_12d_sigma + invBhat(2, 1)*dPhi_p_tsd_sigma;
-		P_epsilon[2] = invBhat(0, 2)*dPhi_d_22d_sigma + invBhat(1, 2)*dPhi_d_12d_sigma + invBhat(2, 2)*dPhi_p_tsd_sigma;
-		
-		Lt = L_tilde - (kappa_j[0]*P_epsilon[0].t() + kappa_j[1]*P_epsilon[1].t() + kappa_j[2]*P_epsilon[2].t());
+    // ---- 3. Tangent of the two-stage update (plasticity, then damage) ----
+    // dEel/deps = I - Lambda_p (x) L0 Lambda_p / h_p when plasticity is active (the direction held
+    // fixed: continuum); the active damage mechanisms then solve dPhi_l = 0 with
+    // dsigma = L~ dEel - L~ Lambda_j dd_j
+    mat A = eye(6, 6);
+    if (Dp(0) > simcoon::iota) {
+        const double h_p = sum(Lambda_p % (L0*Lambda_p)) + dhardening(p_ts);
+        A -= Lambda_p*(L0*Lambda_p).t()/h_p;
     }
-    
+    Lt = L_t*A;
+    {
+        const driving_force Y(sigma, d(0), d(1), C.ET, C.GLT, b);
+        const std::array<vec::fixed<6>, 2> Lambda_d = {C.Lambda_22(sigma, d(0)), C.Lambda_12(sigma, d(1))};
+        std::vector<int> act;
+        for (int l = 0; l < 2; l++)
+            if (Dd_all(l) > simcoon::iota && !(l == 0 && broken_22) && Y.Y_ts > Y0[l])
+                act.push_back(l);
+        const int n = act.size();
+        if (n > 0) {
+            mat J(n, n), G(n, 6);
+            for (int a = 0; a < n; a++) {
+                for (int c = 0; c < n; c++)
+                    J(a, c) = dPhi_dd(Y, Lambda_d, act[a], act[c]);
+                G.row(a) = (A.t()*(L_t*Y.dYts_dsigma)).t()/Yc[act[a]];
+            }
+            const mat dd_deps = -solve(J, G);
+            for (int a = 0; a < n; a++)
+                Lt -= (L_t*Lambda_d[act[a]])*dd_deps.row(a);
+        }
+    }
+
+    // ---- 4. Work split: stored elastic energy, stored hardening, dissipation ----
+    const vec DEP = EP - EP_start;
+    const double Hp = hardening(p_ts);
+    const vec Yth = {0.5*sum(sigma % C.Lambda_22(sigma, d_22)), 0.5*sum(sigma % C.Lambda_12(sigma, d_12))};
+    const vec Dd_inc = vec({d_22, d_12}) - d_start;
+    const double Dgamma_d = 0.5*sum((Yth_start + Yth) % Dd_inc);
+    const double Dgamma_p = 0.5*sum((sigma_start + sigma) % DEP) - 0.5*(Hp_start + Hp)*Dp(0);
+    Wm += 0.5*sum((sigma_start + sigma) % DEtot_f);
+    Wm_r += 0.5*sum((sigma_start + sigma) % (DEtot_f - DEP)) - Dgamma_d;
+    Wm_ir += 0.5*(Hp_start + Hp)*Dp(0);
+    Wm_d += Dgamma_p + Dgamma_d;
+
+    // Back to the global frame
+    if (rotated) {
+        stress = rotate_stress(sigma, R_f);
+        Lt = rotate_stiffness(Lt, R_f);
+        L = rotate_stiffness(L_t, R_f);
+        EP = rotate_strain(EP, R_f);
+    }
+    else {
+        stress = sigma;
+        L = L_t;
+    }
+
     statev(0) = Tinit;
     statev(1) = d_22;
     statev(2) = d_12;
-    
     statev(3) = p_ts;
-               
-    statev(4) = EP(0);
-    statev(5) = EP(1);
-    statev(6) = EP(2);
-    statev(7) = EP(3);
-    statev(8) = EP(4);
-    statev(9) = EP(5);
-            
-    //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((stress_start+stress)%DEtot);
-    Wm_r += 0.5*sum((stress_start+stress)%DEtot);
-    Wm_ir += 0.;
-    Wm_d += 0.;
-    
-    
-    //For analysis
-    statev(10) = Y_t;
-    statev(11) = Y_ts;
-    statev(12) = Hp_ts;
-	
-	
-    // vector<mat> moduli_outputed;
-    // moduli_outputed = {Lt, L, L_tilde, B};
-    // moduli_outputed = {L};
-    // output_moduli(moduli_outputed,13, statev);
-    
-    
-    // cout << "************************************" << endl;
+    statev.subvec(4, 9) = EP;
 }
 
-
-    
 } //namespace simcoon

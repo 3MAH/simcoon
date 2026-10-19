@@ -138,9 +138,9 @@ Small-strain mechanical models
      - Pedagogical reference; the modular Viscoelasticity mechanism takes the
        same closed-form step and is identical to it (round-off)
    * - LLDM0
-     - Ductile damage (Lemaitre-Ladeveze-Dufailly)
+     - Ladevèze-Le Dantec damage of the unidirectional ply (d22, d12), plasticity in effective stress
      - legacy (kept)
-     - see header
+     - see header (18 props, 10 statev)
      - Modular equivalence not yet established (audit pending)
    * - MODUL
      - Composable modular UMAT (elasticity + N mechanisms)

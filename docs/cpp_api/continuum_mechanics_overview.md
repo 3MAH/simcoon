@@ -72,7 +72,7 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 - `Prony_Nfast` - Prony series representation
 
 **Damage:**
-- `damage_LLD_0` - Lemaitre ductile damage model
+- `damage_LLD_0` - Ladevèze-Le Dantec damage of the unidirectional ply
 - `damage_weibull` - Weibull statistical damage model
 
 **Shape Memory Alloys (SMA):**
