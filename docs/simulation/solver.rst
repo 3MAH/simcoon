@@ -462,7 +462,12 @@ For ``"F"`` and ``"gradU"`` control types the state is the full tensor, 9 compon
 
     11  12  13  21  22  23  31  32  33
 
-``control`` is then ``"strain"`` for all of them and ``value`` holds the target :math:`\mathbf{F}` (or :math:`\nabla\mathbf{u}`).
+``control`` is then ``"strain"`` for all of them and ``value`` holds the target :math:`\mathbf{F}` (or :math:`\nabla\mathbf{u} = \mathbf{F} - \mathbf{I}`).
+The increments follow the geodesic :math:`\mathbf{F}_i = \exp(\Delta\mathbf{L}_i)\,\mathbf{F}_{i-1}`, each with its constant generator
+:math:`\Delta\mathbf{L}_i` (a tabular step reads it between two rows, :math:`\ln(\mathbf{F}_i\mathbf{F}_{i-1}^{-1})`; a ``"zero"``
+component of the table holds its value). A sub-increment of fraction :math:`s` of the increment, from a step cut or
+``Dn_init < 1``, prescribes :math:`\exp(s\,\Delta\mathbf{L}_i)\,\mathbf{F}` over :math:`s\,\delta t`, as the other control types
+prescribe :math:`s` times their increment; the sub-increment that closes the increment lands on :math:`\mathbf{F}_i` exactly.
 
 For the mixed finite-strain control types (``"green_lagrange"``, ``"logarithmic"``, ``"biot"``) a rotation rate can be superimposed with **BC_w**, a 3x3 spin matrix applied during the step:
 

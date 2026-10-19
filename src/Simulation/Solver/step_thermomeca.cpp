@@ -315,7 +315,9 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
     }
     
     if (mode < 3) {
-        geodesic_F_increments(mF, BC_meca, inc_coef, BC_Time, times, mecas, BC_mecas);
+        // control type 6 prescribes grad u = F - I
+        const vec F_target = (control_type == 6) ? vec(BC_meca + vectorise(I2)) : BC_meca;
+        geodesic_F_increments(mF, F_target, inc_coef, BC_Time, times, mecas, BC_mecas);
         for (int i=0; i<ninc; i++) {
             if (cBC_T == 1) {
                 Ts(i) = BC_T;                   //Note that here it is the flux that is imposed
@@ -397,17 +399,14 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) < 2){
-                    mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
                     BC_mecas(i,k) = BC_file(kT+1);
                     kT++;
-                }
-                else if (cBC_meca(k) == 2){
-                    mecas(i,k) = 0.;
-                    BC_mecas(i,k) = 0.;
                 }
             }
             BC_file_n = BC_file;
         }
+        // F and the generator of each increment; the components absent from the table hold
+        tabulated_F_increments(mF, cBC_meca, control_type, mecas, BC_mecas);
         //At the end, everything static becomes a deformation-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2)

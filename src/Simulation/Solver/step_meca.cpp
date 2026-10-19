@@ -360,15 +360,38 @@ void geodesic_F_increments(const arma::mat &F_prev, const arma::vec &BC_meca, co
         // Multiplicative update
         F_i = D_i * F_i;
 
-        // Store deformation history
+        // Store deformation history and the generator of the increment
         for (unsigned int k = 0; k < 9; ++k) {
             BC_mecas(inc,k) = F_i(k/3, k%3);
-
-            if (inc == 0)
-                mecas(inc,k) = F_i(k/3, k%3) - F_prev(k/3, k%3);
-            else
-                mecas(inc,k) = F_i(k/3, k%3) - BC_mecas(inc-1,k);
+            mecas(inc,k) = delta_L(k/3, k%3);
         }
+    }
+}
+
+void tabulated_F_increments(const arma::mat &F_prev, const arma::Col<int> &cBC_meca, const unsigned int &control_type,
+                            arma::mat &mecas, arma::mat &BC_mecas)
+{
+    const arma::mat I = arma::eye(3,3);
+    arma::mat F_n = F_prev;
+    for (unsigned int inc = 0; inc < BC_mecas.n_rows; ++inc) {
+        arma::mat F_i(3,3);
+        for (unsigned int k = 0; k < 9; ++k) {
+            F_i(k/3, k%3) = (cBC_meca(k) == 2) ? F_n(k/3, k%3)
+                          : BC_mecas(inc,k) + ((control_type == 6) ? I(k/3, k%3) : 0.);
+        }
+        arma::mat F_n_inv;
+        if (!arma::inv(F_n_inv, F_n)) {
+            throw simcoon::exception_solver("Singular deformation gradient in a tabulated kinematic step.");
+        }
+        arma::mat delta_L;
+        if (!real_logmat_3x3(F_i*F_n_inv, delta_L)) {
+            delta_L = arma::real(arma::logmat(F_i*F_n_inv));
+        }
+        for (unsigned int k = 0; k < 9; ++k) {
+            BC_mecas(inc,k) = F_i(k/3, k%3);
+            mecas(inc,k) = delta_L(k/3, k%3);
+        }
+        F_n = F_i;
     }
 }
 
@@ -405,7 +428,9 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     }
     
     if (mode < 3) {
-        geodesic_F_increments(mF, BC_meca, inc_coef, BC_Time, times, mecas, BC_mecas);
+        // control type 6 prescribes grad u = F - I
+        const vec F_target = (control_type == 6) ? vec(BC_meca + vectorise(I2)) : BC_meca;
+        geodesic_F_increments(mF, F_target, inc_coef, BC_Time, times, mecas, BC_mecas);
     }
     else if (mode ==3){ ///Incremental loading
         
@@ -475,17 +500,14 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) < 2){
-                    mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
                     BC_mecas(i,k) = BC_file(kT+1);
                     kT++;
-                }
-                else if (cBC_meca(k) == 2){
-                    mecas(i,k) = 0.;
-                    BC_mecas(i,k) = 0.;
                 }
             }
             BC_file_n = BC_file;
         }
+        // F and the generator of each increment; the components absent from the table hold
+        tabulated_F_increments(mF, cBC_meca, control_type, mecas, BC_mecas);
         //At the end, everything static becomes a deformation-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2)

@@ -172,16 +172,21 @@ void finite_kinematics(state_variables &sv, const unsigned int &control_type, co
 }
 
 // The strain a finite control type drives, from the increment's targets: DEtot (2), Detot (3),
-// U1 (4), F1 (5/6, the tabulated end-of-increment gradient)
-void set_driven_strain(state_variables &sv, const unsigned int &control_type, const rowvec &Dtarget, const rowvec &BC_target) {
+// U1 (4), F1 (5/6). Under 5/6 Dtarget is the fraction of the increment's generator (Dtinc mecas,
+// geodesic_F_increments): a cut increment advances F1 = exp(Dtinc dL) F0 along the increment's
+// geodesic, and the sub-increment that closes it lands on the tabulated F exactly
+void set_driven_strain(state_variables &sv, const unsigned int &control_type, const rowvec &Dtarget, const rowvec &BC_target,
+                       const bool &increment_end) {
     if (control_type == 2)
         sv.DEtot = Dtarget.t();
     else if (control_type == 3)
         sv.Detot = Dtarget.t();
     else if (control_type == 4)
         sv.U1 = sv.U0 + v2t_strain(Dtarget.t());
-    else
+    else if (increment_end)
         sv.F1 = v2t(BC_target.t());
+    else
+        sv.F1 = expmat(v2t(Dtarget.t()))*sv.F0;
 }
 
 // A Newton correction of the driven strain of the mixed problem (control types 1-4)
@@ -524,7 +529,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         DTime = Dtinc*sptr_meca->times(inc);
                                     }
                                     else {
-                                        set_driven_strain(*sv_M, blocks[i].control_type, Dtinc*sptr_meca->mecas.row(inc), sptr_meca->BC_mecas.row(inc));
+                                        set_driven_strain(*sv_M, blocks[i].control_type, Dtinc*sptr_meca->mecas.row(inc), sptr_meca->BC_mecas.row(inc), tinc + Dtinc > 1. - simcoon::iota);
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                         DTime = Dtinc*sptr_meca->times(inc);
                                         finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
@@ -885,7 +890,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         sv_T->DEtot = Dtinc*sptr_thermomeca->mecas.row(inc).t();
                                     }
                                     else {
-                                        set_driven_strain(*sv_T, blocks[i].control_type, Dtinc*sptr_thermomeca->mecas.row(inc), sptr_thermomeca->BC_mecas.row(inc));
+                                        set_driven_strain(*sv_T, blocks[i].control_type, Dtinc*sptr_thermomeca->mecas.row(inc), sptr_thermomeca->BC_mecas.row(inc), tinc + Dtinc > 1. - simcoon::iota);
                                         finite_kinematics(*sv_T, blocks[i].control_type, sptr_thermomeca->BC_w, sptr_thermomeca->BC_R, DTime, corate_type, DR);
                                         rve.to_start();
                                     }
@@ -908,7 +913,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     residual = zeros(7);
                                     sv_T->DT = 0.;
                                     DTime = Dtinc*sptr_thermomeca->times(inc);
-                                    set_driven_strain(*sv_T, blocks[i].control_type, Dtinc*sptr_thermomeca->mecas.row(inc), sptr_thermomeca->BC_mecas.row(inc));
+                                    set_driven_strain(*sv_T, blocks[i].control_type, Dtinc*sptr_thermomeca->mecas.row(inc), sptr_thermomeca->BC_mecas.row(inc), tinc + Dtinc > 1. - simcoon::iota);
                                     finite_kinematics(*sv_T, blocks[i].control_type, sptr_thermomeca->BC_w, sptr_thermomeca->BC_R, DTime, corate_type, DR);
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         rve.to_start();
