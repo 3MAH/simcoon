@@ -309,3 +309,130 @@ def test_finite_law_tends_to_the_small_strain_one(name):
     (ds1, dr1), (ds2, dr2) = gap(0.02), gap(0.005)
     assert ds2 < ds1 / 2.5 and dr2 < dr1 / 2.5
     assert ds2 < 0.05 and dr2 < 0.05
+
+
+# --- tangent_output: the material (TL) and spatial (UL) derivatives ---------------------------
+
+def _sqrt_spd(C):
+    c, N = np.linalg.eigh(C)
+    return N @ np.diag(np.sqrt(c)) @ N.T
+
+
+def _one_step(name, form, F1, DT, tangent_output):
+    """One increment from the reference (start), F0 = I, to F1."""
+    props, nstatev, T_init = LAWS[name]
+    H0, de, DR = _increments(form, np.eye(3), F1)
+    e_start = np.zeros(6) if form == "rate" else H0
+    out = sim.umat_T(name, _col(e_start), _col(de), _col(np.zeros(6)), _cube(DR), _col(props),
+                     _col(np.zeros(nstatev)), 0.0, 0.1, _col(np.zeros(4)), _col(np.zeros(3)),
+                     np.array([T_init]), np.array([DT]), n_threads=1, start=True, F0=_cube(np.eye(3)),
+                     F1=_cube(F1), kinematic_form=form, tangent_output=tangent_output)
+    return [np.asarray(o) for o in out]
+
+
+_E1 = np.array([0.02, -0.008, 0.005, 0.012, -0.006, 0.004])   # Green-Lagrange, engineering shears
+# the total form is exact under any rotation and strain; the log_R increment of one step only to
+# second order in the strain and first order in the rotation: its finite differences run without
+# rotation, on a quarter of the strain (EPICP still yields)
+_FORMS = {"total": (_spin(0.2), 1.0, 1e-5), "rate": (np.eye(3), 0.25, 1e-4)}
+
+
+def _F_of(E, R):
+    return R @ _sqrt_spd(np.eye(3) + 2. * _v2t_strain(E))
+
+
+def _S(out, F):
+    Fi = np.linalg.inv(F)
+    return _t2v_stress(np.linalg.det(F) * Fi @ _v2t_stress(out[0].ravel()) @ Fi.T)
+
+
+@pytest.mark.parametrize("form", ["rate", "total"])
+@pytest.mark.parametrize("name", ["ELISO", "ELORT", "EPICP"])
+def test_material_tangent_output_is_the_derivative_in_E(name, form):
+    """tangent_output='material': dSdE = dS/dE, dSdT = dS/dtheta, drdE = dr/dE at fixed F1 (r and
+    drdT as the box call), finite differences of the full call through F1 = R sqrt(I + 2E)."""
+    R, scale, tol = _FORMS[form]
+    E1, DT = scale * _E1, 5.0
+    F1 = _F_of(E1, R)
+    x = _one_step(name, form, F1, DT, "material")
+    box = _one_step(name, form, F1, DT, "box")
+    np.testing.assert_array_equal(x[0], box[0])
+    np.testing.assert_array_equal(x[4], box[4])
+    np.testing.assert_array_equal(x[8], box[8])
+    d = 1e-7
+    fdr = np.zeros(6)
+    for k in range(6):
+        pm = []
+        for sgn in (1, -1):
+            E = E1.copy()
+            E[k] += sgn * d
+            F = _F_of(E, R)
+            out = _one_step(name, form, F, DT, "box")
+            pm.append((_S(out, F), out[4].ravel()[0]))
+        fdS = (pm[0][0] - pm[1][0]) / (2 * d)
+        np.testing.assert_allclose(x[5][:, k, 0], fdS, rtol=0, atol=tol * np.abs(fdS).max())
+        fdr[k] = (pm[0][1] - pm[1][1]) / (2 * d)
+    np.testing.assert_allclose(x[7].ravel(), fdr, rtol=0, atol=tol * np.abs(fdr).max())
+    hT = 1e-3
+    p, m = _one_step(name, form, F1, DT + hT, "box"), _one_step(name, form, F1, DT - hT, "box")
+    fdT = (_S(p, F1) - _S(m, F1)) / (2 * hT)
+    np.testing.assert_allclose(x[6].ravel(), fdT, rtol=0, atol=1e-7 * np.abs(fdT).max())
+
+
+@pytest.mark.parametrize("name", ["ELISO", "EPICP"])
+def test_rate_form_material_tangent_is_the_log_R_map(name):
+    """Under rotation, the log_R material dSdE is the map of sim.umat's tangent_output='material'
+    (Lt_convert DsigmaDe_2_DSDE on the box), to round-off."""
+    F1 = _F_of(_E1, _spin(0.2))
+    x = _one_step(name, "rate", F1, 5.0, "material")
+    box = _one_step(name, "rate", F1, 5.0, "box")
+    ref = sim.Lt_convert(box[5], _cube(F1), box[0], "DsigmaDe_2_DSDE")
+    np.testing.assert_allclose(x[5], ref, rtol=0, atol=1e-10 * np.abs(ref).max())
+
+
+@pytest.mark.parametrize("form", ["rate", "total"])
+@pytest.mark.parametrize("name", ["ELISO", "EPICP"])
+def test_spatial_tangent_output_is_the_lie_derivative(name, form):
+    """tangent_output='spatial': dSdE is the Cauchy Lie tangent, (1/J) F dS F^T for F -> (I + d) F1,
+    dSdT the Cauchy derivative (as 'box'), and the heat per current volume: r/J, drdT/J and
+    drdE = d(r/J)/dd."""
+    R, scale, tol = _FORMS[form]
+    E1, DT = scale * _E1, 5.0
+    F1 = _F_of(E1, R)
+    x = _one_step(name, form, F1, DT, "spatial")
+    box = _one_step(name, form, F1, DT, "box")
+    np.testing.assert_array_equal(x[6], box[6])
+    J1, h = np.linalg.det(F1), 1e-7
+    np.testing.assert_allclose(x[4], box[4] / J1, rtol=1e-14)
+    np.testing.assert_allclose(x[8], box[8] / J1, rtol=1e-14)
+    fdr = np.zeros(6)
+    for k in range(6):
+        pm = []
+        for sgn in (1, -1):
+            dd = np.zeros(6)
+            dd[k] = sgn * h
+            F = (np.eye(3) + _v2t_strain(dd)) @ F1
+            out = _one_step(name, form, F, DT, "box")
+            pm.append((_S(out, F), out[4].ravel()[0] / np.linalg.det(F)))
+        fd = _t2v_stress(F1 @ _v2t_stress((pm[0][0] - pm[1][0]) / (2 * h)) @ F1.T) / J1
+        np.testing.assert_allclose(x[5][:, k, 0], fd, rtol=0, atol=tol * np.abs(fd).max())
+        fdr[k] = (pm[0][1] - pm[1][1]) / (2 * h)
+    np.testing.assert_allclose(x[7].ravel(), fdr, rtol=0, atol=tol * np.abs(fdr).max())
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    (dict(tangent_output="lagrangian"), "'box', 'material' or 'spatial'"),
+    (dict(tangent_output="material", small=True), "needs F0 and F1"),
+    (dict(tangent_output="material", ndi=2), "condensed stress states"),
+    (dict(tangent_output="box", ndi=2, condense="exact"), "tangent_output='material'"),
+])
+def test_tangent_output_requests_outside_the_scope_are_refused(kwargs, match):
+    F = _cube(_F(0.5))
+    args = dict(tangent_output=kwargs["tangent_output"], ndi=kwargs.get("ndi", 3),
+                condense=kwargs.get("condense", "approximate"))
+    if not kwargs.get("small"):
+        args.update(F0=F, F1=F)
+    with pytest.raises(ValueError, match=match):
+        sim.umat_T("ELISO", _col(np.zeros(6)), _col(np.zeros(6)), _col(np.zeros(6)),
+                   _cube(np.eye(3)), _col(PROPS), _col(np.zeros(1)), 0., 0.1, _col(np.zeros(4)),
+                   _col(np.zeros(3)), np.array([T0]), np.array([0.]), **args)

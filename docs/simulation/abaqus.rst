@@ -201,7 +201,10 @@ The outputs follow Abaqus's definitions:
   (:math:`\delta\mathbf{E} = \mathbf{F}^{T}\delta\boldsymbol\varepsilon\,\mathbf{F}`,
   :math:`\delta J = J\,\mathrm{tr}\,\delta\boldsymbol\varepsilon`), so that
   :math:`\int \mathrm{RPL}\,\mathrm{d}v\,\Delta t = \int r\,\mathrm{d}V_0`.
-  ``Wm`` and ``Wt`` in ``STATEV`` stay per reference volume.
+  ``Wm`` and ``Wt`` in ``STATEV`` stay per reference volume. These are the
+  densities ``sim.umat_T(..., tangent_output="spatial")`` returns, times
+  :math:`1/\Delta t` (see :doc:`python_solver`): an updated-Lagrangian Python
+  coupler and this bridge integrate the same heat.
 
 Rules for the input file under ``NLGEOM``:
 

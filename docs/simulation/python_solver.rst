@@ -113,6 +113,16 @@ under finite strain, for every law, in the rate form under log_R
 (``kinematic_form="total"``); the stress is Cauchy in and out, as for ``sim.umat``,
 and the kernels run in the lab frame transported by ``DR`` (as ``sim.umat``: anisotropy
 axes are not convected there, unlike in the solver).
+``tangent_output`` selects the derivatives, as for ``sim.umat``: ``"box"`` (default),
+``"material"`` (:math:`\partial\mathbf{S}/\partial\mathbf{E}`,
+:math:`\partial\mathbf{S}/\partial\theta`, :math:`\partial r/\partial\mathbf{E}`, total
+Lagrangian) or ``"spatial"`` (the Cauchy Lie tangent,
+:math:`\partial\boldsymbol\sigma/\partial\theta` and the heat per current volume,
+:math:`r/J` with
+:math:`\partial(r/J)/\partial\mathbf{d} = (\mathbf{F}\,\partial r/\partial\mathbf{E}\,\mathbf{F}^{T} - r\,\mathbf{I})/J`,
+updated Lagrangian); ``"box"`` and ``"material"`` keep the heat per reference volume.
+``r``, ``drdE`` and ``drdT`` are increments: a heat equation takes ``r/dtime``,
+``drdE/dtime`` and ``drdT/dtime``.
 ``sim.umat`` takes the temperature increment as ``DT=`` (with ``temp=``), so that
 thermal expansion follows a prescribed temperature without the heat balance.
 

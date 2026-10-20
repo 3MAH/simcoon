@@ -240,7 +240,7 @@ PYBIND11_MODULE(_core, m)
     // the framework's route. The small-strain/in-rate kernels ignore it, since
     // their tangent is already in the solver's frame.
     m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "nshr"_a = pybind11::none(), "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "corate"_a = pybind11::none(), "work_correction"_a = true, "tangent_output"_a = "box", "start"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "DT"_a = pybind11::none(), "condense"_a = "approximate", simcoon_docs::umat);
-    m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "nshr"_a = pybind11::none(), "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "start"_a = pybind11::none(), "F0"_a = pybind11::none(), "F1"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "condense"_a = "approximate", simcoon_docs::umat_T);
+    m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "nshr"_a = pybind11::none(), "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "start"_a = pybind11::none(), "F0"_a = pybind11::none(), "F1"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "condense"_a = "approximate", "tangent_output"_a = "box", simcoon_docs::umat_T);
 
     // Register the from-python converters for read and solver
     // tangent_mode named constants (see parameter.hpp): 0 = none/explicit,
