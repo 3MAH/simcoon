@@ -95,62 +95,64 @@ def holza_props(gamma, kappa_d):
 
 
 ###############################################################################
-# The material point
-# ------------------
-# ``sim.umat`` returns the Cauchy stress of a deformation gradient. The membrane only needs its
-# three normal components.
+# The loading path
+# ----------------
+# The membrane is a homogeneous material point, driven by ``sim.solver.solve`` in Kirchhoff
+# stress (``"logarithmic"`` control, :math:`\boldsymbol{\tau} = J\boldsymbol{\sigma}`): the hoop
+# stress is ramped, the radial stress and the shears are held at zero, and the axial stress is
+# the hoop stress times the ratio set by the axial condition,
+#
+# .. math::
+#
+#     \frac{\sigma_{zz}}{\sigma_{\theta\theta}} = 0 \;(\text{free}), \qquad
+#     \frac{r_i}{2r} \;(\text{closed}), \qquad
+#     \frac{1}{2r} \;(\text{figure}, r \text{ in mm}).
+#
+# The pressure follows from the solved stretches, :math:`p = \sigma_{\theta\theta} h / r_i`.
 
-_ZERO6 = np.zeros((6, 1), order="F")
-_EYE = np.eye(3).reshape(3, 3, 1).copy(order="F")
+CONTROL = ["stress", "stress", "zero", "zero", "zero", "zero"]
+TAU_MAX = 300.0                                    # kPa, enough for every curve to pass P_MAX
+
+AXIAL_RATIO = {                                    # sigma_zz / sigma_thetatheta
+    "free": lambda r, r_i: 0.0 * r,
+    "closed": lambda r, r_i: r_i / (2.0 * r),
+    "figure": lambda r, r_i: 1.0 / (2.0 * r),
+}
 
 
-def cauchy(props, lam_theta, lam_z, lam_r):
-    F1 = np.diag([lam_theta, lam_z, lam_r]).reshape(3, 3, 1).copy(order="F")
-    stress = sim.umat("HOLZA", _ZERO6, _ZERO6, _EYE, F1, _ZERO6, _EYE,
-                      np.asfortranarray(props.reshape(-1, 1)), np.zeros((1, 1), order="F"),
-                      0.0, 1.0, np.zeros((4, 1), order="F"), n_threads=1)[0]
-    return stress[0, 0], stress[1, 0], stress[2, 0]
+def run_path(props, table):
+    step = sim.solver.StepMeca(control=CONTROL, mode="tabular", tabular=table)
+    res = sim.solver.solve(sim.solver.Block([step], control_type="logarithmic"), "HOLZA", props, 1)
+    return np.array([res["F"][i, i] for i in range(3)])     # lam_theta, lam_z, lam_r
 
 
 ###############################################################################
 # Inflation of the membrane
 # -------------------------
-# The circumferential stretch is prescribed; the axial and radial stretches solve the axial and
-# radial equilibria. A Newton iteration on the two unknowns, started from the previous point of
-# the curve, converges in two or three steps.
+# Without axial load one solve is the answer. With closed ends, or the condition of the figure,
+# the ratio depends on the deformed radius: the path is solved again with the ratio of the
+# previous solution until the stretches no longer change (5 to 8 solves).
 
 
-def equilibrium(props, lam_theta, lam_z, lam_r, axial):
-    """Residuals of the axial and radial equilibria, and the internal pressure."""
-    s_theta, s_z, s_r = cauchy(props, lam_theta, lam_z, lam_r)
-    r, h = lam_theta * R, lam_r * H
-    r_i = r - 0.5 * h
-    pressure = s_theta * h / r_i
-    target = {"free": 0.0,
-              "closed": pressure * r_i**2 / (2.0 * r * h),
-              "figure": pressure * r_i / (2.0 * r * h)}[axial]
-    return np.array([s_z - target, s_r]), pressure
-
-
-def inflate(gamma, kappa_d, lam_max, axial="figure", npoints=300):
+def inflate(gamma, kappa_d, axial="figure", ninc=400, tol=1.0e-10, maxpass=50):
     props = holza_props(gamma, kappa_d)
-    x = np.array([1.0, 1.0])                       # (lam_z, lam_r)
-    curve = [(1.0, 1.0, 0.0)]
-    for lam_theta in np.linspace(1.0, lam_max, npoints)[1:]:
-        for _ in range(30):
-            res, pressure = equilibrium(props, lam_theta, *x, axial)
-            if np.abs(res).max() < 1.0e-9 * BULK:
-                break
-            step = 1.0e-7
-            jac = np.column_stack([(equilibrium(props, lam_theta, *(x + step * e), axial)[0] - res) / step
-                                   for e in np.eye(2)])
-            x = x - np.linalg.solve(jac, res)
-        else:
-            raise RuntimeError(f"no equilibrium at lambda_theta = {lam_theta:.4f}")
-        curve.append((lam_theta, x[0], pressure))
-        if pressure > 1.05 * P_MAX:
+    time = np.linspace(0.0, 1.0, ninc + 1)[1:]
+    tau = TAU_MAX * time
+    stretch = np.ones((3, ninc))
+    for _ in range(maxpass):
+        r, h = stretch[0] * R, stretch[2] * H
+        table = np.column_stack([time, tau, tau * AXIAL_RATIO[axial](r, r - 0.5 * h)])
+        stretch, previous = run_path(props, table), stretch
+        if axial == "free" or np.abs(stretch - previous).max() < tol:
             break
-    return np.array(curve).T                       # lam_theta, lam_z, pressure
+    else:
+        raise RuntimeError(f"the axial load did not converge in {maxpass} passes ({axial})")
+    lam_theta, lam_z, lam_r = stretch
+    h = lam_r * H
+    pressure = tau / (lam_theta * lam_z * lam_r) * h / (lam_theta * R - 0.5 * h)
+    keep = pressure <= P_MAX
+    return (np.concatenate([[1.0], lam_theta[keep]]), np.concatenate([[1.0], lam_z[keep]]),
+            np.concatenate([[0.0], pressure[keep]]))
 
 
 ###############################################################################
@@ -195,8 +197,7 @@ worst = {"figure": [0.0, 0.0], "free": [0.0, 0.0], "closed": [0.0, 0.0]}
 for label, gamma, kappa_d in CASES:
     lam_theta_ref, p_theta_ref = paper_theta[label]
     lam_z_ref, p_z_ref = paper_z[label]
-    lam_max = 1.05 * lam_theta_ref.max()
-    lam_theta, lam_z, pressure = inflate(gamma, kappa_d, lam_max, "figure")
+    lam_theta, lam_z, pressure = inflate(gamma, kappa_d, "figure")
 
     isotropic = label == "base"
     color = "k" if isotropic else colors[gamma]
@@ -210,7 +211,7 @@ for label, gamma, kappa_d in CASES:
     dev = {"figure": (deviation(lam_theta, pressure, lam_theta_ref, p_theta_ref),
                       deviation(lam_z, pressure, lam_z_ref, p_z_ref))}
     for axial in ("free", "closed"):
-        lt, lz, p = inflate(gamma, kappa_d, lam_max, axial)
+        lt, lz, p = inflate(gamma, kappa_d, axial)
         dev[axial] = (deviation(lt, p, lam_theta_ref, p_theta_ref), deviation(lz, p, lam_z_ref, p_z_ref))
     for axial, (d_theta, d_z) in dev.items():
         worst[axial] = [max(worst[axial][0], d_theta), max(worst[axial][1], d_z)]
@@ -243,9 +244,8 @@ fig.tight_layout()
 
 fig2, (bx_z, bx_theta) = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
 for label, gamma, kappa_d, color in [("g_50_226", 49.98, 0.226, "tab:green"), ("base", 49.98, 1.0 / 3.0, "k")]:
-    lam_max = 1.05 * paper_theta[label][0].max()
     for axial, style in [("free", ":"), ("figure", "-"), ("closed", "--")]:
-        lam_theta, lam_z, pressure = inflate(gamma, kappa_d, lam_max, axial)
+        lam_theta, lam_z, pressure = inflate(gamma, kappa_d, axial)
         name = rf"$\kappa = {kappa_d:.3g}$, {axial}"
         bx_theta.plot(lam_theta, pressure, style, color=color, lw=1.6, label=name)
         bx_z.plot(lam_z, pressure, style, color=color, lw=1.6)
