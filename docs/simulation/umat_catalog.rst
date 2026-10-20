@@ -191,6 +191,102 @@ Unchanged dedicated implementations (out of the modular scope):
   still be active (at :math:`\kappa_d = 0.2` a fibre shortened to 0.39 of its length
   gives :math:`\bar{I}^{*}_4 = 1.12`).
 
+  **Parameters in the papers and in other codes.** The matrix coefficient is
+  :math:`C_{10}` here and in Abaqus, the shear modulus :math:`c = 2 C_{10}` (written
+  :math:`\mu` in 2000) in the papers, FEBio and matadi. The volumetric terms differ, but all
+  are fixed by the same ground-state bulk modulus :math:`K = U''(1)`; the papers treat the
+  material as incompressible.
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 18 20 22 20 20
+
+     * - quantity
+       - Gasser et al. 2006 (Holzapfel et al. 2000)
+       - simcoon ``HolzapfelElasticity`` / ``HOLZA``
+       - Abaqus ``*ANISOTROPIC HYPERELASTIC, HOLZAPFEL``
+       - FEBio ``Holzapfel-Gasser-Ogden``
+     * - matrix
+       - :math:`c` (:math:`\mu`)
+       - ``C10`` :math:`= c/2`
+       - :math:`C_{10} = c/2`
+       - ``c``
+     * - fibre stiffness
+       - :math:`k_1`
+       - ``k1``
+       - :math:`k_1`
+       - ``k1``
+     * - fibre exponent
+       - :math:`k_2`
+       - ``k2``
+       - :math:`k_2`
+       - ``k2``
+     * - dispersion
+       - :math:`\kappa` (0 in 2000)
+       - ``kappa_d``
+       - :math:`\kappa`
+       - ``kappa``
+     * - fibre families
+       - two, at :math:`\pm\gamma` (:math:`\pm\beta` in 2000) from the circumferential
+         direction, in the tangent plane
+       - ``fibres``: one rotation of :math:`\mathbf{e}_1` per family in the local frame,
+         ``Rotation.from_euler("zxz", [[0, 0, g], [0, 0, -g]], degrees=True)``;
+         props ``n_fam`` and the unit directions
+       - two local directions (``*ORIENTATION``, ``LOCAL DIRECTIONS``)
+       - ``gamma``, angle in a plane of the local frame
+     * - bulk modulus
+       - incompressible
+       - ``kappa`` :math:`= K`; ``volumetric="log"``:
+         :math:`K (J \ln J - J + 1)`, ``"quadratic"``: :math:`K (J-1)^2/2`
+       - :math:`D = 2/K`, :math:`U = \frac{1}{D}\left(\frac{J^2 - 1}{2} - \ln J\right)`
+       - ``k`` (FEBio's own :math:`U(J)`, see its manual)
+
+  The 2006 paper rewrites the 2000 model around a generalized structure tensor; the
+  notations map as follows (the 2006 model with :math:`\kappa = 0` is the 2000 one).
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 18 28 32 22
+
+     * -
+       - Holzapfel, Gasser, Ogden 2000
+       - Gasser, Ogden, Holzapfel 2006
+       - simcoon
+     * - structure tensor
+       - :math:`\mathbf{A}_i = \mathbf{a}_{0i} \otimes \mathbf{a}_{0i}`
+       - :math:`\mathbf{H}_i = \kappa \mathbf{I} + (1 - 3\kappa)\,\mathbf{a}_{0i} \otimes \mathbf{a}_{0i}`
+       - built from ``kappa_d`` and ``fibres``
+     * - fibre strain
+       - :math:`\bar{I}_4 - 1`, :math:`\bar{I}_6 - 1` (:math:`\bar{I}_{4,6} = \bar{\mathbf{C}} : \mathbf{A}_{1,2}`)
+       - :math:`\bar{E}_i = \mathbf{H}_i : \bar{\mathbf{C}} - 1
+         = \kappa (\bar{I}_1 - 3) + (1 - 3\kappa)(\bar{I}_{4,i} - 1)`
+       - the same quantity, written :math:`\bar{I}^{*}_{4,i} - 1`
+         (:math:`\bar{I}^{*}_{4,i} = \kappa_d \bar{I}_1 + (1 - 3\kappa_d) \bar{I}_{4,i} = \mathbf{H}_i : \bar{\mathbf{C}}`)
+     * - fibre energy
+       - :math:`\frac{k_1}{2 k_2} \sum_{i = 4, 6} \left[ e^{k_2 (\bar{I}_i - 1)^2} - 1 \right]`
+       - :math:`\bar{\Psi}_{f i} = \frac{k_1}{2 k_2} \left[ e^{k_2 \bar{E}_i^2} - 1 \right]`
+       - same, summed over the families
+     * - dispersion
+       - none (aligned fibres)
+       - :math:`\kappa = \frac{1}{4} \int_0^\pi \rho(\Theta) \sin^3\Theta \, d\Theta`, with
+         :math:`\rho` a von Mises density of concentration :math:`b`
+       - ``kappa_d`` (``kappa`` is the bulk modulus in simcoon)
+     * - fibre angle
+       - :math:`\beta`
+       - :math:`\gamma`
+       - ``fibres``
+     * - wall thickness (tube)
+       - :math:`H`
+       - :math:`H` (also the letter of the structure tensor)
+       - not a material parameter
+
+  matadi (``holzapfel_gasser_ogden``) takes ``c``, ``k1``, ``k2``, ``kappa`` and the fibre
+  ``angle`` about an ``axis``; ``axis=2, angle=g`` is the plane and the convention of the
+  rotation above (checked to 1.6e-14 on the stress against simcoon, quadratic :math:`U(J)`).
+  The example :ref:`sphx_glr_examples_hyperelasticity_GOH2006_tube_inflation.py` reproduces figure 7 of Gasser et al. (2006) with the
+  parameters of the iliac adventitia, :math:`c = 7.64` kPa, :math:`k_1 = 996.6` kPa,
+  :math:`k_2 = 524.6`, :math:`\gamma = 49.98^\circ`, :math:`\kappa = 0.226`.
+
   props = ``C10, k1, k2, kappa_d, n_fam, a0x_1, a0y_1, a0z_1, ..., kappa``,
   where each :math:`\mathbf{a}_{0,i}` is a unit direction **in the local
   material frame** (the solver's material orientation places it globally, as
@@ -517,8 +613,9 @@ up to 5x on a non-proportional path, for an operator exact to :math:`10^{-8}`). 
 ``EPJCK`` (and the adapter-served von Mises + isotropic names) mode 3 is **identical to mode
 2 by construction**: with a radial flow the cutting-plane update already is the closest-point
 projection and the algorithmic operator is the exact Jacobian of the discrete map, including
-the rate term. Mode 3 falls back to the mode-2 operator for a Tresca or Drucker row, a
-condensed stress state (plane stress, 1D), the thermomechanical SMA kernel and ``SMA_mono``.
+the rate term. Mode 3 falls back to the mode-2 operator for a Tresca or Drucker row, the
+thermomechanical SMA kernel and ``SMA_mono``. A condensed stress state (plane stress, beam,
+truss) keeps mode 3: the law runs 3D and the state is solved around it.
 
 Validation and performance
 ==========================
