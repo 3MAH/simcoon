@@ -93,6 +93,11 @@ def test_planar_beam_keeps_11_12():
 
 # --- the condensed point is the 3D law at the stress-free strain, with its exact tangent -------
 
+ELORT = [150000., 9000., 8000., 0.3, 0.25, 0.4, 5000., 4500., 3000., 0., 0., 0.]
+EPKCP = [E, NU, 0., SY, H, 1.0, 20000.]
+EPCHA = [210000.0, 0.3, 0.0, 300.0, 200.0, 20.0, 30000.0, 172.0, 19500.0, 301.0]
+EPHIL = [E, NU, 0., SY, H, 1.0, 0.5, 0.6, 0.7, 1.5, 1.5, 1.5]
+EPJCK = [200000., 0.33, 0., 792., 510., 0.26, 0.014, 1.0, 1.03, 293., 1793.]
 SMADI = [0, 70000.0, 70000.0, 0.3, 0.3, 1e-6, 1e-6, 0.0, 0.05, 0.021, 0.0, 6.0, 5.0,
          293.15, 273.15, 313.15, 333.15, 0.2, 0.2, 0.2, 0.2, 300.0, 1.4, 2.0, 1e-6, 1e-3, 1.0, 1e8]
 _MOD = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=NU),
@@ -104,6 +109,15 @@ LAWS = {
     "PRONK": ([3000., 0.35, 0., 1., 1500., 0.35, 3000., 1200.], 14, 293.15, 10.0, 2),
     "SMADI": (SMADI, 17, 353.15, 6.0, 3),
     "MODUL": (list(_MOD.props), _MOD.nstatev, 293.15, 1.0, 2),
+    "ELISO": ([E, NU, 0.0], 1, 293.15, 1.0, 2),
+    "ELIST": ([3, 230000., 15000., 0.02, 0.4, 50000., 0., 0.], 1, 293.15, 1.0, 2),
+    "ELORT": (ELORT, 1, 293.15, 1.0, 2),
+    "ZENNK": ([3000., 0.35, 0., 1., 1500., 0.35, 3000., 1200.], 14, 293.15, 10.0, 2),
+    "EPJCK": (EPJCK, 9, 293.15, 3.0, 2),
+    # kinematic hardening and Hill: the algorithmic (mode 2) tangent is approximate in 3D already
+    "EPKCP": (EPKCP, 14, 293.15, 1.0, 3),
+    "EPCHA": (EPCHA, 33, 293.15, 1.0, 3),
+    "EPHIL": (EPHIL, 33, 293.15, 1.0, 3),
 }
 PATH = np.array([3e-4, -1e-4, 0.0, 2e-4, -1.5e-4, 1e-4])
 
@@ -214,10 +228,10 @@ def test_condensed_refusals():
     with pytest.raises(ValueError, match="box"):
         sim.umat(*args, ndi=2, tangent_output="material", n_threads=1)
     with pytest.raises(ValueError, match="material"):
-        sim.umat(*args, ndi=2, condense="exact", n_threads=1)
+        sim.umat(*args, ndi=2, condense="material_face", n_threads=1)
     with pytest.raises(ValueError, match="'rate'"):
-        sim.umat(*args, ndi=2, condense="exact", tangent_output="material", corate="jaumann", n_threads=1)
-    with pytest.raises(ValueError, match="approximate"):
+        sim.umat(*args, ndi=2, condense="material_face", tangent_output="material", corate="jaumann", n_threads=1)
+    with pytest.raises(ValueError, match="spatial_face"):
         sim.umat(*args, ndi=2, condense="bogus", n_threads=1)
 
 
@@ -237,8 +251,12 @@ def _hyper(name, props, lnv, ndi, nshr=None):
     return s.ravel(), Lt[:, :, 0]
 
 
+HYPER = {"NEOHC": [1000., 10000.], "NEOHI": [2000., 0.40, 0.0], "SNTVE": [100000.0, 0.3, 0.0],
+         "MOORI": [0.2588, -0.0449, 10000.0], "YEOHH": [0.30, -0.010, 0.0005, 1000.0]}
+
+
 @pytest.mark.parametrize("ndi,nshr", STATES)
-@pytest.mark.parametrize("name,props", [("NEOHC", [1000., 10000.]), ("NEOHI", [2000., 0.40, 0.0])])
+@pytest.mark.parametrize("name,props", list(HYPER.items()))
 def test_hyperelastic_condensed_through_ln_V(name, props, ndi, nshr):
     """An F-based law: the caller's F1 knows the kept stretches only; the point solves the others
     (ln V1 on the free components) and returns the Cauchy stress of that F1, with the box tangent
@@ -314,7 +332,7 @@ _NEO_MOD = ModularMaterial(elasticity=__import__("simcoon.modular", fromlist=["x
 FINITE_LAWS = {"NEOHC": ([1000.0, 10000.0], 1), "MODUL": (list(_NEO_MOD.props), _NEO_MOD.nstatev)}
 
 
-def _finite_path(name, ndi, nshr, n, form="rate", condense="approximate"):
+def _finite_path(name, ndi, nshr, n, form="rate", condense="spatial_face"):
     """Proportional ln V path on the kept components in n increments. The caller's F knows the kept
     stretches only; it accumulates etot += Detot (the solved strain written back)."""
     props, nstatev = FINITE_LAWS[name]
@@ -328,7 +346,7 @@ def _finite_path(name, ndi, nshr, n, form="rate", condense="approximate"):
         out = sim.umat(name, _col(e), de, np.asfortranarray(F0[:, :, None]), np.asfortranarray(F1[:, :, None]),
                        _col(s), I3, _col(props), _col(sv), float(i), 1.0, _col(wm), ndi=ndi, nshr=nshr,
                        n_threads=1, kinematic_form=form, start=(i == 0), condense=condense,
-                       tangent_output="material" if condense == "exact" else "box")
+                       tangent_output="material" if condense == "material_face" else "box")
         s, sv, wm = out[0].ravel(), out[1].ravel(), out[2].ravel()
         e, F0 = e + de.ravel(), F1
     return s, e
@@ -347,11 +365,11 @@ def test_finite_condensed_point_over_increments(name, ndi, nshr):
     np.testing.assert_allclose(e8[C], e1[C], rtol=1e-9, atol=1e-12)
 
 
-@pytest.mark.parametrize("condense", ["approximate", "exact"])
+@pytest.mark.parametrize("condense", ["spatial_face", "material_face"])
 @pytest.mark.parametrize("ndi,nshr", [(1, 0), (2, 1)])
 @pytest.mark.parametrize("name", list(FINITE_LAWS))
 def test_finite_condensed_point_over_increments_total_form(name, ndi, nshr, condense):
-    """As above under the total form, approximate and exact (there Detot is written back on all six
+    """As above under the total form, spatial and material face (there Detot is written back on all six
     components, the law's own increment H1 - H0): n increments land where one does."""
     _, C = _kept(ndi, nshr)
     s1, e1 = _finite_path(name, ndi, nshr, 1, "total", condense)
@@ -361,15 +379,15 @@ def test_finite_condensed_point_over_increments_total_form(name, ndi, nshr, cond
 
 
 @pytest.mark.parametrize("ndi,nshr", [(1, 0), (2, 1)])
-def test_exact_rate_form_over_increments(ndi, nshr):
-    """condense='exact' under the rate form feeds the law the log_R increment of the rebuilt F0 -> F1:
+def test_material_face_rate_form_over_increments(ndi, nshr):
+    """condense='material_face' under the rate form feeds the law the log_R increment of the rebuilt F0 -> F1:
     NEOHC (a function of F) follows the total form at every n; MODUL carries the log_R integration
     error of those increments, which vanishes with the increment."""
-    s_rate, _ = _finite_path("NEOHC", ndi, nshr, 8, "rate", "exact")
-    s_total, _ = _finite_path("NEOHC", ndi, nshr, 8, "total", "exact")
+    s_rate, _ = _finite_path("NEOHC", ndi, nshr, 8, "rate", "material_face")
+    s_total, _ = _finite_path("NEOHC", ndi, nshr, 8, "total", "material_face")
     np.testing.assert_allclose(s_rate, s_total, rtol=1e-9, atol=1e-9 * np.abs(s_total).max())
-    ref, _ = _finite_path("MODUL", ndi, nshr, 1, "total", "exact")
-    gaps = [np.abs(_finite_path("MODUL", ndi, nshr, n, "rate", "exact")[0] - ref).max() for n in (4, 8, 16)]
+    ref, _ = _finite_path("MODUL", ndi, nshr, 1, "total", "material_face")
+    gaps = [np.abs(_finite_path("MODUL", ndi, nshr, n, "rate", "material_face")[0] - ref).max() for n in (4, 8, 16)]
     assert gaps[1] < 0.3 * gaps[0] and gaps[2] < 0.3 * gaps[1]
 
 
@@ -392,10 +410,10 @@ def test_umat_T_finite_condensed_dSdT_follows_the_free_stretch():
     np.testing.assert_allclose(dSdT[K], fd[K], rtol=1e-6, atol=1e-9 * np.abs(fd).max())
 
 
-# --- the total form, and condense='exact' ----------------------------------------------------
+# --- the total form, and condense='material_face' ----------------------------------------------------
 # Under kinematic_form='total' the law works on H = ln U and its dual T; the caller passes
-# etot = H0, Detot = H1 - H0 on the kept components and F for its rotation. 'approximate' makes
-# the law's own stress vanish on C (T_C = 0); 'exact' the second Piola-Kirchhoff S_C, i.e. the
+# etot = H0, Detot = H1 - H0 on the kept components and F for its rotation. 'spatial_face' makes
+# the law's own stress vanish on C (T_C = 0); 'material_face' the second Piola-Kirchhoff S_C, i.e. the
 # traction on the free material faces, on the Green-Lagrange E_C (tangent dS/dE).
 
 def _T_of(tau, F):
@@ -414,25 +432,39 @@ def _S_of(sigma, F):
     return sim.t2v_stress(np.linalg.det(F) * Fi @ sim.v2t_stress(sigma) @ Fi.T).ravel()
 
 
+# name: (props, nstatev, strain scale[, tangent_mode])
 TOTAL_LAWS = {
     "NEOHC": ([1000.0, 10000.0], 1, 1.0),
     "MODUL": (list(_NEO_MOD.props), _NEO_MOD.nstatev, 1.0),
     "ELISO": ([E, NU, 0.0], 1, 0.02),
     "EPICP": (EPICP, 8, 0.05),
+    "NEOHI": (HYPER["NEOHI"], 1, 1.0),
+    "SNTVE": (HYPER["SNTVE"], 1, 0.02),
+    "MOORI": (HYPER["MOORI"], 1, 1.0),
+    "YEOHH": (HYPER["YEOHH"], 1, 1.0),
+    "ELIST": (LAWS["ELIST"][0], 1, 0.02),
+    "ELORT": (ELORT, 1, 0.02),
+    "EPJCK": (EPJCK, 9, 0.05),
+    "EPKCP": (EPKCP, 14, 0.05, 3),
+    "EPCHA": (EPCHA, 33, 0.05, 3),
+    "EPHIL": (EPHIL, 33, 0.05, 3),
 }
+# condense='material_face': the total-form laws (the rate form: test_material_face_rate_form_over_increments; at small
+# strain it is 'spatial_face', test_small_strain_faces_coincide)
+MATERIAL_FACE_LAWS = list(TOTAL_LAWS)
 H_PATH = np.array([0.25, -0.08, 0.0, 0.12, -0.07, 0.05])
 
 
-def _total(name, H, ndi=3, nshr=None, condense="approximate", Rm=None):
+def _total(name, H, ndi=3, nshr=None, condense="spatial_face", Rm=None):
     """One total-form increment from the virgin state to H (kept components; the free ones are the
     caller's guess, 0 here). Returns sigma (Cauchy), Lt, the written-back Detot, the end F."""
-    props, nstatev, _ = TOTAL_LAWS[name]
+    props, nstatev, _, *tm = TOTAL_LAWS[name]
     Rm = R_ if Rm is None else Rm
     Detot = _col(H)
     out = sim.umat(name, _col(np.zeros(6)), Detot, I3, np.asfortranarray((Rm @ expm(sim.v2t_strain(H)))[:, :, None]),
                    _col(np.zeros(6)), I3, _col(props), _col(np.zeros(nstatev)), 0.0, 1.0, _col(np.zeros(4)),
                    ndi=ndi, nshr=nshr, n_threads=1, kinematic_form="total", start=True, condense=condense,
-                   tangent_output="material" if condense == "exact" else "box")
+                   tangent_output="material" if condense == "material_face" else "box", tangent_mode=(tm or [2])[0])
     H1 = Detot.ravel()
     return out[0].ravel(), out[3][:, :, 0], H1, Rm @ expm(sim.v2t_strain(H1))
 
@@ -458,7 +490,7 @@ def test_total_condensed_is_the_3D_total_law(name, ndi, nshr):
     T = sim.t2v_stress(_T_of(np.linalg.det(F1) * sim.v2t_stress(s), F1)).ravel()
     assert np.abs(T[C]).max() < 1e-9 * np.abs(T).max()
     np.testing.assert_array_equal(np.delete(Lt, K, axis=0), 0.0)
-    d = 1e-7
+    d = 1e-5 * scale   # out of the round-off of the nearly incompressible laws (MOORI: kappa/mu ~ 4e4)
     fd = np.zeros((len(K), len(K)))
     for j, k in enumerate(K):
         Tpm = []
@@ -472,17 +504,17 @@ def test_total_condensed_is_the_3D_total_law(name, ndi, nshr):
 
 
 @pytest.mark.parametrize("ndi,nshr", [(1, 0), (1, 1), (2, 1), (1, 2), (2, 3)])
-@pytest.mark.parametrize("name", ["NEOHC", "MODUL"])
-def test_exact_condensation_frees_the_material_faces(name, ndi, nshr):
-    """condense='exact': S_C = 0, i.e. P e_3 = 0 on the free face of a shell (and of the planar
+@pytest.mark.parametrize("name", MATERIAL_FACE_LAWS)
+def test_material_face_frees_the_material_faces(name, ndi, nshr):
+    """condense='material_face': S_C = 0, i.e. P e_3 = 0 on the free face of a shell (and of the planar
     beam), P e_2 = P e_3 = 0 for the truss; E_K stays the caller's. It coincides with
-    'approximate' when the free directions are principal (truss, plane stress, isotropic)."""
+    'spatial_face' when the free directions are principal (truss, plane stress, isotropic)."""
     K, C = _kept(ndi, nshr)
     H = np.zeros(6)
-    H[K] = H_PATH[K]
-    s, _, _, F1 = _total(name, H.copy(), ndi, nshr, "exact")
+    H[K] = TOTAL_LAWS[name][2] * H_PATH[K]
+    s, _, _, F1 = _total(name, H.copy(), ndi, nshr, "material_face")
     S = _S_of(s, F1)
-    assert np.abs(S[C]).max() < 1e-10 * np.abs(S).max()
+    assert np.abs(S[C]).max() < 1e-9 * np.abs(S).max()   # the Newton stops at 1e-10 |S| + 1e-14 |L_CC|
     P = F1 @ sim.v2t_stress(S)
     faces = {(1, 0): [1, 2], (1, 1): [2], (2, 1): [2]}.get((ndi, nshr), [])
     for f in faces:
@@ -496,32 +528,32 @@ def test_exact_condensation_frees_the_material_faces(name, ndi, nshr):
 
 
 @pytest.mark.parametrize("ndi,nshr", [(2, 1), (1, 2), (2, 3)])
-def test_exact_condensation_is_the_same_under_rate_and_total(ndi, nshr):
-    """NEOHC depends on F only: the exact condition (on S, at the F built from E) gives the same
+def test_material_face_is_the_same_under_rate_and_total(ndi, nshr):
+    """NEOHC depends on F only: the material-face condition (on S, at the F built from E) gives the same
     point whatever form carries the law's strain."""
     K, _ = _kept(ndi, nshr)
     H = np.zeros(6)
     H[K] = H_PATH[K]
     F1c = np.asfortranarray((R_ @ expm(sim.v2t_strain(H)))[:, :, None])
-    s_t, Lt_t, _, _ = _total("NEOHC", H.copy(), ndi, nshr, "exact")
+    s_t, Lt_t, _, _ = _total("NEOHC", H.copy(), ndi, nshr, "material_face")
     out = sim.umat("NEOHC", _col(np.zeros(6)), _col(np.zeros(6)), I3, F1c, _col(np.zeros(6)), I3,
                    _col([1000.0, 10000.0]), _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), ndi=ndi, nshr=nshr,
-                   n_threads=1, corate=3, start=True, condense="exact", tangent_output="material")
+                   n_threads=1, corate=3, start=True, condense="material_face", tangent_output="material")
     np.testing.assert_allclose(out[0].ravel(), s_t, rtol=1e-9, atol=1e-9 * np.abs(s_t).max())
     np.testing.assert_allclose(out[3][:, :, 0], Lt_t, rtol=1e-7, atol=1e-7 * np.abs(Lt_t).max())
 
 
 @pytest.mark.parametrize("ndi,nshr", [(2, 1), (1, 2)])
-@pytest.mark.parametrize("name", ["NEOHC", "MODUL"])
-def test_exact_tangent_is_dS_dE_on_the_kept_components(name, ndi, nshr):
+@pytest.mark.parametrize("name", MATERIAL_FACE_LAWS)
+def test_material_face_tangent_is_dS_dE_on_the_kept_components(name, ndi, nshr):
     K, _ = _kept(ndi, nshr)
     H = np.zeros(6)
-    H[K] = H_PATH[K]
-    _, Lt, _, F1 = _total(name, H.copy(), ndi, nshr, "exact")
+    H[K] = TOTAL_LAWS[name][2] * H_PATH[K]
+    _, Lt, _, F1 = _total(name, H.copy(), ndi, nshr, "material_face")
     E_of = lambda F: sim.t2v_strain(0.5 * (F.T @ F - np.eye(3))).ravel()
     E = E_of(F1)
     np.testing.assert_array_equal(np.delete(Lt, K, axis=0), 0.0)
-    d = 1e-7
+    d = 1e-5 * TOTAL_LAWS[name][2]   # out of the round-off of the nearly incompressible laws
     fd = np.zeros((len(K), len(K)))
     for j, k in enumerate(K):
         Spm = []
@@ -529,29 +561,29 @@ def test_exact_tangent_is_dS_dE_on_the_kept_components(name, ndi, nshr):
             Ep = E.copy()
             Ep[k] += sgn * d
             Hp = sim.t2v_strain(0.5 * logm(np.eye(3) + 2 * sim.v2t_strain(Ep)).real).ravel()
-            sp, _, _, Fp = _total(name, Hp, ndi, nshr, "exact")
+            sp, _, _, Fp = _total(name, Hp, ndi, nshr, "material_face")
             Spm.append(_S_of(sp, Fp)[K])
         fd[:, j] = (Spm[0] - Spm[1]) / (2 * d)
     assert np.abs(Lt[np.ix_(K, K)] - fd).max() < 1e-5 * np.abs(fd).max()
 
 
-def test_approximate_defect_is_second_order_in_transverse_shear():
+def test_spatial_face_defect_is_second_order_in_transverse_shear():
     """(2, 3): T_33 = 0 leaves S_33 = O(gamma_t^2) (about -mu gamma_t^2, compressive); halving the
-    transverse shear divides it by 4. 'exact' removes it."""
+    transverse shear divides it by 4. 'material_face' removes it."""
     def S33(g, condense):
         H = np.array([0.1, -0.03, 0.0, 0.05, g, 0.0])
         s, _, _, F1 = _total("NEOHC", H, 2, 3, condense, Rm=np.eye(3))
         return _S_of(s, F1)[2]
-    a, b = S33(0.2, "approximate"), S33(0.1, "approximate")
+    a, b = S33(0.2, "spatial_face"), S33(0.1, "spatial_face")
     assert a < 0.0 and b < 0.0
     np.testing.assert_allclose(a / b, 4.0, rtol=0.1)
     np.testing.assert_allclose(a / (1000.0 * 0.2**2), -1.0, rtol=0.3)
-    assert abs(S33(0.2, "exact")) < 1e-10 * abs(a)
+    assert abs(S33(0.2, "material_face")) < 1e-10 * abs(a)
 
 
-def test_umat_T_total_and_exact_condensed():
-    """umat_T, ELISO, plane stress: the total form condensed (T_C = 0) and condense='exact'
-    (S_C = 0, coinciding here: the free direction is principal); under 'exact' dSdE, dSdT, drdE
+def test_umat_T_total_and_material_face_condensed():
+    """umat_T, ELISO, plane stress: the total form condensed (T_C = 0) and condense='material_face'
+    (S_C = 0, coinciding here: the free direction is principal); under 'material_face' dSdE, dSdT, drdE
     are dS/dE, dS/dtheta, dr/dE on the kept components (finite differences)."""
     props = [RHO, C_P, E, NU, ALPHA]
     K = [0, 1, 3]
@@ -566,7 +598,7 @@ def test_umat_T_total_and_exact_condensed():
         return dict(s=out[0].ravel(), r=out[4].ravel()[0], L=out[5][:, :, 0], dT=out[6].ravel(),
                     rE=out[7].ravel(), rT=out[8].ravel()[0], F=Rm @ expm(sim.v2t_strain(H1)))
     H = np.array([0.04, -0.015, 0.0, 0.02, 0.0, 0.0])
-    a, x = run(H, 20.0, "approximate"), run(H, 20.0, "exact")
+    a, x = run(H, 20.0, "spatial_face"), run(H, 20.0, "material_face")
     np.testing.assert_allclose(x["s"], a["s"], rtol=1e-9, atol=1e-9 * np.abs(a["s"]).max())
     S = _S_of(x["s"], x["F"])
     assert abs(S[2]) < 1e-9 * np.abs(S).max()
@@ -580,16 +612,16 @@ def test_umat_T_total_and_exact_condensed():
             Ep = E1.copy()
             Ep[k] += sgn * d
             Hp = sim.t2v_strain(0.5 * logm(np.eye(3) + 2 * sim.v2t_strain(Ep)).real).ravel()
-            pm.append(run(Hp, 20.0, "exact"))
+            pm.append(run(Hp, 20.0, "material_face"))
         fdS = (_S_of(pm[0]["s"], pm[0]["F"]) - _S_of(pm[1]["s"], pm[1]["F"]))[K] / (2 * d)
         np.testing.assert_allclose(x["L"][K, k], fdS, rtol=1e-5, atol=1e-5 * np.abs(fdS).max())
         np.testing.assert_allclose(x["rE"][k], (pm[0]["r"] - pm[1]["r"]) / (2 * d), rtol=1e-5)
-    p, m = run(H, 20.0 + hT, "exact"), run(H, 20.0 - hT, "exact")
+    p, m = run(H, 20.0 + hT, "material_face"), run(H, 20.0 - hT, "material_face")
     fdT = (_S_of(p["s"], p["F"]) - _S_of(m["s"], m["F"]))[K] / (2 * hT)
     np.testing.assert_allclose(x["dT"][K], fdT, rtol=1e-6, atol=1e-9 * np.abs(fdT).max())
     np.testing.assert_allclose(x["rT"], (p["r"] - m["r"]) / (2 * hT), rtol=1e-6)
-    # approximate, total: dSdT is the derivative of the Cauchy stress, J(theta) included
-    p, m = run(H, 20.0 + hT, "approximate"), run(H, 20.0 - hT, "approximate")
+    # spatial face, total: dSdT is the derivative of the Cauchy stress, J(theta) included
+    p, m = run(H, 20.0 + hT, "spatial_face"), run(H, 20.0 - hT, "spatial_face")
     np.testing.assert_allclose(a["dT"][K], ((p["s"] - m["s"]) / (2 * hT))[K], rtol=1e-6,
                                atol=1e-9 * np.abs(a["dT"]).max())
 
@@ -676,3 +708,43 @@ def test_umat_T_condensed_heat_and_derivatives(name, ndi, nshr):
     assert np.abs(o["rE"][K] - fdr).max() < tol_rE * np.abs(fdr).max()
     fdrT = (op["r"] - om["r"]) / (2 * hT)
     assert abs(o["rT"] - fdrT) < max(1e-6, 0.1 * tol_rE) * abs(fdrT)
+
+
+# --- the capability query: sim.condensation_serves answers from the laws validated above ---------
+
+NOT_VALIDATED = ["HYPOO", "OGDEN", "HOLZA", "SMRDI", "SMAMO", "LLDM0", "MIMTN", "PYEXT", "UMEXT"]
+
+
+def test_condensation_serves_exactly_the_validated_laws():
+    """True exactly for the laws whose condensed point the tests above check against the 3D law
+    (rate form: LAWS, HYPER, FINITE_LAWS; total: TOTAL_LAWS; condense='material_face' the same); always
+    True for ndi = 3, where nothing is condensed."""
+    rate, total, material_face = set(LAWS) | set(HYPER) | set(FINITE_LAWS), set(TOTAL_LAWS), set(MATERIAL_FACE_LAWS)
+    for name in rate | total | set(NOT_VALIDATED):
+        for ndi, nshr in STATES + [(1, 1)]:
+            assert sim.condensation_serves(name, ndi, nshr) == (name in rate), name
+            assert sim.condensation_serves(name, ndi, nshr, kinematic_form="rate") == (name in rate), name
+            assert sim.condensation_serves(name, ndi, nshr, kinematic_form="total") == (name in total), name
+        assert sim.condensation_serves(name, 3) and sim.condensation_serves(name, 3, 1, "total")
+    assert all(sim.total_formulation_serves(n) for n in total)
+    assert material_face == total
+
+
+def test_condensation_serves_refusals():
+    assert not sim.condensation_serves("EPICP", 2, 0)                          # an invalid state
+    assert not sim.condensation_serves("EPICP", 0)
+    assert not sim.condensation_serves("EPICP", 2, kinematic_form="jaumann")   # validated under log_R only
+    assert sim.condensation_serves("EPICP", 2, kinematic_form="logarithmic_R")
+    with pytest.raises(ValueError):
+        sim.condensation_serves("EPICP", 2, kinematic_form="totl")
+
+
+@pytest.mark.parametrize("name", list(LAWS))
+def test_small_strain_faces_coincide(name):
+    """Without F there is one stress: condense='material_face' gives the 'spatial_face' point bit for bit."""
+    props, nstatev, T, scale, tm = LAWS[name]
+    out = [sim.umat(name, _col(np.zeros(6)), _col(scale * PATH), np.empty(0), np.empty(0), _col(np.zeros(6)), I3,
+                    _col(props), _col(np.zeros(nstatev)), 0.0, 0.05, _col(np.zeros(4)), temp=np.array([T]), ndi=2,
+                    n_threads=1, start=True, tangent_mode=tm, condense=c) for c in ("spatial_face", "material_face")]
+    for a, b in zip(*out):
+        np.testing.assert_array_equal(a, b)
