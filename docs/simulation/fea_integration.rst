@@ -88,7 +88,7 @@ ZENER (Kelvin, single branch), ZENNK (Kelvin, N branches), PRONK (Prony series)
 SMADI (unified), SMAAI (anisotropic criterion)
 
 **Damage:**
-LLDM0 (Lemaitre-Ladeveze-Dufailly)
+LLDM0 (Ladevèze-Le Dantec ply damage)
 
 **Micromechanics:**
 MIHEN (Mori-Tanaka), MIMTN (multi-phase), MISCN (self-consistent), MIPLN (layered)

@@ -36,244 +36,134 @@ namespace simcoon{
  */
 
 /**
- * @brief Ladevèze-Le Dantec (LLD) anisotropic damage model with coupled plasticity for composite materials
+ * @brief Ladevèze-Le Dantec (LLD) damage model of the unidirectional ply, with coupled
+ *        transverse-shear plasticity in effective stress (LLDM0)
  *
- * @details This function implements the Ladevèze-Le Dantec damage model specifically designed for
- * unidirectional fiber-reinforced composite materials. The model features:
- * - Transversely isotropic elastic behavior
- * - Anisotropic damage in matrix-dominated modes (transverse tension, in-plane shear)
- * - Coupled transverse-shear plasticity
- * - Thermodynamically consistent damage evolution based on energy release rate
- * - Separate damage variables for different failure modes
- * - No fiber failure (matrix-dominated damage only)
+ * @details Matrix-dominated degradation of a unidirectional fibre-reinforced ply: two scalar
+ * damage variables, \f$ d_{22} \f$ (transverse) and \f$ d_{12} \f$ (shear), and a plasticity of the
+ * matrix written in the effective (undamaged) stress. No fibre failure. The equations below are in
+ * the fibre frame, fibres along 1; @c props(0) puts the fibres along the global axis 1, 2 or 3, the
+ * law then runs in that frame and returns its stress, tangent and plastic strain in the global one.
  *
- * **Material Symmetry:**
- *
- * The model assumes transverse isotropy with the fiber direction as the axis of symmetry:
- * - Direction 1: Fiber direction (longitudinal, no damage)
- * - Directions 2-3: Transverse plane (isotropic, subject to damage)
- *
- * **Damage Variables:**
- *
- * Two independent scalar damage variables characterize the material state:
- * - \f$ d_{22} \in [0,1] \f$: Transverse damage (matrix cracking perpendicular to fibers)
- * - \f$ d_{12} \in [0,1] \f$: Shear damage (matrix/interface damage in fiber-matrix plane)
- *
- * where \f$ d = 0 \f$ is undamaged and \f$ d = 1 \f$ is fully damaged.
- *
- * **Effective Stress Concept:**
- *
- * The effective stress acting on the undamaged material configuration is:
+ * **Damaged elasticity.** Transversely isotropic compliance \f$ \mathbf{S}_0 \f$ (moduli
+ * \f$ E_L, E_T, \nu_{TL}, \nu_{TT}, G_{LT} \f$, \f$ G_{TT} = E_T/(2(1+\nu_{TT})) \f$), damaged as
  * \f[
- * \tilde{\boldsymbol{\sigma}} = \mathbf{M}^{-1} : \boldsymbol{\sigma}
+ *   \tilde{\mathbf{S}}(d_{22}, d_{12}):\quad
+ *   S_{22}, S_{33}, S_{23}, S_{66} \leftarrow \frac{S^0}{1-d_{22}}, \qquad
+ *   S_{44}, S_{55} \leftarrow \frac{S^0}{1-d_{12}},
  * \f]
- * where \f$ \mathbf{M} \f$ is the damage effect tensor:
+ * the fibre terms \f$ S_{11}, S_{12}, S_{13} \f$ unchanged, and
+ * \f$ \boldsymbol{\sigma} = \tilde{\mathbf{L}} : (\boldsymbol{\varepsilon} - \boldsymbol{\alpha}\,\Delta\theta - \boldsymbol{\varepsilon}^p) \f$,
+ * \f$ \tilde{\mathbf{L}} = \tilde{\mathbf{S}}^{-1} \f$. \f$ \nu_{TL} \f$ is the MINOR Poisson ratio
+ * (\f$ \nu_{TL} = \nu_{LT} E_T/E_L \f$, about 0.02 for carbon/epoxy), the convention of
+ * L_isotrans().
+ *
+ * **Plasticity in effective stress.** With \f$ \tilde{\boldsymbol{\sigma}} = \mathbf{L}_0 : (\boldsymbol{\varepsilon} - \boldsymbol{\alpha}\,\Delta\theta - \boldsymbol{\varepsilon}^p) \f$
+ * and \f$ \boldsymbol{\Theta} = \mathrm{diag}(0, A_{ts}, A_{ts}, 1, 1, 0) \f$ (transverse and
+ * fibre-plane shear stresses only),
  * \f[
- * \mathbf{M} = \text{diag}(1, 1-d_{22}, 1-d_{22}, 1-d_{12}, 1-d_{12}, 1)
+ *   f = \sigma^{\mathrm{Mises}}\!\left(\boldsymbol{\Theta}\tilde{\boldsymbol{\sigma}}\right) - R(p) - \sigma_{ts,0} \leq 0,
+ *   \qquad R(p) = \beta_{ts}\, p^{m_{ts}},
  * \f]
+ * with the associated flow
+ * \f$ \dot{\boldsymbol{\varepsilon}}^p = \dot p\, \partial f/\partial\tilde{\boldsymbol{\sigma}} = \dot p\, \boldsymbol{\Theta}\,\boldsymbol{\eta}(\boldsymbol{\Theta}\tilde{\boldsymbol{\sigma}}) \f$
+ * (\f$ \boldsymbol{\eta} \f$ = eta_stress()). The effective stress does not depend on the damage:
+ * the plasticity is solved first (convex cutting plane, Fischer-Burmeister), the damage then at
+ * fixed plastic strain.
  *
- * @note **Stress measure.** The stress returned by this model (the `stress` argument,
- * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
- * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
- * is the rotated Kirchhoff stress
- * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
- * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
- * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
- * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
- *
- * **Damaged Elastic Stiffness:**
- *
- * The elastic stiffness degrades with damage:
+ * **Damage.** The driving forces of the criterion are unilateral in the transverse direction,
  * \f[
- * \mathbf{L}(d_{22}, d_{12}) = \mathbf{L}_0 : \mathbf{M}
+ *   Y_{22} = \frac{\langle\sigma_{22}\rangle_+^2 + \langle\sigma_{33}\rangle_+^2}{2E_T(1-d_{22})^2}, \quad
+ *   Y_{12} = \frac{\sigma_{12}^2 + \sigma_{13}^2}{2G_{LT}(1-d_{12})^2}, \quad
+ *   Y_{ts} = \sqrt{Y_{12} + b\,Y_{22}}, \quad Y_t = \sqrt{Y_{22}},
  * \f]
- * where \f$ \mathbf{L}_0 \f$ is the undamaged transversely isotropic stiffness.
- *
- * **Specific moduli degradation:**
- * - \f$ E_2 = E_{2,0} (1 - d_{22}) \f$ (transverse Young's modulus)
- * - \f$ E_3 = E_{3,0} (1 - d_{22}) \f$ (out-of-plane Young's modulus)
- * - \f$ G_{12} = G_{12,0} (1 - d_{12}) \f$ (in-plane shear modulus)
- * - \f$ G_{13} = G_{13,0} (1 - d_{12}) \f$ (out-of-plane shear modulus)
- * - \f$ E_1 \f$ (fiber direction) remains constant (no fiber damage)
- *
- * **Thermodynamic Forces:**
- *
- * The energy release rates driving damage evolution are:
+ * and both damage variables follow \f$ Y_{ts} \f$ (Kuhn-Tucker, \f$ \dot d \geq 0 \f$):
  * \f[
- * Y_{22} = \frac{1}{2} \boldsymbol{\varepsilon}^e : \frac{\partial \mathbf{L}}{\partial d_{22}} : \boldsymbol{\varepsilon}^e
+ *   d_{22} + \lambda(d_{22}) = \frac{\langle Y_{ts} - Y_{22,0}\rangle_+}{Y_{22,c}}, \qquad
+ *   d_{12} + \lambda(d_{12}) = \frac{\langle Y_{ts} - Y_{12,0}\rangle_+}{Y_{12,c}},
  * \f]
- * \f[
- * Y_{12} = \frac{1}{2} \boldsymbol{\varepsilon}^e : \frac{\partial \mathbf{L}}{\partial d_{12}} : \boldsymbol{\varepsilon}^e
- * \f]
+ * \f$ \lambda \f$ the penalty of lagrange_pow_1() keeping \f$ d < 1 \f$. The two are coupled through
+ * \f$ Y_{ts} \f$ and through the stress they both relax (the damage directions
+ * \f$ \boldsymbol{\Lambda}_j = \partial\tilde{\mathbf{S}}/\partial d_j : \boldsymbol{\sigma} \f$):
+ * the 2x2 system is full and non-symmetric. Transverse failure: when \f$ Y_t > Y_{22,u} \f$,
+ * \f$ d_{22} \f$ jumps to 0.99 and stays there; \f$ d_{12} \f$ keeps its own law.
  *
- * **Damage Evolution Laws:**
+ * **Tangent.** The tangent of the two-stage update: \f$ \mathrm{d}\boldsymbol{\varepsilon}^e/\mathrm{d}\boldsymbol{\varepsilon} \f$
+ * from the plasticity, the flow direction held fixed over the increment (continuum: its error
+ * is first order in the increment), then the exact linearization of the active damage
+ * conditions,
+ * \f$ \mathbf{L}_t = \tilde{\mathbf{L}}\,\frac{\mathrm{d}\boldsymbol{\varepsilon}^e}{\mathrm{d}\boldsymbol{\varepsilon}}
+ * - \sum_j \tilde{\mathbf{L}}\boldsymbol{\Lambda}_j \otimes \frac{\mathrm{d}d_j}{\mathrm{d}\boldsymbol{\varepsilon}} \f$.
+ * @p tangent_mode is not used. @p L returns the damaged stiffness \f$ \tilde{\mathbf{L}} \f$.
  *
- * **Transverse Damage (\f$d_{22}\f$):**
- * \f[
- * \dot{d}_{22} = \begin{cases}
- * 0 & \text{if } Y_{22} < Y_{22,0} \\
- * \left( \frac{Y_{22} - Y_{22,c}}{Y_{22,u} - Y_{22,c}} \right)^b & \text{if } Y_{22,0} \leq Y_{22} < Y_{22,u} \\
- * \infty & \text{if } Y_{22} \geq Y_{22,u}
- * \end{cases}
- * \f]
- * where:
- * - \f$ Y_{22,0} \f$ is the damage initiation threshold
- * - \f$ Y_{22,c} \f$ is the characteristic energy release rate
- * - \f$ Y_{22,u} \f$ is the ultimate energy release rate (failure)
- * - \f$ b \f$ is the damage evolution exponent
+ * **Work split.** \f$ W_m^{ir} \f$ stores the hardening energy
+ * (\f$ \tfrac12 (R_n + R_{n+1})\Delta p \f$); \f$ W_m^{d} \f$ the plastic dissipation
+ * \f$ \bar{\boldsymbol{\sigma}}:\Delta\boldsymbol{\varepsilon}^p - \bar R\,\Delta p \f$ and the
+ * damage dissipation \f$ \bar{Y}^{th}_j \Delta d_j \f$ with the thermodynamic forces
+ * \f$ Y^{th}_j = \tfrac12\,\boldsymbol{\sigma}:\boldsymbol{\Lambda}_j \f$; \f$ W_m^{r} \f$ the rest
+ * (overbars: increment averages). \f$ W_m = W_m^r + W_m^{ir} + W_m^d \f$ at every increment.
  *
- * **Shear Damage (\f$d_{12}\f$):**
- * \f[
- * \dot{d}_{12} = \begin{cases}
- * 0 & \text{if } Y_{12} < Y_{12,0} \\
- * \frac{Y_{12} - Y_{12,c}}{Y_{12,c}} & \text{if } Y_{12} \geq Y_{12,0}
- * \end{cases}
- * \f]
- * where:
- * - \f$ Y_{12,0} \f$ is the shear damage initiation threshold
- * - \f$ Y_{12,c} \f$ is the characteristic shear energy release rate
+ * **Material Parameters (props, 18):**
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | props[0] | axis | Fibre axis (1, 2 or 3) |
+ * | props[1] | \f$ E_L \f$ | Longitudinal Young's modulus |
+ * | props[2] | \f$ E_T \f$ | Transverse Young's modulus |
+ * | props[3] | \f$ \nu_{TL} \f$ | Minor Poisson ratio \f$ \nu_{LT} E_T/E_L \f$ |
+ * | props[4] | \f$ \nu_{TT} \f$ | Transverse Poisson ratio |
+ * | props[5] | \f$ G_{LT} \f$ | In-plane shear modulus |
+ * | props[6] | \f$ \alpha_L \f$ | Longitudinal CTE |
+ * | props[7] | \f$ \alpha_T \f$ | Transverse CTE |
+ * | props[8] | \f$ Y_{12,0} \f$ | Shear damage threshold |
+ * | props[9] | \f$ Y_{12,c} \f$ | Shear damage characteristic force |
+ * | props[10] | \f$ Y_{22,0} \f$ | Transverse damage threshold |
+ * | props[11] | \f$ Y_{22,c} \f$ | Transverse damage characteristic force |
+ * | props[12] | \f$ Y_{22,u} \f$ | Transverse failure force (brittle) |
+ * | props[13] | \f$ b \f$ | Transverse-shear coupling of \f$ Y_{ts} \f$ |
+ * | props[14] | \f$ A_{ts} \f$ | Transverse weight of the plasticity criterion |
+ * | props[15] | \f$ \sigma_{ts,0} \f$ | Initial yield stress |
+ * | props[16] | \f$ m_{ts} \f$ | Hardening exponent |
+ * | props[17] | \f$ \beta_{ts} \f$ | Hardening coefficient |
  *
- * **Coupled Transverse-Shear Plasticity:**
+ * **State Variables (statev, 10):**
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | statev[0] | \f$ T_{init} \f$ | Reference temperature |
+ * | statev[1] | \f$ d_{22} \f$ | Transverse damage |
+ * | statev[2] | \f$ d_{12} \f$ | Shear damage |
+ * | statev[3] | \f$ p \f$ | Accumulated plastic strain |
+ * | statev[4-9] | \f$ \boldsymbol{\varepsilon}^p \f$ | Plastic strain (Voigt, engineering shears, global frame) |
  *
- * A Hill-type yield criterion couples transverse and shear stresses:
- * \f[
- * \Phi = \sqrt{\left( \frac{\sigma_{22}}{A_{ts}} \right)^2 + \sigma_{12}^2} - \sigma_{ts,0} - \alpha_{ts} p_{ts} - \beta_{ts} p_{ts}^2 \leq 0
- * \f]
- * where:
- * - \f$ A_{ts} \f$ is the transverse-shear coupling parameter
- * - \f$ \sigma_{ts,0} \f$ is the initial yield stress
- * - \f$ \alpha_{ts}, \beta_{ts} \f$ are hardening parameters
- * - \f$ p_{ts} \f$ is the accumulated plastic strain
- *
- * **Plastic Flow Rule:**
- *
- * Associative flow in the transverse-shear plane:
- * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{p}_{ts} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}}
- * \f]
- *
- * **Material Parameters (props):**
- *
- * | Index | Symbol | Description | Units | Typical Range (CFRP) |
- * |-------|--------|-------------|-------|----------------------|
- * | props[0] | axis | Fiber orientation axis (1, 2, or 3) | - | 1 |
- * | props[1] | \f$ E_L \f$ | Longitudinal Young's modulus | Stress | 100-200 GPa |
- * | props[2] | \f$ E_T \f$ | Transverse Young's modulus | Stress | 5-15 GPa |
- * | props[3] | \f$ \nu_{TL} \f$ | Major Poisson's ratio | - | 0.25-0.35 |
- * | props[4] | \f$ \nu_{TT} \f$ | Transverse Poisson's ratio | - | 0.35-0.45 |
- * | props[5] | \f$ G_{LT} \f$ | In-plane shear modulus | Stress | 3-8 GPa |
- * | props[6] | \f$ \alpha_L \f$ | Longitudinal CTE | 1/Temperature | -0.5 to 0 e-6 /K |
- * | props[7] | \f$ \alpha_T \f$ | Transverse CTE | 1/Temperature | 20-40 e-6 /K |
- * | props[8] | \f$ Y_{12,0} \f$ | Shear damage initiation threshold | Energy/Volume | 0.05-0.2 MPa |
- * | props[9] | \f$ Y_{12,c} \f$ | Characteristic shear energy release | Energy/Volume | 0.1-0.5 MPa |
- * | props[10] | \f$ Y_{22,0} \f$ | Transverse damage initiation | Energy/Volume | 0.1-0.3 MPa |
- * | props[11] | \f$ Y_{22,c} \f$ | Characteristic transverse energy | Energy/Volume | 0.2-0.6 MPa |
- * | props[12] | \f$ Y_{22,u} \f$ | Ultimate transverse energy | Energy/Volume | 0.5-2.0 MPa |
- * | props[13] | \f$ b \f$ | Transverse damage exponent | - | 1-5 |
- * | props[14] | \f$ A_{ts} \f$ | Transverse-shear coupling | - | 1-3 |
- * | props[15] | \f$ \sigma_{ts,0} \f$ | Initial yield stress | Stress | 30-80 MPa |
- * | props[16] | \f$ \alpha_{ts} \f$ | Linear hardening parameter | Stress | 0-500 MPa |
- * | props[17] | \f$ \beta_{ts} \f$ | Quadratic hardening parameter | Stress | 0-5000 MPa |
- *
- * **State Variables (statev):**
- *
- * Total state variables required: \f$ n_{statev} = 10 \f$
- *
- * | Index | Symbol | Description | Units |
- * |-------|--------|-------------|-------|
- * | statev[0] | \f$ T_{init} \f$ | Initial/reference temperature | Temperature |
- * | statev[1] | \f$ d_{22} \f$ | Transverse damage variable | - |
- * | statev[2] | \f$ d_{12} \f$ | Shear damage variable | - |
- * | statev[3] | \f$ p_{ts} \f$ | Accumulated plastic strain | Strain |
- * | statev[4] | \f$ \varepsilon^p_{11} \f$ | Plastic strain component 11 | Strain |
- * | statev[5] | \f$ \varepsilon^p_{22} \f$ | Plastic strain component 22 | Strain |
- * | statev[6] | \f$ \varepsilon^p_{33} \f$ | Plastic strain component 33 | Strain |
- * | statev[7] | \f$ \varepsilon^p_{12} \f$ | Plastic strain component 12 (engineering) | Strain |
- * | statev[8] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (engineering) | Strain |
- * | statev[9] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (engineering) | Strain |
- *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
- * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
- * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
- * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
- * @param L Damaged elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (\f$6 \times 1\f$ vector) [output]
- * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
- * @param nprops Number of material properties
- * @param props Material properties vector (see table above)
- * @param nstatev Number of state variables
- * @param statev State variables vector (see table above) [input/output]
- * @param T Temperature at beginning of increment
+ * @param umat_name Name of the constitutive model
+ * @param Etot Total strain at the beginning of the increment (6)
+ * @param DEtot Strain increment (6)
+ * @param stress Stress [in: start; out: end] (6)
+ * @param Lt Tangent modulus [output] (6x6)
+ * @param L Damaged elastic stiffness \f$ \tilde{\mathbf{L}} \f$ [output] (6x6)
+ * @param DR Rotation increment (3x3)
+ * @param nprops Number of material properties (18)
+ * @param props Material properties (table above)
+ * @param nstatev Number of state variables (10)
+ * @param statev State variables [input/output] (table above)
+ * @param T Temperature at the beginning of the increment
  * @param DT Temperature increment
- * @param Time Time at beginning of increment
+ * @param Time Time at the beginning of the increment
  * @param DTime Time increment
- * @param Wm Total mechanical work [output]
- * @param Wm_r Recoverable (elastic) work [output]
- * @param Wm_ir Irrecoverable work stored in damage [output]
- * @param Wm_d Dissipated work (damage + plasticity) [output]
- * @param ndi Number of direct stress components (typically 3)
- * @param nshr Number of shear stress components (typically 3)
- * @param start Flag indicating first increment (true) or continuation (false)
- * @param solver_type Solver type: 0=implicit, 1=explicit, 2=dynamic implicit
- * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
- *
- * @note The LLD model is specifically designed for unidirectional fiber composites
- * @note Damage is irreversible and monotonically increasing
- * @note The model does NOT account for fiber failure (compression/tension in direction 1)
- * @note Suitable for matrix-dominated failure modes: transverse cracking, delamination
- * @note Parameter identification requires multiple test configurations:
- * @note - Transverse tension for \f$d_{22}\f$ parameters
- * @note - In-plane shear for \f$d_{12}\f$ parameters
- * @note - Off-axis tests for plasticity coupling
- * @note Convergence requires small load steps once damage initiates
- * @note Material axes must be properly oriented relative to global coordinates
- *
- * @see L_isotrans() for transversely isotropic stiffness construction
- * @see Lagrange_exp() for penalty function (damage bounds enforcement)
- * @see rotate_strain() for strain tensor rotation
- * @see rotate_stress() for stress tensor rotation
+ * @param Wm Total mechanical work [input/output]
+ * @param Wm_r Recoverable work [input/output]
+ * @param Wm_ir Stored (hardening) work [input/output]
+ * @param Wm_d Dissipated work (plasticity and damage) [input/output]
+ * @param ndi Number of direct stress components
+ * @param nshr Number of shear stress components
+ * @param start First increment flag
+ * @param tnew_dt Suggested time step ratio [output] (0.2 when a local loop does not converge)
+ * @param tangent_mode Not used: continuum tangent (see above)
  *
  * @code
- * // Example usage: Carbon/Epoxy unidirectional composite (T300/914)
- * vec props(18);
- * props(0) = 1;           // axis = 1 (fibers along direction 1)
- * props(1) = 138000;      // EL = 138 GPa (fiber-dominated)
- * props(2) = 11000;       // ET = 11 GPa (matrix-dominated)
- * props(3) = 0.28;        // nuTL = 0.28
- * props(4) = 0.40;        // nuTT = 0.40
- * props(5) = 5500;        // GLT = 5.5 GPa
- * props(6) = -0.3e-6;     // alphaL = -0.3e-6 /K (negative for carbon fibers)
- * props(7) = 30e-6;       // alphaT = 30e-6 /K (resin dominated)
- * props(8) = 0.10;        // Y_12_0 = 0.10 MPa (shear damage threshold)
- * props(9) = 0.30;        // Y_12_c = 0.30 MPa
- * props(10) = 0.15;       // Y_22_0 = 0.15 MPa (transverse damage threshold)
- * props(11) = 0.40;       // Y_22_c = 0.40 MPa
- * props(12) = 1.20;       // Y_22_u = 1.20 MPa (ultimate failure)
- * props(13) = 2.5;        // b = 2.5
- * props(14) = 2.0;        // A_ts = 2.0
- * props(15) = 50;         // sigma_ts_0 = 50 MPa
- * props(16) = 300;        // alpha_ts = 300 MPa
- * props(17) = 1000;       // beta_ts = 1000 MPa
- *
+ * // Carbon/epoxy (T300/914-like), fibres along 1
+ * vec props = {1, 138000., 11000., 0.0223, 0.40, 5500., -0.3e-6, 30e-6,
+ *              0.10, 0.30, 0.15, 0.40, 1.20, 2.5, 2.0, 50., 0.5, 300.};
  * vec statev = zeros(10);
- * statev(0) = 20.0;  // Reference temperature 20°C
- *
- * vec Etot = {0.0, 0.005, 0.0, 0.0, 0.0, 0.0};  // 0.5% transverse strain (induces damage)
- * vec DEtot = {0.0, 0.0001, 0.0, 0.0, 0.0, 0.0};
- * vec stress = zeros(6);
- * mat Lt = zeros(6,6);
- * mat L = zeros(6,6);
- * vec sigma_in = zeros(6);
- * mat DR = eye(3,3);
- *
- * umat_damage_LLD_0(Etot, DEtot, stress, Lt, L, sigma_in, DR,
- *                   18, props, 10, statev, 20.0, 0.0, 0.0, 1.0,
- *                   Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
- *
- * // Check damage state
- * double d22 = statev(1);  // Transverse damage
- * double d12 = statev(2);  // Shear damage
- * cout << "Transverse damage: " << d22 << ", Shear damage: " << d12 << endl;
  * @endcode
  *
  * **References:**
