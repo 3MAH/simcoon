@@ -483,9 +483,9 @@ The following constitutive models are available through ``select_umat_M()``:
      - See SMA documentation
      - 24
    * - LLDM0
-     - Lemaitre-Ladeveze-Dufailly damage
-     - See header documentation
-     - 9
+     - Ladevèze-Le Dantec ply damage with effective-stress plasticity
+     - See header documentation (18 props)
+     - 10
    * - ZENER
      - Kelvin viscoelastic (single branch)
      - :math:`E_0, \nu_0, \alpha, E_1, \nu_1, \eta_{B1}, \eta_{S1}`
