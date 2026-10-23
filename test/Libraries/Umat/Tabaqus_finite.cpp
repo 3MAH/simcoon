@@ -148,6 +148,15 @@ TEST(Tabaqus_finite, kinematic_form_and_route)
     EXPECT_EQ(abaqus_kinematic_form("EPICP"), corate_type_total);
     EXPECT_EQ(abaqus_kinematic_form("EPICP                         "), corate_type_total);
     EXPECT_EQ(abaqus_kinematic_form("EPICP_R                       "), 3);
+    EXPECT_EQ(abaqus_kinematic_form("EPICP_r"), 3);
+    EXPECT_EQ(abaqus_kinematic_form("EPICP_R"), 3);
+    // `_R` is the whole suffix: any other tail is ignored (total form), as before the suffix
+    EXPECT_EQ(abaqus_kinematic_form("EPICP_REF                     "), corate_type_total);
+    EXPECT_EQ(abaqus_kinematic_form("ELISO_RUBBER"), corate_type_total);
+    EXPECT_EQ(abaqus_kinematic_form("EPICP_R2                      "), corate_type_total);
+    EXPECT_EQ(abaqus_kinematic_form("EPICP_                        "), corate_type_total);
+    EXPECT_EQ(abaqus_kinematic_form("EPICP_"), corate_type_total);
+    EXPECT_EQ(abaqus_kinematic_form("EPICPR                        "), corate_type_total);
     EXPECT_EQ(abaqus_kinematic_statev(corate_type_total), 0);
     EXPECT_EQ(abaqus_kinematic_statev(3), 15);
 

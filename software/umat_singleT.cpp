@@ -118,8 +118,7 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     vec Wm = zeros(4);
     vec Wt = zeros(3);
     
-    string umat_name(cmname);
-    umat_name = umat_name.substr(0, 5);
+    const string umat_name(cmname, 5);   // CMNAME carries no terminator: the law is its first five characters
 	   
     phase_characteristics rve;
     rve.construct(0,2);

@@ -171,6 +171,10 @@ the kinematic form:
   :math:`\ln\mathbf{V}` and its frame. These are history quantities: the last 15
   ``STATEV`` entries hold them (see `State Variables Layout`_).
 
+The law is always the first five characters. ``_R`` must be the whole rest of the
+name: any other tail (``EPICP_REF``, ``EPICP_R2``) is ignored, as before the suffix
+existed, and gives the total form.
+
 The outputs follow Abaqus's definitions:
 
 - ``STRESS`` is the Cauchy stress :math:`\boldsymbol\sigma = \boldsymbol\tau/J`

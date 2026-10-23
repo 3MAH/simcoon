@@ -204,8 +204,11 @@ mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
 }
 
 int abaqus_kinematic_form(const char *cmname) {
-    // CMNAME is space padded; a five-character name stops at its terminator before [6]
-    return (cmname[5] == '_' && (cmname[6] == 'R' || cmname[6] == 'r')) ? 3 : corate_type_total;
+    // CMNAME is a space-padded CHARACTER*80 (no terminator); a C string stops at '\0', so
+    // each character is read only past a non-terminating one. `_R` must be the whole
+    // suffix: any other tail (EPICP_REF, ...) is ignored, as before the suffix existed
+    auto end = [](char c) { return c == ' ' || c == '\0'; };
+    return (cmname[5] == '_' && (cmname[6] == 'R' || cmname[6] == 'r') && end(cmname[7])) ? 3 : corate_type_total;
 }
 
 int abaqus_kinematic_statev(const int &corate_type) {

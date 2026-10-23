@@ -228,7 +228,9 @@ bool abaqus_nlgeom(const double *dfgrd1);
  *          \f$ \ln\mathbf{U} \f$ and its dual stress, read from DFGRD0/DFGRD1, no history) is
  *          the default; the suffix `_R` (e.g. `EPICP_R`) asks for the rate form (log_R,
  *          corate 3), whose accumulated strain and frame rotation take the last
- *          abaqus_kinematic_statev() STATEV entries.
+ *          abaqus_kinematic_statev() STATEV entries. `_R` must be the whole suffix (case
+ *          insensitive): any other tail after the five characters (`EPICP_REF`, `EPICP_R2`)
+ *          is ignored and gives the total form, as names were read before the suffix existed.
  * @param cmname the CMNAME argument of the UMAT (space padded, 80 characters)
  * @return corate_type_total, or 3 for `_R`
  */
