@@ -44,12 +44,13 @@ class StepMeca:
     ----------
     control : str or sequence of str
         Per-component control: 'strain' (kinematic) or 'stress' (static);
-        'zero' holds a component at zero for tabular steps. A single string
-        applies to all components.
+        'zero' holds a component at zero for tabular steps (under the
+        kinematic control types 'F'/'gradU', it holds the component of F at
+        its previous value). A single string applies to all components.
     value : array-like, optional
         Absolute target values at the end of the step, per component, in
-        Voigt order (6 components; 9 row-major for control types 'F'/'gradU').
-        Not used for tabular steps.
+        Voigt order (6 components; 9 row-major for control types 'F'/'gradU',
+        'gradU' giving grad u = F - I). Not used for tabular steps.
     time : float
         Duration of the step.
     ninc : int
@@ -212,9 +213,11 @@ class Block:
         The loading steps. If any step is a StepThermomeca, the block is
         thermomechanical (coupled heat equation) and all steps must be.
     control_type : str or int
-        Loading control (see CONTROL_TYPES). Thermomechanical blocks only
-        support 'small_strain'. A run is either all small strain or all finite
-        strain: a finite-strain block restarts from F = I after a small-strain one.
+        Loading control (see CONTROL_TYPES), for mechanical and
+        thermomechanical blocks alike; a thermomechanical block under finite
+        strain needs corate_type 3 (log_R) or the total formulation. A run is
+        either all small strain or all finite strain: a finite-strain block
+        restarts from F = I after a small-strain one.
     ncycle : int
         Number of repetitions of the step sequence.
     """
@@ -242,10 +245,6 @@ class Block:
             raise ValueError("a block requires at least one step")
         control_type = as_code(self.control_type, CONTROL_TYPES, "control type")
         btype = self.type
-        if btype == 2 and control_type != 1:
-            raise ValueError(
-                "thermomechanical blocks only support control_type 'small_strain'"
-            )
         steps = []
         T_run = T_hold
         for s in self.steps:

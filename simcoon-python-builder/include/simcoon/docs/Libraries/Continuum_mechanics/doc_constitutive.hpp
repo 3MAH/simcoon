@@ -833,21 +833,40 @@ constexpr auto umat_T = R"pbdoc(
     ndi, nshr, n_threads, tangent_mode, start, condense
         As umat. Under condense='exact' (finite strain, ndi < 3) dSdE, dSdT and
         drdE are the material derivatives dS/dE, dS/dtheta and dr/dE, condensed
-        on the kept components.
+        on the kept components (tangent_output='material').
     F0, F1 : numpy.ndarray, optional
         Deformation gradients at the start and the end of the increment, shape
-        (3, 3, N), keyword only. Given, the call is a finite-strain one: ELISO
-        only for now, under kinematic_form 'rate' (log_R, corate 3, the
-        default) or 'total' (ln U and its dual stress T, DR = I); other laws
-        and rates are refused. The stress stays Cauchy in and out.
+        (3, 3, N), keyword only. Given, the call is a finite-strain one, for
+        every law, under kinematic_form 'rate' (log_R, corate 3, the default)
+        or 'total' (ln U and its dual stress T, DR = I); other rates are
+        refused. The kernels are secant in the strain they are fed, so each
+        reads as a law in the log strain (alpha is a logarithmic expansion
+        coefficient, rho the reference density). As umat, they run in the lab
+        frame transported by DR: anisotropy axes are not convected. The stress
+        stays Cauchy in and out.
     kinematic_form : str or int, optional
         'rate' (or 3) or 'total'; needs F0 and F1.
+    tangent_output : str
+        Which derivatives come back under finite strain (needs F0 and F1 unless
+        'box'), as umat, for the stress and the heat alike:
+        'box' (default), the derivatives with respect to the log-strain
+        increment of the form, dSdT that of the Cauchy stress;
+        'material' (total Lagrangian), dS/dE, dS/dtheta and dr/dE, at fixed F1;
+        'spatial' (updated Lagrangian), the Cauchy Lie tangent dsigma/dD,
+        dsigma/dtheta, and the heat per unit current volume: r/J, drdT/J and
+        d(r/J)/dd = (F dr/dE F^T - r I)/J.
+        'box' and 'material' keep the heat per unit reference volume. Under
+        log_R the maps are the
+        continuous ones (box strain R ln U R^T at fixed rotation), as umat's;
+        the total form's are exact. Condensed states (ndi < 3) return 'box', or
+        'material' under condense='exact'.
 
     Returns
     -------
     tuple
         (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT). r is the heat of
-        the increment per unit reference volume (MPa), storage included,
+        the increment per unit reference volume (MPa; per unit current volume
+        under tangent_output='spatial'), storage included,
 
             r = Delta gamma - (T + DT) (eta_{n+1} - eta_n),
 
@@ -856,9 +875,10 @@ constexpr auto umat_T = R"pbdoc(
         heat source. r = 0 is the adiabatic condition, at any dtime including
         zero. drdE (6, N) and drdT (N,) are its derivatives with respect to
         the strain increment and to DT; dSdE (6, 6, N) and dSdT (6, N) those of
-        the stress. Under finite strain, dSdE and drdE are the box derivatives
-        (with respect to the log-strain increment of the form, as umat's
-        default tangent), dSdT the derivative of the Cauchy stress.
+        the stress. Under finite strain they are the derivatives tangent_output
+        names (default 'box': dSdE and drdE with respect to the log-strain
+        increment of the form, as umat's default tangent, dSdT the derivative
+        of the Cauchy stress).
 )pbdoc";
 
 } // namespace simcoon_docs

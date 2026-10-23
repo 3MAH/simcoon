@@ -1,4 +1,5 @@
-"""sim.umat_T under finite strain (F0, F1 given): ELISO, rate form (log_R) or total form.
+"""sim.umat_T under finite strain (F0, F1 given): every thermomechanical law, rate form (log_R)
+or total form.
 
 Cauchy stress in and out; r, drdE, drdT per unit reference volume. For isotropic thermoelasticity
 the two forms are the same law: tau = L : (ln V - alpha (T - T_init) I) under log_R, its dual
@@ -130,7 +131,6 @@ def test_adiabatic_finite_path_follows_the_isentrope():
 
 
 @pytest.mark.parametrize("kwargs, match", [
-    (dict(umat="EPICP"), "ELISO"),
     (dict(form="jaumann"), "rate"),
     (dict(only_F0=True), "both F0 and F1"),
     (dict(no_F=True, form="total"), "needs F0 and F1"),
@@ -142,10 +142,9 @@ def test_finite_requests_outside_the_scope_are_refused(kwargs, match):
         del args["F1"]
     if kwargs.get("no_F"):
         del args["F0"], args["F1"]
-    props = PROPS if kwargs.get("umat", "ELISO") == "ELISO" else np.r_[PROPS, 300., 500., 0.4]
     with pytest.raises(ValueError, match=match):
-        sim.umat_T(kwargs.get("umat", "ELISO"), _col(np.zeros(6)), _col(np.zeros(6)), _col(np.zeros(6)),
-                   _cube(np.eye(3)), _col(props), _col(np.zeros(8)), 0., 0.1, _col(np.zeros(4)),
+        sim.umat_T("ELISO", _col(np.zeros(6)), _col(np.zeros(6)), _col(np.zeros(6)),
+                   _cube(np.eye(3)), _col(PROPS), _col(np.zeros(1)), 0., 0.1, _col(np.zeros(4)),
                    _col(np.zeros(3)), np.array([T0]), np.array([0.]), **args)
 
 
@@ -168,3 +167,272 @@ def test_rate_form_work_matches_umat():
         etot = e_start + de
     np.testing.assert_allclose(sigma, sigma_M, rtol=1e-12, atol=1e-12 * np.abs(sigma_M).max())
     np.testing.assert_allclose(Wm, Wm_M, rtol=1e-12, atol=1e-15)
+
+
+SMA = [5.5, 0.5, 0.5, 0, 67538., 67538., 0.349, 0.349, 1e-6, 1e-6, 0., 0.0418, 0.021, 0., 10., 10.,
+       300., 290., 295., 305., 0.2, 0.2, 0.2, 0.2, 300., 0.2, 2., 1e-6, 1e-3, 1., 1e8]
+# name: (props, nstatev, T_init), as test_thermo_heat_contract
+LAWS = {
+    "ELISO": (PROPS, 1, T0),
+    "ELIST": ([RHO, C_P, 1, 140000., 9000., 0.3, 0.4, 4500., 1e-6, 3e-5], 1, T0),
+    "ELORT": ([RHO, C_P, 140000., 9000., 9500., 0.3, 0.32, 0.4, 4500., 4600., 3000., 1e-6, 3e-5, 2.5e-5], 1, T0),
+    "EPICP": ([RHO, C_P, E, NU, ALPHA, 300., 500., 0.4], 8, T0),
+    "EPKCP": ([RHO, C_P, E, NU, ALPHA, 300., 500., 0.4, 20000.], 14, T0),
+    "EPJCK": ([7.85e-9, 4.75e8, 200000.0, 0.33, 1.0e-5, 792.0, 510.0, 0.26, 0.014, 1.0, 1.03, 293.0, 1793.0], 9, T0),
+    "ZENER": ([4.4, 0.656, 3000., 0.35, 1e-4, 1500., 0.35, 3000., 1200.], 8, T0),
+    "PRONK": ([4.4, 0.656, 3000., 0.35, 1e-4, 1., 1500., 0.35, 3000., 1200.], 14, T0),
+    "SMADI": (SMA, 17, 320.),
+}
+
+
+def _v2t_stress(v):
+    return np.array([[v[0], v[3], v[4]], [v[3], v[1], v[5]], [v[4], v[5], v[2]]])
+
+
+def _t2v_stress(m):
+    return np.array([m[0, 0], m[1, 1], m[2, 2], m[0, 1], m[0, 2], m[1, 2]])
+
+
+def _spin(t):
+    """Superposed rigid rotation, about two axes, 1.7 pi over the path."""
+    c, s = np.cos(1.7 * np.pi * t), np.sin(1.7 * np.pi * t)
+    return np.array([[1., 0, 0], [0, c, -s], [0, s, c]]) @ np.array([[c, 0, s], [0, 1., 0], [-s, 0, c]])
+
+
+def _F_small(t):
+    return np.eye(3) + 0.1 * (_F(t) - np.eye(3))
+
+
+def _path(name, form, n=20, DT=0.5, Q=None, F=_F_small):
+    """Run the law along F (times Q); Cauchy stress, Wm, Wt and the heat of every increment."""
+    props, nstatev, T_init = LAWS[name]
+    sigma, statev, Wm, Wt = np.zeros(6), np.zeros(nstatev), np.zeros(4), np.zeros(3)
+    etot, T, r = np.zeros(6), T_init, []
+    for i in range(n):
+        F0, F1 = F(i / n), F((i + 1) / n)
+        if Q is not None:
+            F0, F1 = Q(i / n) @ F0, Q((i + 1) / n) @ F1
+        H0, de, DR = _increments(form, F0, F1)
+        e_start = H0 if form == "total" else _t2v_strain(DR @ _v2t_strain(etot) @ DR.T)
+        out = sim.umat_T(name, _col(e_start), _col(de), _col(sigma), _cube(DR), _col(props), _col(statev),
+                         0.0 if i == 0 else 1.0, 0.1, _col(Wm), _col(Wt), np.array([T]), np.array([DT]),
+                         n_threads=1, start=(i == 0), F0=_cube(F0), F1=_cube(F1), kinematic_form=form)
+        sigma, statev, Wm, Wt = (np.asarray(o).ravel() for o in out[:4])
+        etot, T = e_start + de, T + DT
+        r.append(np.asarray(out[4]).ravel()[0])
+    return sigma, Wm, Wt, np.array(r)
+
+
+@pytest.mark.parametrize("form", ["rate", "total"])
+@pytest.mark.parametrize("name", list(LAWS))
+def test_every_law_balances_its_heat_under_finite_strain(name, form):
+    """The heat of the increment r = Delta gamma - theta_{n+1} Delta eta sums to Wm_d - Wt along a
+    stretch-shear-rotation path with heating, per reference volume, for every law and both forms."""
+    sigma, Wm, Wt, r = _path(name, form)
+    assert np.abs(sigma).max() > 1.0 and np.abs(r).max() > 0.0
+    np.testing.assert_allclose(r.sum(), Wm[3] - Wt[0], rtol=1e-12, atol=1e-12 * np.abs(r).sum())
+
+
+@pytest.mark.parametrize("name", list(LAWS))
+def test_total_form_is_objective_for_every_law(name):
+    """A superposed rigid rotation Q(t) leaves ln U, T, r and the works unchanged: the Cauchy stress
+    turns with Q, to round-off, anisotropic laws included (ln U lives in the reference frame)."""
+    s0, Wm0, Wt0, r0 = _path(name, "total")
+    s1, Wm1, Wt1, r1 = _path(name, "total", Q=_spin)
+    Q = _spin(1.0)
+    np.testing.assert_allclose(s1, _t2v_stress(Q @ _v2t_stress(s0) @ Q.T), rtol=0, atol=1e-12 * np.abs(s0).max())
+    np.testing.assert_allclose(r1, r0, rtol=0, atol=1e-11 * np.abs(r0).max())
+    np.testing.assert_allclose(np.r_[Wm1, Wt1], np.r_[Wm0, Wt0], rtol=0, atol=1e-12 * np.abs(np.r_[Wm0, Wt0]).max())
+
+
+@pytest.mark.parametrize("name", ["ELISO", "EPICP", "PRONK", "SMADI"])
+def test_rate_form_is_objective_to_second_order(name):
+    """Under log_R the discrete increment of a superposed spin is objective only asymptotically:
+    the stress and heat gaps fall as the square of the step (isotropic laws: the kernels run in the
+    lab frame transported by DR, so anisotropy axes are not convected)."""
+    def gap(n):
+        s0, _, _, r0 = _path(name, "rate", n=n, DT=10. / n)
+        s1, _, _, r1 = _path(name, "rate", n=n, DT=10. / n, Q=_spin)
+        Q = _spin(1.0)
+        return (np.abs(s1 - _t2v_stress(Q @ _v2t_stress(s0) @ Q.T)).max() / np.abs(s0).max(),
+                abs(r1.sum() - r0.sum()) / abs(r0.sum()))
+    (ds20, dr20), (ds80, dr80) = gap(20), gap(80)
+    assert ds20 < 0.05 and dr20 < 0.05
+    assert ds80 < ds20 / 10. and dr80 < dr20 / 10.
+
+
+MECH_PROPS = {"ELISO": ([E, NU, ALPHA], 1), "EPICP": ([E, NU, ALPHA, 300., 500., 0.4], 8),
+              "EPJCK": ([200000.0, 0.33, 1.0e-5, 792.0, 510.0, 0.26, 0.014, 1.0, 1.03, 293.0, 1793.0], 9)}
+
+
+@pytest.mark.parametrize("form", ["rate", "total"])
+@pytest.mark.parametrize("name", list(MECH_PROPS))
+def test_isothermal_finite_law_is_the_mechanical_one(name, form):
+    """At constant temperature the thermomechanical kernel under finite strain is the mechanical one
+    of sim.umat on the same path: stress and works, bit for bit."""
+    sigma_T, Wm_T, _, _ = _path(name, form, DT=0.0)
+    props, nstatev = MECH_PROPS[name]
+    sigma, statev, Wm, etot = np.zeros(6), np.zeros(nstatev), np.zeros(4), np.zeros(6)
+    n = 20
+    for i in range(n):
+        F0, F1 = _F_small(i / n), _F_small((i + 1) / n)
+        H0, de, DR = _increments(form, F0, F1)
+        e_start = H0 if form == "total" else _t2v_strain(DR @ _v2t_strain(etot) @ DR.T)
+        out = sim.umat(name, _col(e_start), _col(de), _cube(F0), _cube(F1), _col(sigma), _cube(DR), _col(props),
+                       _col(statev), 0.0 if i == 0 else 1.0, 0.1, _col(Wm), temp=np.array([T0]), n_threads=1,
+                       start=(i == 0), kinematic_form=form)
+        sigma, statev, Wm = (np.asarray(o).ravel() for o in out[:3])
+        etot = e_start + de
+    np.testing.assert_allclose(sigma_T, sigma, rtol=0, atol=1e-12 * np.abs(sigma).max())
+    np.testing.assert_allclose(Wm_T, Wm, rtol=0, atol=1e-12 * np.abs(Wm).max())
+
+
+@pytest.mark.parametrize("name", ["EPICP", "PRONK", "SMADI"])
+def test_finite_law_tends_to_the_small_strain_one(name):
+    """F = I + h grad u: the finite answer (Cauchy stress, heat) differs from the small-strain call
+    by O(h) relative."""
+    def gap(h):
+        F = lambda t: np.eye(3) + h * (_F(t) - np.eye(3))
+        s_f, _, _, r_f = _path(name, "total", F=F)
+        props, nstatev, T_init = LAWS[name]
+        sigma, statev, Wm, Wt, etot, T, r = np.zeros(6), np.zeros(nstatev), np.zeros(4), np.zeros(3), np.zeros(6), T_init, []
+        n = 20
+        for i in range(n):
+            de = _t2v_strain(0.5 * ((F((i + 1) / n) - F(i / n)) + (F((i + 1) / n) - F(i / n)).T))
+            out = sim.umat_T(name, _col(etot), _col(de), _col(sigma), _cube(np.eye(3)), _col(props), _col(statev),
+                             0.0 if i == 0 else 1.0, 0.1, _col(Wm), _col(Wt), np.array([T]), np.array([0.5]),
+                             n_threads=1, start=(i == 0))
+            sigma, statev, Wm, Wt = (np.asarray(o).ravel() for o in out[:4])
+            etot, T = etot + de, T + 0.5
+            r.append(np.asarray(out[4]).ravel()[0])
+        return np.abs(s_f - sigma).max() / np.abs(sigma).max(), abs(r_f.sum() - sum(r)) / abs(sum(r))
+    (ds1, dr1), (ds2, dr2) = gap(0.02), gap(0.005)
+    assert ds2 < ds1 / 2.5 and dr2 < dr1 / 2.5
+    assert ds2 < 0.05 and dr2 < 0.05
+
+
+# --- tangent_output: the material (TL) and spatial (UL) derivatives ---------------------------
+
+def _sqrt_spd(C):
+    c, N = np.linalg.eigh(C)
+    return N @ np.diag(np.sqrt(c)) @ N.T
+
+
+def _one_step(name, form, F1, DT, tangent_output):
+    """One increment from the reference (start), F0 = I, to F1."""
+    props, nstatev, T_init = LAWS[name]
+    H0, de, DR = _increments(form, np.eye(3), F1)
+    e_start = np.zeros(6) if form == "rate" else H0
+    out = sim.umat_T(name, _col(e_start), _col(de), _col(np.zeros(6)), _cube(DR), _col(props),
+                     _col(np.zeros(nstatev)), 0.0, 0.1, _col(np.zeros(4)), _col(np.zeros(3)),
+                     np.array([T_init]), np.array([DT]), n_threads=1, start=True, F0=_cube(np.eye(3)),
+                     F1=_cube(F1), kinematic_form=form, tangent_output=tangent_output)
+    return [np.asarray(o) for o in out]
+
+
+_E1 = np.array([0.02, -0.008, 0.005, 0.012, -0.006, 0.004])   # Green-Lagrange, engineering shears
+# the total form is exact under any rotation and strain; the log_R increment of one step only to
+# second order in the strain and first order in the rotation: its finite differences run without
+# rotation, on a quarter of the strain (EPICP still yields)
+_FORMS = {"total": (_spin(0.2), 1.0, 1e-5), "rate": (np.eye(3), 0.25, 1e-4)}
+
+
+def _F_of(E, R):
+    return R @ _sqrt_spd(np.eye(3) + 2. * _v2t_strain(E))
+
+
+def _S(out, F):
+    Fi = np.linalg.inv(F)
+    return _t2v_stress(np.linalg.det(F) * Fi @ _v2t_stress(out[0].ravel()) @ Fi.T)
+
+
+@pytest.mark.parametrize("form", ["rate", "total"])
+@pytest.mark.parametrize("name", ["ELISO", "ELORT", "EPICP"])
+def test_material_tangent_output_is_the_derivative_in_E(name, form):
+    """tangent_output='material': dSdE = dS/dE, dSdT = dS/dtheta, drdE = dr/dE at fixed F1 (r and
+    drdT as the box call), finite differences of the full call through F1 = R sqrt(I + 2E)."""
+    R, scale, tol = _FORMS[form]
+    E1, DT = scale * _E1, 5.0
+    F1 = _F_of(E1, R)
+    x = _one_step(name, form, F1, DT, "material")
+    box = _one_step(name, form, F1, DT, "box")
+    np.testing.assert_array_equal(x[0], box[0])
+    np.testing.assert_array_equal(x[4], box[4])
+    np.testing.assert_array_equal(x[8], box[8])
+    d = 1e-7
+    fdr = np.zeros(6)
+    for k in range(6):
+        pm = []
+        for sgn in (1, -1):
+            E = E1.copy()
+            E[k] += sgn * d
+            F = _F_of(E, R)
+            out = _one_step(name, form, F, DT, "box")
+            pm.append((_S(out, F), out[4].ravel()[0]))
+        fdS = (pm[0][0] - pm[1][0]) / (2 * d)
+        np.testing.assert_allclose(x[5][:, k, 0], fdS, rtol=0, atol=tol * np.abs(fdS).max())
+        fdr[k] = (pm[0][1] - pm[1][1]) / (2 * d)
+    np.testing.assert_allclose(x[7].ravel(), fdr, rtol=0, atol=tol * np.abs(fdr).max())
+    hT = 1e-3
+    p, m = _one_step(name, form, F1, DT + hT, "box"), _one_step(name, form, F1, DT - hT, "box")
+    fdT = (_S(p, F1) - _S(m, F1)) / (2 * hT)
+    np.testing.assert_allclose(x[6].ravel(), fdT, rtol=0, atol=1e-7 * np.abs(fdT).max())
+
+
+@pytest.mark.parametrize("name", ["ELISO", "EPICP"])
+def test_rate_form_material_tangent_is_the_log_R_map(name):
+    """Under rotation, the log_R material dSdE is the map of sim.umat's tangent_output='material'
+    (Lt_convert DsigmaDe_2_DSDE on the box), to round-off."""
+    F1 = _F_of(_E1, _spin(0.2))
+    x = _one_step(name, "rate", F1, 5.0, "material")
+    box = _one_step(name, "rate", F1, 5.0, "box")
+    ref = sim.Lt_convert(box[5], _cube(F1), box[0], "DsigmaDe_2_DSDE")
+    np.testing.assert_allclose(x[5], ref, rtol=0, atol=1e-10 * np.abs(ref).max())
+
+
+@pytest.mark.parametrize("form", ["rate", "total"])
+@pytest.mark.parametrize("name", ["ELISO", "EPICP"])
+def test_spatial_tangent_output_is_the_lie_derivative(name, form):
+    """tangent_output='spatial': dSdE is the Cauchy Lie tangent, (1/J) F dS F^T for F -> (I + d) F1,
+    dSdT the Cauchy derivative (as 'box'), and the heat per current volume: r/J, drdT/J and
+    drdE = d(r/J)/dd."""
+    R, scale, tol = _FORMS[form]
+    E1, DT = scale * _E1, 5.0
+    F1 = _F_of(E1, R)
+    x = _one_step(name, form, F1, DT, "spatial")
+    box = _one_step(name, form, F1, DT, "box")
+    np.testing.assert_array_equal(x[6], box[6])
+    J1, h = np.linalg.det(F1), 1e-7
+    np.testing.assert_allclose(x[4], box[4] / J1, rtol=1e-14)
+    np.testing.assert_allclose(x[8], box[8] / J1, rtol=1e-14)
+    fdr = np.zeros(6)
+    for k in range(6):
+        pm = []
+        for sgn in (1, -1):
+            dd = np.zeros(6)
+            dd[k] = sgn * h
+            F = (np.eye(3) + _v2t_strain(dd)) @ F1
+            out = _one_step(name, form, F, DT, "box")
+            pm.append((_S(out, F), out[4].ravel()[0] / np.linalg.det(F)))
+        fd = _t2v_stress(F1 @ _v2t_stress((pm[0][0] - pm[1][0]) / (2 * h)) @ F1.T) / J1
+        np.testing.assert_allclose(x[5][:, k, 0], fd, rtol=0, atol=tol * np.abs(fd).max())
+        fdr[k] = (pm[0][1] - pm[1][1]) / (2 * h)
+    np.testing.assert_allclose(x[7].ravel(), fdr, rtol=0, atol=tol * np.abs(fdr).max())
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    (dict(tangent_output="lagrangian"), "'box', 'material' or 'spatial'"),
+    (dict(tangent_output="material", small=True), "needs F0 and F1"),
+    (dict(tangent_output="material", ndi=2), "condensed stress states"),
+    (dict(tangent_output="box", ndi=2, condense="exact"), "tangent_output='material'"),
+])
+def test_tangent_output_requests_outside_the_scope_are_refused(kwargs, match):
+    F = _cube(_F(0.5))
+    args = dict(tangent_output=kwargs["tangent_output"], ndi=kwargs.get("ndi", 3),
+                condense=kwargs.get("condense", "approximate"))
+    if not kwargs.get("small"):
+        args.update(F0=F, F1=F)
+    with pytest.raises(ValueError, match=match):
+        sim.umat_T("ELISO", _col(np.zeros(6)), _col(np.zeros(6)), _col(np.zeros(6)),
+                   _cube(np.eye(3)), _col(PROPS), _col(np.zeros(1)), 0., 0.1, _col(np.zeros(4)),
+                   _col(np.zeros(3)), np.array([T0]), np.array([0.]), **args)

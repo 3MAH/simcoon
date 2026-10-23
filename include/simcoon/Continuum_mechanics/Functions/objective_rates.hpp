@@ -826,6 +826,38 @@ arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, co
 arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 
 /**
+ * @brief Derivative of the material logarithmic strain \f$ \mathbf{H} = \tfrac12 \ln \mathbf{C} \f$
+ * with respect to the Green-Lagrange strain \f$ \mathbf{E} \f$, \f$ \mathbf{C} = \mathbf{I} + 2\mathbf{E} \f$.
+ *
+ * Daleckii-Krein in the eigenbasis \f$ \{\mathbf{n}_a\} \f$ of \f$ \mathbf{C} \f$:
+ * \f$ \mathrm{d}H_{ab} = 2 g_{ab}\, \mathrm{d}E_{ab} \f$, with \f$ g_{ab} \f$ the divided difference of
+ * \f$ \tfrac12 \ln \f$ at the eigenvalues \f$ c_a, c_b \f$ (\f$ 1/(2 c_a) \f$ when they coalesce).
+ *
+ * @param C (3x3 arma::mat) right Cauchy-Green tensor
+ * @return (6x6 arma::mat) \f$ \partial\mathbf{H}/\partial\mathbf{E} \f$, Voigt strain on both sides (engineering shears)
+ */
+arma::mat dH_dE(const arma::mat &C);
+
+/**
+ * @brief A derivative with respect to the box strain, as a derivative with respect to the
+ *        Green-Lagrange strain \f$ \mathbf{E} \f$.
+ *
+ * A scalar \f$ r \f$ (heat of the increment, energy) differentiated by a box kernel with respect
+ * to its strain gives \f$ \partial r/\partial\mathbf{h} \f$; at fixed rotation the box strain is
+ * \f$ \mathbf{H} = \tfrac12\ln\mathbf{C} \f$ (total form, reference components) or
+ * \f$ \mathbf{R}\,\mathbf{H}\,\mathbf{R}^{T} \f$ (rate form, \f$ \mathbf{F} = \mathbf{R}\mathbf{U} \f$),
+ * so \f$ \partial r/\partial\mathbf{E} = \mathbb{P}^{T}\,\partial r/\partial\mathbf{h} \f$ with
+ * \f$ \mathbb{P} = \partial\mathbf{h}/\partial\mathbf{E} \f$ (dH_dE(), rotated by \f$ \mathbf{R} \f$
+ * under the rate form).
+ *
+ * @param d_box (6 arma::vec) \f$ \partial r/\partial\mathbf{h} \f$, covector of the Voigt strain (engineering shears)
+ * @param F (3x3 arma::mat) deformation gradient at the end of the increment
+ * @param corate_type corate_type_total for the total form, a log corate (3) for the rate form
+ * @return (6 arma::vec) \f$ \partial r/\partial\mathbf{E} \f$, covector of the Voigt strain
+ */
+arma::vec box_covector_2_dE(const arma::vec &d_box, const arma::mat &F, const int &corate_type);
+
+/**
  * @brief Box tangent in the requested corate, straight from the SPATIAL (Lie/Oldroyd) one.
  *
  * The closed form of a hyperelastic tangent is the spatial elasticity: the potential gives

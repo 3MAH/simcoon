@@ -118,6 +118,178 @@ inline mat ct3_lnV(const vec &etot, const int &corate_type) {
 
 namespace simcoon{
 
+namespace {
+
+// Hughes-Winget (1980) rotation increment of the step spin BC_w over DTime
+mat hughes_winget(const mat &BC_w, const double &DTime) {
+    mat HW_inv;
+    if (!inv(HW_inv, eye(3,3) - 0.5*DTime*BC_w))
+        throw simcoon::exception_solver("Singular matrix in the Hughes-Winget rotation update.");
+    return HW_inv*(eye(3,3) + 0.5*BC_w*DTime);
+}
+
+// Kinematics of a trial increment under the finite control types, once the driven strain is set
+// (DEtot for 2, Detot for 3, U1 for 4, F1 for 5/6): DR the rotation increment of the step spin
+// (2-4), F0 and F1, the corate's increment sv.DR and the strains the control does not drive.
+// Shared by the mechanical and thermomechanical blocks.
+void finite_kinematics(state_variables &sv, const unsigned int &control_type, const mat &BC_w, const mat &BC_R,
+                       const double &DTime, const int &corate_type, mat &DR) {
+    mat D = zeros(3,3);
+    mat Omega = zeros(3,3);
+    switch (control_type) {
+        case 2: {
+            DR = hughes_winget(BC_w, DTime);
+            sv.F0 = ER_to_F(v2t_strain(sv.Etot), BC_R);
+            sv.F1 = ER_to_F(v2t_strain(sv.Etot + sv.DEtot), BC_R*DR);
+            corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, DTime);
+            sv.Detot = t2v_strain(Delta_log_strain_corate(sv.F0, sv.F1, sv.DR, D, Omega, DTime, corate_type));
+            break;
+        }
+        case 3: {
+            DR = hughes_winget(BC_w, DTime);
+            const mat lnV0 = ct3_lnV(sv.etot, corate_type);
+            sv.F0 = eR_to_F(lnV0, BC_R);
+            sv.F1 = eR_to_F(v2t_strain(rotate_strain(t2v_strain(lnV0), BC_R*DR*BC_R.t()) + sv.Detot), BC_R*DR);   // ln V_n carried by the polar increment
+            corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, DTime);
+            sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
+            break;
+        }
+        case 4: {
+            DR = hughes_winget(BC_w, DTime);
+            sv.F0 = BC_R*sv.U0;
+            sv.F1 = (BC_R*DR)*sv.U1;   // BC_R*DR (right): consistent with the accumulator BC_R = BC_R*DR (step_meca)
+            sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
+            corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, DTime);
+            sv.Detot = t2v_strain(Delta_log_strain_corate(sv.F0, sv.F1, sv.DR, D, Omega, DTime, corate_type));
+            break;
+        }
+        default: {   // 5, 6: F1 prescribed
+            corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, DTime);
+            sv.Detot = t2v_strain(Delta_log_strain_corate(sv.F0, sv.F1, sv.DR, D, Omega, DTime, corate_type));
+            sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
+        }
+    }
+}
+
+// The strain a finite control type drives, from the increment's targets: DEtot (2), Detot (3),
+// U1 (4), F1 (5/6). Under 5/6 Dtarget is the fraction of the increment's generator (Dtinc mecas,
+// geodesic_F_increments): a cut increment advances F1 = exp(Dtinc dL) F0 along the increment's
+// geodesic, and the sub-increment that closes it lands on the tabulated F exactly
+void set_driven_strain(state_variables &sv, const unsigned int &control_type, const rowvec &Dtarget, const rowvec &BC_target,
+                       const bool &increment_end) {
+    if (control_type == 2)
+        sv.DEtot = Dtarget.t();
+    else if (control_type == 3)
+        sv.Detot = Dtarget.t();
+    else if (control_type == 4)
+        sv.U1 = sv.U0 + v2t_strain(Dtarget.t());
+    else if (increment_end)
+        sv.F1 = v2t(BC_target.t());
+    else
+        sv.F1 = expmat(v2t(Dtarget.t()))*sv.F0;
+}
+
+// A Newton correction of the driven strain of the mixed problem (control types 1-4)
+void add_driven_strain(state_variables &sv, const unsigned int &control_type, const vec &Delta) {
+    if (control_type == 1 || control_type == 2)
+        sv.DEtot += Delta;
+    else if (control_type == 3)
+        sv.Detot += Delta;
+    else
+        sv.U1 += v2t_strain(Delta);
+}
+
+// Mechanical rows of the residual: on the static components, the stress measure of the control
+// type against its target Dtinc mecas(inc) (1 Kirchhoff, 2 PKII, 3 Kirchhoff from the start stress
+// in the polar frame F = V R rebuilds, 4 Biot); on the kinematic ones, its strain
+void mechanical_residual(state_variables &sv, const unsigned int &control_type, const Col<int> &cBC_meca, const mat &mecas,
+                         const int &inc, const double &Dtinc, const mat &BC_R, const mat &DR, const double &lambda, vec &residual) {
+    const vec *stress = &sv.tau, *stress_start = &sv.tau_start, *strain = &sv.DEtot;
+    vec stress_tmp, stress_start_tmp, strain_tmp;
+    switch (control_type) {
+        case 1: break;
+        case 2: { stress = &sv.PKII; stress_start = &sv.PKII_start; break; }
+        case 3: {
+            stress_start_tmp = rotate_stress(sv.tau_start, BC_R*DR*BC_R.t());
+            stress_start = &stress_start_tmp;
+            strain = &sv.Detot;
+            break;
+        }
+        case 4: {
+            stress_tmp = t2v_stress(sv.Biot_stress());
+            stress_start_tmp = t2v_stress(sv.Biot_stress_start());
+            strain_tmp = t2v_strain(sv.U1 - sv.U0);
+            stress = &stress_tmp;
+            stress_start = &stress_start_tmp;
+            strain = &strain_tmp;
+            break;
+        }
+        default:
+            throw simcoon::exception_solver("error, control types 5 and 6 are intended for use in strain-controlled loading only");
+    }
+    for (int k = 0; k < 6; k++) {
+        if (cBC_meca(k))
+            residual(k) = (*stress)(k) - (*stress_start)(k) - Dtinc*mecas(inc,k);
+        else
+            residual(k) = lambda*((*strain)(k) - Dtinc*mecas(inc,k));
+    }
+}
+
+// Jacobian of the control type's stress measure with respect to its strain, from the box tangent
+// Lt = dtau/de: Lt itself (1, 3), dS/dE (2, corate-matched pull-back, no J), dBiot/dU (4)
+// (written to C for 2 and 4, Lt returned as is otherwise)
+const mat &control_tangent(state_variables &sv, const mat &Lt, const unsigned int &control_type, const int &corate_type, mat &C) {
+    if (control_type == 2) {
+        C = DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, v2t_stress(sv.tau));
+        return C;
+    }
+    if (control_type == 4) {
+        const mat DSDE = DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, v2t_stress(sv.tau));
+        mat R = zeros(3,3);
+        mat U = zeros(3,3);
+        RU_decomposition(R, U, sv.F1);
+        C = DSDE_DBiotStressDU(DSDE, U, v2t_stress(sv.PKII));
+        return C;
+    }
+    return Lt;
+}
+
+// Thermal columns of the thermomechanical Jacobian in the control type's variables, from the box
+// derivatives dtau/dtheta and dr/de (at fixed F): dstress/dtheta at fixed control strain and
+// dr/d(control strain). 2: dS/dtheta = F^-1 dtau/dtheta F^-T, dr/dE = P^T dr/de with P = de/dE
+// (dH/dE, rotated by R under the rate form); 4: dBiot/dtheta = sym(U dS/dtheta), dr/dU through
+// dE = 1/2 (dU U + U dU).
+void control_thermal(const state_variables &sv, const vec &dSdT_box, const vec &drdE_box, const unsigned int &control_type,
+                     const int &corate_type, vec &dSdT, vec &drdE) {
+    if (control_type != 2 && control_type != 4) {
+        dSdT = dSdT_box;
+        drdE = drdE_box;
+        return;
+    }
+    const mat Fi = inv(sv.F1);
+    const mat dS = Fi*v2t_stress(dSdT_box)*Fi.t();
+    const vec drdE_E = box_covector_2_dE(drdE_box, sv.F1, corate_type);
+    if (control_type == 2) {
+        dSdT = t2v_stress(dS);
+        drdE = drdE_E;
+        return;
+    }
+    mat R = zeros(3,3);
+    mat U = zeros(3,3);
+    RU_decomposition(R, U, sv.F1);
+    dSdT = t2v_stress(0.5*(U*dS + dS*U));
+    mat G(6, 6);
+    for (int j = 0; j < 6; j++) {
+        vec e = zeros(6);
+        e(j) = 1.;
+        const mat dU = v2t_strain(e);
+        G.col(j) = t2v_strain(0.5*(dU*U + U*dU));
+    }
+    drdE = G.t()*drdE_E;
+}
+
+}  // namespace
+
 int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so, const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const solver_params &ctrl, solver_results_sink &sink, const std::vector<phase_characteristics> &sub_phases) {
 
     if (ctrl.tangent_mode < simcoon::tangent_none || ctrl.tangent_mode > simcoon::tangent_closest_point) {
@@ -356,90 +528,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         sv_M->DR = eye(3,3);
                                         DTime = Dtinc*sptr_meca->times(inc);
                                     }
-                                    else if (blocks[i].control_type == 2) {
-                                        sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
-                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                        //Application of the Hughes-Winget (1980) algorithm
-                                        DTime = Dtinc*sptr_meca->times(inc);
-                                        mat HW_inv;
-                                        bool inv_success = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
-                                        if (!inv_success) {
-                                            throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (control_type=2).");
-                                        }
-                                        DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-
-                                        sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
-                                        sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
-                                        
-                                        mat D = zeros(3,3);
-                                        mat Omega = zeros(3,3);
-                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
-
-                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                        //mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
-                                        //mat E_dot2 = (1./DTime)*v2t_strain(sv_M->DEtot);
-                                    }
-                                    else if (blocks[i].control_type == 3) {
-                                        sv_M->Detot = Dtinc*sptr_meca->mecas.row(inc).t();
-                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                        //Application of the Hughes-Winget (1980) algorithm
-                                        DTime = Dtinc*sptr_meca->times(inc);
-
-                                        mat HW_inv;
-                                        bool inv_success = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
-                                        if (!inv_success) {
-                                            throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (control_type=3).");
-                                        }
-                                        DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-
-                                        sv_M->F0 = eR_to_F(ct3_lnV(sv_M->etot, corate_type), sptr_meca->BC_R);
-                                        sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
-
-                                        mat D = zeros(3,3);
-                                        mat Omega = zeros(3,3);
-                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
-
-                                        sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
-                                        
-                                        if (DTime > simcoon::iota)
-                                            D = sv_M->Detot/DTime;
-                                        else
-                                            D = zeros(3,3);
-                                    }
-                                    else if (blocks[i].control_type == 4) {
-
-                                        sv_M->U1 = sv_M->U0 + v2t_strain(Dtinc*sptr_meca->mecas.row(inc).t());
-                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                        //Application of the Hughes-Winget (1980) algorithm
-
-                                        DTime = Dtinc*sptr_meca->times(inc);
-                                        mat HW_inv;
-                                        bool inv_success = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
-                                        if (!inv_success) {
-                                            throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (control_type=4).");
-                                        }
-                                        DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-
-                                        sv_M->F0 = sptr_meca->BC_R*sv_M->U0;
-                                        sv_M->F1 = (sptr_meca->BC_R*DR)*(sv_M->U1);
-                                        sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
-                                                                                
-                                        mat D = zeros(3,3);
-                                        mat Omega = zeros(3,3);
-                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
-
-                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                    }                                    
                                     else {
-                                        sv_M->F1 = v2t(sptr_meca->BC_mecas.row(inc).t());
+                                        set_driven_strain(*sv_M, blocks[i].control_type, Dtinc*sptr_meca->mecas.row(inc), sptr_meca->BC_mecas.row(inc), tinc + Dtinc > 1. - simcoon::iota);
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                         DTime = Dtinc*sptr_meca->times(inc);
-                                    
-                                        mat D = zeros(3,3);
-                                        mat Omega = zeros(3,3);
-                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
-                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                        sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
+                                        finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
                                     }
                                     rve.to_start();
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
@@ -457,89 +550,18 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 
                                     error = 1.;
                                     
-                                    if (blocks[i].control_type == 1) {
-                                    
+                                    if (blocks[i].control_type == 1 || blocks[i].control_type == 2)
                                         sv_M->DEtot = zeros(6);
-                                        for(int k = 0 ; k < 6 ; k++)
-                                        {
-                                            if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                            }
-                                            else {
-                                                residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                            }
-                                        }
-                                    }
-                                    else if (blocks[i].control_type == 2) {
-                                        sv_M->DEtot = zeros(6);
-                                        for(int k = 0 ; k < 6 ; k++)
-                                        {
-                                            if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->PKII(k) - sv_M->PKII_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                            }
-                                            else {
-                                                residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                            }
-                                        }
-                                    }
-                                    else if (blocks[i].control_type == 3) {
-                                        const vec tau_start_tr = rotate_stress(sv_M->tau_start, sptr_meca->BC_R*DR*sptr_meca->BC_R.t());   // start stress in the polar frame F = V R rebuilds
+                                    else if (blocks[i].control_type == 3)
                                         sv_M->Detot = zeros(6);
-                                        for(int k = 0 ; k < 6 ; k++)
-                                        {
-                                            if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->tau(k) - tau_start_tr(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                            }
-                                            else {
-                                                residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                            }
-                                        }
-                                    }
-                                    else if (blocks[i].control_type == 4) {
-                                        vec Biot_stress = t2v_stress(sv_M->Biot_stress());
-                                        vec Biot_stress_start = t2v_stress(sv_M->Biot_stress_start());
-                                        vec DU_vec = t2v_strain(sv_M->U1 - sv_M->U0);                                        
-                                        for(int k = 0 ; k < 6 ; k++)
-                                        {
-                                            if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = Biot_stress(k) - Biot_stress_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                            }
-                                            else {
-                                                residual(k) = lambda_solver*(DU_vec(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                            }
-                                        }
-                                    }                                    
-                                    else {
-                                        throw simcoon::exception_solver("error, control types 5 and 6 are intended for use in strain-controlled loading only");
-                                    }
+                                    mechanical_residual(*sv_M, blocks[i].control_type, sptr_meca->cBC_meca, sptr_meca->mecas, inc, Dtinc, sptr_meca->BC_R, DR, lambda_solver, residual);
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
 
                                         if(solver_type != 1){
                                             // classic
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
                                             //we use the ddsdde (Lt) from the previous increment
-                                            if (blocks[i].control_type == 1) {
-                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
-                                            }
-                                            else if (blocks[i].control_type == 2) {
-                                                // ct2: residual on PKII(E) -> tangent dS/dE via DtauDe_corate_2_DSDE (corate-matched
-                                                // box-tangent pull-back; see objective_rates.hpp). NOT Dsigma_LieDD_2_DSDE (spurious J + wrong spin).
-                                                C = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
-                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                            }
-                                            else if (blocks[i].control_type == 3) {
-                                                // ct3: residual on Kirchhoff tau (conjugate to ln V) -> Jacobian is the box tangent Lt directly.
-                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
-                                            }
-                                            else if (blocks[i].control_type == 4) {
-                                                // ct4: residual on Biot stress -> chain dS/dE (corate-matched) into d(Biot)/dU via DSDE_DBiotStressDU.
-                                                mat DSDE = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
-                                                mat R = zeros(3,3);
-                                                mat U = zeros(3,3);
-                                                RU_decomposition(R,U,sv_M->F1);
-                                                C = DSDE_DBiotStressDU(DSDE, U, v2t_stress(sv_M->PKII));
-                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                            }
+                                            Lt_2_K(control_tangent(*sv_M, sv_M->Lt, blocks[i].control_type, corate_type, C), K, sptr_meca->cBC_meca, lambda_solver);
 
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
@@ -574,134 +596,18 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             Delta = -invK * residual;
                                         }
 
-                                        if (blocks[i].control_type == 1) {
+                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                        DTime = Dtinc*sptr_meca->times(inc);
+                                        add_driven_strain(*sv_M, blocks[i].control_type, Delta);
+                                        if (blocks[i].control_type == 1)
                                             sv_M->DR = eye(3,3);
-                                            sv_M->DEtot += Delta;
-                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                            DTime = Dtinc*sptr_meca->times(inc);
+                                        else {
+                                            finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
                                         }
-                                        else if (blocks[i].control_type == 2) {
-                                        
-                                            sv_M->DEtot += Delta;
-                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                            //Application of the Hughes-Winget (1980) algorithm
-                                            DTime = Dtinc*sptr_meca->times(inc);
-                                            mat HW_inv;
-                                            bool inv_success_hw = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
-                                            if (!inv_success_hw) {
-                                                throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (NR iteration, control_type=2).");
-                                            }
-                                            DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-
-                                            sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
-                                            sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
-                                    
-                                            mat D = zeros(3,3);
-                                            mat Omega = zeros(3,3);
-                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                        }
-                                        else if (blocks[i].control_type == 3) {
-
-                                            sv_M->Detot += Delta;
-                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                            //Application of the Hughes-Winget (1980) algorithm
-                                            DTime = Dtinc*sptr_meca->times(inc);
-                                            mat HW_inv;
-                                            bool inv_success_hw = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
-                                            if (!inv_success_hw) {
-                                                throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (NR iteration, control_type=3).");
-                                            }
-                                            DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-
-                                            sv_M->F0 = eR_to_F(ct3_lnV(sv_M->etot, corate_type), sptr_meca->BC_R);
-                                            sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
-
-                                            sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
-
-                                            mat D = zeros(3,3);
-                                            mat Omega = zeros(3,3);
-                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
-                                            if (DTime > simcoon::iota)
-                                                D = sv_M->Detot/DTime;
-                                            else
-                                                D = zeros(3,3);
-                                        }
-                                        else if (blocks[i].control_type == 4) {
-                                    
-                                            sv_M->U1 += v2t_strain(Delta);
-                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                            //Application of the Hughes-Winget (1980) algorithm
-                                            DTime = Dtinc*sptr_meca->times(inc);
-                                            mat HW_inv;
-                                            bool inv_success_hw = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
-                                            if (!inv_success_hw) {
-                                                throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (NR iteration, control_type=4).");
-                                            }
-                                            DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-                                            sv_M->F0 = sptr_meca->BC_R*sv_M->U0;
-                                            sv_M->F1 = (sptr_meca->BC_R*DR)*sv_M->U1;   // BC_R*DR (right): consistent with the accumulator BC_R = BC_R*DR (step_meca) and the ct4 nK==0 / ct2 / ct3 sites; was DR*BC_R
-                                            sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;;
-                                            mat D = zeros(3,3);
-                                            mat Omega = zeros(3,3);
-                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                        }      
                                         rve.to_start();
                                         run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
 
-                                        if (blocks[i].control_type == 1) {
-                                        
-                                            //sv_M->DEtot = zeros(6);
-                                            for(int k = 0 ; k < 6 ; k++)
-                                            {
-                                                if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                }
-                                                else {
-                                                    residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                                }
-                                            }
-                                        }
-                                        else if (blocks[i].control_type == 2) {
-                                            for(int k = 0 ; k < 6 ; k++)
-                                            {
-                                                if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = sv_M->PKII(k) - sv_M->PKII_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                }
-                                                else {
-                                                    residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                                }
-                                            }
-                                        }
-                                        else if (blocks[i].control_type == 3) {
-                                            const vec tau_start_tr = rotate_stress(sv_M->tau_start, sptr_meca->BC_R*DR*sptr_meca->BC_R.t());   // start stress in the polar frame F = V R rebuilds
-                                            //sv_M->DEtot = zeros(6);
-                                            for(int k = 0 ; k < 6 ; k++)
-                                            {
-                                                if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = sv_M->tau(k) - tau_start_tr(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                }
-                                                else {
-                                                    residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                                }
-                                            }
-                                        }
-                                        else if (blocks[i].control_type == 4) {
-
-                                            vec Biot_stress = t2v_stress(sv_M->Biot_stress());
-                                            vec Biot_stress_start = t2v_stress(sv_M->Biot_stress_start());                                        
-                                            vec DU_vec = t2v_strain(sv_M->U1 - sv_M->U0);
-                                            for(int k = 0 ; k < 6 ; k++)
-                                            {
-                                                if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = Biot_stress(k) - Biot_stress_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                }
-                                                else {
-                                                    residual(k) = lambda_solver*(DU_vec(k) - Dtinc*sptr_meca->mecas(inc,k));
-                                                }
-                                            }
-                                        }                                        
+                                        mechanical_residual(*sv_M, blocks[i].control_type, sptr_meca->cBC_meca, sptr_meca->mecas, inc, Dtinc, sptr_meca->BC_R, DR, lambda_solver, residual);
                                         compteur++;
                                         error = norm(residual, 2.);
                                         if (!std::isfinite(error)) error = 1.e30;   // NaN would pass every "error > tol" test as converged
@@ -881,7 +787,14 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 sv_T->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
-                run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                if (tnew_dt < 1.) {
+                    // as the mechanical block: the zero-increment priming call gave no tangent
+                    throw simcoon::exception_solver(
+                        "block " + std::to_string(i + 1) + ": the constitutive law requested a step "
+                        "cut on the zero-increment call that primes the tangent operator; no "
+                        "tangent could be obtained to start the block.");
+                }
                 
                 // r is the heat of the increment (MPa): the balance is written on increments,
                 // -r = DTime Q, so DTime = 0 is the adiabatic r = 0
@@ -893,6 +806,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 if(solver_type == 1) {
                     //RNL
                     sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[0].steps[0]);
+                    assert(blocks[i].control_type == 1);
                     sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
 
                     Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
@@ -912,7 +826,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                     sink.init(rve);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(0); //DEtot = 0 and DT = 0 so we can use it safely here (small strain only)
+                rve.set_start((blocks[i].control_type == 1) ? 0 : corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
                 start = false;
                 
                 /// Cycle loop
@@ -923,7 +837,21 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                         
                         
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
-                        sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
+                        if (blocks[i].control_type == 1) {
+                            sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
+                        }
+                        else if (blocks[i].control_type == 2) {
+                            sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->PKII, sv_T->T);
+                        }
+                        else if (blocks[i].control_type == 3) {
+                            sptr_thermomeca->generate(Time, t2v_strain(ct3_lnV(sv_T->etot, corate_type)), sv_T->tau, sv_T->T);
+                        }
+                        else if (blocks[i].control_type == 4) {
+                            sptr_thermomeca->generate(Time, t2v_strain(sv_T->U0), t2v_stress(sv_T->Biot_stress()), sv_T->T);
+                        }
+                        else {
+                            sptr_thermomeca->generate_kin(Time, sv_T->F0, sv_T->T);
+                        }
                         
                         nK = sum(sptr_thermomeca->cBC_meca);
                         
@@ -956,11 +884,18 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 
                                 if(nK + sptr_thermomeca->cBC_T == 0){
                                     
-                                    sv_T->DEtot = Dtinc*sptr_thermomeca->mecas.row(inc).t();
                                     sv_T->DT = Dtinc*sptr_thermomeca->Ts(inc);
                                     DTime = Dtinc*sptr_thermomeca->times(inc);
+                                    if (blocks[i].control_type == 1) {
+                                        sv_T->DEtot = Dtinc*sptr_thermomeca->mecas.row(inc).t();
+                                    }
+                                    else {
+                                        set_driven_strain(*sv_T, blocks[i].control_type, Dtinc*sptr_thermomeca->mecas.row(inc), sptr_thermomeca->BC_mecas.row(inc), tinc + Dtinc > 1. - simcoon::iota);
+                                        finite_kinematics(*sv_T, blocks[i].control_type, sptr_thermomeca->BC_w, sptr_thermomeca->BC_R, DTime, corate_type, DR);
+                                        rve.to_start();
+                                    }
                                     
-                                    run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                                    run_umat_T(rve, (blocks[i].control_type == 1) ? DR : sv_T->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                                     sv_T->Q = (DTime > simcoon::iota) ? -1.*sv_T->r/DTime : 0.;   // output: heat flux (rate)
                                     if (!sv_T->sigma.is_finite() || !std::isfinite(sv_T->r)) {   // cut, or give up at Dn_mini
                                         if (Dtinc_cur == sptr_thermomeca->Dn_mini) {
@@ -971,25 +906,59 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     }
                                     
                                 }
+                                else if (blocks[i].control_type >= 5) {
+                                    // F prescribed with a heat flux or a convection: the kinematics are
+                                    // fixed, the Newton runs on DT alone
+                                    error = 1.;
+                                    residual = zeros(7);
+                                    sv_T->DT = 0.;
+                                    DTime = Dtinc*sptr_thermomeca->times(inc);
+                                    set_driven_strain(*sv_T, blocks[i].control_type, Dtinc*sptr_thermomeca->mecas.row(inc), sptr_thermomeca->BC_mecas.row(inc), tinc + Dtinc > 1. - simcoon::iota);
+                                    finite_kinematics(*sv_T, blocks[i].control_type, sptr_thermomeca->BC_w, sptr_thermomeca->BC_R, DTime, corate_type, DR);
+                                    while((error > precision_solver)&&(compteur < maxiter_solver)) {
+                                        rve.to_start();
+                                        run_umat_T(rve, sv_T->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                                        sv_T->Q = (DTime > simcoon::iota) ? -1.*sv_T->r/DTime : 0.;   // output: heat flux (rate)
+                                        double dres_dT = -sv_T->drdT(0,0);
+                                        if (sptr_thermomeca->cBC_T == 1) {
+                                            residual(6) = -1.*sv_T->r - DTime*sptr_thermomeca->Ts(inc);
+                                        }
+                                        else {   // 0D convection, implicit in the end temperature
+                                            residual(6) = -1.*sv_T->r + DTime*q_conv*(sv_T->T + sv_T->DT - T_init);
+                                            dres_dT += DTime*q_conv;
+                                        }
+                                        compteur++;
+                                        error = fabs(residual(6));
+                                        if (!std::isfinite(error)) error = 1.e30;
+                                        if(tnew_dt < 1.) {
+                                            if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) > simcoon::iota)||(inforce_solver == 0)) {
+                                                compteur = maxiter_solver;
+                                            }
+                                        }
+                                        if ((error > precision_solver) && (compteur < maxiter_solver)) {
+                                            if (fabs(dres_dT) < simcoon::iota) {
+                                                try_step_cut(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt);
+                                                compteur = maxiter_solver;
+                                                break;
+                                            }
+                                            sv_T->DT -= residual(6)/dres_dT;
+                                        }
+                                    }
+                                }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
                                     ///Saving stress and stress set point at the beginning of the loop
                                     
                                     error = 1.;
                                     
-                                    sv_T->DEtot = zeros(6);
+                                    if (blocks[i].control_type == 1 || blocks[i].control_type == 2)
+                                        sv_T->DEtot = zeros(6);
+                                    else if (blocks[i].control_type == 3)
+                                        sv_T->Detot = zeros(6);
                                     sv_T->DT = 0.;
                                     
                                     //Construction of the initial residual
-                                    for(int k = 0 ; k < 6 ; k++)
-                                    {
-                                        if (sptr_thermomeca->cBC_meca(k)) {
-                                            residual(k) = sv_T->sigma(k) - sv_T->sigma_start(k) - Dtinc*sptr_thermomeca->mecas(inc,k);
-                                        }
-                                        else {
-                                            residual(k) = lambda_solver*(sv_T->DEtot(k) - Dtinc*sptr_thermomeca->mecas(inc,k));
-                                        }
-                                    }
+                                    mechanical_residual(*sv_T, blocks[i].control_type, sptr_thermomeca->cBC_meca, sptr_thermomeca->mecas, inc, Dtinc, sptr_thermomeca->BC_R, DR, lambda_solver, residual);
                                     // thermal balance on increments: -r - DTime Q_imposed = 0
                                     if (sptr_thermomeca->cBC_T == 1) {
                                         residual(6) = -Dtinc*sptr_thermomeca->times(inc)*sptr_thermomeca->Ts(inc);
@@ -1005,13 +974,25 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         return 1;
                                     }
 
+                                    // finite strain: the thermal columns in the control type's variables
+                                    // (small strain: as returned, dQdE carried over from the last Newton)
+                                    const bool finite_ct = (blocks[i].control_type != 1);
+                                    vec dSdT_c, drdE_c;
+                                    if (finite_ct) {
+                                        control_thermal(*sv_T, vectorise(sv_T->dSdT), vectorise(sv_T->drdE), blocks[i].control_type, corate_type, dSdT_c, drdE_c);
+                                        dQdE = -1.*drdE_c.t();
+                                    }
+
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         
                                         if(solver_type != 1){
                                             // classic
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
                                             //we use the ddsdde (Lt) from the previous increment
-                                            Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
+                                            if (finite_ct)
+                                                Lth_2_K(control_tangent(*sv_T, sv_T->dSdE, blocks[i].control_type, corate_type, C), dSdT_c, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
+                                            else
+                                                Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
 
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
@@ -1041,33 +1022,33 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             sigma_in_red(6) = -1.*sv_T->r_in;
                                             Delta = -invK * residual;
                                         }
-                                        for(int k = 0 ; k < 6 ; k++)
-                                        {
-                                            sv_T->DEtot(k) += Delta(k);
-                                        }
+                                        if (finite_ct)
+                                            add_driven_strain(*sv_T, blocks[i].control_type, Delta.head(6));
+                                        else
+                                            for(int k = 0 ; k < 6 ; k++)
+                                                sv_T->DEtot(k) += Delta(k);
                                         sv_T->DT += Delta(6);
                                         DTime = Dtinc*sptr_thermomeca->times(inc);
+                                        if (finite_ct)
+                                            finite_kinematics(*sv_T, blocks[i].control_type, sptr_thermomeca->BC_w, sptr_thermomeca->BC_R, DTime, corate_type, DR);
                                         
                                         rve.to_start();
-                                        run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                                        run_umat_T(rve, (blocks[i].control_type == 1) ? DR : sv_T->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                                         
                                         // -r - DTime Q_imposed = 0, r the heat of the increment
                                         sv_T->Q = (DTime > simcoon::iota) ? -1.*sv_T->r/DTime : 0.;   // output: heat flux (rate)
-                                        dQdE = -1.*sv_T->drdE.t();
+                                        if (finite_ct) {
+                                            control_thermal(*sv_T, vectorise(sv_T->dSdT), vectorise(sv_T->drdE), blocks[i].control_type, corate_type, dSdT_c, drdE_c);
+                                            dQdE = -1.*drdE_c.t();
+                                        }
+                                        else
+                                            dQdE = -1.*sv_T->drdE.t();
                                         dQdT = -1.*sv_T->drdT;
                                         if (sptr_thermomeca->cBC_T == 3) {
                                             dQdT += DTime*q_conv;
                                         }
                                                                                 
-                                        for(int k = 0 ; k < 6 ; k++)
-                                        {
-                                            if (sptr_thermomeca->cBC_meca(k)) {
-                                                residual(k) = sv_T->sigma(k) - sv_T->sigma_start(k) - Dtinc*sptr_thermomeca->mecas(inc,k);
-                                            }
-                                            else {
-                                                residual(k) = lambda_solver*(sv_T->DEtot(k) - Dtinc*sptr_thermomeca->mecas(inc,k));
-                                            }
-                                        }
+                                        mechanical_residual(*sv_T, blocks[i].control_type, sptr_thermomeca->cBC_meca, sptr_thermomeca->mecas, inc, Dtinc, sptr_thermomeca->BC_R, DR, lambda_solver, residual);
                                         if (sptr_thermomeca->cBC_T == 1) {
                                             residual(6) = -1.*sv_T->r - DTime*sptr_thermomeca->Ts(inc);
                                         }
@@ -1168,9 +1149,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
-                                // thermomechanical blocks are small strain: log strain = infinitesimal one
-                                sv_T->Detot = sv_T->DEtot;
-                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, 0);   // small strain only: additive, no corate
+                                if (blocks[i].control_type == 1) {
+                                    // small strain: the logarithmic strain is the infinitesimal one
+                                    sv_T->Detot = sv_T->DEtot;
+                                }
+                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, (blocks[i].control_type == 1) ? 0 : corate_type);   // small strain: additive, no corate
                                 //start variables ready for the next increment
                                 
                             }

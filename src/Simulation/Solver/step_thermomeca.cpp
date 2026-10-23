@@ -29,6 +29,7 @@
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
+#include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 
 using namespace std;
@@ -51,7 +52,7 @@ step_thermomeca::step_thermomeca() : step()
     
 step_thermomeca::step_thermomeca(const unsigned int &control_type) : step()
 {
-    if (control_type == 4 || control_type == 5) { //Control with F (4) or gradU (5)
+    if (control_type == 5 || control_type == 6) { //Control with F (5) or gradU (6)
         cBC_meca = zeros<Col<int> >(9);
         BC_meca = zeros(9);
     }
@@ -121,7 +122,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
 //-------------------------------------------------------------
 {
 
-    assert(control_type <= 3);
+    assert(control_type <= 4);
 
     //For an incremental (mode 3) step, the number of increments comes from the table
     if(mode == 3){
@@ -283,13 +284,13 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
 void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const double &mT)
 //-------------------------------------------------------------
 {
-    
+    // as step_meca::generate_kin (control types 5/6, F or grad u prescribed), with the thermal
+    // columns of generate: a temperature ramp, a heat flux or a convection
     unsigned int size_meca = 9;
-    assert(control_type > 3);
+    assert(control_type > 4);
     for (unsigned int k=0; k<size_meca; k++) {
         assert(cBC_meca(k) != 1);
     }
-    assert (cBC_T == 0);
     
     mat I2 = eye(3,3);
     //For an incremental (mode 3) step, the number of increments comes from the table
@@ -314,22 +315,15 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
     }
     
     if (mode < 3) {
+        // control type 6 prescribes grad u = F - I
+        const vec F_target = (control_type == 6) ? vec(BC_meca + vectorise(I2)) : BC_meca;
+        geodesic_F_increments(mF, F_target, inc_coef, BC_Time, times, mecas, BC_mecas);
         for (int i=0; i<ninc; i++) {
-            Ts(i) = (BC_T - mT)/ninc;
-            times(i) = (BC_Time)/ninc;
-            
-            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                if (control_type == 4) {
-                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3))/ninc) + mF(k/3,k%3);
-                }
-                else if (control_type == 5) {
-                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-(mF(k/3,k%3)-I2(k/3,k%3)))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3)-I2(k/3,k%3))/ninc) + mF(k/3,k%3) + I2(k/3,k%3);
-                }
-                else {
-                    cout << "ERROR in function generate_kin of step_meca.cpp : control_type should take the value 4 or 5 and not " << control_type << endl;
-                }
+            if (cBC_T == 1) {
+                Ts(i) = BC_T;                   //Note that here it is the flux that is imposed
+                BC_Ts(i) = BC_T;
+            }
+            else if(cBC_T == 0) {
                 Ts(i) = inc_coef(i)*(BC_T - mT)/ninc;
                 BC_Ts(i) = inc_coef(i)*(i+1)*((BC_T - mT)/ninc) + mT;
             }
@@ -337,14 +331,14 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
     }
     else if (mode ==3){ ///Incremental loading
         
-        //Look at how many cBc are present to know the size of the file (1 for time + 6/9 for each meca + 1 for temperature):
+        //Look at how many cBc are present to know the size of the file (1 for time + 9 for each meca + 1 for temperature):
         unsigned int size_BC = size_meca + 2;
         for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2){
                 size_BC--;
             }
         }
-        if (cBC_T == 2 ) {
+        if (cBC_T >= 2 ) { //no thermal column for a constant-temperature (2) or convection (3) step
             size_BC--;
         }
         
@@ -357,16 +351,17 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
             BC_file_n(kT+1) = mT;
             kT++;
         }
+        else if (cBC_T == 1) {
+            BC_file_n(kT+1) = 0.;    //Heat flux does not depend on any previous condition
+            kT++;
+        }
         for (unsigned int k=0; k<size_meca; k++) {
             if (cBC_meca(k) == 0) {
-                if (control_type == 4) {
+                if (control_type == 5) {
                     BC_file_n(kT+1) = mF(k/3,k%3);
                 }
-                else if (control_type == 5) {
-                    BC_file_n(kT+1) = mF(k/3,k%3)-I2(k/3,k%3);
-                }
                 else {
-                    cout << "ERROR in function generate_kin of step_meca.cpp : control_type should take the value 4 or 5 and not " << control_type << endl;
+                    BC_file_n(kT+1) = mF(k/3,k%3)-I2(k/3,k%3);
                 }
                 kT++;
             }
@@ -396,24 +391,22 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
                 BC_Ts(i) = BC_file(kT+1);
                 kT++;
             }
-            else if(cBC_T == 2) {
-                Ts(i) = 0.;
-                BC_Ts(i) = 0.;
+            else if (cBC_T == 1) {
+                Ts(i) = BC_file(kT+1);  //Case of Heat, direct quantity
+                BC_Ts(i) = BC_file(kT+1);
+                kT++;
             }
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) < 2){
-                    mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
                     BC_mecas(i,k) = BC_file(kT+1);
                     kT++;
-                }
-                else if (cBC_meca(k) == 2){
-                    mecas(i,k) = 0.;
-                    BC_mecas(i,k) = 0.;
                 }
             }
             BC_file_n = BC_file;
         }
+        // F and the generator of each increment; the components absent from the table hold
+        tabulated_F_increments(mF, cBC_meca, control_type, mecas, BC_mecas);
         //At the end, everything static becomes a deformation-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2)
@@ -423,7 +416,6 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
         if (cBC_T == 2) {
             cBC_T = 0;
         }
-        
     }
     else{
         cout << "\nError: The mode of the step number " << number << " does not correspond to an existing loading mode.\n";
@@ -494,10 +486,10 @@ ostream& operator << (ostream& s, const step_thermomeca& stm)
     unsigned int size_meca = stm.BC_meca.n_elem;
     if (stm.mode == 3) {
     
-        if(stm.control_type == 4) {
+        if(stm.control_type == 5) {
             s << "Control: " << stm.control_type << " : Transformation gradient F\n";
         }
-        else if (stm.control_type == 5) {
+        else if (stm.control_type == 6) {
             s << "Control: " << stm.control_type << " : gradient of displacement gradU\n";
         }
         else {
@@ -527,13 +519,13 @@ ostream& operator << (ostream& s, const step_thermomeca& stm)
         
         s << "\tTime of the step " << stm.BC_Time << " s\n\t";
         s << "\tInitial fraction: " << stm.Dn_init << "\tMinimal fraction: " << stm.Dn_mini << "\tIncrement fraction: " << stm.Dn_inc << "\n\t";
-        if(stm.control_type == 4) {
+        if(stm.control_type == 5) {
             s << "Control: " << stm.control_type << " : Transformation gradient F\n";
             for(unsigned int k = 0 ; k <size_meca ; k++) {
                 s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
             }
         }
-        else if (stm.control_type == 5) {
+        else if (stm.control_type == 6) {
             s << "Control: " << stm.control_type << " : gradient of displacement gradU\n";
             for(unsigned int k = 0 ; k <size_meca ; k++) {
                 s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");

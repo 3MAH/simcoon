@@ -85,6 +85,38 @@ protected:
 };
 
 
+/**
+ * @brief Increments of a kinematic step (control types 5/6, modes 1/2) on the geodesic from F_prev
+ * to the target: F_i = exp(w_i ln(F_target F_prev^-1)) F_{i-1}, weights w_i = inc_coef / sum(inc_coef).
+ * Control type 6 passes F_target = I + grad u.
+ * Shared by step_meca and step_thermomeca.
+ * @param[in] F_prev deformation gradient at the start of the step
+ * @param[in] BC_meca target F, 9 components row-major
+ * @param[in] inc_coef increment weights (ones, or the sinusoidal mode's)
+ * @param[in] BC_Time duration of the step
+ * @param[out] times time increments (sized ninc)
+ * @param[out] mecas generator of each increment, \f$ \Delta\mathbf{L}_i = w_i \ln(\mathbf{F}_{target}\mathbf{F}_{prev}^{-1}) \f$
+ *             (9 components row-major): a fraction s of increment i is \f$ \exp(s\,\Delta\mathbf{L}_i)\,\mathbf{F} \f$
+ *             (step cuts, set_driven_strain in the solver)
+ * @param[out] BC_mecas F at the end of each increment
+ */
+void geodesic_F_increments(const arma::mat &F_prev, const arma::vec &BC_meca, const arma::vec &inc_coef, const double &BC_Time,
+                           arma::vec &times, arma::mat &mecas, arma::mat &BC_mecas);
+
+/**
+ * @brief The tabulated (mode 3) kinematic step in the form geodesic_F_increments gives: BC_mecas
+ * holds F at the end of each increment and mecas the generator \f$ \Delta\mathbf{L}_i =
+ * \ln(\mathbf{F}_i\mathbf{F}_{i-1}^{-1}) \f$ of the increment, the row's F reached on the
+ * geodesic between two table rows. Shared by step_meca and step_thermomeca.
+ * @param[in] F_prev deformation gradient at the start of the step
+ * @param[in] cBC_meca 2 for a component absent from the table: held at its previous value
+ * @param[in] control_type 5 (the table gives F) or 6 (it gives grad u = F - I)
+ * @param[out] mecas generators, one row per increment (9 components row-major)
+ * @param[in,out] BC_mecas in: the table values; out: F, one row per increment
+ */
+void tabulated_F_increments(const arma::mat &F_prev, const arma::Col<int> &cBC_meca, const unsigned int &control_type,
+                            arma::mat &mecas, arma::mat &BC_mecas);
+
 /** @} */ // end of solver group
 
 } //namespace simcoon
