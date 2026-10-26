@@ -1,5 +1,15 @@
 """Benchmark legacy UMATs against their MODUL (modular UMAT) twin configurations.
 
+Only three legacy names still run a legacy kernel: EPICP, EPCHA and PRONK. All the
+others listed below (ELISO, ELIST, ELORT, EPKCP, EPHIL, EPHAC, EPANI, EPDFA, EPCHG,
+EPHIN) are dispatched to the modular engine through a props adapter (code 201 in
+``umat_smart.cpp``, ``Modular/legacy_adapters.cpp``): timing them against MODUL
+compares the modular engine with itself, plus the adapter's props translation
+(ratio ~1.00, deviation 0). Those families are therefore benchmarked only on
+request (``--all`` or ``--families``) and flagged "adapter" in the table; they
+remain in ``FAMILIES`` because their legacy-name and MODUL runs are regression
+cases of ``benchmark/dump_results.py``.
+
 ZENER/ZENNK are intentionally absent: Zener_fast/Zener_Nfast are generalized
 KELVIN chains (branch driving force sigma - L_i EV_i), a different rheological
 model from the modular Prony (generalized Maxwell) — no twin exists.
@@ -15,8 +25,9 @@ is the constitutive kernel alone rather than the path-file parse the two arms
 share.
 
 Usage:
-    python bench/bench_legacy_vs_modular.py [--families ELISO,EPCHA,...]
-                                            [--repeats 8]
+    python bench/bench_legacy_vs_modular.py              # EPICP, EPCHA, PRONK
+    python bench/bench_legacy_vs_modular.py --all        # + the adapter families
+    python bench/bench_legacy_vs_modular.py --families EPCHA,EPHIL --repeats 8
 
 Run from anywhere; paths resolve relative to the repo. Requires the simcoon
 python package (editable install). Results land in a temp dir and are removed.
@@ -59,6 +70,10 @@ VE_TERMS = [
 def _mat(elasticity, mechanisms=()):
     return ModularMaterial(elasticity=elasticity, mechanisms=list(mechanisms))
 
+
+# Legacy names that still run their own (non-modular) kernel. Any other name of
+# FAMILIES is routed to the modular engine by a props adapter (code 201).
+LEGACY_KERNELS = ("EPICP", "EPCHA", "PRONK")
 
 # family -> (legacy_name, legacy_props, legacy_nstatev, path_file, ModularMaterial)
 FAMILIES = {
@@ -405,21 +420,29 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--families",
-        default=",".join(FAMILIES),
-        help="comma-separated subset of: " + ",".join(FAMILIES),
+        default=",".join(LEGACY_KERNELS),
+        help="comma-separated subset of: " + ",".join(FAMILIES)
+        + " (default: the true legacy kernels " + ",".join(LEGACY_KERNELS) + ")",
+    )
+    ap.add_argument(
+        "--all",
+        action="store_true",
+        help="all families, including those whose legacy name runs the modular engine",
     )
     ap.add_argument("--repeats", type=int, default=8)
     args = ap.parse_args()
+    families = list(FAMILIES) if args.all else args.families.split(",")
 
-    print("| family | legacy [ms] | MODUL [ms] | ratio | max dev |")
-    print("|---|---|---|---|---|")
-    for key in args.families.split(","):
+    print("| family | legacy route | legacy [ms] | MODUL [ms] | ratio | max dev |")
+    print("|---|---|---|---|---|---|")
+    for key in families:
         key = key.strip()
         if key not in FAMILIES:
-            print(f"| {key} | (unknown family) | | | |")
+            print(f"| {key} | (unknown family) | | | | |")
             continue
+        route = "kernel" if key in LEGACY_KERNELS else "adapter (MODUL)"
         tl, tm, dev = bench_family(key, args.repeats)
-        print(f"| {key} | {tl:.1f} | {tm:.1f} | {tm / tl:.2f} | {dev:.2e} |")
+        print(f"| {key} | {route} | {tl:.1f} | {tm:.1f} | {tm / tl:.2f} | {dev:.2e} |")
 
 
 if __name__ == "__main__":
