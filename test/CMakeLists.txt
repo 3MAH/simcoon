@@ -26,6 +26,7 @@ set(TEST_SRCS
   # Libraries - Maths
   test/Libraries/Maths/Tlagrange.cpp
   test/Libraries/Maths/Tnum_solve.cpp
+  test/Libraries/Maths/Tparallel.cpp
   test/Libraries/Maths/Trotation.cpp
   test/Libraries/Maths/Trotation_class.cpp
   test/Libraries/Maths/Tstats.cpp

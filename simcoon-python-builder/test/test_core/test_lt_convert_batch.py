@@ -38,3 +38,11 @@ def test_batch_rejects_mismatched_point_counts():
     Lt, F, stress = _batch(10)
     with pytest.raises(ValueError, match="one entry per point"):
         sim.Lt_convert(Lt, np.asfortranarray(F[:, :, :9]), stress, "DsigmaDe_2_DSDE")
+
+
+@pytest.mark.parametrize("n_threads", [1, 2, 0])
+def test_batch_is_the_same_for_any_thread_count(n_threads):
+    Lt, F, stress = _batch(500)
+    ref = np.asarray(sim.Lt_convert(Lt, F, stress, "DsigmaDe_2_DSDE", n_threads=4))
+    out = np.asarray(sim.Lt_convert(Lt, F, stress, "DsigmaDe_2_DSDE", n_threads=n_threads))
+    np.testing.assert_array_equal(out, ref)

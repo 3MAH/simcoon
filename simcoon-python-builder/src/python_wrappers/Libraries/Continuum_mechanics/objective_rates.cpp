@@ -158,7 +158,7 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
-py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
+py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key, const unsigned int &n_threads) {
     static const std::map<string, int> list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}, {"DTDH_2_DSDE",11}};
     // guarded lookup: operator[] would default-insert 0 = Dsigma_LieDD_2_DSDE, so a
     // misspelled or renamed key silently performed a DIFFERENT conversion and returned a
@@ -228,7 +228,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             mat out_pt = simcoon::slice_view(Lt_converted, pt);
             out_pt = convert_pt(simcoon::slice_view(Lt_cpp, pt), simcoon::slice_view(F_cpp, pt),
                                 simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
-        });
+        }, n_threads);
         return simpy::arma_to_numpy::cube_to_arr(Lt_converted, false);
     }
     throw std::invalid_argument("Lt.ndim() must be 2 or 3");

@@ -21,6 +21,11 @@
 ///@version 1.0
 
 #include <math.h>
+#include <map>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <utility>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
@@ -444,7 +449,37 @@ void points(vec &x, vec &wx, vec &y, vec &wy, const int &mp, const int &np)
 		}
 
 	}
-		
+
+}
+
+eshelby_quadrature::eshelby_quadrature(const int &m, const int &n) : mp(m), np(n), x(m), wx(m), y(n), wy(n)
+{
+    points(x, wx, y, wy, mp, np);
+}
+
+const eshelby_quadrature &eshelby_quadrature_points(const int &mp, const int &np)
+{
+    if (mp < 1 || np < 1) {
+        throw std::invalid_argument("Eshelby integrals: mp = " + std::to_string(mp) + " and np = " + std::to_string(np)
+                                    + " integration points, at least 1 of each is needed");
+    }
+    // Last tables of this thread: no lock while a thread keeps integrating with one (mp, np)
+    thread_local const eshelby_quadrature *last = nullptr;
+    if (last != nullptr && last->mp == mp && last->np == np)
+        return *last;
+
+    // Never destroyed on purpose (as the former ellipsoid_multi statics): a static armadillo
+    // object's destructor would run at DLL unload, which is unsafe on Windows. The tables stay
+    // valid until exit, whatever thread asked for them first.
+    static std::mutex &tables_mutex = *new std::mutex();
+    static std::map<std::pair<int, int>, const eshelby_quadrature *> &tables = *new std::map<std::pair<int, int>, const eshelby_quadrature *>();
+    std::lock_guard<std::mutex> lock(tables_mutex);
+    auto it = tables.find(std::make_pair(mp, np));
+    if (it == tables.end()) {
+        it = tables.emplace(std::make_pair(mp, np), new eshelby_quadrature(mp, np)).first;
+    }
+    last = it->second;
+    return *last;
 }
 
 } //namespace simcoon

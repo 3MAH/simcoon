@@ -107,17 +107,11 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local); //shared_ptr on state variables of the rve
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
-    //1 - Quadrature points of the Eshelby integrals (ellipsoidal schemes only)
-    if (start && (sub_phase_shape(phase.sptr_matprops->umat_name) == 2)) {
-        ellipsoid_multi::mp = phase.sptr_matprops->props(0);
-        ellipsoid_multi::np = phase.sptr_matprops->props(1);
-        ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
-        ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
-        ellipsoid_multi::y.set_size(ellipsoid_multi::np);
-        ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
-        points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
-    }
-    
+    //The self-consistent scheme takes the effective tangent of the previous increment as its
+    //reference medium. The solver clears that tangent (Lt = 0) before the priming call of each
+    //block: a cleared tangent is seeded again, as at start, instead of being inverted.
+    const bool sc_seed = start || umat_phase_M->Lt.is_zero();
+
 	//Initialization
 	if (start) {
 
@@ -161,13 +155,15 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
                 break;
             }
             case 102: {
+                //Isotropized Mori-Tanaka (Doghri & Ouaar): no UMAT name maps to code 102 yet
+                //(umat_smart), so this scheme is not reachable from the solver nor from L_eff
                 int n_matrix = phase.sptr_matprops->props(2);
                 DE_Mori_Tanaka_iso(phase, n_matrix);
                 break;
             }
             case 103: {
                 int n_matrix = phase.sptr_matprops->props(2);
-                DE_Self_Consistent(phase, n_matrix, start, self_consistent_start(phase));
+                DE_Self_Consistent(phase, n_matrix, sc_seed, self_consistent_start(phase));
                 break;
             }
             case 104: {
@@ -217,7 +213,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
             }
             case 103: {
                 int n_matrix = phase.sptr_matprops->props(2);
-                Lt_Self_Consistent(phase, n_matrix, start, self_consistent_start(phase));
+                Lt_Self_Consistent(phase, n_matrix, sc_seed, self_consistent_start(phase));
                 break;
             }
             case 104: {

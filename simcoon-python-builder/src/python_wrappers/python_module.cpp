@@ -185,7 +185,7 @@ PYBIND11_MODULE(_core, m)
     m.def("A_F", &A_F, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^F (convected / log_F), 6x6 Voigt (De = A^F:D)");
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a = true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a, "F0"_a, "F1"_a, "dtime"_a, "return_de"_a = false, "n_threads"_a = 4, "Rate of deformation D, frame increment DR and spin Omega of the named objective rate between F0 and F1 (DR is the increment DF of the transformation gradient and Omega the velocity gradient under truesdell and logarithmic_F). With return_de=True the strain increment of that rate comes first: it is the increment the solver integrates, and it accumulates to ln V under the logarithmic rates and to the Almansi strain under truesdell once the stored strain is transported with DR (rotation; lower-convected under truesdell; symmetrised similarity under logarithmic_F).");
-    m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
+    m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a, "n_threads"_a = 4);
 
     // register the hyperelastic library
     m.def("isochoric_invariants", &isochoric_invariants, "input"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::isochoric_invariants);

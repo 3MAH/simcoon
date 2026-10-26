@@ -148,12 +148,12 @@ def model_pk1(lambda_exp, props, programme):
 # (``examples/analysis/hyperelastic_parameter_identification.py``) builds its
 # combined cost *by hand*: for each loading case it takes the
 # ``mean_squared_error`` and divides by the variance of the experimental data
-# (an NMSE), then sums the cases. That normalisation is exactly what
-# :func:`simcoon.calc_cost` provides via ``metric="nmse_per_response"`` — each
-# response (here the stress column of each test) is divided by its own sum of
-# squares before averaging, so UT, PS and ET contribute on an equal footing
-# despite their different stress magnitudes. We hand-rolled it there; we simply
-# call the library here.
+# (an NMSE), then sums the cases. :func:`simcoon.calc_cost` with
+# ``metric="nmse_per_response"`` normalises per response *column* instead: the
+# three tests share one stress column here, so the cost is the summed squared
+# error of UT, PS and ET divided by their summed squared stresses. The tests are
+# pooled, not normalised one by one: the case with the largest stresses weighs
+# most (``w_test`` can rebalance them).
 #
 # ``calc_cost`` expects one 2-D array of shape ``(n_points, n_responses)`` per
 # test; with a single stress response per test the arrays are ``(n_points, 1)``.

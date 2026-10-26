@@ -29,6 +29,8 @@
 
 #if defined(__APPLE__)
   #include <dispatch/dispatch.h>
+#elif defined(_OPENMP)
+  #include <omp.h>
 #endif
 
 /// Batches of at most this many items run serially: the parallel set-up would cost more.
@@ -57,14 +59,22 @@ inline int chunk_size(int N) {
     return std::max(N / (8 * hw), 32);
 }
 
+/// Number of workers for @p n_threads (0 = one per hardware thread), at most one per hardware
+/// thread and one per range.
+inline int worker_count(unsigned int n_threads, int nchunks) {
+    const unsigned int hw = std::max(1u, std::thread::hardware_concurrency());
+    return std::max(1, std::min(nchunks, static_cast<int>(n_threads ? std::min(n_threads, hw) : hw)));
+}
+
 }  // namespace simcoon_parallel_detail
 
 /// @brief Exception-safe parallel loop over [0,N) for batch kernels that can throw.
 ///
 /// GCD on macOS, OpenMP where the build has it (Linux), std::thread otherwise (Windows, whose
 /// Python stack would carry a second OpenMP runtime); serial up to @p cutoff items.
-/// @p n_threads = 1 runs serially on every platform; otherwise it caps the std::thread workers
-/// (0 = one per hardware thread), while GCD and OpenMP keep their own runtime sizing. The first
+/// @p n_threads caps the number of threads running @p func on every platform (the calling
+/// thread included): 1 runs serially, 0 leaves the sizing to the runtime (GCD, OpenMP) or uses
+/// one worker per hardware thread (std::thread). The first
 /// exception thrown by @p func is rethrown AFTER the loop: an exception escaping an active
 /// OpenMP parallel region (or a GCD block, or a thread) would std::terminate, killing e.g. a
 /// Python session on the first singular slice of a batch.
@@ -89,19 +99,35 @@ void simcoon_parallel_for_safe(int N, F&& func, int cutoff = simcoon_parallel_cu
 
 #if defined(__APPLE__)
     const int chunk = simcoon_parallel_detail::chunk_size(N);
-    const size_t nblocks = static_cast<size_t>((N + chunk - 1) / chunk);
+    const int nchunks = (N + chunk - 1) / chunk;
     // dispatch_apply is synchronous, so pointers to these stack locals stay valid; the block
     // captures the pointers by value (no __block C++-object machinery needed).
     std::exception_ptr *pe = &eptr;
     std::mutex *pm = &mtx;
     auto *pf = &func;
-    dispatch_apply(nblocks, DISPATCH_APPLY_AUTO, ^(size_t b) {
-        const int start = static_cast<int>(b) * chunk;
-        simcoon_parallel_detail::run_range(start, std::min(N, start + chunk), *pf, *pe, *pm);
-    });
+    if (n_threads == 0) {
+        dispatch_apply(static_cast<size_t>(nchunks), DISPATCH_APPLY_AUTO, ^(size_t b) {
+            const int start = static_cast<int>(b) * chunk;
+            simcoon_parallel_detail::run_range(start, std::min(N, start + chunk), *pf, *pe, *pm);
+        });
+    }
+    else {
+        // GCD runs at most as many iterations at once as there are: n_threads iterations, each
+        // pulling ranges from a shared counter, cap the concurrency at n_threads.
+        std::atomic<int> next{0};
+        std::atomic<int> *pn = &next;
+        const size_t workers = static_cast<size_t>(simcoon_parallel_detail::worker_count(n_threads, nchunks));
+        dispatch_apply(workers, DISPATCH_APPLY_AUTO, ^(size_t) {
+            for (int c = (*pn)++; c < nchunks; c = (*pn)++) {
+                simcoon_parallel_detail::run_range(c * chunk, std::min(N, (c + 1) * chunk), *pf, *pe, *pm);
+            }
+        });
+    }
 
 #elif defined(_OPENMP)
-    #pragma omp parallel for schedule(static)
+    const int nt = n_threads ? static_cast<int>(std::min(n_threads, std::max(1u, std::thread::hardware_concurrency())))
+                             : omp_get_max_threads();
+    #pragma omp parallel for schedule(static) num_threads(nt)
     for (int i = 0; i < N; i++) {
         simcoon_parallel_detail::run_range(i, i + 1, func, eptr, mtx);
     }
@@ -109,8 +135,7 @@ void simcoon_parallel_for_safe(int N, F&& func, int cutoff = simcoon_parallel_cu
 #else
     const int chunk = simcoon_parallel_detail::chunk_size(N);
     const int nchunks = (N + chunk - 1) / chunk;
-    const unsigned int hw = std::max(1u, std::thread::hardware_concurrency());
-    const int workers = std::min(nchunks, static_cast<int>(n_threads ? std::min(n_threads, hw) : hw));
+    const int workers = simcoon_parallel_detail::worker_count(n_threads, nchunks);
     std::atomic<int> next{0};
     auto worker = [&]() {
         for (int c = next++; c < nchunks; c = next++) {

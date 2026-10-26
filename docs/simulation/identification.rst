@@ -231,10 +231,11 @@ Built-in metrics (numpy only, no extra dependency):
 - ``"mse"`` — Mean Squared Error (default)
 - ``"nmse"`` — Normalized MSE (divided by variance of all experimental data)
 - ``"nmse_per_response"`` — NMSE computed independently per response column,
-  then averaged. Each column is divided by its own ``sum(y_exp^2)``,
-  balancing responses of different magnitudes (e.g., force in N vs
-  displacement in mm). This is the recommended metric for multi-response
-  identification.
+  then averaged. Each column is divided by its own ``sum(y_exp^2)``, summed
+  over the tests, balancing responses of different magnitudes (e.g., force in
+  N vs displacement in mm). This is the recommended metric for multi-response
+  identification. The tests are pooled within a column, not normalised one by
+  one: a test with larger values weighs more (use ``w_test`` to rebalance).
 - ``"rmse"`` — Root Mean Squared Error
 - ``"mae"`` — Mean Absolute Error
 - ``"mape"`` — Mean Absolute Percentage Error (scikit-learn definition)

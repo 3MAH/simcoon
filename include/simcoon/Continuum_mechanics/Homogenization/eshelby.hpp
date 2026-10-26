@@ -335,6 +335,44 @@ arma::mat T_II(const arma::mat &, const double &, const double &, const double &
 */
 void points(arma::vec &, arma::vec &, arma::vec &, arma::vec &, const int &, const int &);
 
+/**
+ * @brief Gauss-Legendre tables of the Eshelby integrals for one (mp, np), shared and immutable.
+ *
+ * @details The only way to obtain one is eshelby_quadrature_points(), which computes the tables
+ * of each (mp, np) once (with *points*) and hands out a const reference to them: they are never
+ * modified nor freed afterwards, so any thread can use them while other threads integrate with
+ * other (mp, np). A (mp, np) pair identifies its tables exactly.
+ */
+struct eshelby_quadrature {
+    int mp;             ///< number of integration points in the polar direction
+    int np;             ///< number of integration points in the azimuthal direction
+    arma::vec x;        ///< polar points (mp)
+    arma::vec wx;       ///< polar weights (mp)
+    arma::vec y;        ///< azimuthal points (np)
+    arma::vec wy;       ///< azimuthal weights (np)
+
+    eshelby_quadrature(const eshelby_quadrature &) = delete;
+    eshelby_quadrature &operator=(const eshelby_quadrature &) = delete;
+
+private:
+    eshelby_quadrature(const int &, const int &);
+    friend const eshelby_quadrature &eshelby_quadrature_points(const int &, const int &);
+};
+
+/**
+ * @brief The shared Gauss-Legendre tables of the Eshelby integrals for (mp, np).
+ * @param mp the number of integration points in the polar direction (at least 1)
+ * @param np the number of integration points in the azimuthal direction (at least 1)
+ * @return A const reference to the tables, valid until the process exits.
+ * @details Thread-safe: the tables of a new (mp, np) are computed once under a lock, and each
+ * thread remembers the last tables it asked for. The values are those of *points*.
+ * @code
+        const eshelby_quadrature &q = eshelby_quadrature_points(50, 50);
+        mat S = Eshelby(L, a1, a2, a3, q.x, q.wx, q.y, q.wy, q.mp, q.np);
+ * @endcode
+*/
+const eshelby_quadrature &eshelby_quadrature_points(const int &, const int &);
+
 
 /** @} */ // end of eshelby group
 

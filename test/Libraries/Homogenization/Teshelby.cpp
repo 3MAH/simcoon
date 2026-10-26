@@ -111,3 +111,39 @@ TEST(Teshelby, memo_keys_on_exact_medium_and_geometry)
     memo.clear();
     EXPECT_EQ(memo.size(), 0u);
 }
+
+#include <thread>
+#include <vector>
+
+// eshelby_quadrature_points: the tables of points(), one shared immutable instance per (mp, np),
+// whatever the thread that asks for it.
+TEST(Teshelby, quadrature_tables_are_shared_and_exact)
+{
+    const eshelby_quadrature &q = eshelby_quadrature_points(20, 30);
+    vec x(20), wx(20), y(30), wy(30);
+    points(x, wx, y, wy, 20, 30);
+    EXPECT_EQ(q.mp, 20);
+    EXPECT_EQ(q.np, 30);
+    EXPECT_TRUE(approx_equal(q.x, x, "absdiff", 0.) && approx_equal(q.wx, wx, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(q.y, y, "absdiff", 0.) && approx_equal(q.wy, wy, "absdiff", 0.));
+    EXPECT_EQ(&eshelby_quadrature_points(20, 30), &q);
+    EXPECT_NE(&eshelby_quadrature_points(30, 20), &q);
+    EXPECT_EQ(&eshelby_quadrature_points(20, 30), &q);
+    EXPECT_THROW(eshelby_quadrature_points(0, 10), std::invalid_argument);
+
+    // threads alternating (mp, np) all get the tables of the size they asked for
+    std::vector<int> wrong(8, 0);
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 8; t++) {
+        threads.emplace_back([t, &wrong]() {
+            for (int it = 0; it < 200; it++) {
+                const int m = 5 + (t + it) % 7;
+                const eshelby_quadrature &qt = eshelby_quadrature_points(m, m + 1);
+                if (qt.mp != m || qt.np != m + 1 || qt.x.n_elem != (uword)m || qt.wy.n_elem != (uword)(m + 1))
+                    wrong[t]++;
+            }
+        });
+    }
+    for (auto &th : threads) th.join();
+    for (int t = 0; t < 8; t++) EXPECT_EQ(wrong[t], 0);
+}

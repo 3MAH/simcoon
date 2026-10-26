@@ -39,8 +39,9 @@ data.
 
 Forward model: :func:`simcoon.solver` (UMAT material-point integrator).
 Optimization: :func:`simcoon.identification` (wraps ``differential_evolution``).
-Cost: ``nmse_per_response`` — normalises each test's stress column by its own
-sum of squares, balancing the three tests despite different stress magnitudes.
+Cost: ``nmse_per_response`` — the three tests share one stress column, so the cost is
+the summed squared error of the three tests divided by their summed squared stresses
+(the tests are pooled, not normalised one by one: a test with larger stresses weighs more).
 """
 
 import os

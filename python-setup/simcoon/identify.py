@@ -115,9 +115,12 @@ def calc_cost(
         - ``"mse"`` — Mean Squared Error (default)
         - ``"nmse"`` — Normalized MSE (divided by variance of all data)
         - ``"nmse_per_response"`` — NMSE computed per response column,
-          then averaged.  Each column is divided by its own
-          ``sum(y_exp²)``, balancing responses of different magnitudes
-          (e.g., force in N vs displacement in mm).
+          then averaged.  Column *k* gives ``sum_tests SSE_k /
+          sum_tests sum(y_exp[:, k]²)``: the tests are pooled within a
+          column, so the responses of different magnitudes are balanced
+          (e.g., force in N vs displacement in mm), but the tests of one
+          column are not (a test with larger values weighs more; use
+          *w_test* to rebalance them).
         - ``"rmse"`` — Root Mean Squared Error
         - ``"mae"`` — Mean Absolute Error
         - ``"mape"`` — Mean Absolute Percentage Error (same definition as
@@ -218,7 +221,11 @@ def calc_cost(
 def _nmse_per_response(
     y_exp_2d, y_num_2d, n_tests, w_test, w_response, w_point,
 ):
-    """Compute NMSE independently per response column, then average."""
+    """Compute NMSE independently per response column, then average.
+
+    The tests are pooled within a column: NMSE_k = sum_i SSE_ik / sum_i sum(y_exp_ik**2),
+    not the mean over the tests of each test's own NMSE.
+    """
     # Collect all columns across tests
     # First pass: determine n_resp per test and validate
     col_costs = {}  # col_index -> list of (mse_col, denom_col, weight)

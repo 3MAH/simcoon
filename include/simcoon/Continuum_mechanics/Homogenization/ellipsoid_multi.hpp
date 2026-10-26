@@ -27,6 +27,7 @@
 #include <vector>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/phase_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 namespace simcoon{
 
@@ -164,31 +165,6 @@ protected:
     /// successive increments and Newton iterations) reuse its own Eshelby tensor.
     eshelby_memo S_loc_memo;
 
-    /** @brief Number of integration points in polar direction for numerical integration */
-    static int mp;
-
-    /** @brief Number of integration points in azimuthal direction */
-    static int np;
-
-    /**
-     * @brief Gauss points for polar integration
-     *
-     * The four Gauss vectors are computed once (costly) and shared by every
-     * ellipsoid. They are references to heap vectors that are never destroyed:
-     * a static armadillo object's destructor would run at DLL unload, which is
-     * unsafe on Windows.
-     */
-    static arma::vec& x;
-
-    /** @brief Gauss weights for polar integration */
-    static arma::vec& wx;
-
-    /** @brief Gauss points for azimuthal integration */
-    static arma::vec& y;
-
-    /** @brief Gauss weights for azimuthal integration */
-    static arma::vec& wy;
-
     /** @brief Default constructor */
     ellipsoid_multi();
 
@@ -226,8 +202,9 @@ protected:
      *
      * @param L0 Matrix (reference medium) stiffness tensor (6×6)
      * @param ell Ellipsoid geometry (aspect ratios and orientation)
+     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
      */
-    virtual void fillS_loc(const arma::mat&, const ellipsoid &);
+    virtual void fillS_loc(const arma::mat&, const ellipsoid &, const eshelby_quadrature &);
 
     /**
      * @brief Compute Hill's polarization tensor in local coordinates
@@ -236,8 +213,9 @@ protected:
      *
      * @param L0 Matrix stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
+     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
      */
-    virtual void fillP_loc(const arma::mat&, const ellipsoid &);
+    virtual void fillP_loc(const arma::mat&, const ellipsoid &, const eshelby_quadrature &);
 
     /**
      * @brief Compute the interaction tensor
@@ -248,11 +226,12 @@ protected:
      * @param L0 Matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
+     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
      * @param memo Optional eshelby_memo of the current homogenization pass: the Eshelby
      *        tensor is taken from it when the same inclusion geometry has already been met
      *        in the same (rotated) medium, and stored in it otherwise.
      */
-    virtual void fillT(const arma::mat&, const arma::mat&, const ellipsoid &, eshelby_memo * = nullptr);
+    virtual void fillT(const arma::mat&, const arma::mat&, const ellipsoid &, const eshelby_quadrature &, eshelby_memo * = nullptr);
 
     /**
      * @brief Compute the interaction tensor for isotropic matrix
@@ -263,8 +242,9 @@ protected:
      * @param L0 Isotropic matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
+     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
      */
-    virtual void fillT_iso(const arma::mat&, const arma::mat&, const ellipsoid &, eshelby_memo * = nullptr);
+    virtual void fillT_iso(const arma::mat&, const arma::mat&, const ellipsoid &, const eshelby_quadrature &, eshelby_memo * = nullptr);
 
     /**
      * @brief Compute the inelastic interaction tensor
@@ -275,13 +255,14 @@ protected:
      * @param L0 Matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
+     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
      */
-    virtual void fillT_mec_in(const arma::mat&, const arma::mat&, const ellipsoid &, eshelby_memo * = nullptr);
+    virtual void fillT_mec_in(const arma::mat&, const arma::mat&, const ellipsoid &, const eshelby_quadrature &, eshelby_memo * = nullptr);
 
     /// Eshelby tensor of @p ell in the medium @p Lt_local (inclusion frame): reused from this
     /// inclusion's last integration when the medium is unchanged, else from the pass memo,
     /// else integrated (and recorded in both).
-    arma::mat eshelby_memoized(eshelby_memo *memo, const arma::mat &Lt_local, const ellipsoid &ell);
+    arma::mat eshelby_memoized(eshelby_memo *memo, const arma::mat &Lt_local, const ellipsoid &ell, const eshelby_quadrature &quad);
 
     /**
      * @brief Assignment operator

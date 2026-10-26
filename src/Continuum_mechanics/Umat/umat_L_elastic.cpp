@@ -46,20 +46,11 @@ void get_L_elastic(phase_characteristics &rve)
     const auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
     const int method = (it_umat != list_umat.end()) ? it_umat->second : 0;
     
-    //Mean-field models: the caller gave the sub-phases; the ellipsoidal schemes need the
-    //quadrature points of the Eshelby integrals
+    //Mean-field models: the caller gave the sub-phases (the ellipsoidal schemes read the
+    //quadrature of their Eshelby integrals, [mp, np], from the props at each pass)
     const int shape = sub_phase_shape(rve.sptr_matprops->umat_name);
     if (shape > 0) {
         check_sub_phases(rve);
-    }
-    if (shape == 2) {
-        ellipsoid_multi::mp = rve.sptr_matprops->props(0);
-        ellipsoid_multi::np = rve.sptr_matprops->props(1);
-        ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
-        ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
-        ellipsoid_multi::y.set_size(ellipsoid_multi::np);
-        ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
-        points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
     }
     
     rve.global2local();

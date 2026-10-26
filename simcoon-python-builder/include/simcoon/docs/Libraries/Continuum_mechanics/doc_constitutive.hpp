@@ -684,10 +684,10 @@ constexpr auto umat = R"pbdoc(
         (2, 1) plane stress, (2, 3) plane stress with transverse shears;
         any other ndi < 3 combination raises ValueError.
     n_threads : int
-        Point-loop threads: 1 runs serially on every platform; otherwise it
-        caps the worker threads on Windows (0 = all hardware threads), while
-        macOS (GCD) and Linux (OpenMP) size the pool themselves. Batches of
-        100 points or fewer always run serially.
+        Point-loop threads, at most (the calling thread included): 1 runs
+        serially, 0 lets the runtime use the whole machine (GCD on macOS,
+        OpenMP on Linux, one thread per hardware thread on Windows). Batches
+        of 100 points or fewer always run serially.
     tangent_mode : int
         0 none, 1 continuum, 2 algorithmic (default).
     corate : int or str, optional
