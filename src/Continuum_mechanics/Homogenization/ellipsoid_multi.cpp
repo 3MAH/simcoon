@@ -24,6 +24,7 @@
 #include <string>
 #include <assert.h>
 #include <cstring>
+#include <vector>
 #include <armadillo>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -128,8 +129,48 @@ void eshelby_memo::clear()
     entries.clear();
 }
 
+namespace {
+
+// Eshelby tensors integrated by this thread, kept across calls: the pass memo and the
+// inclusion's own memo live only as long as a pass or a phase object, which every L_eff and
+// every solve rebuilds. Exact key (bitwise medium, semi-axes, quadrature tables), so a hit is
+// the tensor a fresh integration gives; a ring of 32 entries.
+struct eshelby_cache_entry {
+    arma::mat::fixed<6,6> Lt;
+    double a1, a2, a3;
+    const eshelby_quadrature *quad;
+    arma::mat::fixed<6,6> S;
+};
+const std::size_t eshelby_cache_size = 32;
+thread_local std::vector<eshelby_cache_entry> eshelby_cache;
+thread_local std::size_t eshelby_cache_next = 0;
+
+const arma::mat::fixed<6,6> *eshelby_cache_find(const mat &Lt_local, const ellipsoid &ell, const eshelby_quadrature &quad)
+{
+    for (const eshelby_cache_entry &e : eshelby_cache) {
+        if (e.quad == &quad && e.a1 == ell.a1 && e.a2 == ell.a2 && e.a3 == ell.a3
+            && std::memcmp(e.Lt.memptr(), Lt_local.memptr(), 36 * sizeof(double)) == 0)
+            return &e.S;
+    }
+    return nullptr;
+}
+
+void eshelby_cache_store(const mat &Lt_local, const ellipsoid &ell, const eshelby_quadrature &quad, const mat &S)
+{
+    eshelby_cache_entry e{arma::mat::fixed<6,6>(Lt_local), ell.a1, ell.a2, ell.a3, &quad, arma::mat::fixed<6,6>(S)};
+    if (eshelby_cache.size() < eshelby_cache_size) {
+        eshelby_cache.push_back(e);
+    } else {
+        eshelby_cache[eshelby_cache_next] = e;
+        eshelby_cache_next = (eshelby_cache_next + 1) % eshelby_cache_size;
+    }
+}
+
+}  // namespace
+
 // Eshelby tensor of ell in the medium Lt_local (inclusion frame): the inclusion's own last
-// tensor when the medium has not changed, else the pass memo when given, else integrated.
+// tensor when the medium has not changed, else the pass memo when given, else the tensors this
+// thread integrated lately, else integrated.
 mat ellipsoid_multi::eshelby_memoized(eshelby_memo *memo, const mat &Lt_local, const ellipsoid &ell, const eshelby_quadrature &quad)
 {
     if (const mat *own = S_loc_memo.find(Lt_local, ell.a1, ell.a2, ell.a3))
@@ -139,7 +180,12 @@ mat ellipsoid_multi::eshelby_memoized(eshelby_memo *memo, const mat &Lt_local, c
     if (hit != nullptr) {
         S = *hit;
     } else {
-        S = Eshelby(Lt_local, ell.a1, ell.a2, ell.a3, quad.x, quad.wx, quad.y, quad.wy, quad.mp, quad.np);
+        if (const arma::mat::fixed<6,6> *cached = eshelby_cache_find(Lt_local, ell, quad)) {
+            S = *cached;
+        } else {
+            S = Eshelby(Lt_local, ell.a1, ell.a2, ell.a3, quad.x, quad.wx, quad.y, quad.wy, quad.mp, quad.np);
+            eshelby_cache_store(Lt_local, ell, quad, S);
+        }
         if (memo != nullptr) memo->store(Lt_local, ell.a1, ell.a2, ell.a3, S);
     }
     S_loc_memo.clear();                                  // one entry: the current medium
@@ -171,10 +217,23 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
 //This method correspond to the classical Eshelby method
 //-------------------------------------
 {
-    Rotation rot = Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
-    mat Lt_m_local_geom = rot.apply_stiffness(Lt_m, false);
+    const double geometry[6] = {ell.a1, ell.a2, ell.a3, ell.psi_geom, ell.theta_geom, ell.phi_geom};
+    if (T_memo.valid && T_memo.quad == &quad
+        && std::memcmp(T_memo.geometry, geometry, sizeof(geometry)) == 0
+        && std::memcmp(T_memo.Lt_m.memptr(), Lt_m.memptr(), 36 * sizeof(double)) == 0
+        && std::memcmp(T_memo.Lt.memptr(), Lt.memptr(), 36 * sizeof(double)) == 0) {
+        S_loc = T_memo.S_loc;
+        T_loc = T_memo.T_loc;
+        T = T_memo.T;
+        return;
+    }
+
+    //A geometry frame that is the global one needs no rotation (from_euler(0,0,0) is the identity)
+    const bool global_frame = (ell.psi_geom == 0. && ell.theta_geom == 0. && ell.phi_geom == 0.);
+    Rotation rot = global_frame ? Rotation::identity() : Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
+    mat Lt_m_local_geom = global_frame ? Lt_m : rot.apply_stiffness(Lt_m, false);
     S_loc = eshelby_memoized(memo, Lt_m_local_geom, ell, quad);
-    mat Lt_local_geom = rot.apply_stiffness(Lt, false);
+    mat Lt_local_geom = global_frame ? Lt : rot.apply_stiffness(Lt, false);
 
     try {
       T_loc = inv(eye(6,6) + S_loc*inv(Lt_m_local_geom)*(Lt_local_geom - Lt_m_local_geom));
@@ -182,7 +241,16 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
       cerr << "Error in inv: " << e.what() << endl;
       throw simcoon::exception_inv("Error in inv function inside ellipsoid_multi::fillT.");
     }
-    T = rot.apply_strain_concentration(T_loc, true);
+    T = global_frame ? T_loc : rot.apply_strain_concentration(T_loc, true);
+
+    T_memo.Lt_m = Lt_m;
+    T_memo.Lt = Lt;
+    std::memcpy(T_memo.geometry, geometry, sizeof(geometry));
+    T_memo.quad = &quad;
+    T_memo.S_loc = S_loc;
+    T_memo.T_loc = T_loc;
+    T_memo.T = T;
+    T_memo.valid = true;
 }
 
 //-------------------------------------

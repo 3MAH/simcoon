@@ -147,3 +147,33 @@ TEST(Teshelby, quadrature_tables_are_shared_and_exact)
     for (auto &th : threads) th.join();
     for (int t = 0; t < 8; t++) EXPECT_EQ(wrong[t], 0);
 }
+
+// Gauss is the weighted sum of calG over the quadrature points (it inlines calG and hoists the
+// azimuthal trigonometry out of the loops): same sums in the same order.
+TEST(Teshelby, Gauss_is_the_weighted_sum_of_calG)
+{
+    Mat<int> Id = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+    mat L_ortho = zeros(6, 6);
+    L_ortho.submat(0, 0, 2, 2) = mat({{120000., 30000., 20000.}, {30000., 80000., 25000.}, {20000., 25000., 40000.}});
+    L_ortho(3, 3) = 30000.; L_ortho(4, 4) = 20000.; L_ortho(5, 5) = 15000.;
+    const std::vector<mat> media = {L_iso(70000., 0.3, "Enu"), L_ortho};
+    const std::vector<vec> shapes = {{1., 1., 1.}, {3., 1., 0.5}, {10., 1., 1.}};
+    const int mp = 13, np = 7;
+    vec x(mp), wx(mp), y(np), wy(np);
+    points(x, wx, y, wy, mp, np);
+    for (const mat &L : media) {
+        for (const vec &a : shapes) {
+            mat G = zeros(6, 6);
+            Gauss(Id, L, G, a(0), a(1), a(2), x, wx, y, wy, mp, np);
+            mat G_ref = zeros(6, 6);
+            mat H = zeros(6, 6);
+            for (int l = 0; l < mp; l++) {
+                for (int i = 0; i < np; i++) {
+                    calG(y(i), a(0), a(1), a(2), x(l), Id, L, H);
+                    G_ref += wx(l) * (H * wy(i));
+                }
+            }
+            EXPECT_LT(norm(G - G_ref, "fro"), 1.E-14 * norm(G_ref, "fro"));
+        }
+    }
+}

@@ -232,7 +232,7 @@ arma::mat Eshelby(const arma::mat &, const double &, const double &, const doubl
  * as a function of the stiffness tensor, and the three semi-axis length of the ellipsoid in the direction
  * \f$ 1 \f$, \f$ 2 \f$ and \f$ 3 \f$, respectively. The list of integration and their respective weight
  * for the numerical integration is automatically determined from the number of integration points 
- * in the \f$ 1 \f$ and \f$ 2 \f$ directions. (The points and weights are calculated using the internal *point* function).
+ * in the \f$ 1 \f$ and \f$ 2 \f$ directions. (The points and weights are calculated once per (mp, np), see eshelby_quadrature_points).
  * Returns the Eshelby tensor as a mat, according to the convention of a localisation tensor.
  * @details Example: 
  * @code 
@@ -294,7 +294,7 @@ arma::mat T_II(const arma::mat &, const double &, const double &, const double &
  * as a function of the stiffness tensor, and the three semi-axis length of the ellipsoid in the direction
  * \f$ 1 \f$, \f$ 2 \f$ and \f$ 3 \f$, respectively. The list of integration and their respective weight
  * for the numerical integration is automatically determined from the number of integration points 
- * in the \f$ 1 \f$ and \f$ 2 \f$ directions. (The points and weights are calculated using the internal *point* function).
+ * in the \f$ 1 \f$ and \f$ 2 \f$ directions. (The points and weights are calculated once per (mp, np), see eshelby_quadrature_points).
  * Returns the Hill interaction tensor as a mat, according to the convention of a localisation tensor.
  * @details Example: 
  * @code 

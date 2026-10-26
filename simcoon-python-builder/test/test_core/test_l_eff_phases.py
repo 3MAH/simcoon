@@ -139,3 +139,28 @@ class TestLeffInMemoryPhases:
         L = np.asarray(sim._core.L_eff("ELISO", np.array([70000.0, 0.3, 1.0e-5]), 1))
         np.testing.assert_allclose(L, np.asarray(sim.L_iso([70000.0, 0.3], "Enu")),
                                    rtol=1e-12, atol=1e-9)
+
+
+def test_l_eff_releases_the_gil():
+    """The homogenization runs without the GIL: a Python thread keeps running meanwhile
+    (a held GIL would freeze it for the whole call)."""
+    import threading
+    import time
+    phases = two_phase_composite()
+    props = np.array([300.0, 300.0, 0.0])   # some 30 ms of integrations (a fresh thread caches none)
+    done = threading.Event()
+    elapsed = []
+    def homogenize():
+        t0 = time.perf_counter()
+        sim.L_eff("MISCN", props, NSTATEV, phases=phases)
+        elapsed.append(time.perf_counter() - t0)
+        done.set()
+    worker = threading.Thread(target=homogenize)
+    last, gaps = time.perf_counter(), []
+    worker.start()
+    while not done.is_set():
+        now = time.perf_counter()
+        gaps.append(now - last)
+        last = now
+    worker.join()
+    assert max(gaps) < 0.5 * elapsed[0], (max(gaps), elapsed[0])

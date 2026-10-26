@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
@@ -205,35 +206,102 @@ void calG(const double &pt, const double &a1, const double &a2, const double &a3
 
 }
 
-void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np) // To check
+//Voigt index of the pair (i,j): the table that Eshelby and T_II hand to Gauss as Id
+static const int Voigt_index[3][3] = {{0,3,4},{3,1,5},{4,5,2}};
+
+//Sum of calG over the quadrature points, weighted by wy then wx. The per-point expressions are
+//those of calG, and each entry of G receives its point contributions in the same order and
+//through the same operations, so the result is identical to the point-by-point loop. The
+//work is laid out for speed: plain arrays (no bounds checks, no Mat<int> lookups), the
+//azimuthal sin/cos once per call instead of once per point, and for each polar ring a first
+//pass over its np points (independent, vectorisable) before the accumulation pass.
+void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
-	double x3 = 0.;
-	double pt=0.;
-	mat H = zeros(6,6);
-	mat rg = zeros(6,6);
-    	
-	for (int l=0; l<mp; l++) {
-		x3 = x(l);
-		
-		for (int i=0; i<np; i++) {
-			pt = y(i);
-			    
-			calG(pt, a1, a2, a3, x3, Id, Lt, H);
-    
-			for (int k=0; k<6; k++) {
-				for (int j=0; j<6; j++) {
-					rg(k,j) = H(k,j)*wy(i)+rg(k,j);
-				}
-			}
-			
-			for (int im=0; im<6; im++) {
-				for (int jm=0; jm <6; jm++) {
-					G(im,jm) = G(im,jm) + wx(l)*rg(im,jm);
-					rg(im,jm) = 0.;
-				}
-			}
-		}
-	}
+    (void)Id;   //always the Voigt table (Voigt_index)
+    double L[6][6];
+    for (int i=0; i<6; i++)
+        for (int j=0; j<6; j++)
+            L[i][j] = Lt(i,j);
+    double Gl[6][6];
+    for (int i=0; i<6; i++)
+        for (int j=0; j<6; j++)
+            Gl[i][j] = G(i,j);
+
+    std::vector<double> cos_y(np), sin_y(np);
+    for (int i=0; i<np; i++) {
+        cos_y[i] = cos(y(i));
+        sin_y[i] = sin(y(i));
+    }
+    const double inv_a1 = 1./a1;
+    const double inv_a2 = 1./a2;
+    const double inv_a3 = 1./a3;
+
+    //per point of the ring: X and the upper triangle of inv(K), K_ik = L_ijkl X_j X_l
+    std::vector<double> ring(9*np);
+    double *X[3] = {&ring[0], &ring[np], &ring[2*np]};
+    double *R00 = &ring[3*np], *R01 = &ring[4*np], *R02 = &ring[5*np];
+    double *R11 = &ring[6*np], *R12 = &ring[7*np], *R22 = &ring[8*np];
+    const double *R[3][3] = {{R00, R01, R02}, {nullptr, R11, R12}, {nullptr, nullptr, R22}};
+
+    for (int l=0; l<mp; l++) {
+        const double x3 = x(l);
+        const double x1 = sqrt(1.-pow(x3,2.));
+        const double X2 = x3*inv_a3;
+        for (int p=0; p<np; p++) {
+            const double Xp[3] = {x1*cos_y[p]*inv_a1, x1*sin_y[p]*inv_a2, X2};
+            double rk[3][3] = {{0.,0.,0.},{0.,0.,0.},{0.,0.,0.}};
+            for (int i=0; i<3; i++) {
+                for (int j=0; j<3; j++) {
+                    const int m = Voigt_index[i][j];
+                    for (int k=i; k<3; k++) {
+                        for (int ll=0; ll<3; ll++) {
+                            rk[i][k] += L[m][Voigt_index[k][ll]]*Xp[j]*Xp[ll];
+                        }
+                    }
+                }
+            }
+            const double rn00 = rk[1][1]*rk[2][2] - rk[1][2]*rk[1][2];
+            const double rn01 = -1.*(rk[0][1]*rk[2][2] - rk[1][2]*rk[0][2]);
+            const double rn02 = rk[0][1]*rk[1][2] - rk[1][1]*rk[0][2];
+            const double rn11 = rk[0][0]*rk[2][2] - rk[0][2]*rk[0][2];
+            const double rn12 = -1.*(rk[0][0]*rk[1][2] - rk[0][1]*rk[0][2]);
+            const double rn22 = rk[0][0]*rk[1][1] - rk[0][1]*rk[0][1];
+            const double D = rn00*rk[0][0] + rn01*rk[0][1] + rn02*rk[0][2];
+            const double inv_D = 1./D;
+            X[0][p] = Xp[0];
+            X[1][p] = Xp[1];
+            X[2][p] = Xp[2];
+            R00[p] = rn00*inv_D;
+            R01[p] = rn01*inv_D;
+            R02[p] = rn02*inv_D;
+            R11[p] = rn11*inv_D;
+            R12[p] = rn12*inv_D;
+            R22[p] = rn22*inv_D;
+        }
+
+        const double wx_l = wx(l);
+        for (int p=0; p<np; p++) {
+            const double wy_p = wy(p);
+            for (int i=0; i<3; i++) {
+                for (int j=i; j<3; j++) {
+                    const int ij = Voigt_index[i][j];
+                    const double rn_ij = R[i][j][p];
+                    for (int k=0; k<3; k++) {
+                        for (int ll=k; ll<3; ll++) {
+                            const int kl = Voigt_index[k][ll];
+                            const double H = rn_ij*X[ll][p]*X[k][p];      //calG
+                            const double rg = H*wy_p+0.;                  //azimuthal weight
+                            Gl[ij][kl] = Gl[ij][kl] + wx_l*rg;            //polar weight
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (int i=0; i<6; i++)
+        for (int j=0; j<6; j++)
+            G(i,j) = Gl[i][j];
 }
     
 mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
@@ -300,12 +368,8 @@ mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3,
 
 mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3, const int &mp, const int &np) {
     
-    vec x(mp);
-    vec wx(mp);
-    vec y(np);
-    vec wy(np);
-    points(x, wx, y, wy, mp, np);
-    return Eshelby(Lt, a1, a2, a3, x, wx, y, wy, mp, np);
+    const eshelby_quadrature &q = eshelby_quadrature_points(mp, np);
+    return Eshelby(Lt, a1, a2, a3, q.x, q.wx, q.y, q.wy, mp, np);
 }
     
 
@@ -375,12 +439,8 @@ mat T_II(const mat &Lt, const double &a1, const double &a2, const double &a3, co
 
 mat T_II(const mat &Lt, const double &a1, const double &a2, const double &a3, const int &mp, const int &np) {
     
-    vec x(mp);
-    vec wx(mp);
-    vec y(np);
-    vec wy(np);
-    points(x, wx, y, wy, mp, np);
-    return T_II(Lt, a1, a2, a3, x, wx, y, wy, mp, np);
+    const eshelby_quadrature &q = eshelby_quadrature_points(mp, np);
+    return T_II(Lt, a1, a2, a3, q.x, q.wx, q.y, q.wy, mp, np);
 }
     
     

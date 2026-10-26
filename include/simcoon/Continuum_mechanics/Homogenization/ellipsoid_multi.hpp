@@ -165,6 +165,20 @@ protected:
     /// successive increments and Newton iterations) reuse its own Eshelby tensor.
     eshelby_memo S_loc_memo;
 
+    /// Inputs of the last fillT (medium and phase tangents, geometry, quadrature) and the
+    /// tensors it gave: called again with bitwise the same inputs (elastic phases, successive
+    /// increments), fillT restores S_loc, T_loc and T instead of computing them again.
+    struct fillT_memo {
+        bool valid = false;
+        arma::mat::fixed<6,6> Lt_m;
+        arma::mat::fixed<6,6> Lt;
+        double geometry[6] = {0., 0., 0., 0., 0., 0.};
+        const eshelby_quadrature *quad = nullptr;
+        arma::mat::fixed<6,6> S_loc;
+        arma::mat::fixed<6,6> T_loc;
+        arma::mat::fixed<6,6> T;
+    } T_memo;
+
     /** @brief Default constructor */
     ellipsoid_multi();
 
