@@ -25,6 +25,7 @@
 #include <stdexcept>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 
@@ -368,4 +369,40 @@ TEST(Tconstitutive, Isotropize)
     EXPECT_GT(props(0), 0.);
     EXPECT_GT(props(1), -1.);
     EXPECT_LT(props(1), 0.5);
+}
+
+TEST(Tconstitutive, isotropic_tensors_are_the_expressions_they_replace)
+{
+    // L_iso, M_iso, Idev, Idev2 and H_iso are built entry by entry: the same values, to the bit,
+    // as the operator expressions on Ivol / Ireal they used to evaluate
+    const double E = 70000., nu = 0.3;
+    const double K = E/(3.*(1.-2*nu)), mu = E/(2.*(1.+nu));
+    const mat Idev_ref = Ireal() - Ivol();
+    const mat Idev2_ref = Ireal2() - Ivol();
+    EXPECT_TRUE(approx_equal(Idev(), Idev_ref, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(Idev2(), Idev2_ref, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(L_iso(E, nu, "Enu"), mat(3.*K*Ivol() + 2.*mu*Idev_ref), "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(M_iso(E, nu, "Enu"), mat(1/(3.*K)*Ivol() + 1/(2.*mu)*Idev2_ref), "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(H_iso(3., 5.), mat(3.*3.*Ivol() + 2.*5.*Idev_ref), "absdiff", 0.));
+}
+
+TEST(Tconstitutive, inv_cubic)
+{
+    // closed-form inverse of isotropic and cubic tensors and of their Reuss mixtures
+    const mat L_A = L_iso(70000., 0.33, "Enu"), L_M = L_cubic(30000., 0.3, 9000., "EnuG");
+    const std::vector<mat> cases = {L_A, M_iso(70000., 0.33, "Enu"), L_M, M_cubic(30000., 0.3, 9000., "EnuG"),
+                                    0.3*M_cubic(30000., 0.3, 9000., "EnuG") + 0.7*M_cubic(70000., 0.33, 26000., "EnuG")};
+    for (const mat &A : cases) {
+        const mat Ai = inv_cubic(A);
+        EXPECT_LT(abs(Ai*A - eye(6, 6)).max(), 1.E-13);
+        EXPECT_LT(abs(Ai - inv(A)).max(), 1.E-13*abs(Ai).max());
+    }
+    // not cubic: the general inverse
+    mat B = L_A;
+    B(0, 5) = B(5, 0) = 1000.;
+    EXPECT_LT(abs(inv_cubic(B) - inv(B)).max(), 1.E-13*abs(inv(B)).max());
+    // singular
+    mat S = L_A;
+    S(3, 3) = S(4, 4) = S(5, 5) = 0.;
+    EXPECT_THROW(inv_cubic(S), simcoon::exception_inv);
 }

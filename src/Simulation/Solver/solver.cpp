@@ -37,6 +37,7 @@
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
@@ -145,6 +146,17 @@ void reserve_memory_sink(simcoon::solver_results_sink &sink, const std::vector<s
     }
 }
 
+// Newton correction Delta = -K^-1 r of the global Jacobian (6x6 mechanical, 7x7 thermomechanical):
+// LU with partial pivoting on the stack. A LAPACK inv (getrf + getri) and a gemv cost ~0.65 us on a
+// 6x6, about the price of an elastic increment; arma::solve is no cheaper. A numerically singular
+// (or non-finite) K reports false, as inv() did.
+bool newton_correction(const mat &K, const vec &r, vec &Delta) {
+    simcoon::small_lu<7> lu;
+    if (!lu.factor(K) || r.n_elem != K.n_rows) return false;
+    Delta = -lu.solve(r);
+    return Delta.is_finite();
+}
+
 }  // namespace
 
 namespace simcoon{
@@ -172,8 +184,9 @@ void finite_kinematics(state_variables &sv, const unsigned int &control_type, co
             DR = hughes_winget(BC_w, DTime);
             sv.F0 = ER_to_F(v2t_strain(sv.Etot), BC_R);
             sv.F1 = ER_to_F(v2t_strain(sv.Etot + sv.DEtot), BC_R*DR);
-            corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, DTime);
-            sv.Detot = t2v_strain(Delta_log_strain_corate(sv.F0, sv.F1, sv.DR, D, Omega, DTime, corate_type));
+            mat De;
+            corate_kinematics(corate_type, sv.DR, D, Omega, De, sv.F0, sv.F1, DTime);   // + the strain increment, one spectral pass
+            sv.Detot = t2v_strain(De);
             break;
         }
         case 3: {
@@ -190,13 +203,15 @@ void finite_kinematics(state_variables &sv, const unsigned int &control_type, co
             sv.F0 = BC_R*sv.U0;
             sv.F1 = (BC_R*DR)*sv.U1;   // BC_R*DR (right): consistent with the accumulator BC_R = BC_R*DR (step_meca)
             sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
-            corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, DTime);
-            sv.Detot = t2v_strain(Delta_log_strain_corate(sv.F0, sv.F1, sv.DR, D, Omega, DTime, corate_type));
+            mat De;
+            corate_kinematics(corate_type, sv.DR, D, Omega, De, sv.F0, sv.F1, DTime);   // + the strain increment, one spectral pass
+            sv.Detot = t2v_strain(De);
             break;
         }
         default: {   // 5, 6: F1 prescribed
-            corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, DTime);
-            sv.Detot = t2v_strain(Delta_log_strain_corate(sv.F0, sv.F1, sv.DR, D, Omega, DTime, corate_type));
+            mat De;
+            corate_kinematics(corate_type, sv.DR, D, Omega, De, sv.F0, sv.F1, DTime);   // + the strain increment, one spectral pass
+            sv.Detot = t2v_strain(De);
             sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
         }
     }
@@ -595,8 +610,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             //we use the ddsdde (Lt) from the previous increment
                                             Lt_2_K(control_tangent(*sv_M, sv_M->Lt, blocks[i].control_type, corate_type, C), K, sptr_meca->cBC_meca, lambda_solver);
 
-                                            ///jacobian inversion
-                                            bool inv_success = inv(invK, K);
+                                            ///Newton correction (prediction of the component of the strain tensor)
+                                            bool inv_success = newton_correction(K, residual, Delta);
                                             if (!inv_success) {
                                                 // Degenerate tangent at the trial state (e.g. a
                                                 // branch-flip excursion under stress control): bisect
@@ -609,9 +624,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                                 compteur = maxiter_solver;
                                                 break;
                                             }
-
-                                            /// Prediction of the component of the strain tensor
-                                            Delta = -invK * residual;
                                         }
                                         else if(solver_type == 1) {
                                             //RNL
@@ -1027,8 +1039,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             else
                                                 Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
 
-                                            ///jacobian inversion
-                                            bool inv_success = inv(invK, K);
+                                            ///Newton correction (prediction of the component of the strain tensor)
+                                            bool inv_success = newton_correction(K, residual, Delta);
                                             if (!inv_success) {
                                                 // Same cut-then-inforce policy as the mechanical loop
                                                 // (no throw at Dn_mini — respects the inforce contract).
@@ -1036,9 +1048,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                                 compteur = maxiter_solver;
                                                 break;
                                             }
-
-                                            /// Prediction of the component of the strain tensor
-                                            Delta = -invK * residual;
                                         }
                                         else if(solver_type == 1) {
                                             //RNL

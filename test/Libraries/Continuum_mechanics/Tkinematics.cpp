@@ -23,6 +23,8 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/eig_sym3.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;
@@ -284,4 +286,81 @@ TEST(Tkinematics, finite_DQ)
     // For zero Omega -> DQ = I
     mat DQ_zero = finite_DQ(zeros(3, 3), zeros(3, 3), DTime);
     EXPECT_LT(norm(DQ_zero - eye(3, 3), 2), 1.E-9);
+}
+
+TEST(Tkinematics, eig_sym_3x3_matches_eig_sym)
+{
+    // the fixed-size Jacobi solver against LAPACK: same ascending spectrum, orthonormal basis,
+    // reconstruction to roundoff, on random, near-identity, repeated and stiff spectra
+    arma_rng::set_seed(1);
+    for (int t = 0; t < 400; t++) {
+        mat F;
+        mat Q0, R0;
+        qr(Q0, R0, randn<mat>(3, 3));
+        switch (t % 4) {
+            case 0: F = eye(3, 3) + 0.3*randn<mat>(3, 3); break;
+            case 1: F = eye(3, 3) + 1.e-7*randn<mat>(3, 3); break;
+            case 2: F = Q0*diagmat(vec({1.2, 1.2, 0.9}))*Q0.t(); break;
+            default: F = Q0*diagmat(vec({30., 1., 0.1}))*Q0.t(); break;
+        }
+        const mat A = F.t()*F;
+        vec l_ref;
+        mat Q_ref;
+        ASSERT_TRUE(eig_sym(l_ref, Q_ref, A));
+        vec::fixed<3> l;
+        mat::fixed<3,3> Q;
+        ASSERT_TRUE(eig_sym_3x3(l, Q, A));
+        EXPECT_LT(norm(vec(l) - l_ref, "inf"), 1.E-12*norm(l_ref, "inf"));
+        EXPECT_TRUE(l(0) <= l(1) && l(1) <= l(2));
+        EXPECT_LT(abs(mat(Q.t()*Q) - eye(3, 3)).max(), 1.E-14);
+        EXPECT_LT(abs(mat(spectral_compose_3x3(Q, l)) - A).max(), 1.E-13*abs(A).max());
+    }
+    // exact on a diagonal matrix
+    vec::fixed<3> l;
+    mat::fixed<3,3> Q;
+    ASSERT_TRUE(eig_sym_3x3(l, Q, diagmat(vec({2., 0.5, 1.}))));
+    EXPECT_EQ(l(0), 0.5);
+    EXPECT_EQ(l(1), 1.);
+    EXPECT_EQ(l(2), 2.);
+    // failure on a non-finite input, as arma::eig_sym
+    mat A = eye(3, 3);
+    A(0, 1) = datum::nan;
+    EXPECT_FALSE(eig_sym_3x3(l, Q, A));
+}
+
+TEST(Tkinematics, spectral_functions_3x3)
+{
+    arma_rng::set_seed(2);
+    const mat F = eye(3, 3) + 0.2*randn<mat>(3, 3);
+    const mat B = F*F.t();
+    mat::fixed<3,3> X;
+    ASSERT_TRUE(sqrtmat_sympd_3x3(X, B));
+    EXPECT_LT(abs(mat(X) - sqrtmat_sympd(B)).max(), 1.E-13);
+    ASSERT_TRUE(logmat_sympd_3x3(X, B));
+    EXPECT_LT(abs(mat(X) - logmat_sympd(B)).max(), 1.E-13);
+    ASSERT_TRUE(expmat_sym_3x3(X, 0.5*(F + F.t())));
+    EXPECT_LT(abs(mat(X) - expmat_sym(0.5*(F + F.t()))).max(), 1.E-13);
+    // not SPD: sqrt and log refuse, as their arma counterparts
+    const mat N = diagmat(vec({1., -1.e-3, 2.}));
+    EXPECT_FALSE(sqrtmat_sympd_3x3(X, N));
+    EXPECT_FALSE(logmat_sympd_3x3(X, N));
+}
+
+TEST(Tkinematics, RU_spectral_basis)
+{
+    // one eigen-solve gives R, the eigenbasis of C and, through R N, the one of B = F F^T
+    arma_rng::set_seed(3);
+    const mat F = eye(3, 3) + 0.25*randn<mat>(3, 3);
+    mat::fixed<3,3> R, N;
+    vec::fixed<3> c;
+    RU_spectral(R, c, N, F);
+    mat R_ref, U_ref;
+    RU_decomposition(R_ref, U_ref, F);
+    EXPECT_LT(abs(mat(R) - R_ref).max(), 1.E-14);
+    const mat Nb = R*N;
+    EXPECT_LT(abs(mat(Nb*diagmat(vec(c))*Nb.t()) - F*F.t()).max(), 1.E-13*abs(F*F.t()).max());
+    // a singular F is reported as RU_decomposition did
+    mat F_sing = F;
+    F_sing.col(2) = F_sing.col(0);
+    EXPECT_THROW(RU_spectral(R, c, N, F_sing), simcoon::simcoon_error);
 }

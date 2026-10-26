@@ -246,6 +246,20 @@ arma::mat L_cubic(const double &C1, const double &C2, const double &C3, const st
 arma::mat M_cubic(const double &C1, const double &C2, const double &C3, const std::string& conv = "EnuG");
 
 /**
+ * @brief Inverse of a 6x6 stiffness or compliance (Voigt) with cubic symmetry in its own axes.
+ *
+ * The normal block \f$ a\,\mathbf{I} + b\,(\mathbf{1}-\mathbf{I}) \f$ has the eigenvalues \f$ a+2b \f$
+ * (volumetric) and \f$ a-b \f$ (deviatoric) and the shear diagonal \f$ c \f$ inverts entrywise, so the
+ * inverse is in closed form; isotropy is the case \f$ c = a-b \f$ (stiffness) or \f$ c = 2(a-b) \f$
+ * (compliance). Typically the stiffness of a Reuss mixture of isotropic or cubic phases (the SMA laws),
+ * without a LAPACK call. A matrix without that exact structure goes through the general inverse.
+ * @param A the 6x6 matrix
+ * @return its inverse
+ * @throws exception_inv for a singular matrix
+ */
+arma::mat inv_cubic(const arma::mat &A);
+
+/**
  * @brief Provides the elastic stiffness tensor for an orthotropic material.
  * @param C11 first stiffness coefficient (or Ex)
  * @param C12 second stiffness coefficient (or Ey)

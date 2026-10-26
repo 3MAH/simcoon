@@ -95,14 +95,14 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
     if (!cubic_elasticity) {
         // Isotropic elasticity: EA, EM, nuA, nuM
-        M_A = inv(L_iso(props(1), props(3), "Enu"));
-        M_M = inv(L_iso(props(2), props(4), "Enu"));
+        M_A = M_iso(props(1), props(3), "Enu");
+        M_M = M_iso(props(2), props(4), "Enu");
         offset = 5;
     }
     else {
         // Cubic elasticity: EA, EM, nuA, nuM, GA, GM
-        M_A = inv(L_cubic(props(1), props(3), props(5), "EnuG"));
-        M_M = inv(L_cubic(props(2), props(4), props(6), "EnuG"));
+        M_A = M_cubic(props(1), props(3), props(5), "EnuG");
+        M_M = M_cubic(props(2), props(4), props(6), "EnuG");
         offset = 7;
     }
 
@@ -183,7 +183,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     // Reuss mixing on compliance tensor
     mat DM = M_M - M_A;
     mat M_eff = xi*M_M + (1. - xi)*M_A;
-    L = inv(M_eff);
+    L = inv_cubic(M_eff);
 
     //definition of the CTE tensor
     vec alpha = (alphaM_iso*xi + alphaA_iso*(1.-xi))*Ith();
@@ -561,7 +561,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             // Refresh the mixture stiffness at the converged xi for the OUTPUT L (the tangent
             // uses the frozen L_cpp consistently through cpp_consistent_tangent below).
             M_eff = xi*M_M + (1. - xi)*M_A;
-            L = inv(M_eff);
+            L = inv_cubic(M_eff);
             // Thermodynamic forces at the converged state (feed the work quantities below).
             A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%(DM*stress)) + sum(stress%Dalpha)*thp - HfF;
             A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%(DM*stress)) - sum(stress%Dalpha)*thp + HfR;
@@ -580,7 +580,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
         // Reuss mixing on compliance tensor
         M_eff = xi*M_M + (1. - xi)*M_A;
-        L = inv(M_eff);
+        L = inv_cubic(M_eff);
 
         DM_sig = DM*stress;
         Dalpha_T = Dalpha*(T+DT-T_init);

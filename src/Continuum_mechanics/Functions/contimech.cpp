@@ -496,30 +496,18 @@ mat sym_dyadic_operator(const mat &A, const mat &B) {
 
 mat linearop_eigsym(const vec &b_i, const vec &b_j) {
 
-	mat Bij = b_i*b_j.t();
-	mat BBBB = zeros(6,6);
-
-	int ij=0;
-	int kl=0;
-    
-    umat Id(3,3);
-    Id(0,0) = 0;
-    Id(0,1) = 3;
-    Id(0,2) = 4;
-    Id(1,0) = 3;
-    Id(1,1) = 1;
-    Id(1,2) = 5;
-    Id(2,0) = 4;
-    Id(2,1) = 5;
-    Id(2,2) = 2;
+	// fixed-size outer product and accumulator, static Voigt index table: one allocation (the
+	// returned 6x6) instead of four
+	static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+	const mat::fixed<3,3> Bij = vec::fixed<3>(b_i)*vec::fixed<3>(b_j).t();
+	mat::fixed<6,6> BBBB(fill::zeros);
 	
 	for (int i=0; i<3; i++) {
 		for (int j=i; j<3; j++) {
-			ij = Id(i,j);
+			const int ij = Id[i][j];
 			for (int k=0; k<3; k++) {
 				for (int l=k; l<3; l++) {
-					kl = Id(k,l);
-					BBBB(ij,kl) = 0.5*(Bij(i,j)*Bij(k,l) + Bij(i,j)*Bij(l,k));
+					BBBB(ij,Id[k][l]) = 0.5*(Bij(i,j)*Bij(k,l) + Bij(i,j)*Bij(l,k));
 				}
 			}
 		}

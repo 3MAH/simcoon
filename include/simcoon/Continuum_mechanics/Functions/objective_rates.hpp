@@ -397,6 +397,8 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
  *  - **3** log_R: \f$ \mathbf{D}_e=\mathbf{A}^{R}\!:\!\mathbf{D} \f$, the R-corotational (Green-Naghdi)
  *    rate of \f$ \ln V \f$ integrated over the orthogonal frame; \f$ \mathbf{A}^{R} \f$ is PD and
  *    \f$ \epsilon\to\ln V \f$, so the F-reconstruction stays well posed.
+ *    The midpoint transport uses @p DR, the frame increment corate_kinematics() returns (the exact
+ *    polar rotation, of which @p Omega is the inverse Cayley spin).
  *  - **5** log_F: \f$ \mathbf{D}_e=\mathbf{A}^{F}\!:\!\mathbf{D} \f$, the convected (Oldroyd) rate of
  *    \f$ \ln V \f$ integrated over the F-frame (\f$ \mathbf{DF} \f$ built from the velocity gradient
  *    L, carried in @p Omega). \f$ \mathbf{A}^{F} \f$ now recovers \f$ \ln V \f$ like \f$ \mathbf{A}^{R} \f$
@@ -472,6 +474,17 @@ double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau_sta
  *    DR = I and @p Omega = 0.
  */
 void corate_kinematics(const int &corate_type, arma::mat &DR, arma::mat &D, arma::mat &Omega, const arma::mat &F0, const arma::mat &F1, const double &DTime);
+
+/**
+ * @brief corate_kinematics() followed by Delta_log_strain_corate(), sharing the spectral work.
+ *
+ * Same @p DR, @p D, @p Omega as corate_kinematics(), and @p De the logarithmic-strain increment
+ * (tensor) Delta_log_strain_corate() returns for them. Under log_R (3) one eigen-solve of
+ * \f$ \mathbf{C}_1 \f$ gives \f$ \mathbf{R}_1 \f$, the eigenbasis \f$ \mathbf{R}_1\mathbf{N}_1 \f$ of
+ * \f$ \mathbf{B}_1 \f$ and \f$ \mathbf{A}^{R}\!:\!\mathbf{D} \f$, instead of a second decomposition of
+ * \f$ \mathbf{B}_1 \f$; the other rates simply chain the two calls.
+ */
+void corate_kinematics(const int &corate_type, arma::mat &DR, arma::mat &D, arma::mat &Omega, arma::mat &De, const arma::mat &F0, const arma::mat &F1, const double &DTime);
 
 /**
  * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin

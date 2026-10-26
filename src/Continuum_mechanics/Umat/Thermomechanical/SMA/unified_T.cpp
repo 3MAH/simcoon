@@ -97,14 +97,14 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
 
     if (!cubic_elasticity) {
         // Isotropic elasticity: EA, EM, nuA, nuM
-        M_A = inv(L_iso(props(4), props(6), "Enu"));
-        M_M = inv(L_iso(props(5), props(7), "Enu"));
+        M_A = M_iso(props(4), props(6), "Enu");
+        M_M = M_iso(props(5), props(7), "Enu");
         offset = 8;
     }
     else {
         // Cubic elasticity: EA, EM, nuA, nuM, GA, GM
-        M_A = inv(L_cubic(props(4), props(6), props(8), "EnuG"));
-        M_M = inv(L_cubic(props(5), props(7), props(9), "EnuG"));
+        M_A = M_cubic(props(4), props(6), props(8), "EnuG");
+        M_M = M_cubic(props(5), props(7), props(9), "EnuG");
         offset = 10;
     }
 
@@ -186,7 +186,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     mat DM = M_M - M_A;
     mat L;
     mat M_eff = xi*M_M + (1. - xi)*M_A;
-    L = inv(M_eff);
+    L = inv_cubic(M_eff);
 
     //definition of the CTE tensor
     vec alpha = (alphaM_iso*xi + alphaA_iso*(1.-xi))*Ith();
@@ -400,7 +400,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
 
         // Reuss mixing on compliance tensor
         M_eff = xi*M_M + (1. - xi)*M_A;
-        L = inv(M_eff);
+        L = inv_cubic(M_eff);
 
         DM_sig = DM*sigma;
         Dalpha_T = Dalpha*(T+DT-T_init);

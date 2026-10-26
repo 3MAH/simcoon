@@ -21,6 +21,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/eig_sym3.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;
@@ -41,12 +42,11 @@ mat ER_to_F(const mat &E, const mat &R) {
     //rejected by sqrtmat_sympd's symmetry check (the input E is symmetric by construction).
     mat C = symmatu(2.*E+eye(3,3));
 
-    try {
-        return (R*sqrtmat_sympd(C));
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+    mat::fixed<3,3> U;
+    if (!sqrtmat_sympd_3x3(U, C)) {
         throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside ER_to_F.");
-    }            
+    }
+    return R*U;
 }
 
 mat eR_to_F(const mat &e, const mat &R) {
@@ -57,14 +57,10 @@ mat eR_to_F(const mat &e, const mat &R) {
     assert(R.n_rows == 3);
 
     //From e we compute V : e = 1/2 (C-I) --> C = U^2 = 2E+I
-    mat V;
-    try {
-        V = expmat_sym(e);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in expmat_sym : " << e.what() << endl;
+    mat::fixed<3,3> V;
+    if (!expmat_sym_3x3(V, e)) {
         throw simcoon::exception_expmat_sym("Error in expmat_sym function inside eR_to_F.");
-    }            
-
+    }
     return (V*R);
 }
     
@@ -94,42 +90,46 @@ mat L_Cauchy_Green(const mat &F) {
     return F*F.t();
 }
 
+//Right polar decomposition F = R U from one eigen-solve of C = F^T F = N diag(c) N^T
+void RU_spectral(mat::fixed<3,3> &R, vec::fixed<3> &c, mat::fixed<3,3> &N, const mat &F) {
+    const mat::fixed<3,3> F_(F);
+    // same failure modes as sqrtmat_sympd(C) then inv(U): a negative (or non-finite) spectrum,
+    // then a singular stretch
+    if (!eig_sym_3x3(c, N, F_.t()*F_) || c(0) < 0.) {
+        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside RU_decomposition.");
+    }
+    if (!(c(0) > 0.)) {
+        throw simcoon::exception_inv("Error in inv function inside RU_decomposition.");
+    }
+    vec::fixed<3> inv_s;
+    for (int k = 0; k < 3; k++) inv_s(k) = 1./std::sqrt(c(k));
+    R = F_*spectral_compose_3x3(N, inv_s);
+}
+
 //Provides the RU decomposition of the transformation gradient F
 void RU_decomposition(mat &R, mat &U, const mat &F) {
-    mat U2 = F.t()*F;
-
-    try {
-        U = sqrtmat_sympd(U2);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
-        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside RU_decomposition.");
-    }                
-
-    try {
-        R = F*inv(U);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside RU_decomposition.");
-    }     
+    mat::fixed<3,3> R_, N;
+    vec::fixed<3> c;
+    RU_spectral(R_, c, N, F);
+    R = R_;
+    U = spectral_compose_3x3(N, sqrt(c));
 }
 
 //Provides the VR decomposition of the transformation gradient F
 void VR_decomposition(mat &V, mat &R, const mat &F) {
-    mat V2 = F*F.t();
-
-    try {
-        V = sqrtmat_sympd(V2);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+    const mat::fixed<3,3> F_(F);
+    vec::fixed<3> b;
+    mat::fixed<3,3> N;
+    if (!eig_sym_3x3(b, N, F_*F_.t()) || b(0) < 0.) {
         throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside VR_decomposition.");
-    }                
-
-    try {
-        R = inv(V)*F;
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside RU_decomposition.");
-    }     
+    }
+    if (!(b(0) > 0.)) {
+        throw simcoon::exception_inv("Error in inv function inside VR_decomposition.");
+    }
+    vec::fixed<3> inv_s;
+    for (int k = 0; k < 3; k++) inv_s(k) = 1./std::sqrt(b(k));
+    V = spectral_compose_3x3(N, sqrt(b));
+    R = spectral_compose_3x3(N, inv_s)*F_;
 }
     
 //This function computes the common Right (or Left) Cauchy-Green invariants
@@ -164,12 +164,14 @@ mat Euler_Almansi(const mat &F) {
 
 //This function computes the Euler-Almansi finite strain tensor h
 mat Log_strain(const mat &F) {
-    try {
-        return  0.5*logmat_sympd(L_Cauchy_Green(F));
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in logmat_sympd: " << e.what() << endl;
+    const mat::fixed<3,3> F_(F);
+    vec::fixed<3> b;
+    mat::fixed<3,3> N;
+    if (!eig_sym_3x3(b, N, F_*F_.t()) || !(b(0) > 0.)) {
         throw simcoon::exception_logmat_sympd("Error in logmat_sympd function inside Log_strain.");
-    }     
+    }
+    for (int k = 0; k < 3; k++) b(k) = 0.5*std::log(b(k));
+    return spectral_compose_3x3(N, b);
 }
 
 //This function computes the velocity difference
@@ -204,9 +206,10 @@ mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 //This function computes the exact relative polar rotation and its midpoint spin
 // Note : here R is the rigid body rotation in the polar decomposition of the deformation gradient F
 void finite_rotation(const mat &F0, const mat &F1, const double &DTime, mat &DR, mat &Omega) {
-    mat R0, U0, R1, U1;
-    RU_decomposition(R0, U0, F0);
-    RU_decomposition(R1, U1, F1);
+    mat::fixed<3,3> R0, R1, N;
+    vec::fixed<3> c;
+    RU_spectral(R0, c, N, F0);
+    RU_spectral(R1, c, N, F1);
     // Exact and DTime-independent: DR stays the true relative rotation even
     // when the time increment degenerates (the spin, a rate, does not).
     DR = R1*R0.t();

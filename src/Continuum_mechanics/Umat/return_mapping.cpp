@@ -23,6 +23,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
@@ -34,6 +35,17 @@ namespace simcoon {
 namespace {
 int resolved_maxiter(const ReturnMappingControl &c) { return (c.maxiter > 0) ? c.maxiter : simcoon::maxiter_umat; }
 double resolved_precision(const ReturnMappingControl &c) { return (c.precision > 0.) ? c.precision : simcoon::precision_umat; }
+
+// M += a A B for 6x6 operands, in place: no 6x6 temporary on the heap
+void add_scaled_product(mat::fixed<6,6> &M, const double a, const mat &A, const mat &B) {
+    for (int k = 0; k < 6; k++) {
+        for (int m = 0; m < 6; m++) {
+            const double b = a*B(m, k);
+            if (b == 0.) continue;
+            for (int i = 0; i < 6; i++) M(i, k) += A(i, m)*b;
+        }
+    }
+}
 }
 
 ReturnMappingResult closest_point_return_mapping(
@@ -125,32 +137,44 @@ ReturnMappingResult closest_point_return_mapping(
         return r;
     }
 
-    const mat I6 = eye(6, 6);
     const int snap_niter = 20;   // plain Newton gets this many iterations before the snap may act
+
+    // Newton buffers, sized once: the iteration below allocates nothing of its own. M is
+    // factorized on the stack (small_lu) instead of inverted by LAPACK, and every M^-1 x
+    // product is a solve with that factorization.
+    std::vector<vec> c(N, zeros(6));
+    std::vector<vec> Minv_kc(N, zeros(6));   // M^-1 (kappa_j + c_j), for B_red and the stress step
+    mat::fixed<6,6> M;
+    small_lu<6> lu_M;
 
     for (r.niter = 0; r.niter < maxiter; r.niter++) {
 
         // Newton ingredients at the current (state-consistent) iterate.
         eval_gradients(r.sigma);
         mat K = hooks.K ? hooks.K(r.sigma, r.Dlambda) : zeros(N, N);
-        mat M = I6;
+        M.eye();
         for (int j = 0; j < N; j++) {
-            D_j[j] = mechanisms[j].dLambda_dsigma ? mechanisms[j].dLambda_dsigma(r.sigma)
-                                                  : zeros(6, 6);
-            M += r.Dlambda(j) * (Lc * D_j[j]);
+            if (mechanisms[j].dLambda_dsigma) {
+                D_j[j] = mechanisms[j].dLambda_dsigma(r.sigma);
+            }
+            else {
+                D_j[j].zeros(6, 6);
+            }
+            add_scaled_product(M, r.Dlambda(j), Lc, D_j[j]);
         }
-        mat Minv;
-        if (!inv(Minv, M)) return r;   // condensation breakdown: caller step-cuts
+        if (!lu_M.factor(M)) return r;   // condensation breakdown: caller step-cuts
 
-        std::vector<vec> c(N, zeros(6));
+        for (int j = 0; j < N; j++) c[j].zeros();
         if (hooks.flow_state_coupling) {
             const std::vector<vec> dLambda = hooks.flow_state_coupling(r.sigma, r.Dlambda);
             for (int j = 0; j < N && j < int(dLambda.size()); j++) c[j] = Lc * dLambda[j];
         }
 
-        const vec MinvR = Minv * R_sigma;
-        std::vector<vec> Minv_kc(N);   // M^-1 (kappa_j + c_j), for B_red and the stress step
-        for (int j = 0; j < N; j++) Minv_kc[j] = Minv * (kappa[j] + c[j]);
+        const vec MinvR = lu_M.solve(R_sigma);
+        for (int j = 0; j < N; j++) {
+            Minv_kc[j] = kappa[j] + c[j];
+            lu_M.solve_in_place(Minv_kc[j].memptr());
+        }
         vec Phi_red(N);
         mat B_red(N, N);
         for (int l = 0; l < N; l++) {

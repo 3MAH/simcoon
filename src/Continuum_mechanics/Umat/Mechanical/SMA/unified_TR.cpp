@@ -91,13 +91,13 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     mat M_M;
 
     if (!cubic_elasticity) {
-        M_A = inv(L_iso(props(1), props(3), "Enu"));
-        M_M = inv(L_iso(props(2), props(4), "Enu"));
+        M_A = M_iso(props(1), props(3), "Enu");
+        M_M = M_iso(props(2), props(4), "Enu");
         offset = 5;
     }
     else {
-        M_A = inv(L_cubic(props(1), props(3), props(5), "EnuG"));
-        M_M = inv(L_cubic(props(2), props(4), props(6), "EnuG"));
+        M_A = M_cubic(props(1), props(3), props(5), "EnuG");
+        M_M = M_cubic(props(2), props(4), props(6), "EnuG");
         offset = 7;
     }
 
@@ -173,7 +173,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // ######################  Elastic compliance and stiffness #################################
     mat DM = M_M - M_A;
     mat M_eff = xi*M_M + (1. - xi)*M_A;
-    L = inv(M_eff);
+    L = inv_cubic(M_eff);
 
     vec alpha = (alphaM_iso*xi + alphaA_iso*(1.-xi))*Ith();
     vec Dalpha = (alphaM_iso - alphaA_iso)*Ith();
@@ -609,7 +609,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
             DETR  = Ds_j(1)*ETMean;
             DEReo = Ds_j(2)*lambdaReo;
             M_eff = xi*M_M + (1. - xi)*M_A;   // output L at the converged xi (the tangent keeps L_cpp)
-            L = inv(M_eff);
+            L = inv_cubic(M_eff);
             DM_sig = DM*stress;
             A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%DM_sig) + sum(stress%Dalpha)*thp - HfF;
             A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%DM_sig) - sum(stress%Dalpha)*thp + HfR;
@@ -626,7 +626,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
         // Reuss mixing
         M_eff = xi*M_M + (1. - xi)*M_A;
-        L = inv(M_eff);
+        L = inv_cubic(M_eff);
 
         DM_sig   = DM*stress;
         Dalpha_T = Dalpha*(T+DT-T_init);

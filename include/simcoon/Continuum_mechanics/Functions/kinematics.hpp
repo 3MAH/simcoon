@@ -176,6 +176,24 @@ arma::mat L_Cauchy_Green(const arma::mat &F);
 void RU_decomposition(arma::mat &R, arma::mat &U, const arma::mat &F);
 
 /**
+ * @brief Right polar decomposition together with the spectral decomposition it is built on.
+ *
+ * One eigen-solve of \f$\mathbf{C} = \mathbf{F}^T \cdot \mathbf{F} = \mathbf{N}\,\mathrm{diag}(\mathbf{c})\,\mathbf{N}^T\f$
+ * (eig_sym_3x3) gives \f$\mathbf{U} = \mathbf{N}\,\mathrm{diag}(\sqrt{\mathbf{c}})\,\mathbf{N}^T\f$ and
+ * \f$\mathbf{R} = \mathbf{F} \cdot \mathbf{N}\,\mathrm{diag}(1/\sqrt{\mathbf{c}})\,\mathbf{N}^T\f$; the left
+ * Cauchy-Green tensor \f$\mathbf{B} = \mathbf{F} \cdot \mathbf{F}^T\f$ has the same eigenvalues and the
+ * eigenvectors \f$\mathbf{R} \cdot \mathbf{N}\f$. For the callers that need R and a spectral basis
+ * (log_R kinematics, logarithmic strains) without a second decomposition.
+ * Same failure modes as RU_decomposition (exception_sqrtmat_sympd, exception_inv).
+ *
+ * @param[out] R the rotation \f$\mathbf{R}\f$
+ * @param[out] c eigenvalues of \f$\mathbf{C}\f$ (ascending)
+ * @param[out] N eigenvectors of \f$\mathbf{C}\f$ (columns)
+ * @param[in] F 3x3 transformation gradient
+ */
+void RU_spectral(arma::mat::fixed<3,3> &R, arma::vec::fixed<3> &c, arma::mat::fixed<3,3> &N, const arma::mat &F);
+
+/**
  * @brief Provides the VR decomposition of the transformation gradient.
  *
  * The VR decomposition of the transformation gradient \f$\mathbf{F}\f$ is related to the matrices \f$\mathbf{R}\f$ and \f$\mathbf{V}\f$ by the following equations:

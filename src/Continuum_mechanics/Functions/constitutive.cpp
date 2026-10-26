@@ -22,6 +22,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <iostream>
 #include <assert.h>
 #include <math.h>
+#include <cmath>
 #include <string.h>
 #include <string>
 #include <stdexcept>
@@ -56,10 +57,30 @@ mat Ivol(){
 	return Ivol;
 }
 
+// a*Ivol + b*X, X = Ireal - Ivol (shear diagonal 1/2) or Ireal2 - Ivol (shear diagonal 2), built
+// entry by entry: one 6x6 allocation instead of one per operand and operation. Each product is
+// rounded, then summed, as in the expression a*Ivol() + b*X: the same values to the bit.
+static mat iso_combination(const double &a, const double &b, const double &X_shear) {
+	const double v = a*(1./3.);             // a Ivol_ij on the normal block
+	const double d_ii = b*(1.-1./3.);       // b X_ii, normal block
+	const double d_ij = b*(0.-1./3.);       // b X_ij, normal block, i != j
+	const double d_ss = b*X_shear;          // b X_ii, shear block
+	const double n_ii = v + d_ii;
+	const double n_ij = v + d_ij;
+	mat L(6, 6, fill::zeros);
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+			L(i,j) = (i == j) ? n_ii : n_ij;
+		}
+		L(i+3,i+3) = d_ss;
+	}
+	return L;
+}
+
 //Returns the deviatoric of the identity tensor Ireal written in Voigt notation
 mat Idev(){
 	
-	return	Ireal() - Ivol();
+	return	iso_combination(0., 1., 0.5);
 }
 
 //Returns the fourth order identity tensor Iˆ written in Voigt notation
@@ -75,7 +96,7 @@ mat Ireal2(){
 //Returns the deviatoric of the identity tensor Iˆ written in Voigt notation
 mat Idev2(){
 	
-	return	Ireal2() - Ivol();
+	return	iso_combination(0., 1., 2.);
 }
 
 //Returns the expansion vector
@@ -157,7 +178,7 @@ mat L_iso(const double &C1, const double &C2, const std::string &conv) {
 		cout << "ERROR : Please use a valid couple of elastic constants";
 	}
 	
-	return 3.*K*Ivol() + 2.*mu*Idev();
+	return iso_combination(3.*K, 2.*mu, 0.5);   // 3K Ivol + 2mu Idev
 }
 
 //Provides the elastic compliance tensor for an isotropic material.
@@ -210,7 +231,7 @@ mat M_iso(const double &C1, const double &C2, const string &conv) {
         exit(0);
 	}
 	
-	return 1/(3.*K)*Ivol() + 1/(2.*mu)*Idev2();
+	return iso_combination(1/(3.*K), 1/(2.*mu), 2.);   // 1/(3K) Ivol + 1/(2mu) Idev2
 }
 
 //Returns the elastic stiffness tensor for a cubic material.
@@ -306,6 +327,45 @@ mat M_cubic(const double &C1, const double &C2, const double &C4, const string &
     }
 	
 	return M;
+}
+
+//Inverse of a 6x6 Voigt tensor with cubic symmetry in its own axes (isotropy included), in closed
+//form: the normal block a I + b (1 - I) has the eigenvalues a + 2b (volumetric) and a - b
+//(deviatoric), the shear diagonal c inverts entrywise. Any other matrix: the general inverse.
+mat inv_cubic(const mat &A) {
+
+    bool cubic = (A.n_rows == 6) && (A.n_cols == 6);
+    const double a = cubic ? A(0,0) : 0.;
+    const double b = cubic ? A(0,1) : 0.;
+    const double c = cubic ? A(3,3) : 0.;
+    for (int i=0; i<6 && cubic; i++) {
+        for (int j=0; j<6 && cubic; j++) {
+            const double expected = (i < 3 && j < 3) ? ((i == j) ? a : b) : ((i == j) ? c : 0.);
+            cubic = (A(i,j) == expected);
+        }
+    }
+    if (!cubic) {
+        mat A_inv;
+        if (!inv(A_inv, A)) {
+            throw simcoon::exception_inv("Error in inv function inside inv_cubic.");
+        }
+        return A_inv;
+    }
+    const double l_vol = a + 2.*b;
+    const double l_dev = a - b;
+    if (l_vol == 0. || l_dev == 0. || c == 0. || !std::isfinite(l_vol*l_dev*c)) {
+        throw simcoon::exception_inv("Error in inv function inside inv_cubic (singular matrix).");
+    }
+    const double a_inv = (1./l_vol + 2./l_dev)/3.;
+    const double b_inv = (1./l_vol - 1./l_dev)/3.;
+    mat A_inv(6, 6, fill::zeros);
+    for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
+            A_inv(i,j) = (i == j) ? a_inv : b_inv;
+        }
+        A_inv(i+3,i+3) = 1./c;
+    }
+    return A_inv;
 }
 
 //Returns the elastic stiffness tensor for an orthotropic material.
@@ -554,7 +614,7 @@ mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 //The two first arguments are a couple of viscous coefficients (the first is bulk, the second is shear).
 mat H_iso(const double &etaB, const double &etaS) {
 		
-	return 3.*etaB*Ivol() + 2.*etaS*Idev();
+	return iso_combination(3.*etaB, 2.*etaS, 0.5);   // 3 etaB Ivol + 2 etaS Idev
 }
 
 // Condensed stress states (ndi < 3), Abaqus ordering: the stress keeps the first ndi direct

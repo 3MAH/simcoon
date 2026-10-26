@@ -147,3 +147,36 @@ TEST(Tnum_solve, Fischer_Burmeister_zeros)
 
     EXPECT_LT(fabs(error), 1.E-9);
 }
+
+TEST(Tnum_solve, Fischer_Burmeister_m_small_systems)
+{
+    // the closed-form steps of one and two mechanisms against the LAPACK solve of the same
+    // Newton system (n = 3 still takes the general path: the third, decoupled, row checks it)
+    arma_rng::set_seed(5);
+    for (int t = 0; t < 50; t++) {
+        const vec Phi3 = randn<vec>(3), Dp3 = abs(randn<vec>(3)), Y3 = {1., 2., 0.5};
+        mat B3 = -3.*eye(3, 3) - 0.2*abs(randn<mat>(3, 3));
+        B3(0, 2) = B3(1, 2) = B3(2, 0) = B3(2, 1) = 0.;
+        for (int n : {1, 2}) {
+            const vec Phi = Phi3.head(n), Y = Y3.head(n);
+            const mat B = B3.submat(0, 0, n - 1, n - 1);
+            vec Dp = Dp3.head(n), dp;
+            double error;
+            Fischer_Burmeister_m(Phi, Y, B, Dp, dp, error);
+            vec Dp_g = Dp3, dp_g;
+            double error_g;
+            Fischer_Burmeister_m(Phi3, Y3, B3, Dp_g, dp_g, error_g);
+            const mat J = denom_FB_m(Phi, B, Dp3.head(n));
+            vec FB(n);
+            for (int i = 0; i < n; i++) {
+                const double Dps = Dp3(i)*fabs(B(i, i));
+                FB(i) = sqrt(Phi(i)*Phi(i) + Dps*Dps) + Phi(i) - Dps;
+            }
+            const vec dp_ref = -solve(J, FB);
+            EXPECT_LT(norm(dp - dp_ref, "inf"), 1.E-12*(1. + norm(dp_ref, "inf")));
+            if (n == 2) {   // the 2x2 block is the leading block of the block-diagonal 3x3 system
+                EXPECT_LT(norm(dp - dp_g.head(n), "inf"), 1.E-12*(1. + norm(dp_ref, "inf")));
+            }
+        }
+    }
+}

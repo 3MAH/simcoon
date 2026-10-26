@@ -23,6 +23,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
 #include <simcoon/parameter.hpp>
 #include <algorithm>
 #include <limits>
@@ -267,11 +268,11 @@ bool PlasticityMechanism::refresh_state(
             kin_hard_->backward_euler_factors(dp, n, ivc_, gamma, beta);
             const arma::mat H = yield_->flow_hessian(xi);
             const arma::mat A = arma::eye(6, 6) + gamma * (H.each_row() % T.t());   // I + gamma H T
-            arma::vec dn;
-            if (!arma::solve(dn, A, -G, arma::solve_opts::fast)) {
+            small_lu<6> lu_A;   // on the stack: a LAPACK 6x6 solve per step otherwise
+            if (!lu_A.factor(A)) {
                 return false;
             }
-            n += dn;
+            n -= lu_A.solve(G);
         }
         if (!converged) {
             return false;
@@ -296,15 +297,15 @@ bool PlasticityMechanism::refresh_state(
         return true;
     }
     const arma::mat HT = H.each_row() % T.t();
-    arma::mat Ainv;
-    if (!arma::inv(Ainv, arma::eye(6, 6) + gamma * HT)) {
+    small_lu<6> lu_A;   // A = I + gamma H T on the stack: solves instead of a LAPACK inverse
+    if (!lu_A.factor(arma::eye(6, 6) + gamma * HT)) {
         return false;
     }
     const arma::vec Tn = T % n;
-    out.dLambda_dsigma = Ainv * H;
+    out.dLambda_dsigma = lu_A.solve(H);
     out.dPhi_dsigma = n - gamma * (out.dLambda_dsigma.t() * Tn);
-    out.K = -arma::dot(Tn, Ainv * beta) - dR_dp;
-    out.dLambda_dDs = -(Ainv * (HT * beta));
+    out.K = -arma::dot(Tn, lu_A.solve(beta)) - dR_dp;
+    out.dLambda_dDs = -lu_A.solve(arma::vec(HT * beta));
     return true;
 }
 

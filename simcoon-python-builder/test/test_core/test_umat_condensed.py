@@ -279,7 +279,9 @@ def test_hyperelastic_condensed_through_ln_V(name, props, ndi, nshr):
     s3, J3 = solved(lnv)
     np.testing.assert_allclose(s, s3, rtol=1e-9, atol=1e-9 * np.abs(s3).max())
     np.testing.assert_array_equal(s[C], 0.0)
-    h = 1e-6
+    # central FD of a stress that carries a large pressure (~1e4 kappa J): at h = 1e-6 its round-off
+    # over 2h is ~1e-6 of the tangent, the tolerance itself; at 1e-4 the error is truncation, ~1e-8
+    h = 1e-4
     fd = np.zeros((len(K), len(K)))
     for j, k in enumerate(K):
         lp, lm = lnv.copy(), lnv.copy()

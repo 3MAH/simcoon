@@ -111,6 +111,7 @@ target_sources(simcoon PRIVATE
   Simulation/Geometry/layer.cpp
 
   # Simulation - Maths
+  Simulation/Maths/eig_sym3.cpp
   Simulation/Maths/lagrange.cpp
   Simulation/Maths/num_solve.cpp
   Simulation/Maths/random.cpp

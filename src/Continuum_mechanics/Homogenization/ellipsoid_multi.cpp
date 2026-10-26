@@ -166,6 +166,28 @@ void eshelby_cache_store(const mat &Lt_local, const ellipsoid &ell, const eshelb
     }
 }
 
+// True when L is isotropic up to round-off: every entry within 1e-14 (relative to the largest)
+// of the isotropic tensor of lambda = L(0,1), mu = L(3,3). A rotation would give it back but
+// for round-off.
+bool isotropic_up_to_roundoff(const mat &L)
+{
+    const double lambda = L(0,1);
+    const double mu = L(3,3);
+    const double tol = 1.E-14*abs(L).max();
+    for (int j=0; j<6; j++) {
+        for (int i=0; i<6; i++) {
+            double L_iso_ij = 0.;
+            if (i < 3 && j < 3)
+                L_iso_ij = (i == j) ? lambda + 2.*mu : lambda;
+            else if (i == j)
+                L_iso_ij = mu;
+            if (fabs(L(i,j) - L_iso_ij) > tol)
+                return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
 // Eshelby tensor of ell in the medium Lt_local (inclusion frame): the inclusion's own last
@@ -231,7 +253,9 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
     //A geometry frame that is the global one needs no rotation (from_euler(0,0,0) is the identity)
     const bool global_frame = (ell.psi_geom == 0. && ell.theta_geom == 0. && ell.phi_geom == 0.);
     Rotation rot = global_frame ? Rotation::identity() : Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
-    mat Lt_m_local_geom = global_frame ? Lt_m : rot.apply_stiffness(Lt_m, false);
+    //An isotropic medium is not rotated either: the rotation would only add round-off, and the
+    //same medium in every frame shares one Eshelby tensor between orientations (memo, cache)
+    mat Lt_m_local_geom = (global_frame || isotropic_up_to_roundoff(Lt_m)) ? Lt_m : rot.apply_stiffness(Lt_m, false);
     S_loc = eshelby_memoized(memo, Lt_m_local_geom, ell, quad);
     mat Lt_local_geom = global_frame ? Lt : rot.apply_stiffness(Lt, false);
 

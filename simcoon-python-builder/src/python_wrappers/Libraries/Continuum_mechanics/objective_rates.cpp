@@ -86,10 +86,14 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         mat DR = zeros(3,3);
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
-        simcoon::corate_kinematics(corate, DR, D, Omega, F0_cpp, F1_cpp, DTime);
+        mat De;
+        if (return_de)   // one spectral pass for the kinematics and the increment
+            simcoon::corate_kinematics(corate, DR, D, Omega, De, F0_cpp, F1_cpp, DTime);
+        else
+            simcoon::corate_kinematics(corate, DR, D, Omega, F0_cpp, F1_cpp, DTime);
 
         if (return_de) {
-            vec de = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_cpp, F1_cpp, DR, D, Omega, DTime, corate));
+            vec de = simcoon::t2v_strain(De);
             return py::make_tuple(simpy::arma_to_numpy::col_to_arr(de,false), simpy::arma_to_numpy::mat_to_arr(D, false), simpy::arma_to_numpy::mat_to_arr(DR, false), simpy::arma_to_numpy::mat_to_arr(Omega, false));
         }
         else{
@@ -134,10 +138,14 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             const mat &F0_pt = F0_per_point ? F0_s : F0_one;
             const mat F1_pt = simcoon::slice_view(F1_cpp, pt);
             mat DR_pt = simcoon::slice_view(DR, pt), D_pt = simcoon::slice_view(D, pt), Omega_pt = simcoon::slice_view(Omega, pt);
-            simcoon::corate_kinematics(corate, DR_pt, D_pt, Omega_pt, F0_pt, F1_pt, DTime);
-            if (return_de) {
+            if (return_de) {   // one spectral pass for the kinematics and the increment
+                mat De;
+                simcoon::corate_kinematics(corate, DR_pt, D_pt, Omega_pt, De, F0_pt, F1_pt, DTime);
                 vec de_col = de.unsafe_col(pt);
-                de_col = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_pt, F1_pt, DR_pt, D_pt, Omega_pt, DTime, corate));
+                de_col = simcoon::t2v_strain(De);
+            }
+            else {
+                simcoon::corate_kinematics(corate, DR_pt, D_pt, Omega_pt, F0_pt, F1_pt, DTime);
             }
         }, n_threads);
         if (return_de){	                     

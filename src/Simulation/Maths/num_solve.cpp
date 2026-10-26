@@ -331,17 +331,42 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
         
     }
     
-    try {
-        if (fabs(det(denomFB)) > simcoon::limit) {
-            dp = -1.*solve(denomFB, FB);
+    // One or two mechanisms (the common cases): closed forms, no LAPACK call. A det + solve pair
+    // on a 1x1 or 2x2 costs ~0.3 us, the bulk of a local iteration.
+    if (n == 1) {
+        const double a = denomFB(0,0);
+        if (fabs(a) > simcoon::limit) {
+            dp.set_size(1);
+            dp(0) = -FB(0)/a;
         }
         else {
             dp = zeros(n);
         }
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
-        throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_m.");
-    }  
+    }
+    else if (n == 2) {
+        const double det_FB = denomFB(0,0)*denomFB(1,1) - denomFB(0,1)*denomFB(1,0);
+        if (fabs(det_FB) > simcoon::limit) {
+            dp.set_size(2);
+            dp(0) = -(denomFB(1,1)*FB(0) - denomFB(0,1)*FB(1))/det_FB;   // Cramer
+            dp(1) = -(denomFB(0,0)*FB(1) - denomFB(1,0)*FB(0))/det_FB;
+        }
+        else {
+            dp = zeros(n);
+        }
+    }
+    else {
+        try {
+            if (fabs(det(denomFB)) > simcoon::limit) {
+                dp = -1.*solve(denomFB, FB);
+            }
+            else {
+                dp = zeros(n);
+            }
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+            throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_m.");
+        }
+    }
     
     //New update of the transformation/orientation multipliers
     Dp = Dp + dp;
