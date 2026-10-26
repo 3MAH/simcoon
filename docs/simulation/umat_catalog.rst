@@ -52,14 +52,14 @@ Small-strain mechanical models
    * - EPICP
      - Von Mises + power-law isotropic hardening
      - legacy (kept)
-     - E, nu, alpha, sigmaY, k, m
+     - E, nu, alpha, sigmaY, k, m [, ncp, closed_form]
      - Pedagogical reference of the CCP return mapping; the hardening goes
        through the modular PowerLawHardening (C1 onset blend below p = 1e-6
        for m < 1, exact above), as EPJCK
    * - EPKCP
      - Von Mises + power-law isotropic + Prager kinematic
      - modular (adapter)
-     - E, nu, alpha, sigmaY, k, m, kX
+     - E, nu, alpha, sigmaY, k, m, kX [, ncp]
      - Legacy Prager writes X = kX·a; the modular twin uses X = (2/3)C·a,
        i.e. C = 1.5·kX (handled by the adapter)
    * - EPCHA
@@ -347,8 +347,29 @@ Unchanged dedicated implementations (out of the modular scope):
   MIPLN (``mp``, ``np``: integration points of the Eshelby integrals; ``n_matrix``:
   index of the matrix phase in the list; ``start``: first guess of the
   self-consistent iteration, 1 Mori-Tanaka (default) or 0 homogeneous strain with
-  ``n_matrix < 0``). The length is checked, so the pre-2.0 layout with its leading
-  ``nphases`` and file-number slots is refused rather than misread.
+  ``n_matrix < 0``). The length and the values are checked, so the pre-2.0 layout with
+  its leading ``nphases`` and file-number slots is refused rather than misread.
+
+  Optional trailing slots set numerical options; all default to 0, the historical
+  behaviour (giving a slot gives the ones before it):
+  ``[mp, np, n_matrix, closed_form, rule]`` for MIMTN and
+  ``[mp, np, n_matrix, start, closed_form, rule, anderson, rtol]`` for MISCN.
+
+  * ``closed_form = 1``: the Eshelby tensor is taken in closed form (sphere, prolate or
+    oblate spheroid of axis 1) when the reference medium is isotropic, and integrated
+    otherwise. Exact, and no integration: ``L_eff`` of a self-consistent composite of
+    spheres is 7 to 10 times faster (20 times with ``anderson = 2``).
+  * ``rule = 1``: half-sphere quadrature, ``(mp+1)/2`` Gauss-Legendre points in
+    ``cos(theta)`` and ``np`` trapezoidal points in ``phi`` (the integrand is centrally
+    symmetric and periodic in ``phi``): half the evaluations of the default
+    Gauss-Legendre rule for the same accuracy or better.
+  * ``anderson = m`` (MISCN, ``L_eff`` only): Anderson acceleration of depth ``m`` of the
+    self-consistent fixed point (``m = 2`` is a good choice: 65 iterations become about
+    11 at a 50 % concentration). The solver does one self-consistent sweep per
+    localization iteration and ignores it.
+  * ``rtol > 0`` (MISCN, ``L_eff`` only): relative stopping criterion
+    ``||L - L_prev|| <= rtol ||L||`` of that fixed point instead of the absolute
+    ``1e-6`` (in the stiffness unit), so the iteration count no longer depends on the unit.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
 - **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
 
@@ -616,6 +637,43 @@ projection and the algorithmic operator is the exact Jacobian of the discrete ma
 the rate term. Mode 3 falls back to the mode-2 operator for a Tresca or Drucker row, the
 thermomechanical SMA kernel and ``SMA_mono``. A condensed stress state (plane stress, beam,
 truss) keeps mode 3: the law runs 3D and the state is solved around it.
+
+Numerical options of the local Newton
+=====================================
+
+Some kernels take optional trailing ``props`` slots that select a numerical variant of their
+local integration. All default to 0, the historical behaviour, bit for bit; giving a slot gives
+the ones before it. They are read wherever the props go (``solve``, ``sim.umat``, phases).
+
+* ``ncp`` (EPICP ``props[6]``, EPKCP ``props[7]``, ``MODUL`` the slot after the last mechanism,
+  written by ``ModularMaterial(ncp="min")``): the complementarity function of the cutting-plane loop.
+  0 is the normalised Fischer-Burmeister function. 1 takes, on a single surface, the
+  semi-smooth Newton step of :math:`\min(\Delta p^*, -\Phi) = 0` — the classic cutting plane on the
+  active row (Ortiz and Simo 1986), whose first step from :math:`\Delta p = 0` is the full Newton
+  step where Fischer-Burmeister takes two thirds of it — and falls back to Fischer-Burmeister for
+  the rest of the local solve as soon as its error grows. Several coupled surfaces keep
+  Fischer-Burmeister. With isotropic or linear (Prager) kinematic hardening the return is the
+  same to the local tolerance and the local iterations drop from 6 to 3. Armstrong-Frederick back
+  stresses are refused (``MODUL``) and the Chaboche kernels do not take the option: the cutting
+  plane integrates those back stresses along its own iterates, and the full steps of min-NCP give
+  a different return, up to 46 % off the closest-point update on coarse increments of the
+  Chaboche identification programmes where Fischer-Burmeister stays within 4 %, without the
+  residual ever growing (the fallback cannot see it). For those laws, ``tangent_mode = 3`` (the
+  closest-point update) is the converged alternative.
+* ``closed_form`` (EPICP ``props[7]``): with ``tangent_mode = 2``, the consistent tangent of the
+  radial return in closed form (Simo and Taylor 1985),
+  :math:`3K\,\mathbb{I}_{vol} + 2G\theta\,\mathbb{I}_{dev} - 2G\bar\theta\,\mathbf{N}\otimes\mathbf{N}`,
+  instead of the generic assembly with its 6x6 inverse. Same operator to round-off at the
+  converged return.
+
+For EPCHA in a uniaxial 0D path, ``tangent_mode = 1`` (continuum) gives the same iterates as
+the default mode 2 (to :math:`10^{-14}` on the Chaboche identification programmes) for about 27 %
+less time; ``tangent_mode = 3`` (closest point) is a different, backward-Euler update (1 to 2 %
+off the cutting plane there) at about 2.3 times the cost.
+
+The global Newton has its own option, ``solve(..., precision_rel=...)``
+(``solver_params::precision_rel``): the tolerance on the residual norm becomes
+:math:`\max(\mathrm{precision}, \mathrm{precision\_rel}\,|\boldsymbol\tau|)`, see :doc:`python_solver`.
 
 Validation and performance
 ==========================

@@ -311,9 +311,10 @@ bool cutting_plane_return_mapping(
     vec ds = zeros(N);
     double error = 1.0;
     int iter = iter0;
+    ncp_step local_step(control.ncp);
     while (iter < maxiter && error > precision) {
         hooks.jacobian(B);
-        Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
+        local_step(Phi, Y_crit, B, Ds_total, ds, error);
         hooks.update(ds);
         hooks.refresh();
         if (hooks.consistency) error += hooks.consistency();

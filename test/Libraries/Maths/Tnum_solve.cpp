@@ -180,3 +180,38 @@ TEST(Tnum_solve, Fischer_Burmeister_m_small_systems)
         }
     }
 }
+
+TEST(Tnum_solve, min_ncp_step)
+{
+    // linear single surface Phi(Dp) = Phi0 + B Dp: the min-NCP step from Dp = 0 is the exact
+    // return, where Fischer-Burmeister takes two thirds of it
+    const vec Phi = {30.}, Y = {300.};
+    mat B(1, 1);
+    B(0, 0) = -2000.;
+    vec Dp = zeros(1), dp;
+    double error;
+    ncp_step step(NCPMethod::min_fb_fallback);
+    step(Phi, Y, B, Dp, dp, error);
+    EXPECT_NEAR(Dp(0), 30./2000., 1.e-15);
+    EXPECT_FALSE(step.fell_back());
+    vec Dp_fb = zeros(1);
+    Fischer_Burmeister_m(Phi, Y, B, Dp_fb, dp, error);
+    EXPECT_NEAR(Dp_fb(0), (2./3.)*30./2000., 1.e-15);
+    // default method: Fischer_Burmeister_m itself, bit for bit
+    vec Dp_d = zeros(1), dp_d;
+    double error_d;
+    ncp_step def;
+    def(Phi, Y, B, Dp_d, dp_d, error_d);
+    EXPECT_EQ(Dp_d(0), Dp_fb(0));
+    // a growing error switches to Fischer-Burmeister for the rest of the solve
+    vec Dp2 = zeros(1);
+    ncp_step step2(NCPMethod::min_fb_fallback);
+    step2(Phi, Y, B, Dp2, dp, error);
+    const vec Phi_up = {60.};
+    step2(Phi_up, Y, B, Dp2, dp, error);
+    EXPECT_TRUE(step2.fell_back());
+    // option values
+    EXPECT_EQ(ncp_method_of(0., "t"), NCPMethod::fischer_burmeister);
+    EXPECT_EQ(ncp_method_of(1., "t"), NCPMethod::min_fb_fallback);
+    EXPECT_THROW(ncp_method_of(2., "t"), std::invalid_argument);
+}

@@ -158,3 +158,37 @@ TEST(Ttangent_EPICP, convergence_rate_continuum_vs_algorithmic)
         << "algorithmic iters " << r_algo.size()
         << " not fewer than continuum " << r_cont.size();
 }
+
+// Lot 6 options: props[6] = 1 (min-NCP local step), props[7] = 1 (closed-form radial-return
+// tangent). Same converged state as the default to the local tolerance, and the closed form is the
+// generic algorithmic operator at that state.
+TEST(Ttangent_EPICP, numerical_options_match_the_default)
+{
+    const vec base = {70000., 0.3, 1.e-5, 200., 1000., 0.3};
+    arma_rng::set_seed(7);
+    for (int t = 0; t < 20; t++) {
+        const vec dir = randn<vec>(6);
+        const vec DEtot = 6.e-3*dir/norm(dir);
+        mat Lt_ref;
+        vec sigma_ref, statev_ref;
+        for (int variant = 0; variant < 3; variant++) {
+            vec props = base;
+            if (variant == 1) props = join_cols(base, vec{1., 0.});
+            if (variant == 2) props = join_cols(base, vec{1., 1.});
+            vec Etot = zeros(6), statev = zeros(8), sigma = zeros(6);
+            mat Lt = zeros(6, 6), L = zeros(6, 6);
+            double Wm = 0., Wm_r = 0., Wm_ir = 0., Wm_d = 0., tnew_dt = 1.;
+            umat_plasticity_iso("EPICP", Etot, DEtot, sigma, Lt, L, eye(3, 3), props.n_elem, props, 8, statev,
+                                293.15, 0., 0., 1., Wm, Wm_r, Wm_ir, Wm_d, 3, 3, true, tnew_dt, tangent_algorithmic);
+            if (variant == 0) {
+                Lt_ref = Lt;
+                sigma_ref = sigma;
+                statev_ref = statev;
+                continue;
+            }
+            EXPECT_LT(norm(sigma - sigma_ref, "inf"), 1.e-8*norm(sigma_ref, "inf"));
+            EXPECT_LT(fabs(statev(1) - statev_ref(1)), 1.e-8*fabs(statev_ref(1)));
+            EXPECT_LT(abs(Lt - Lt_ref).max(), 1.e-6*abs(Lt_ref).max());
+        }
+    }
+}

@@ -40,16 +40,20 @@
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 // #include <smartplus/Libraries/Homogenization/cylinder_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
+#include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
 
-//Quadrature tables of the Eshelby integrals of an ellipsoidal scheme, whose props are [mp, np, ...]:
-//read from the phase at each pass, so that nested schemes and concurrent solves each use their own
+//Eshelby evaluation settings of an ellipsoidal scheme, whose props are [mp, np, ...] plus the
+//options of mean_field_options: read from the phase at each pass, so that nested schemes and
+//concurrent solves each use their own
 static const eshelby_quadrature &scheme_quadrature(const phase_characteristics &phase) {
-    return eshelby_quadrature_points(static_cast<int>(phase.sptr_matprops->props(0)), static_cast<int>(phase.sptr_matprops->props(1)));
+    const mean_field_options opt = mean_field_options_of(phase);
+    return eshelby_quadrature_points(static_cast<int>(phase.sptr_matprops->props(0)), static_cast<int>(phase.sptr_matprops->props(1)),
+                                     opt.rule, opt.closed_form == 1);
 }
   
 void Lt_Homogeneous_E(phase_characteristics &phase) {

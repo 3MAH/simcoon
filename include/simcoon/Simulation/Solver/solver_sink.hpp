@@ -46,7 +46,8 @@ struct solver_params {
     int miniter = 10;           ///< iteration count below which the step may grow
     int maxiter = 100;          ///< maximum Newton-Raphson iterations per increment
     int inforce = 1;            ///< 0: stop at Dn_mini, 1: enforce & carry residual, 2: enforce silently
-    double precision = 1.E-6;   ///< convergence tolerance on the residual norm
+    double precision = 1.E-6;   ///< convergence tolerance on the residual norm (absolute)
+    double precision_rel = 0.;  ///< > 0: tolerance max(precision, precision_rel |tau|), |tau| the Euclidean norm of the Kirchhoff stress (Voigt); 0: precision alone (default)
     double lambda = 10000.;     ///< penalty stiffness for strain-controlled components
     int tangent_mode = tangent_default; ///< tangent_* constants (parameter.hpp)
 };

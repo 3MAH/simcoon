@@ -14,6 +14,7 @@
 ///@author Chemisky
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -56,6 +57,57 @@ void Fischer_Burmeister_m(const arma::vec &, const arma::vec &, const arma::mat 
 double Fischer_Burmeister_residual(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, const arma::vec &Dp);
 
 void Fischer_Burmeister_m_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);
+
+/**
+ * @brief Complementarity function of a local return-mapping Newton (the loops on Fischer_Burmeister_m).
+ *
+ * The option a kernel exposes through its @c props (see the UMAT catalogue): 0 is the historical
+ * Fischer-Burmeister smoothing, the default.
+ */
+enum class NCPMethod : int {
+    fischer_burmeister = 0,  ///< normalised Fischer-Burmeister function (Fischer_Burmeister_m)
+    min_fb_fallback = 1      ///< min-NCP semi-smooth Newton on a single surface, Fischer-Burmeister once the error grows
+};
+
+/**
+ * @brief The NCP method of a numeric option slot (props), checked: 0 or 1.
+ * @param value the slot value
+ * @param where the caller, for the error message
+ * @throw std::invalid_argument for any other value
+ */
+NCPMethod ncp_method_of(const double &value, const std::string &where);
+
+/**
+ * @brief One Newton step per call of a local complementarity solve, with the chosen function.
+ *
+ * NCPMethod::fischer_burmeister forwards to Fischer_Burmeister_m. NCPMethod::min_fb_fallback takes
+ * the semi-smooth Newton step of \f$ \min(\Delta p^*_i, -\Phi_i) = 0 \f$ (\f$ \Delta p^*_i = \Delta p_i |B_{ii}| \f$):
+ * on an active row (\f$ \Phi_i > 0 \f$ or \f$ -\Phi_i < \Delta p^*_i \f$) the linearised constraint
+ * \f$ \Phi_i + B_{i\cdot}\,\delta p = 0 \f$, the classic cutting plane (Ortiz and Simo 1986), on an
+ * inactive one the multiplier back to zero (primal-dual active set, Hintermueller, Ito and Kunisch
+ * 2002). The first step from \f$ \Delta p = 0 \f$ is the full Newton step, where the Fischer-Burmeister
+ * function only takes two thirds of it: a linear hardening returns in one step instead of six.
+ * Its @c error is \f$ \sum_i 2|r_i|/|Y^{crit}_i| \f$ of the entering iterate, the scale of the
+ * Fischer-Burmeister measure near the solution. It applies to a single surface (one row): a
+ * system of several surfaces keeps the Fischer-Burmeister step, the active set of coupled
+ * surfaces making the plain semi-smooth Newton cycle. When the error grows from one call to the
+ * next, or the row is singular, the solve falls back to Fischer-Burmeister for the remaining
+ * calls (a nonlinear kinematic hardening can make the full step overshoot).
+ *
+ * One object per local solve (its state is the fallback).
+ */
+class ncp_step {
+public:
+    explicit ncp_step(const NCPMethod &method = NCPMethod::fischer_burmeister) : method_(method) {}
+    /// Same arguments and effects as Fischer_Burmeister_m: Dp += dp, error of the entering iterate
+    void operator()(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, arma::vec &Dp, arma::vec &dp, double &error);
+    /// Whether this solve fell back to Fischer-Burmeister
+    bool fell_back() const { return fallback_; }
+private:
+    NCPMethod method_;
+    bool fallback_ = false;
+    double prev_error_ = -1.;
+};
     
 arma::mat denom_FB_m(const arma::vec &, const arma::mat &, const arma::vec &);
     

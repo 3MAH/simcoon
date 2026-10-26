@@ -97,8 +97,14 @@ def solve(
         increment falls below ``Dn_mini`` with ``inforce=0``.
     **params
         Numeric solver controls forwarded to the C++ loop: div_tnew_dt,
-        mul_tnew_dt, miniter, maxiter, inforce, precision, lambda_solver
-        (penalty stiffness of the strain-driven components).
+        mul_tnew_dt, miniter, maxiter, inforce, precision, precision_rel,
+        lambda_solver (penalty stiffness of the strain-driven components).
+        ``precision`` is the absolute tolerance on the norm of the global
+        residual (default 1e-6). ``precision_rel > 0`` makes it
+        ``max(precision, precision_rel * |tau|)``, ``|tau|`` the norm of the
+        Kirchhoff stress (Voigt): a stress-scaled criterion, independent of the
+        stress unit (1e-7 to 1e-8 is typical); 0, the default, keeps the
+        absolute one.
 
     Returns
     -------

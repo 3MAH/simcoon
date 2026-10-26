@@ -191,8 +191,9 @@ bool isotropic_up_to_roundoff(const mat &L)
 }  // namespace
 
 // Eshelby tensor of ell in the medium Lt_local (inclusion frame): the inclusion's own last
-// tensor when the medium has not changed, else the pass memo when given, else the tensors this
-// thread integrated lately, else integrated.
+// tensor when the medium has not changed, else the pass memo when given, else the closed form
+// when the settings allow it and one applies, else the tensors this thread integrated lately,
+// else integrated.
 mat ellipsoid_multi::eshelby_memoized(eshelby_memo *memo, const mat &Lt_local, const ellipsoid &ell, const eshelby_quadrature &quad)
 {
     if (const mat *own = S_loc_memo.find(Lt_local, ell.a1, ell.a2, ell.a3))
@@ -202,7 +203,9 @@ mat ellipsoid_multi::eshelby_memoized(eshelby_memo *memo, const mat &Lt_local, c
     if (hit != nullptr) {
         S = *hit;
     } else {
-        if (const arma::mat::fixed<6,6> *cached = eshelby_cache_find(Lt_local, ell, quad)) {
+        if (quad.closed_form && Eshelby_closed_form(Lt_local, ell.a1, ell.a2, ell.a3, S)) {
+            //isotropic medium, sphere or spheroid: no integration
+        } else if (const arma::mat::fixed<6,6> *cached = eshelby_cache_find(Lt_local, ell, quad)) {
             S = *cached;
         } else {
             S = Eshelby(Lt_local, ell.a1, ell.a2, ell.a3, quad.x, quad.wx, quad.y, quad.wy, quad.mp, quad.np);
@@ -221,7 +224,8 @@ void ellipsoid_multi::fillS_loc(const mat& Lt_m, const ellipsoid &ell, const esh
 {
     Rotation rot = Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
     mat Ltm_local_geom = rot.apply_stiffness(Lt_m, false);
-    S_loc = Eshelby(Ltm_local_geom, ell.a1, ell.a2, ell.a3, quad.x, quad.wx, quad.y, quad.wy, quad.mp, quad.np);
+    if (!(quad.closed_form && Eshelby_closed_form(Ltm_local_geom, ell.a1, ell.a2, ell.a3, S_loc)))
+        S_loc = Eshelby(Ltm_local_geom, ell.a1, ell.a2, ell.a3, quad.x, quad.wx, quad.y, quad.wy, quad.mp, quad.np);
 }
 
 //-------------------------------------

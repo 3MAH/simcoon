@@ -54,12 +54,14 @@ vec translate_ELORT(const vec& p) {
 }
 
 vec translate_EPKCP(const vec& p) {
-    // legacy: E nu alpha sigmaY k m kX; legacy Prager X = kX*a (tensorial),
-    // modular X = (2/3) C a  ->  C = 1.5 kX
-    return vec{0, 0, p(0), p(1), p(2),
-               1,
-               0, 0, 2, 1, 1, 1,          // plasticity, Mises, PowerLaw, Prager
-               p(3), p(4), p(5), 1.5 * p(6)};
+    // legacy: E nu alpha sigmaY k m kX [ncp]; legacy Prager X = kX*a (tensorial),
+    // modular X = (2/3) C a  ->  C = 1.5 kX. The optional p(7), the complementarity option,
+    // is the modular trailing option.
+    const vec head = {0, 0, p(0), p(1), p(2),
+                      1,
+                      0, 0, 2, 1, 1, 1,          // plasticity, Mises, PowerLaw, Prager
+                      p(3), p(4), p(5), 1.5 * p(6)};
+    return (p.n_elem > 7) ? vec(join_cols(head, vec{p(7)})) : head;
 }
 
 vec translate_EPHIL(const vec& p) {

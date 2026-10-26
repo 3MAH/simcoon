@@ -1421,6 +1421,18 @@ class ModularMaterial:
         Elasticity configuration.
     mechanisms : list of Mechanism, optional
         List of strain mechanisms (plasticity, viscoelasticity, damage).
+    ncp : {"fischer_burmeister", "min"} or {0, 1}, optional
+        Complementarity function of the local cutting-plane Newton.
+        ``"fischer_burmeister"`` (0, default) is the historical smoothed function;
+        ``"min"`` (1) takes, on a single surface, the semi-smooth Newton step of
+        min(dp, -Phi) (the classic cutting plane on the active row), and falls back to
+        Fischer-Burmeister as soon as its error grows; several coupled surfaces keep
+        Fischer-Burmeister. It halves the local iterations of a von Mises surface with
+        isotropic or Prager hardening, for the same return to the local tolerance.
+        Armstrong-Frederick back stresses are refused at run time: the cutting plane
+        integrates them along its own iterates and the full steps change the return far
+        beyond the tolerance on coarse increments. Written as a trailing props slot only
+        when it is not the default.
 
     Examples
     --------
@@ -1468,13 +1480,19 @@ class ModularMaterial:
     rate with spurious dissipation in closed cycles).
     """
 
+    _NCP_CODES = {"fischer_burmeister": 0, "min": 1, 0: 0, 1: 1}
+
     def __init__(
         self,
         elasticity: Elasticity,
         mechanisms: Sequence[Mechanism] = (),
+        ncp: Union[str, int] = "fischer_burmeister",
     ):
         self._elasticity = elasticity
         self._mechanisms = list(mechanisms)
+        if ncp not in self._NCP_CODES:
+            raise ValueError(f"ncp must be 'fischer_burmeister' (0) or 'min' (1); got {ncp!r}")
+        self._ncp = self._NCP_CODES[ncp]
         self._props: NDArray[np.float64] | None = None
 
     @property
@@ -1522,6 +1540,10 @@ class ModularMaterial:
         for mech in self._mechanisms:
             values.append(float(mech.mechanism_type))
             values.extend(mech.to_props())
+
+        # Numerical options, trailing, only when not the default (props unchanged otherwise)
+        if self._ncp != 0:
+            values.append(float(self._ncp))
 
         self._props = np.array(values, dtype=np.float64)
         self._props.flags.writeable = False

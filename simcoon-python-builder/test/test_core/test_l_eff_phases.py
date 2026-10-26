@@ -73,7 +73,8 @@ class TestLeffInMemoryPhases:
         np.testing.assert_allclose(L, L_iso, rtol=1e-9)   # a one-phase composite is that phase
 
     @pytest.mark.parametrize("props, message", [
-        ([2.0, 0.0, 20.0, 20.0, 0.0], "got 5 values"),      # the pre-2.0 layout
+        ([2.0, 0.0, 20.0, 20.0, 0.0], "pre-2.0 layout"),    # [nphases, file, mp, np, n_matrix]: closed_form = 20
+        ([2.0, 1.0, 20.0, 20.0, 0.0, 0.0], "got 6 values"),
         ([20.0, 20.0], "got 2 values"),
         ([20.0, 20.0, 2.0], "n_matrix = 2.* is not one of the 2 phases"),
         ([20.0, 20.0, -1.0], "n_matrix = -1"),

@@ -157,6 +157,16 @@ bool newton_correction(const mat &K, const vec &r, vec &Delta) {
     return Delta.is_finite();
 }
 
+// Tolerance of the global residual: the absolute precision, or, with a relative tolerance set,
+// max(precision, precision_rel |tau|) (de Souza Neto et al. 2008, section 4.2): the residual mixes
+// stresses and penalised strains, and a fixed absolute threshold asks the stiff or highly loaded
+// cases for more digits than the softer ones.
+double residual_tolerance(const simcoon::solver_params &ctrl, const vec &tau) {
+    if (ctrl.precision_rel > 0.)
+        return std::max(ctrl.precision, ctrl.precision_rel*norm(tau, 2));
+    return ctrl.precision;
+}
+
 // Material tangent of a law built on F (corate_type_material_tangent) for the Green-Lagrange and
 // Biot residuals: such a law closes on dS/dE, so the Newton asks for it instead of having the box
 // built and pulled back again (two spectral maps per iteration). Between that kernel call and the
@@ -406,7 +416,9 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
     const int &miniter_solver = ctrl.miniter;
     const int &maxiter_solver = ctrl.maxiter;
     const int &inforce_solver = ctrl.inforce;
-    const double &precision_solver = ctrl.precision;
+    // Convergence tolerance of the global residual: ctrl.precision, or max(precision,
+    // precision_rel |tau|) when a relative tolerance is set (re-evaluated with each residual)
+    double precision_solver = ctrl.precision;
     const double &lambda_solver = ctrl.lambda;
     const int &tangent_mode = ctrl.tangent_mode;
 
@@ -627,6 +639,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     ///Saving stress and stress set point at the beginning of the loop
                                 
                                     error = 1.;
+                                    precision_solver = ctrl.precision;
                                     // dS/dE straight from a law built on F for the PKII / Biot residuals
                                     const bool ask_material_tangent = (blocks[i].control_type == 2 || blocks[i].control_type == 4)
                                                                       && material_tangent_serves(umat_name);
@@ -694,6 +707,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         compteur++;
                                         error = norm(residual, 2.);
                                         if (!std::isfinite(error)) error = 1.e30;   // NaN would pass every "error > tol" test as converged
+                                        precision_solver = residual_tolerance(ctrl, sv_M->tau);
 
                                         
                                         if(tnew_dt < 1.) {
@@ -1035,6 +1049,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     ///Saving stress and stress set point at the beginning of the loop
                                     
                                     error = 1.;
+                                    precision_solver = ctrl.precision;
                                     
                                     if (blocks[i].control_type == 1 || blocks[i].control_type == 2)
                                         sv_T->DEtot = zeros(6);
@@ -1148,6 +1163,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         compteur++;
                                         error = norm(residual, 2.);
                                         if (!std::isfinite(error)) error = 1.e30;   // NaN would pass every "error > tol" test as converged
+                                        precision_solver = residual_tolerance(ctrl, sv_T->tau);
 
                                         
                                         if(tnew_dt < 1.) {

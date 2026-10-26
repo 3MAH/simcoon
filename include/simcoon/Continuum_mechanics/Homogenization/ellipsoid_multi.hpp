@@ -216,7 +216,7 @@ protected:
      *
      * @param L0 Matrix (reference medium) stiffness tensor (6×6)
      * @param ell Ellipsoid geometry (aspect ratios and orientation)
-     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
+     * @param quad Evaluation settings and quadrature tables of the Eshelby tensors (eshelby_quadrature_points)
      */
     virtual void fillS_loc(const arma::mat&, const ellipsoid &, const eshelby_quadrature &);
 
@@ -227,7 +227,7 @@ protected:
      *
      * @param L0 Matrix stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
-     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
+     * @param quad Evaluation settings and quadrature tables of the Eshelby tensors (eshelby_quadrature_points)
      */
     virtual void fillP_loc(const arma::mat&, const ellipsoid &, const eshelby_quadrature &);
 
@@ -240,7 +240,7 @@ protected:
      * @param L0 Matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
-     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
+     * @param quad Evaluation settings and quadrature tables of the Eshelby tensors (eshelby_quadrature_points)
      * @param memo Optional eshelby_memo of the current homogenization pass: the Eshelby
      *        tensor is taken from it when the same inclusion geometry has already been met
      *        in the same (rotated) medium, and stored in it otherwise.
@@ -256,7 +256,7 @@ protected:
      * @param L0 Isotropic matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
-     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
+     * @param quad Evaluation settings and quadrature tables of the Eshelby tensors (eshelby_quadrature_points)
      */
     virtual void fillT_iso(const arma::mat&, const arma::mat&, const ellipsoid &, const eshelby_quadrature &, eshelby_memo * = nullptr);
 
@@ -269,7 +269,7 @@ protected:
      * @param L0 Matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
-     * @param quad Quadrature tables of the Eshelby integral (eshelby_quadrature_points)
+     * @param quad Evaluation settings and quadrature tables of the Eshelby tensors (eshelby_quadrature_points)
      */
     virtual void fillT_mec_in(const arma::mat&, const arma::mat&, const ellipsoid &, const eshelby_quadrature &, eshelby_memo * = nullptr);
 

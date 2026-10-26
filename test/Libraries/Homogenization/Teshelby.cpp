@@ -177,3 +177,62 @@ TEST(Teshelby, Gauss_is_the_weighted_sum_of_calG)
         }
     }
 }
+
+// Eshelby_closed_form: the sphere / spheroid formulas for an isotropic medium, and nothing else.
+TEST(Teshelby, closed_form_applies_to_isotropic_spheroids_only)
+{
+    const double nu = 0.3;
+    mat L = L_iso(70000., nu, "Enu");
+    mat S;
+    ASSERT_TRUE(Eshelby_closed_form(L, 1., 1., 1., S));
+    EXPECT_LT(norm(S - Eshelby_sphere(nu), "fro"), 1.E-14);
+    ASSERT_TRUE(Eshelby_closed_form(L, 4., 2., 2., S));
+    EXPECT_LT(norm(S - Eshelby_prolate(nu, 2.), "fro"), 1.E-14);
+    ASSERT_TRUE(Eshelby_closed_form(L, 0.5, 2., 2., S));
+    EXPECT_LT(norm(S - Eshelby_oblate(nu, 0.25), "fro"), 1.E-14);
+    // and they are the limit of the integral
+    const eshelby_quadrature &q = eshelby_quadrature_points(200, 200);
+    for (double ar : {3., 0.3}) {
+        ASSERT_TRUE(Eshelby_closed_form(L, ar, 1., 1., S));
+        mat S_num = Eshelby(L, ar, 1., 1., q.x, q.wx, q.y, q.wy, q.mp, q.np);
+        EXPECT_LT(norm(S - S_num, "fro"), 1.E-9 * norm(S, "fro")) << "aspect ratio " << ar;
+    }
+    mat S0 = eye(6, 6);
+    S = S0;
+    EXPECT_FALSE(Eshelby_closed_form(L, 1., 2., 3., S));            // general ellipsoid
+    EXPECT_FALSE(Eshelby_closed_form(L, 2., 2., 1., S));            // spheroid of axis 3
+    EXPECT_FALSE(Eshelby_closed_form(L, 1.005, 1., 1., S));         // too close to a sphere
+    mat L_ti = L;
+    L_ti(0, 0) *= 1.01;
+    EXPECT_FALSE(Eshelby_closed_form(L_ti, 2., 1., 1., S));         // anisotropic medium
+    EXPECT_EQ(norm(S - S0, "fro"), 0.);
+}
+
+// Rule 1 (half sphere, trapezoidal rule in phi): its own tables, the same integral.
+TEST(Teshelby, half_sphere_rule)
+{
+    const eshelby_quadrature &g = eshelby_quadrature_points(40, 40);
+    const eshelby_quadrature &b = eshelby_quadrature_points(40, 40, 1);
+    const eshelby_quadrature &c = eshelby_quadrature_points(40, 40, 1, true);
+    EXPECT_NE(&g, &b);
+    EXPECT_NE(&b, &c);
+    EXPECT_EQ(&eshelby_quadrature_points(40, 40, 1), &b);
+    EXPECT_EQ(b.mp, 20);
+    EXPECT_EQ(b.np, 40);
+    EXPECT_NEAR(accu(b.wx), 2., 1.E-11);                            // twice the measure of [0, 1]
+    EXPECT_NEAR(accu(b.wy), 2. * simcoon::pi, 1.E-13);
+    EXPECT_GE(b.x.min(), 0.);
+    EXPECT_FALSE(g.closed_form);
+    EXPECT_TRUE(c.closed_form);
+    EXPECT_THROW(eshelby_quadrature_points(40, 40, 2), std::invalid_argument);
+
+    const double nu = 0.3;
+    mat L = L_iso(70000., nu, "Enu");
+    mat S_b = Eshelby(L, 1., 1., 1., b.x, b.wx, b.y, b.wy, b.mp, b.np);
+    EXPECT_LT(norm(S_b - Eshelby_sphere(nu), "fro"), 1.E-12);
+    // a prolate spheroid: the half-sphere rule with half the points is as accurate
+    mat S_ref = Eshelby_prolate(nu, 10.);
+    mat S_g = Eshelby(L, 10., 1., 1., g.x, g.wx, g.y, g.wy, g.mp, g.np);
+    mat S_10 = Eshelby(L, 10., 1., 1., b.x, b.wx, b.y, b.wy, b.mp, b.np);
+    EXPECT_LT(norm(S_10 - S_ref, "fro"), 1.5 * norm(S_g - S_ref, "fro"));
+}

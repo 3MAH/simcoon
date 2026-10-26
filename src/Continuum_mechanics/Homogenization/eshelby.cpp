@@ -25,6 +25,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <armadillo>
@@ -512,34 +513,92 @@ void points(vec &x, vec &wx, vec &y, vec &wy, const int &mp, const int &np)
 
 }
 
-eshelby_quadrature::eshelby_quadrature(const int &m, const int &n) : mp(m), np(n), x(m), wx(m), y(n), wy(n)
+eshelby_quadrature::eshelby_quadrature(const int &m, const int &n, const int &r, const bool &cf)
+    : mp(r == 1 ? (m+1)/2 : m), np(n), rule(r), closed_form(cf), mp_asked(m)
 {
-    points(x, wx, y, wy, mp, np);
+    if (rule == 0) {
+        x.set_size(mp);
+        wx.set_size(mp);
+        y.set_size(np);
+        wy.set_size(np);
+        points(x, wx, y, wy, mp, np);
+    }
+    else {
+        //2*mp Gauss-Legendre points on [-1, 1], symmetric: the upper half, weights doubled
+        vec x_full(2*mp), wx_full(2*mp), y_unused(1), wy_unused(1);
+        points(x_full, wx_full, y_unused, wy_unused, 2*mp, 1);
+        x = x_full.subvec(mp, 2*mp-1);
+        wx = 2.*wx_full.subvec(mp, 2*mp-1);
+        //trapezoidal rule over one period of phi
+        y.set_size(np);
+        wy.set_size(np);
+        for (int i=0; i<np; i++) {
+            y(i) = 2.*simcoon::pi*i/np;
+            wy(i) = 2.*simcoon::pi/np;
+        }
+    }
 }
 
-const eshelby_quadrature &eshelby_quadrature_points(const int &mp, const int &np)
+const eshelby_quadrature &eshelby_quadrature_points(const int &mp, const int &np, const int &rule, const bool &closed_form)
 {
     if (mp < 1 || np < 1) {
         throw std::invalid_argument("Eshelby integrals: mp = " + std::to_string(mp) + " and np = " + std::to_string(np)
                                     + " integration points, at least 1 of each is needed");
     }
-    // Last tables of this thread: no lock while a thread keeps integrating with one (mp, np)
+    if (rule != 0 && rule != 1) {
+        throw std::invalid_argument("Eshelby integrals: rule = " + std::to_string(rule) + " is neither 0 (Gauss-Legendre "
+                                    "on the sphere) nor 1 (half sphere, trapezoidal rule in phi)");
+    }
+    // Last tables of this thread: no lock while a thread keeps integrating with one setting
     thread_local const eshelby_quadrature *last = nullptr;
-    if (last != nullptr && last->mp == mp && last->np == np)
+    if (last != nullptr && last->mp_asked == mp && last->np == np && last->rule == rule && last->closed_form == closed_form)
         return *last;
 
     // Never destroyed on purpose (as the former ellipsoid_multi statics): a static armadillo
     // object's destructor would run at DLL unload, which is unsafe on Windows. The tables stay
     // valid until exit, whatever thread asked for them first.
+    typedef std::tuple<int, int, int, bool> key_type;
     static std::mutex &tables_mutex = *new std::mutex();
-    static std::map<std::pair<int, int>, const eshelby_quadrature *> &tables = *new std::map<std::pair<int, int>, const eshelby_quadrature *>();
+    static std::map<key_type, const eshelby_quadrature *> &tables = *new std::map<key_type, const eshelby_quadrature *>();
     std::lock_guard<std::mutex> lock(tables_mutex);
-    auto it = tables.find(std::make_pair(mp, np));
+    const key_type key(mp, np, rule, closed_form);
+    auto it = tables.find(key);
     if (it == tables.end()) {
-        it = tables.emplace(std::make_pair(mp, np), new eshelby_quadrature(mp, np)).first;
+        it = tables.emplace(key, new eshelby_quadrature(mp, np, rule, closed_form)).first;
     }
     last = it->second;
     return *last;
+}
+
+bool Eshelby_closed_form(const mat &L, const double &a1, const double &a2, const double &a3, mat &S)
+{
+    if (a2 != a3)
+        return false;
+    const double ar = a1/a2;
+    if (ar != 1. && fabs(ar - 1.) < 1.E-2)
+        return false;
+    const double lambda = L(0,1);
+    const double mu = L(3,3);
+    const double tol = 1.E-10*abs(L).max();
+    for (int j=0; j<6; j++) {
+        for (int i=0; i<6; i++) {
+            double L_iso_ij = 0.;
+            if (i < 3 && j < 3)
+                L_iso_ij = (i == j) ? lambda + 2.*mu : lambda;
+            else if (i == j)
+                L_iso_ij = mu;
+            if (!(fabs(L(i,j) - L_iso_ij) <= tol))
+                return false;
+        }
+    }
+    const double nu = lambda/(2.*(lambda + mu));
+    if (ar == 1.)
+        S = Eshelby_sphere(nu);
+    else if (ar > 1.)
+        S = Eshelby_prolate(nu, ar);
+    else
+        S = Eshelby_oblate(nu, ar);
+    return true;
 }
 
 } //namespace simcoon

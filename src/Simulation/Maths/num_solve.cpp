@@ -17,9 +17,12 @@
 
 #include <iostream>
 #include <assert.h>
+#include <stdexcept>
+#include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/num_solve.hpp>
 
 using namespace std;
 using namespace arma;
@@ -379,6 +382,43 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     
 }
                      
+NCPMethod ncp_method_of(const double &value, const string &where)
+{
+    if (value == 0.) return NCPMethod::fischer_burmeister;
+    if (value == 1.) return NCPMethod::min_fb_fallback;
+    throw std::invalid_argument(where + ": the complementarity option must be 0 (Fischer-Burmeister) or 1 "
+                                "(min-NCP with a Fischer-Burmeister fallback); got " + std::to_string(value));
+}
+
+void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp, vec &dp, double &error)
+{
+    // Several surfaces stay on Fischer-Burmeister: the active set of coupled surfaces makes the
+    // plain semi-smooth Newton cycle (SMA with three surfaces)
+    if (method_ == NCPMethod::fischer_burmeister || fallback_ || Phi.n_elem != 1) {
+        Fischer_Burmeister_m(Phi, Y_crit, denom, Dp, dp, error);
+        return;
+    }
+    // min(Dp*, -Phi) = 0, Dp* = Dp |B|: an active row solves Phi + B dp = 0 (classic cutting
+    // plane), an inactive one resets its multiplier
+    const double B = denom(0, 0);
+    const double f = fabs(B);
+    const bool active = (Phi(0) > 0.) || (-Phi(0) < Dp(0)*f);
+    const double r = active ? -Phi(0) : Dp(0)*f;
+    const double J = active ? -B : ((f > 0.) ? f : 1.);
+    const double err = 2.*fabs(r)/fabs(Y_crit(0));
+    // a growing error: the semi-smooth Newton overshoots or cycles, Fischer-Burmeister from here
+    if ((prev_error_ >= 0. && err > prev_error_) || !(fabs(J) > simcoon::iota)) {
+        fallback_ = true;
+        Fischer_Burmeister_m(Phi, Y_crit, denom, Dp, dp, error);
+        return;
+    }
+    prev_error_ = err;
+    dp.set_size(1);
+    dp(0) = -r/J;
+    Dp(0) += dp(0);
+    error = err;
+}
+
 void Fischer_Burmeister_m_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_crit, const mat &denom, const mat &denom_l, vec &Dp, vec &dp, double &error)
 {
     int n=Phi_p.n_elem;

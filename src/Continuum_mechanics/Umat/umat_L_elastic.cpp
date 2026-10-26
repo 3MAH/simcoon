@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <map>
+#include <vector>
 #include <assert.h>
 #include <string.h>
 #include <math.h>
@@ -116,8 +117,14 @@ void get_L_elastic(phase_characteristics &rve)
             mat Lt_n = zeros(6,6);
             int nbiter=0;
             double error = 1.;
+            //Options (props of MISCN, see mean_field_options): stopping criterion, absolute by
+            //default, and depth of the Anderson acceleration of the fixed point Lt <- g(Lt)
+            const mean_field_options opt = mean_field_options_of(rve);
+            double tol = simcoon::precision_micro;
+            std::vector<vec> dG, dF;            //differences of the last iterates g and residuals f = g - Lt
+            vec g_prev, f_prev;
             
-            while ((error > simcoon::precision_micro)&&(nbiter <= simcoon::maxiter_micro)) {
+            while ((error > tol)&&(nbiter <= simcoon::maxiter_micro)) {
                 Lt_n = umat_M->Lt;
                 for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                     get_L_elastic(rve.sub_phases[i]);
@@ -130,7 +137,40 @@ void get_L_elastic(phase_characteristics &rve)
                 }
                 //Frobenius norm: no SVD, and ||.||_2 <= ||.||_F keeps the criterion conservative
                 error = norm(umat_M->Lt - Lt_n, "fro");
+                if (opt.rtol > 0.)
+                    tol = opt.rtol*norm(umat_M->Lt, "fro");
                 nbiter++;
+
+                //Anderson acceleration (type II, depth m): the next medium is the combination of
+                //the last iterates that minimizes the linearized residual (least squares on the
+                //residual differences, slightly regularized); kept as is when that fails
+                if (opt.anderson > 0 && error > tol) {
+                    const vec g = vectorise(umat_M->Lt);
+                    const vec f = g - vectorise(Lt_n);
+                    if (!g_prev.is_empty()) {
+                        dG.push_back(g - g_prev);
+                        dF.push_back(f - f_prev);
+                        if (static_cast<int>(dF.size()) > opt.anderson) {
+                            dG.erase(dG.begin());
+                            dF.erase(dF.begin());
+                        }
+                    }
+                    g_prev = g;
+                    f_prev = f;
+                    if (!dF.empty()) {
+                        const uword k = dF.size();
+                        mat DF(36, k), DG(36, k);
+                        for (uword q=0; q<k; q++) {
+                            DF.col(q) = dF[q];
+                            DG.col(q) = dG[q];
+                        }
+                        mat normal = DF.t()*DF;
+                        normal.diag() += 1.E-10*trace(normal) + 1.E-300;
+                        vec gamma;
+                        if (solve(gamma, normal, DF.t()*f, solve_opts::likely_sympd + solve_opts::no_approx))
+                            umat_M->Lt = reshape(g - DG*gamma, 6, 6);
+                    }
+                }
              }
             break;
         }

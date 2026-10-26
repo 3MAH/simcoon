@@ -49,6 +49,12 @@ namespace simcoon {
 ///@brief props[3] : J2 equivalent yield stress limit : sigmaY
 ///@brief props[4] : hardening parameter k
 ///@brief props[5] : exponent m
+///@brief Optional numerical options (0, the default, is the historical behaviour; giving a slot
+///@brief gives the ones before it):
+///@brief props[6] : local complementarity, 0 Fischer-Burmeister, 1 min-NCP with a
+///@brief            Fischer-Burmeister fallback (NCPMethod)
+///@brief props[7] : 1: algorithmic tangent in closed form (radial return, Simo and Taylor 1985),
+///@brief            for tangent_mode = 2
 
 ///@brief The elastic-plastic UMAT with isotropic hardening requires 8 statev:
 ///@brief statev[0] : T_init : Initial temperature
@@ -89,11 +95,18 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
 {
 
     UNUSED(umat_name);
-    UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
     
+    // Numerical options (trailing props, 0 = historical behaviour)
+    const NCPMethod ncp = (nprops > 6) ? ncp_method_of(props(6), "EPICP props(6)") : NCPMethod::fischer_burmeister;
+    if (nprops > 7 && props(7) != 0. && props(7) != 1.) {
+        throw std::invalid_argument("EPICP props(7): the closed-form tangent option must be 0 or 1; got "
+                                    + std::to_string(props(7)));
+    }
+    const bool closed_form_tangent = (nprops > 7) && (props(7) == 1.);
+
     //From the props to the material properties
     double E = props(0);
     double nu= props(1);
@@ -212,6 +225,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         }
     }
     else {
+    ncp_step local_step(ncp);
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
@@ -240,7 +254,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
             error = 0.;
         }
         else {
-            Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+            local_step(Phi, Y_crit, B, Ds_j, ds_j, error);
         }
         
         s_j(0) += ds_j(0);
@@ -277,9 +291,29 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
             return dLambda_dsigma_l;
         };
     }
-    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
-        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma);
-    Lt = ct.Lt;
+    if (closed_form_tangent && !use_cpp && tangent_mode == simcoon::tangent_algorithmic && Ds_j(0) > simcoon::iota) {
+        // Consistent tangent of the radial return in closed form (Simo and Taylor 1985; de Souza Neto
+        // et al. 2008, box 7.4), L = 3K Ivol + 2G Idev:
+        //   Lt = 3K Ivol + 2G theta Idev - 2G theta_bar N N^T,  N = s/|s|,
+        //   theta = 1 - 3G Dp / q_tr,  theta_bar = 1/(1 + H/(3G)) - (1 - theta),
+        // q_tr = q + 3G Dp the trial von Mises stress and H = dR/dp at the converged p. Exact at the
+        // converged return; the generic route inverts a 6x6.
+        const double G = E/(2.*(1.+nu));
+        const double K_b = E/(3.*(1.-2.*nu));
+        const double q_tr = Mises_stress(stress) + 3.*G*Dp;
+        const double theta = 1. - 3.*G*Dp/q_tr;
+        const double theta_bar = 1./(1. + hardening.dR_dp(p)/(3.*G)) - (1. - theta);
+        const vec s_dev = dev(stress);
+        const double s_norm = sqrt(s_dev(0)*s_dev(0) + s_dev(1)*s_dev(1) + s_dev(2)*s_dev(2)
+                                   + 2.*(s_dev(3)*s_dev(3) + s_dev(4)*s_dev(4) + s_dev(5)*s_dev(5)));
+        const vec N = s_dev/s_norm;
+        Lt = 3.*K_b*Ivol() + 2.*G*theta*Idev() - 2.*G*theta_bar*(N*N.t());
+    }
+    else {
+        const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
+            tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma);
+        Lt = ct.Lt;
+    }
 
     std::vector<double> P_theta(1);
     P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));

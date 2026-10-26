@@ -336,42 +336,69 @@ arma::mat T_II(const arma::mat &, const double &, const double &, const double &
 void points(arma::vec &, arma::vec &, arma::vec &, arma::vec &, const int &, const int &);
 
 /**
- * @brief Gauss-Legendre tables of the Eshelby integrals for one (mp, np), shared and immutable.
+ * @brief How the Eshelby tensors of a mean-field scheme are evaluated: the quadrature tables of
+ * the integral for one (mp, np, rule) and whether closed forms may replace it. Shared and immutable.
  *
- * @details The only way to obtain one is eshelby_quadrature_points(), which computes the tables
- * of each (mp, np) once (with *points*) and hands out a const reference to them: they are never
- * modified nor freed afterwards, so any thread can use them while other threads integrate with
- * other (mp, np). A (mp, np) pair identifies its tables exactly.
+ * @details The only way to obtain one is eshelby_quadrature_points(), which builds each
+ * (mp, np, rule, closed_form) once and hands out a const reference to it: never modified nor
+ * freed afterwards, so any thread can use it while other threads integrate with other settings.
+ * A setting identifies its tables exactly (the object address can serve as a cache key).
+ *
+ * Rules (the integrand is centrally symmetric, G(-xi) = G(xi)):
+ * - 0: Gauss-Legendre on the whole sphere, mp points in cos(theta) over [-1, 1] and np points in
+ *   phi over [0, 2 pi] (the historical rule, mp x np evaluations);
+ * - 1: half sphere, (mp+1)/2 Gauss-Legendre points in cos(theta) over [0, 1] (weights doubled)
+ *   and np equally spaced points in phi with the trapezoidal rule, which converges spectrally on
+ *   this periodic integrand: half the evaluations for an accuracy as good or better.
  */
 struct eshelby_quadrature {
-    int mp;             ///< number of integration points in the polar direction
-    int np;             ///< number of integration points in the azimuthal direction
-    arma::vec x;        ///< polar points (mp)
-    arma::vec wx;       ///< polar weights (mp)
-    arma::vec y;        ///< azimuthal points (np)
-    arma::vec wy;       ///< azimuthal weights (np)
+    int mp;             ///< number of polar points in the tables (mp, or (mp+1)/2 for rule 1)
+    int np;             ///< number of azimuthal points in the tables
+    int rule;           ///< 0 Gauss-Legendre on the sphere, 1 half sphere with a trapezoidal rule in phi
+    bool closed_form;   ///< use the closed forms (isotropic medium, sphere or spheroid) when they apply
+    arma::vec x;        ///< polar points (cos(theta))
+    arma::vec wx;       ///< polar weights
+    arma::vec y;        ///< azimuthal points
+    arma::vec wy;       ///< azimuthal weights
 
     eshelby_quadrature(const eshelby_quadrature &) = delete;
     eshelby_quadrature &operator=(const eshelby_quadrature &) = delete;
 
 private:
-    eshelby_quadrature(const int &, const int &);
-    friend const eshelby_quadrature &eshelby_quadrature_points(const int &, const int &);
+    int mp_asked;       ///< the mp of the request (the key)
+    eshelby_quadrature(const int &, const int &, const int &, const bool &);
+    friend const eshelby_quadrature &eshelby_quadrature_points(const int &, const int &, const int &, const bool &);
 };
 
 /**
- * @brief The shared Gauss-Legendre tables of the Eshelby integrals for (mp, np).
+ * @brief The shared Eshelby evaluation settings and quadrature tables for (mp, np, rule, closed_form).
  * @param mp the number of integration points in the polar direction (at least 1)
  * @param np the number of integration points in the azimuthal direction (at least 1)
- * @return A const reference to the tables, valid until the process exits.
- * @details Thread-safe: the tables of a new (mp, np) are computed once under a lock, and each
- * thread remembers the last tables it asked for. The values are those of *points*.
+ * @param rule 0 (default) Gauss-Legendre on the sphere, 1 half sphere with a trapezoidal rule in phi
+ * @param closed_form false (default): always integrate; true: the schemes use the closed forms
+ *        (Eshelby_sphere, Eshelby_prolate, Eshelby_oblate) when the medium is isotropic and the
+ *        inclusion a sphere or a spheroid of axis 1, and integrate otherwise
+ * @return A const reference, valid until the process exits.
+ * @details Thread-safe: each new setting is built once under a lock, and each thread remembers
+ * the last one it asked for. Rule 0 tables are those of *points*.
  * @code
         const eshelby_quadrature &q = eshelby_quadrature_points(50, 50);
         mat S = Eshelby(L, a1, a2, a3, q.x, q.wx, q.y, q.wy, q.mp, q.np);
  * @endcode
 */
-const eshelby_quadrature &eshelby_quadrature_points(const int &, const int &);
+const eshelby_quadrature &eshelby_quadrature_points(const int &mp, const int &np, const int &rule = 0, const bool &closed_form = false);
+
+/**
+ * @brief Closed-form Eshelby tensor of an inclusion in an isotropic medium, when one applies.
+ * @param L stiffness of the medium (6x6), in the inclusion frame
+ * @param a1, a2, a3 semi-axes of the inclusion
+ * @param S the Eshelby tensor, set when the function returns true
+ * @return true when L is isotropic (every entry within 1e-10 of its largest one from the
+ * isotropic tensor of lambda = L(0,1), mu = L(3,3)) and the inclusion is a sphere or a spheroid
+ * of axis 1 (a2 = a3) whose aspect ratio a1/a2 is 1 or at least 1% away from 1 (closer to 1 the
+ * spheroid formulas lose accuracy by cancellation); false otherwise, S untouched.
+ */
+bool Eshelby_closed_form(const arma::mat &L, const double &a1, const double &a2, const double &a3, arma::mat &S);
 
 
 /** @} */ // end of eshelby group

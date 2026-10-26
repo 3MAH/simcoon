@@ -103,6 +103,7 @@ private:
     // Return-mapping controls (local internal-equilibrium Newton loop)
     int maxiter_;           ///< Maximum iterations for return mapping
     double precision_;      ///< Convergence tolerance
+    NCPMethod ncp_ = NCPMethod::fischer_burmeister;   ///< complementarity function of the cutting plane
 
     /// Composition invariant cached by initialize(): the flow-rule drift
     /// guard of run() is armed only when at least TWO guarded constraint
@@ -211,6 +212,9 @@ public:
      *     - N_prony, then N_prony quadruples of (E_i, nu_i, etaB_i, etaS_i)
      *   - For damage (type 2):
      *     - damage_type (0=linear, 1=exp, 2=power, 3=weibull), Y_0, Y_c, [type-specific params]
+     * - Optional numerical options after the last mechanism (absent or 0: historical behaviour):
+     *   - props[i]: local complementarity of the cutting plane, 0 Fischer-Burmeister, 1 min-NCP with
+     *     a Fischer-Burmeister fallback (NCPMethod; ModularMaterial(ncp=...))
      *
      * @param props Material properties vector
      * @param offset Starting offset (default: 0)

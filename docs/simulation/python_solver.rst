@@ -133,8 +133,11 @@ The mean-field models (MIHEN, MIMTN, MISCN, MIPLN) take their sub-phases in memo
 as :class:`~simcoon.solver.micromechanics.Ellipsoid` or
 :class:`~simcoon.solver.micromechanics.Layer` objects passed to ``solve(phases=...)``
 or ``sim.L_eff(..., phases=...)`` (see :doc:`solver`, ``phases``); their own ``props``
-carry only the scheme's settings, ``[mp, np, n_matrix]`` for Mori-Tanaka (see
-:doc:`umat_catalog`). Every orientation
+carry only the scheme's settings, ``[mp, np, n_matrix]`` for Mori-Tanaka, plus optional
+numerical options (closed-form Eshelby tensors, half-sphere quadrature, Anderson
+acceleration; see :doc:`umat_catalog`). For an orientation distribution,
+:func:`~simcoon.solver.micromechanics.discretize_odf` with ``weights="fourier"`` gives the
+exact Mori-Tanaka average (isotropic matrix) with a handful of phases. Every orientation
 in those objects is a :class:`simcoon.Rotation`: the material frame of a phase
 (``material_orientation``) and the geometry of an inclusion or a layer
 (``geometry_orientation``). Any of these forms is accepted and coerced:
@@ -228,7 +231,8 @@ Solver parameters
 -----------------
 
 ``solve()`` exposes the numeric controls of the adaptive Newton loop as
-keyword arguments: ``precision`` (default 1e-6), ``maxiter``/``miniter``,
+keyword arguments: ``precision`` (default 1e-6, absolute), ``precision_rel`` (default 0;
+``> 0`` makes the tolerance ``max(precision, precision_rel * |tau|)``), ``maxiter``/``miniter``,
 ``div_tnew_dt``/``mul_tnew_dt`` (time-step cut/growth factors), ``inforce``,
 ``lambda_solver`` (penalty stiffness of strain-driven components), plus
 ``tangent_mode`` (``'none'``, ``'continuum'``, ``'algorithmic'`` — default)
