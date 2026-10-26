@@ -110,6 +110,24 @@ This works with **any** file format — simcoon input files, FE meshes, JSON
 configs, etc. The key system is deliberately simple: it performs string
 replacement, making it compatible with any simulation tool.
 
+Inside an optimization loop, ``KeyTemplate`` does the copy and the
+substitutions of parameters and constants at once: the templates are read
+once, kept in memory, and each working file is written once per evaluation
+(same content as ``copy_parameters`` + ``apply_parameters`` +
+``apply_constants``):
+
+.. code-block:: python
+
+   from simcoon.parameter import KeyTemplate
+
+   template = KeyTemplate("keys", params, consts)
+
+   def cost(x):
+       for p, v in zip(params, x):
+           p.value = v
+       template.write("data")
+       ...
+
 
 ``identification()`` — Global Optimization
 -------------------------------------------
@@ -149,6 +167,52 @@ straight to :func:`~simcoon.solver.solve`, and leave ``sim_input_files`` out.
   ``popsize``, ``tol``, ``seed``, ``polish=True``, ``disp``, etc.)
 
 **Returns:** ``scipy.optimize.OptimizeResult``
+
+Bounded least squares
+^^^^^^^^^^^^^^^^^^^^^
+
+Most identification costs are sums of squared differences between a model and
+experiments. ``method="least_squares"`` minimizes them with the bounded
+trust-region reflective algorithm of ``scipy.optimize.least_squares``, which
+exploits that structure and typically needs 7 to 20 times fewer model
+evaluations than differential evolution. The cost function then returns the
+**vector of residuals**; ``calc_residuals`` builds it with the arguments of
+``calc_cost`` (its sum of squares is the ``"mse"``, ``"nmse"`` or
+``"nmse_per_response"`` cost):
+
+.. code-block:: python
+
+   from simcoon.identify import identification, calc_residuals
+
+   def residuals(x):
+       y_num = run_model(x)
+       return calc_residuals(y_exp, y_num, metric="nmse_per_response")
+
+   result = identification(residuals, params, method="least_squares",
+                           n_starts=3, seed=0)
+   cost = np.sum(result.fun ** 2)   # the calc_cost value at the solution
+
+- The parameters are mapped onto [0, 1] (``scale="auto"``: logarithmically when
+  the lower bound is positive, linearly otherwise; or ``"linear"``/``"log"``,
+  per parameter if needed). The Jacobian is computed by finite differences in
+  these coordinates (``diff_step``, relative step, default ``sqrt(eps)``).
+- The first start is ``Parameter.value`` where set, the middle of the scaled
+  range otherwise; ``n_starts - 1`` more are drawn by Latin hypercube sampling
+  (``seed``), and the best result is kept (``result.starts`` lists them all).
+- A model failure is best returned as NaN residuals: the trial step is rejected
+  and the trust region shrunk.
+- Other ``least_squares`` options (``xtol``, ``ftol``, ``gtol``, ``max_nfev``,
+  ``loss``…) are forwarded.
+
+Parallel evaluations
+^^^^^^^^^^^^^^^^^^^^
+
+``n_threads`` (default 1, serial) evaluates the cost function in a pool of
+threads: the finite-difference columns of the Jacobian for
+``"least_squares"`` (the result does not depend on the number of threads), a
+whole generation for differential evolution (``updating="deferred"``). It
+pays off because :func:`~simcoon.solver.solve` and ``L_eff`` release the GIL,
+and requires a thread-safe cost function.
 
 For more control (other optimizers, constraints, custom initialization),
 call ``scipy.optimize`` directly — the ``Parameter`` objects provide the

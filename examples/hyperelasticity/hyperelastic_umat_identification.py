@@ -11,10 +11,15 @@ rubber data using simcoon "as it ships":
   transverse-equilibrium condition (zero stress on the free faces) is handled
   *inside* the solver through mixed control, so there is no hand-written
   ``fsolve`` loop.
-- **Optimizer**: :func:`simcoon.identification` (a thin wrapper around
-  ``scipy.optimize.differential_evolution``) reading bounds from
+- **Optimizer**: :func:`simcoon.identification` with
+  ``method="least_squares"`` (bounded trust-region reflective least squares
+  from three starting points) reading bounds from
   :class:`simcoon.parameter.Parameter` objects.
-- **Cost**: :func:`simcoon.calc_cost` with the ``"nmse_per_response"`` metric.
+- **Cost**: :func:`simcoon.calc_residuals`, the residuals whose sum of squares
+  is :func:`simcoon.calc_cost` with the ``"nmse_per_response"`` metric.
+- **Shortcut**: the stress is linear in :math:`(C_{10}, C_{01})` at fixed
+  :math:`\\kappa`, so a linear least-squares fit on three simulations per case
+  gives the same parameters (last section).
 
 This is the library-native counterpart of
 ``examples/analysis/hyperelastic_parameter_identification.py``, which solves
@@ -38,10 +43,11 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.optimize import lsq_linear
 
 import simcoon as sim
 from simcoon.parameter import Parameter
-from simcoon.identify import identification, calc_cost
+from simcoon.identify import identification, calc_residuals
 
 
 ###############################################################################
@@ -141,8 +147,8 @@ def model_pk1(lambda_exp, props, programme):
 
 
 ###############################################################################
-# Cost function: ``sim.calc_cost`` with NMSE-per-response
-# ------------------------------------------------------
+# Residuals: ``sim.calc_residuals`` with NMSE-per-response
+# --------------------------------------------------------
 #
 # The analytical example
 # (``examples/analysis/hyperelastic_parameter_identification.py``) builds its
@@ -155,12 +161,15 @@ def model_pk1(lambda_exp, props, programme):
 # pooled, not normalised one by one: the case with the largest stresses weighs
 # most (``w_test`` can rebalance them).
 #
-# ``calc_cost`` expects one 2-D array of shape ``(n_points, n_responses)`` per
-# test; with a single stress response per test the arrays are ``(n_points, 1)``.
+# The least-squares optimizer works on the residuals themselves:
+# :func:`simcoon.calc_residuals` returns, with the same arguments, the vector
+# whose sum of squares is ``calc_cost``. Both expect one 2-D array of shape
+# ``(n_points, n_responses)`` per test; with a single stress response per test
+# the arrays are ``(n_points, 1)``.
 
 
-def cost(x, jobs):
-    """NMSE-per-response cost over the loading cases in *jobs*.
+def residuals(x, jobs):
+    """NMSE-per-response residuals over the loading cases in *jobs*.
 
     *jobs* is a list of ``(name, programme, lambda_exp, P_exp)`` tuples, ``programme``
     the parsed ``(blocks, T_init)`` of the case.
@@ -171,22 +180,57 @@ def cost(x, jobs):
         try:
             P_model = model_pk1(lam_exp, props, programme)
         except Exception:
-            return 1e12
+            # NaN residuals: the optimizer rejects the step and shrinks it
+            return np.full(sum(len(job[3]) for job in jobs), np.nan)
         y_exp.append(P_exp.reshape(-1, 1))
         y_num.append(P_model.reshape(-1, 1))
-    return calc_cost(y_exp, y_num, metric="nmse_per_response")
+    return calc_residuals(y_exp, y_num, metric="nmse_per_response")
 
 
-def identify(jobs, popsize=15, maxiter=25, seed=42):
+def identify(jobs, n_starts=3, seed=42):
     """Run ``sim.identification`` over the given *jobs*; return ``([C10, C01],
     final_cost)``."""
     params = make_params()
     result = identification(
-        cost, params,
-        args=(jobs,),
-        seed=seed, popsize=popsize, maxiter=maxiter, tol=1e-6, disp=False,
+        residuals, params, method="least_squares",
+        args=(jobs,), n_starts=n_starts, seed=seed,
     )
-    return [p.value for p in params], result.fun
+    return [p.value for p in params], float(np.sum(result.fun ** 2))
+
+
+###############################################################################
+# Shortcut: linear least squares
+# ------------------------------
+#
+# At fixed :math:`\kappa` the Mooney-Rivlin stress is linear in
+# :math:`(C_{10}, C_{01})` for a given deformation, and the deformation of these
+# tests hardly depends on them (the material is near-incompressible, the
+# transverse stretches follow from :math:`J \approx 1`). The residuals are then
+# affine in the parameters: three simulations give them exactly enough to
+# solve a linear least-squares problem, and one more checks the result.
+#
+# Pure shear alone only determines :math:`C_{10} + C_{01}` (for an
+# incompressible material :math:`\bar{I}_1 = \bar{I}_2` in pure shear, so the
+# stress depends on the sum only): its 2-column Jacobian is singular, and any
+# point of the valley :math:`C_{10} + C_{01} = \text{const}` fits equally
+# well. The singular direction is dropped (``rcond``), which keeps the solution
+# closest to the reference point along the valley; compare the sums for PS.
+
+
+def identify_linear(jobs, x_ref=(0.2, 0.0), h=0.1):
+    """Linear least-squares fit from three simulations; return ``([C10, C01],
+    final_cost)``."""
+    x_ref = np.asarray(x_ref, dtype=float)
+    r_ref = residuals(x_ref, jobs)
+    J = np.column_stack([
+        (residuals(x_ref + h * e, jobs) - r_ref) / h for e in np.eye(2)
+    ])
+    x = x_ref + np.linalg.lstsq(J, -r_ref, rcond=1e-3)[0]
+    lb = np.array([p.bounds[0] for p in make_params()])
+    ub = np.array([p.bounds[1] for p in make_params()])
+    if np.any(x < lb) or np.any(x > ub):
+        x = x_ref + lsq_linear(J, -r_ref, bounds=(lb - x_ref, ub - x_ref)).x
+    return list(x), float(np.sum(residuals(x, jobs) ** 2))
 
 
 ###############################################################################
@@ -235,14 +279,14 @@ def main():
     print("\n" + "-" * 66)
     print(" INDIVIDUAL FITS (one parameter set per loading case)")
     print("-" * 66)
-    print(f"{'Case':<6}{'C10':>10}{'C01':>10}{'C10 lit.':>12}{'C01 lit.':>12}")
+    print(f"{'Case':<6}{'C10':>10}{'C01':>10}{'C10 lit.':>12}{'C01 lit.':>12}{'NMSE':>12}")
     individual = {}
     for name, _pf, _lc, _pc in CASES:
         lam_exp, P_exp = exp[name]
-        (c10, c01), _fun = identify([(name, programmes[name], lam_exp, P_exp)])
-        individual[name] = (c10, c01)
+        (c10, c01), cost_i = identify([(name, programmes[name], lam_exp, P_exp)])
+        individual[name] = (c10, c01, cost_i)
         l10, l01 = LIT[name]
-        print(f"{name:<6}{c10:>10.4f}{c01:>10.4f}{l10:>12.4f}{l01:>12.4f}")
+        print(f"{name:<6}{c10:>10.4f}{c01:>10.4f}{l10:>12.4f}{l01:>12.4f}{cost_i:>12.4e}")
 
     # ----- Combined fit --------------------------------------------------- #
     print("\n" + "-" * 66)
@@ -253,12 +297,26 @@ def main():
     print(f"  C10 = {c10_c:.4f} MPa, C01 = {c01_c:.4f} MPa  "
           f"(NMSE/response = {cost_c:.4e})")
 
+    # ----- Linear least squares: same fits, 4 simulations each ------------ #
+    print("\n" + "-" * 66)
+    print(" LINEAR LEAST SQUARES (stress linear in C10, C01)")
+    print("-" * 66)
+    print(f"{'Case':<10}{'C10':>10}{'C01':>10}{'C10+C01':>10}{'NMSE':>12}"
+          f"{'NMSE above':>12}")
+    for name, case_jobs, ref_cost in [
+        *[(n, [(n, programmes[n], *exp[n])], individual[n][2]) for n, _pf, _lc, _pc in CASES],
+        ("combined", jobs, cost_c),
+    ]:
+        (c10, c01), cost_l = identify_linear(case_jobs)
+        print(f"{name:<10}{c10:>10.4f}{c01:>10.4f}{c10 + c01:>10.4f}{cost_l:>12.4e}"
+              f"{ref_cost:>12.4e}")
+
     # ----- Plot: individual (top) and combined (bottom) vs Treloar -------- #
     fig, axes = plt.subplots(2, 3, figsize=(15, 9))
     for col, (name, _pf, _lc, _pc) in enumerate(CASES):
         lam_exp, P_exp = exp[name]
         for row, (c10, c01, tag) in enumerate([
-            (*individual[name], "individual"),
+            (*individual[name][:2], "individual"),
             (c10_c, c01_c, "combined"),
         ]):
             ax = axes[row, col]

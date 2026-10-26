@@ -3,10 +3,11 @@ Constant class to manage simcoon computations constants
 """
 
 import os
-import re
 import shutil
 from typing import List, NamedTuple, Union
 import numpy as np
+
+from simcoon.parameter import _input_files, substitute_keys
 
 
 class Constant(NamedTuple):
@@ -95,14 +96,9 @@ def copy_constants(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
-    for co in consts:
-        if not all(isinstance(item, str) for item in co.sim_input_files):
-            raise TypeError("All elements in sim_input_files must be strings.")
-
-        for ifiles in co.sim_input_files:
-            src_files = os.path.join(src_path, ifiles)
-            dst_files = os.path.join(dst_path, ifiles)
-            shutil.copy(src_files, dst_files)
+    # A file shared by several constants is copied once
+    for ifiles in _input_files(consts):
+        shutil.copy(os.path.join(src_path, ifiles), os.path.join(dst_path, ifiles))
 
 
 def apply_constants(
@@ -121,18 +117,12 @@ def apply_constants(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
-    # Longest keys first + ``(?!\w)`` lookahead so a shorter key cannot
-    # clobber a longer key that contains it (e.g. ``@E`` vs ``@Et``).
-    ordered = sorted(consts, key=lambda c: -len(c.key))
-
-    for co in ordered:
-        pattern = re.compile(re.escape(co.key) + r"(?!\w)")
-        replacement = str(co.value)
-        for ifiles in co.sim_input_files:
-            mod_files = os.path.join(dst_path, ifiles)
-
-            with open(mod_files, "r", encoding="utf-8") as in_files:
-                content = in_files.read()
-            modified_content = pattern.sub(lambda _m: replacement, content)
-            with open(mod_files, "w", encoding="utf-8") as ou_files:
-                ou_files.write(modified_content)
+    # Each file is read and written once, with all its keys substituted
+    # (longest keys first, see ``substitute_keys``)
+    for ifiles in _input_files(consts):
+        mod_files = os.path.join(dst_path, ifiles)
+        with open(mod_files, "r", encoding="utf-8") as in_files:
+            content = in_files.read()
+        content = substitute_keys(content, consts, ifiles)
+        with open(mod_files, "w", encoding="utf-8") as ou_files:
+            ou_files.write(content)

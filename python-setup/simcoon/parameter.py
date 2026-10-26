@@ -1,7 +1,8 @@
+import functools
 import os
 import re
 import shutil
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 
 class Parameter:
@@ -113,14 +114,9 @@ def copy_parameters(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
-    for param in params:
-        if not all(isinstance(item, str) for item in param.sim_input_files):
-            raise TypeError("All elements in sim_input_files must be strings.")
-
-        for ifiles in param.sim_input_files:
-            src_files = os.path.join(src_path, ifiles)
-            dst_files = os.path.join(dst_path, ifiles)
-            shutil.copy(src_files, dst_files)
+    # A file shared by several parameters is copied once
+    for ifiles in _input_files(params):
+        shutil.copy(os.path.join(src_path, ifiles), os.path.join(dst_path, ifiles))
 
 
 def apply_parameters(
@@ -139,21 +135,111 @@ def apply_parameters(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
+    # Each file is read and written once, with all its keys substituted
+    for ifiles in _input_files(params):
+        mod_files = os.path.join(dst_path, ifiles)
+        with open(mod_files, "r", encoding="utf-8") as in_files:
+            content = in_files.read()
+        content = substitute_keys(content, params, ifiles)
+        with open(mod_files, "w", encoding="utf-8") as ou_files:
+            ou_files.write(content)
+
+
+def _input_files(items) -> List[str]:
+    """Distinct ``sim_input_files`` of *items*, in order of first appearance."""
+    files = []
+    for item in items:
+        if not all(isinstance(f, str) for f in item.sim_input_files):
+            raise TypeError("All elements in sim_input_files must be strings.")
+        for f in item.sim_input_files:
+            if f not in files:
+                files.append(f)
+    return files
+
+
+@functools.lru_cache(maxsize=256)
+def _key_pattern(key: str) -> "re.Pattern":
+    # Trailing ``(?!\w)`` lookahead prevents ``@E`` from matching ``@Et``.
+    # ``re.escape`` keeps user keys with regex metachars literal.
+    return re.compile(re.escape(key) + r"(?!\w)")
+
+
+def substitute_keys(content: str, items, fname: Optional[str] = None) -> str:
+    """
+    Replace the keys of *items* by their values in the text *content*.
+
+    :param content: text of a template file
+    :param items: Parameter or Constant objects (anything with ``key``,
+                  ``value`` and ``sim_input_files``)
+    :param fname: when given, only the items listing this file in their
+                  ``sim_input_files`` are substituted
+    :return: the substituted text
+    """
     # Longest keys first so e.g. ``@Et`` is replaced before ``@E`` and a
     # shorter key cannot clobber a longer one that contains it.
-    ordered = sorted(params, key=lambda p: -len(p.key))
+    ordered = sorted(items, key=lambda it: -len(it.key))
+    for item in ordered:
+        if fname is not None and fname not in item.sim_input_files:
+            continue
+        replacement = str(item.value)
+        # the ``lambda`` repl avoids backref interpretation in the value
+        content = _key_pattern(item.key).sub(lambda _m: replacement, content)
+    return content
 
-    for param in ordered:
-        # Trailing ``(?!\w)`` lookahead prevents ``@E`` from matching ``@Et``.
-        # ``re.escape`` keeps user keys with regex metachars literal; the
-        # ``lambda`` repl avoids backref interpretation in the value.
-        pattern = re.compile(re.escape(param.key) + r"(?!\w)")
-        replacement = str(param.value)
-        for ifiles in param.sim_input_files:
-            mod_files = os.path.join(dst_path, ifiles)
 
-            with open(mod_files, "r", encoding="utf-8") as in_files:
-                content = in_files.read()
-            modified_content = pattern.sub(lambda _m: replacement, content)
-            with open(mod_files, "w", encoding="utf-8") as ou_files:
-                ou_files.write(modified_content)
+class KeyTemplate:
+    """
+    Template files held in memory, written with the keys substituted.
+
+    The file-based identification chain ``copy_parameters`` +
+    ``apply_parameters`` + ``apply_constants`` copies, then reads and rewrites
+    every input file once per parameter and per constant at each evaluation.
+    A ``KeyTemplate`` reads the templates once and :meth:`write` produces each
+    working file with a single write; the content is the same as the chain's.
+
+    :param src_path: directory holding the template files (e.g. ``keys``)
+    :param params: Parameter objects whose ``sim_input_files`` name the templates
+    :param consts: Constant objects, substituted after the parameters
+                   (the order of ``apply_parameters`` then ``apply_constants``)
+
+    Example::
+
+        template = KeyTemplate("keys", params, consts)
+        def cost(x):
+            for p, v in zip(params, x):
+                p.value = v
+            template.write("data")      # instead of copy + apply + apply
+            ...
+    """
+
+    def __init__(
+        self,
+        src_path: Union[str, os.PathLike],
+        params: Sequence = (),
+        consts: Sequence = (),
+    ) -> None:
+        if not isinstance(src_path, (str, os.PathLike)):
+            raise TypeError(
+                f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike."
+            )
+        self.params = list(params)
+        self.consts = list(consts)
+        self.templates = {}
+        for ifiles in _input_files(self.params + self.consts):
+            with open(os.path.join(src_path, ifiles), "r", encoding="utf-8") as f:
+                self.templates[ifiles] = f.read()
+
+    def render(self, fname: str) -> str:
+        """Text of the template *fname* with the current values substituted."""
+        content = substitute_keys(self.templates[fname], self.params, fname)
+        return substitute_keys(content, self.consts, fname)
+
+    def write(self, dst_path: Union[str, os.PathLike]) -> None:
+        """Write every template, substituted with the current values, to *dst_path*."""
+        if not isinstance(dst_path, (str, os.PathLike)):
+            raise TypeError(
+                f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
+            )
+        for fname in self.templates:
+            with open(os.path.join(dst_path, fname), "w", encoding="utf-8") as f:
+                f.write(self.render(fname))

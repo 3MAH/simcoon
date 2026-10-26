@@ -30,6 +30,12 @@ loading path. This is encoded in three blocks of the ``path_id_N.json`` file:
 3. Block 3 (mode 3, tabular) — replay of the experimental table, read from the
    ``path_id_N_tab1.csv`` file the JSON references
 
+Blocks 1 and 2 only prepare the state, so they are discretized coarsely: 64
+increments per step (the stress differs from a 100-increment pre-cycle by less
+than 0.3 MPa), with ``Dn_mini = 0.1`` so the solver can still sub-increment for
+stiff trial parameters. A power of two keeps the increments summing exactly to
+the step time, so the replay starts exactly where block 2 ends.
+
 The ``path_id_N.json`` / ``path_id_N_tab1.csv`` pairs are provided in ``data/``
 because they are tricky to construct manually (they were converted from the legacy
 ``path_id_N.txt`` + ``tab_file_N.txt`` pairs with ``scripts/legacy_to_json.py``).
@@ -38,7 +44,10 @@ replace this scaffolding by Python helpers that build the steps from the experim
 data.
 
 Forward model: :func:`simcoon.solver` (UMAT material-point integrator).
-Optimization: :func:`simcoon.identification` (wraps ``differential_evolution``).
+Optimization: :func:`simcoon.identification` with ``method="least_squares"``
+(bounded trust-region reflective least squares, parameters scaled
+logarithmically, since most of them span two to three decades), on the
+residuals of :func:`simcoon.calc_residuals`.
 Cost: ``nmse_per_response`` — the three tests share one stress column, so the cost is
 the summed squared error of the three tests divided by their summed squared stresses
 (the tests are pooled, not normalised one by one: a test with larger stresses weighs more).
@@ -49,7 +58,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
 from simcoon.parameter import Parameter
-from simcoon.identify import identification, calc_cost
+from simcoon.identify import identification, calc_residuals
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +94,11 @@ PARAMS = [
 ]
 PARAM_NAMES = ["sigmaY", "Q", "b", "C_1", "D_1", "C_2", "D_2"]
 
+# The Jacobian of the least squares needs one simulation per parameter: they are
+# independent and ``sim.solver.solve`` releases the GIL, so they run in threads
+# (the result does not depend on the number of threads).
+N_THREADS = 4
+
 def build_props(x):
     """Assemble the EPCHA props vector from the optimizer's parameter array."""
     return np.array([E_FIXED, NU_FIXED, ALPHA_FIXED, *x])
@@ -112,17 +126,19 @@ def run_one_test(props, programme):
     return np.asarray(res["Stress"][0])[block == block.max()]
 
 
-def cost(x, exp_stresses, programmes):
-    """NMSE-per-response cost across the three tests."""
+def residuals(x, exp_stresses, programmes):
+    """Residuals of the three tests; their sum of squares is the
+    ``nmse_per_response`` cost of :func:`simcoon.calc_cost`."""
     props = build_props(x)
     y_num = []
     for programme in programmes:
         try:
             sigma11 = run_one_test(props, programme)
         except Exception:
-            return 1e12
+            # NaN residuals: the optimizer rejects the step and shrinks it
+            return np.full(sum(len(e) for e in exp_stresses), np.nan)
         y_num.append(sigma11.reshape(-1, 1))
-    return calc_cost(exp_stresses, y_num, metric="nmse_per_response")
+    return calc_residuals(exp_stresses, y_num, metric="nmse_per_response")
 
 
 def main():
@@ -153,13 +169,13 @@ def main():
     programmes = [sim.solver.load_path_json(os.path.join(path_data, pathfile))[:2]
                   for _, pathfile, _ in TESTS]
 
-    # Gallery budget (~1-2 min). Bump popsize/maxiter for tighter fits.
+    # One start from the middle of the (log-scaled) bounds; raise n_starts to
+    # explore the valley further. diff_step: finite-difference step above the
+    # solver tolerance.
     result = identification(
-        cost, PARAMS,
+        residuals, PARAMS, method="least_squares",
         args=(exp_stresses, programmes),
-        seed=42,
-        popsize=15, maxiter=80, tol=1e-6,
-        disp=False,
+        n_starts=1, diff_step=1e-6, n_threads=N_THREADS,
     )
 
     print()
@@ -168,7 +184,8 @@ def main():
     print("=" * 60)
     for n, p in zip(PARAM_NAMES, PARAMS):
         print(f"  {n:8s} = {p.value:>12.3f}    (bounds {p.bounds})")
-    print(f"\n  Final cost (NMSE/response) = {result.fun:.4e}")
+    print(f"\n  Final cost (NMSE/response) = {np.sum(result.fun ** 2):.4e}"
+          f"  ({result.nfev} evaluations)")
 
     # All three tests on one plot — dashed = experiment, solid = identified
     fig, ax = plt.subplots(figsize=(9, 7))

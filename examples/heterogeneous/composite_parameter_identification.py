@@ -13,14 +13,16 @@ Two micromechanical schemes are compared:
 - **Self-Consistent** (``MISCN``): better at high volume fractions (c > 0.3)
 
 **Forward model**: simcoon mean-field homogenization (``L_eff``)
-**Optimization**: ``scipy.optimize.differential_evolution`` (global optimizer)
+**Optimization**: :func:`simcoon.identification` with ``method="least_squares"``
+(bounded trust-region reflective least squares, three starting points)
 **Phases**: described in memory, so an evaluation touches no file at all
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import differential_evolution
 import simcoon as sim
+from simcoon.identify import identification
+from simcoon.parameter import Parameter
 from simcoon.solver.micromechanics import Ellipsoid
 import os
 
@@ -113,14 +115,15 @@ def compute_E_eff(E_f, nu_f, concentrations, umat_name, props_composite):
     return E_eff
 
 
-def cost_function(params_opt, c_exp, E_exp, umat_name, props_composite):
-    """MSE cost function for reinforcement property identification."""
+def residuals(params_opt, c_exp, E_exp, umat_name, props_composite):
+    """Residuals E_pred - E_exp; the mean of their squares is the MSE."""
     E_f, nu_f = params_opt
     try:
         E_pred = compute_E_eff(E_f, nu_f, c_exp, umat_name, props_composite)
-        return np.mean((E_pred - E_exp) ** 2)
     except Exception:
-        return 1e12
+        # NaN residuals: the optimizer rejects the step and shrinks it
+        return np.full(len(c_exp), np.nan)
+    return E_pred - E_exp
 
 
 def identify_reinforcement(
@@ -132,7 +135,11 @@ def identify_reinforcement(
     verbose=True,
 ):
     """
-    Identify reinforcement properties using differential evolution.
+    Identify reinforcement properties by bounded least squares.
+
+    Three starting points (the middle of the log-scaled bounds and two Latin
+    hypercube samples) guard against a local minimum; each converges in a few
+    tens of evaluations of the six effective moduli.
 
     Returns
     -------
@@ -144,31 +151,33 @@ def identify_reinforcement(
         print(f"  Identification with {umat_name}")
         print(f"{'=' * 60}")
 
-    result = differential_evolution(
-        cost_function,
-        bounds=bounds,
+    params = [
+        Parameter(0, bounds=bounds[0], key="@E_f"),
+        Parameter(1, bounds=bounds[1], key="@nu_f"),
+    ]
+    result = identification(
+        residuals,
+        params,
+        method="least_squares",
         args=(c_exp, E_exp, umat_name, props_composite),
-        strategy="best1bin",
-        maxiter=200,
-        popsize=15,
-        tol=1e-8,
-        mutation=(0.5, 1.0),
-        recombination=0.7,
+        n_starts=3,
         seed=42,
-        polish=True,
-        disp=verbose,
+        xtol=1e-10,
+        ftol=1e-10,
+        gtol=1e-10,
     )
 
     E_f_opt, nu_f_opt = result.x
+    mse = np.mean(result.fun ** 2)
     if verbose:
         print(f"\n  E_f  = {E_f_opt:.0f} MPa")
         print(f"  nu_f = {nu_f_opt:.3f}")
-        print(f"  MSE  = {result.fun:.2e} MPa^2")
+        print(f"  MSE  = {mse:.2e} MPa^2  ({result.nfev} evaluations)")
 
     return {
         "E_f": E_f_opt,
         "nu_f": nu_f_opt,
-        "mse": result.fun,
+        "mse": mse,
         "result": result,
         "umat_name": umat_name,
     }
@@ -200,7 +209,7 @@ if __name__ == "__main__":
 
     print("=" * 60)
     print(" COMPOSITE REINFORCEMENT IDENTIFICATION")
-    print(" Glass/Epoxy — Mean-field + Differential Evolution")
+    print(" Glass/Epoxy — Mean-field + bounded least squares")
     print("=" * 60)
     print(f"\nExperimental data (Wang 2003): {len(c_exp)} points")
     for c, E in zip(c_exp, E_exp):
@@ -339,7 +348,7 @@ if __name__ == "__main__":
 
     fig.suptitle(
         "Composite Reinforcement Identification — Glass/Epoxy\n"
-        "Mori-Tanaka vs Self-Consistent + Differential Evolution",
+        "Mori-Tanaka vs Self-Consistent + bounded least squares",
         fontsize=14,
         fontweight="bold",
     )
