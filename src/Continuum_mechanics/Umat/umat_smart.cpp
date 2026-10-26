@@ -859,7 +859,13 @@ static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,co
     // so the route (the Newton iterates on tau) and the outputs stay consistent
     // with the finite dispatcher.
     umat_M->tau = umat_M->sigma;
-    umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
+    if (umat_M->F1.is_diagmat() && arma::all(umat_M->F1.diag() == 1.)) {
+        // F1 = I exactly (the small-strain route): F^-1 tau F^-T is tau itself
+        umat_M->PKII = umat_M->tau;
+    }
+    else {
+        umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
+    }
     rve.local2global();
 }
     

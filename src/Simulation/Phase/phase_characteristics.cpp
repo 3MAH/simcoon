@@ -231,7 +231,7 @@ void phase_characteristics::to_start()
         }
     }
     sptr_multi->to_start();
-    for(auto r : sub_phases) {
+    for(auto &r : sub_phases) {
         r.to_start();
     }
     
@@ -262,7 +262,7 @@ void phase_characteristics::set_start(const int &corate_type)
         }
     }
     sptr_multi->set_start();
-    for(auto r : sub_phases) {
+    for(auto &r : sub_phases) {
         r.set_start(corate_type);
     }
 }

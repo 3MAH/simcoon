@@ -371,6 +371,10 @@ void state_variables::set_start(const int &corate_type)
             // total formulation: the strain is a state function of F, re-read rather than summed
             etot = t2v_strain(0.5*H);
         }
+        else if (DR.is_diagmat() && arma::all(DR.diag() == 1.)) {
+            // DR = I exactly (small strain): the Voigt rotation is the identity
+            etot += Detot;
+        }
         else {
             etot = rotate_strain(etot,DR) + Detot;
         }

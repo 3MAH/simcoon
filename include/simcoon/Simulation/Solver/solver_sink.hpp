@@ -118,6 +118,10 @@ public:
     void record(phase_characteristics &rve, const solver_output &so,
                 const int &kblock, const int &kcycle, const int &kstep,
                 const int &kinc, const double &Time) override;
+    /// Capacity hint for @p n_records more records, for the fields of sv_type (call it
+    /// after init()); solver_run passes its expected count. The move constructor of the
+    /// arma objects is not noexcept, so each growth of these vectors would copy them all.
+    void reserve(std::size_t n_records);
     /// number of records captured so far
     unsigned int n_records() const { return static_cast<unsigned int>(time.size()); }
 };

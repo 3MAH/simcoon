@@ -149,7 +149,7 @@ private:
     void refresh_tensors() {
         // Cholesky is the cheap positive-definiteness test (succeeds iff SPD,
         // ~2-3x faster than a full eigendecomposition) — matters because
-        // umat_modular reconstructs the module on every integration-point call.
+        // umat_modular reconstructs the module on every configuration change.
         arma::mat R;
         if (!arma::chol(R, L_)) {
             throw std::runtime_error(

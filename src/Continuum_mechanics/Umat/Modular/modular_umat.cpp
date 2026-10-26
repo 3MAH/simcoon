@@ -31,8 +31,11 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/parameter.hpp>
 #include <algorithm>
+#include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <cmath>
+#include <vector>
 
 namespace simcoon {
 
@@ -282,6 +285,13 @@ void ModularUMAT::run(
                 configure_from_props(props, offset);
             }
             initialize(nstatev, statev);
+        }
+        else {
+            // Reused instance (umat_modular keeps one per configuration): the state
+            // comes from statev, exactly as initialize() unpacks it on a fresh one.
+            for (auto& mech : mechanisms_) {
+                mech->unpack(statev);
+            }
         }
 
         // Store initial temperature
@@ -852,6 +862,74 @@ void ModularUMAT::apply_total_strain_maps(arma::mat& Lt) const {
 
 // ========== Standalone UMAT Function ==========
 
+namespace {
+
+/**
+ * Configured ModularUMAT instances of one thread, most recently used first.
+ *
+ * The key is everything configure_from_props() and initialize() read: the props
+ * stream (compared bit for bit), nstatev and the kinematic form. The state never
+ * lives here: run() unpacks every mechanism from statev at each call, start
+ * included, and the per-call caches of the instance and of its mechanisms are
+ * rewritten before they are read within a call (flow direction, kappa, hardening
+ * modulus, viscoelastic dEV/dE, damage driving force and slope); the damage
+ * compliance M_cached_ is keyed on the exact stiffness it inverts. A reused
+ * instance therefore returns what a fresh one would, bit for bit.
+ *
+ * Several entries so that the phases of a multiphase material, whose props
+ * alternate from one call to the next, each keep their instance.
+ */
+class modular_umat_cache {
+public:
+    static constexpr std::size_t capacity = 8;
+
+    /// The instance configured for (props, nstatev, kinematic_form), created on a
+    /// miss (it configures itself from props on its first run()); it becomes the
+    /// most recently used entry, the least recently used one is evicted when full.
+    ModularUMAT& acquire(const arma::vec& props, int nstatev, KinematicForm kinematic_form) {
+        for (auto it = entries_.begin(); it != entries_.end(); ++it) {
+            if (it->matches(props, nstatev, kinematic_form)) {
+                std::rotate(entries_.begin(), it, it + 1);
+                return *entries_.front().umat;
+            }
+        }
+        if (entries_.size() == capacity) {
+            entries_.pop_back();
+        }
+        entry e;
+        e.props.assign(props.begin(), props.end());
+        e.nstatev = nstatev;
+        e.kinematic_form = kinematic_form;
+        e.umat = std::make_unique<ModularUMAT>();
+        e.umat->set_kinematic_form(kinematic_form);
+        entries_.insert(entries_.begin(), std::move(e));
+        return *entries_.front().umat;
+    }
+
+    /// Forget the instance returned by the last acquire().
+    void drop_most_recent() {
+        if (!entries_.empty()) {
+            entries_.erase(entries_.begin());
+        }
+    }
+
+private:
+    struct entry {
+        std::vector<double> props;
+        int nstatev = 0;
+        KinematicForm kinematic_form = KinematicForm::rate;
+        std::unique_ptr<ModularUMAT> umat;
+
+        bool matches(const arma::vec& p, int n, KinematicForm kf) const {
+            return nstatev == n && kinematic_form == kf && props.size() == p.n_elem
+                && (props.empty() || std::memcmp(props.data(), p.memptr(), props.size() * sizeof(double)) == 0);
+        }
+    };
+    std::vector<entry> entries_;
+};
+
+}  // namespace
+
 void umat_modular(
     const std::string& umat_name,
     const arma::vec& Etot,
@@ -879,20 +957,25 @@ void umat_modular(
     const int& tangent_mode,
     const KinematicForm& kinematic_form
 ) {
-    // Create a fresh instance each call. Configuration is re-parsed from props
-    // and state is restored from statev, ensuring correctness for multi-point
-    // simulations. The cost of re-parsing props is negligible compared to the
-    // Newton iteration in return_mapping.
-    ModularUMAT mumat;
-    mumat.set_kinematic_form(kinematic_form);
-
-    mumat.run(
-        umat_name, Etot, DEtot, sigma, Lt, L, DR,
-        nprops, props, nstatev, statev,
-        T, DT, Time, DTime,
-        Wm, Wm_r, Wm_ir, Wm_d,
-        ndi, nshr, start, tnew_dt, tangent_mode
-    );
+    // One configured instance per configuration and thread (see modular_umat_cache):
+    // parsing the props (stiffness, its positive-definiteness check, typed tensors)
+    // costs several times an elastic increment. The state is restored from statev
+    // at every call, so the result is the one of a fresh instance.
+    thread_local modular_umat_cache cache;
+    ModularUMAT& mumat = cache.acquire(props, nstatev, kinematic_form);
+    try {
+        mumat.run(
+            umat_name, Etot, DEtot, sigma, Lt, L, DR,
+            nprops, props, nstatev, statev,
+            T, DT, Time, DTime,
+            Wm, Wm_r, Wm_ir, Wm_d,
+            ndi, nshr, start, tnew_dt, tangent_mode
+        );
+    } catch (...) {
+        // a failed configuration or initialization must not be reused
+        cache.drop_most_recent();
+        throw;
+    }
 }
 
 } // namespace simcoon

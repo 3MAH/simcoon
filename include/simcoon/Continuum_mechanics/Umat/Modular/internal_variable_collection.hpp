@@ -111,6 +111,34 @@ public:
     const InternalVariable& get(const std::string& name) const;
 
     /**
+     * @brief Registration index of a variable (its rank in the statev layout)
+     *
+     * Stable for the collection's lifetime: a mechanism resolves it once after
+     * registration and reads the variable through at() in its hot loops, without
+     * the string lookup of get().
+     * @param name The variable name
+     * @return Index accepted by at()
+     * @throws std::runtime_error if name not found
+     */
+    size_t index_of(const std::string& name) const;
+
+    /**
+     * @brief Get a variable by registration index (see index_of())
+     * @param index The variable index
+     * @return Reference to the variable
+     * @throws std::out_of_range if index >= size()
+     */
+    InternalVariable& at(size_t index) { return variables_.at(index); }
+
+    /**
+     * @brief Get a variable by registration index (const)
+     * @param index The variable index
+     * @return Const reference to the variable
+     * @throws std::out_of_range if index >= size()
+     */
+    const InternalVariable& at(size_t index) const { return variables_.at(index); }
+
+    /**
      * @brief Check if a variable exists
      * @param name The variable name
      * @return True if the variable exists

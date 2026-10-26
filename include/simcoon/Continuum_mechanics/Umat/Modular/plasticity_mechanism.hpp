@@ -91,6 +91,8 @@ private:
     std::unique_ptr<IsotropicHardening> iso_hard_;
     std::unique_ptr<KinematicHardening> kin_hard_;
     double sigma_Y_;  ///< Initial yield stress
+    size_t p_index_ = 0;   ///< ivc_ index of "p", resolved by register_variables()
+    size_t EP_index_ = 0;  ///< ivc_ index of "EP", resolved by register_variables()
 
     // Per-iteration caches populated by compute_constraints. dPhi_dsigma() and
     // kappa() return const-refs into these single-element buffers to avoid

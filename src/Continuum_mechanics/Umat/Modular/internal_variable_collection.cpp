@@ -88,6 +88,14 @@ const InternalVariable& InternalVariableCollection::get(const std::string& name)
     return variables_[it->second];
 }
 
+size_t InternalVariableCollection::index_of(const std::string& name) const {
+    auto it = name_to_index_.find(name);
+    if (it == name_to_index_.end()) {
+        throw std::runtime_error("InternalVariableCollection: variable '" + name + "' not found");
+    }
+    return it->second;
+}
+
 bool InternalVariableCollection::has(const std::string& name) const {
     return name_to_index_.find(name) != name_to_index_.end();
 }

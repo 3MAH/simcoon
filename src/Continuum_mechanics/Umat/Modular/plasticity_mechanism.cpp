@@ -114,6 +114,9 @@ void PlasticityMechanism::register_variables() {
     ivc_.add_scalar("p", 0.0);
     ivc_.add_vec("EP", arma::zeros(6), true);
     kin_hard_->register_variables(ivc_);
+    // resolved once: the return-mapping loop reads them through ivc_.at()
+    p_index_ = ivc_.index_of("p");
+    EP_index_ = ivc_.index_of("EP");
 }
 
 // ========== Yield-side queries ==========
@@ -130,7 +133,7 @@ double PlasticityMechanism::equivalent_stress(const tensor2& sigma) const {
 }
 
 double PlasticityMechanism::yield_function(const arma::vec& sigma) const {
-    const double p = ivc_.get("p").scalar();
+    const double p = ivc_.at(p_index_).scalar();
     return equivalent_stress(sigma) - iso_hard_->R(p) - sigma_Y_;
 }
 
@@ -160,7 +163,7 @@ void PlasticityMechanism::compute_constraints(
     arma::vec& Y_crit
 ) const {
     // Get internal variables
-    double p = ivc_.get("p").scalar();
+    double p = ivc_.at(p_index_).scalar();
 
     // Shifted stress (sigma - X); skip the subtraction under pure isotropic
     // hardening. The branch backstresses X_i are built ONCE here and reused
@@ -237,7 +240,7 @@ bool PlasticityMechanism::refresh_state(
     const arma::vec T = Ir05();   // engineering -> tensorial shear
     const bool has_kin = kin_hard_->num_backstresses() > 0;
 
-    auto& p_var = ivc_.get("p");
+    auto& p_var = ivc_.at(p_index_);
     p_var.scalar() = p_var.scalar_start() + dp;
 
     // Newton on the n <-> X coupling (class note in the header).
@@ -276,7 +279,7 @@ bool PlasticityMechanism::refresh_state(
         kin_hard_->backward_euler_factors(dp, n, ivc_, gamma, beta);
     }
 
-    auto& EP_var = ivc_.get("EP");
+    auto& EP_var = ivc_.at(EP_index_);
     EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
 
     // Total derivatives at this state (class note in the header).
@@ -308,8 +311,8 @@ bool PlasticityMechanism::refresh_state(
 double PlasticityMechanism::state_drift(const arma::vec& sigma) const {
     // Committed Dp from the (projected) internal variable, not the raw FB
     // row — update() enforces p >= p_start, the state is the truth.
-    const double dp = ivc_.get("p").delta_scalar();
-    const arma::vec dEP = ivc_.get("EP").delta_vec();
+    const double dp = ivc_.at(p_index_).delta_scalar();
+    const arma::vec dEP = ivc_.at(EP_index_).delta_vec();
     if (dp < simcoon::iota && norm_strain(dEP) < simcoon::iota) {
         // inert increment: avoid evaluating the flow direction at a
         // possibly-zero stress
@@ -336,7 +339,7 @@ double PlasticityMechanism::multiplier_cap() const {
 }
 
 double PlasticityMechanism::committed_multiplier() const {
-    return ivc_.get("p").delta_scalar();
+    return ivc_.at(p_index_).delta_scalar();
 }
 
 void PlasticityMechanism::compute_jacobian_contribution(
@@ -356,7 +359,7 @@ void PlasticityMechanism::compute_jacobian_contribution(
 }
 
 arma::vec PlasticityMechanism::inelastic_strain() const {
-    return ivc_.get("EP").raw_voigt();
+    return ivc_.at(EP_index_).raw_voigt();
 }
 
 void PlasticityMechanism::update(
@@ -378,15 +381,15 @@ void PlasticityMechanism::update(
     }
 
     // Update accumulated plastic strain (projected: p never below p_start)
-    double& p = ivc_.get("p").scalar();
-    const double p_start = ivc_.get("p").scalar_start();
+    double& p = ivc_.at(p_index_).scalar();
+    const double p_start = ivc_.at(p_index_).scalar_start();
     if (p + dp < p_start) {
         dp = p_start - p;
     }
     p += dp;
 
     // Update plastic strain
-    arma::vec& EP = ivc_.get("EP").raw_voigt();
+    arma::vec& EP = ivc_.at(EP_index_).raw_voigt();
     EP += dp * flow_dir_;
 
     // Update kinematic hardening variables
@@ -428,8 +431,8 @@ void PlasticityMechanism::compute_work(
     double& Wm_d
 ) const {
     // Get increments
-    double Dp = ivc_.get("p").delta_scalar();
-    arma::vec DEP = ivc_.get("EP").delta_vec();
+    double Dp = ivc_.at(p_index_).delta_scalar();
+    arma::vec DEP = ivc_.at(EP_index_).delta_vec();
     if (Dp == 0.0 && DEP.is_zero()) {
         Wm_r = Wm_ir = Wm_d = 0.0;   // both dots below would be (signed) zeros
         return;

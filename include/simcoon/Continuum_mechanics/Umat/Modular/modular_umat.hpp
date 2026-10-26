@@ -565,6 +565,11 @@ private:
  * strain is \f$ \ln\mathbf{U} \f$ in reference components (DR is the identity) and @p sigma is
  * its dual stress \f$ \mathbf{T} \f$; only a hyperelastic elasticity block reads it
  * (ElasticityModule::evaluate).
+ *
+ * Each thread keeps a few configured ModularUMAT instances, keyed on (props bit for bit,
+ * nstatev, kinematic_form) and reused while that configuration recurs; the state is
+ * always restored from @p statev, so the result is that of a fresh instance. An instance
+ * whose run() throws is discarded.
  */
 void umat_modular(
     const std::string& umat_name,

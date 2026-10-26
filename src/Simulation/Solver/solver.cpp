@@ -114,6 +114,37 @@ inline mat ct3_lnV(const vec &etot, const int &corate_type) {
     return -0.5*log_b_inv;
 }
 
+// Capacity hint for a memory sink: the records of the blocks written every o_nfreq increments
+// (one increment per step milestone, as step::generate() counts them; +1 per block for the
+// counter carried over). Blocks written on a time period are not counted: the sink grows.
+std::size_t expected_records(const std::vector<simcoon::block> &blocks, const simcoon::solver_output &so) {
+    std::size_t n_records = 0;
+    for (std::size_t i = 0; i < blocks.size(); ++i) {
+        if (i >= so.o_type.n_elem || i >= so.o_nfreq.n_elem || so.o_type(i) != 1 || so.o_nfreq(i) <= 0) {
+            continue;
+        }
+        std::size_t n_inc = 0;
+        for (const auto &sptr : blocks[i].steps) {
+            if (sptr->mode == 3) {
+                n_inc += sptr->tab_data.n_rows;
+            }
+            else if (sptr->Dn_inc > 0.) {
+                n_inc += static_cast<std::size_t>(std::round(1./sptr->Dn_inc));
+            }
+        }
+        n_records += n_inc*blocks[i].ncycle/static_cast<std::size_t>(so.o_nfreq(i)) + 1;
+    }
+    return n_records;
+}
+
+// solver_memory_sink keeps every record in std::vectors: reserve them once at init().
+void reserve_memory_sink(simcoon::solver_results_sink &sink, const std::vector<simcoon::block> &blocks,
+                         const simcoon::solver_output &so) {
+    if (auto *memory_sink = dynamic_cast<simcoon::solver_memory_sink *>(&sink)) {
+        memory_sink->reserve(expected_records(blocks, so));
+    }
+}
+
 }  // namespace
 
 namespace simcoon{
@@ -461,6 +492,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
 
                 if(start) {
                     sink.init(rve);
+                    reserve_memory_sink(sink, blocks, so);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
                 rve.set_start((blocks[i].control_type == 1) ? 0 : corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
@@ -824,6 +856,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
 
                 if(start) {
                     sink.init(rve);
+                    reserve_memory_sink(sink, blocks, so);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
                 rve.set_start((blocks[i].control_type == 1) ? 0 : corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here

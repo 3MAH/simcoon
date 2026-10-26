@@ -230,8 +230,18 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         K(0,0) = dPhidp;
         B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
         Y_crit(0) = sigmaY;
-        
-        Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+
+        if (compteur == 0 && Phi(0) < 0. && sqrt(pow(Phi(0),2.)) + Phi(0) == 0.) {
+            // Admissible trial (Ds_j = 0): the Fischer-Burmeister residual |Phi| + Phi is
+            // exactly zero, so Fischer_Burmeister_m would return ds = +0 and a zero error,
+            // ending the loop; skip its det/solve. The test is its own residual expression,
+            // so a Phi whose square under- or overflows still goes through the solve.
+            ds_j.zeros();
+            error = 0.;
+        }
+        else {
+            Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+        }
         
         s_j(0) += ds_j(0);
         EP = EP + ds_j(0)*Lambdap;
@@ -253,16 +263,22 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
-        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
-        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+    // Lazy: evaluated only in algorithmic mode, and only with an active multiplier — at
+    // Ds <= iota assemble_algorithmic_tangent drops the Hessian and returns the continuum
+    // operator, which compute_tangent_operator also returns without a provider.
+    HessianProvider dLambda_dsigma = nullptr;
+    if (Ds_j(0) > simcoon::iota) {
+        dLambda_dsigma = [&]() -> std::vector<mat> {
             // Simo-Hughes algorithmic (consistent) tangent. J2 associated flow
             // Lambda_eps = eta_stress(sigma), so dLambda_eps/dsigma = d2Phi/dsigma2 = deta_stress(sigma).
             // Isotropic hardening: the direction has no internal-variable coupling, so this single
             // dLambda/dsigma term is the complete consistent correction (Q-quadratic).
             const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress) };
             return dLambda_dsigma_l;
-        });
+        };
+    }
+    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
+        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma);
     Lt = ct.Lt;
 
     std::vector<double> P_theta(1);
