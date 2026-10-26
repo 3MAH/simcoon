@@ -2,12 +2,15 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <cstring>
+#include <map>
 #include <string>
 #include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/docs/Libraries/Maths/doc_rotation.hpp>
 
@@ -36,6 +39,23 @@ namespace {
         if (static_cast<size_t>(shape[0]) != rows || static_cast<size_t>(shape[1]) != cols) {
             throw invalid_argument(name + " must have shape (" + to_string(rows) + ", " +
                 to_string(cols) + "), got (" + to_string(shape[0]) + ", " + to_string(shape[1]) + ")");
+        }
+    }
+
+    // A 2-D array as a cube of one slice (copy), a 3-D array as a cube (borrowed when
+    // F-contiguous, copied otherwise). Returned as a prvalue so that the view stays a view.
+    cube as_cube(const py::array_t<double>& arr) {
+        if (arr.ndim() == 3) {
+            return simpy::numpy_to_arma::arr_to_cube_view(arr);
+        }
+        const mat m = simpy::numpy_to_arma::arr_to_mat(arr);
+        return cube(m.memptr(), m.n_rows, m.n_cols, 1);
+    }
+
+    void check_rotation_count(const cube& R, uword N) {
+        if (R.n_slices != 1 && R.n_slices != N) {
+            throw invalid_argument("rotate_voigt: DR holds " + to_string(R.n_slices)
+                + " rotations, expected 1 or " + to_string(N) + " (one per tensor)");
         }
     }
 } // anonymous namespace
@@ -203,6 +223,73 @@ void register_rotation(py::module_& m) {
         },
         py::arg("quats"), py::arg("active") = true,
         "Batch-build (N, 6, 6) strain Voigt rotation matrices from (N, 4) quaternions");
+
+    // Batch rotation of Voigt tensors by rotation matrices, on the (6,N) / (6,6,N) layout of umat
+    // and objective_rate: no scipy Rotation, no transposes, parallel loop without the GIL.
+    m.def("rotate_voigt",
+        [](py::array_t<double> values, py::array_t<double> DR, const string& kind, bool active,
+           unsigned int n_threads) -> py::array_t<double> {
+            static const map<string, simcoon::Tensor2Type> tensor2_kinds = {
+                {"stress", simcoon::Tensor2Type::stress}, {"strain", simcoon::Tensor2Type::strain}};
+            static const map<string, simcoon::Tensor4Type> tensor4_kinds = {
+                {"stiffness", simcoon::Tensor4Type::stiffness},
+                {"compliance", simcoon::Tensor4Type::compliance},
+                {"strain_concentration", simcoon::Tensor4Type::strain_concentration},
+                {"stress_concentration", simcoon::Tensor4Type::stress_concentration}};
+            // DR: one (3,3) rotation for every tensor, or a (3,3,N_r) cube
+            if ((DR.ndim() != 2 && DR.ndim() != 3) || DR.shape(0) != 3 || DR.shape(1) != 3) {
+                throw invalid_argument("rotate_voigt: DR must have shape (3, 3) or (3, 3, N)");
+            }
+            const cube R = as_cube(DR);
+
+            const auto it2 = tensor2_kinds.find(kind);
+            if (it2 != tensor2_kinds.end()) {
+                // (6,) one vector, (6,N) one vector per column
+                if ((values.ndim() != 1 && values.ndim() != 2) || values.shape(0) != 6) {
+                    throw invalid_argument("rotate_voigt: " + kind + " values must have shape (6,) or (6, N)");
+                }
+                const bool single = values.ndim() == 1;
+                const mat v = single ? mat(simpy::numpy_to_arma::arr_to_col(values))
+                                     : simpy::numpy_to_arma::arr_to_mat_view(values);
+                check_rotation_count(R, v.n_cols);
+                mat result;
+                {
+                    py::gil_scoped_release release;
+                    result = simcoon::batch_rotate(v, it2->second, R, active, n_threads);
+                }
+                if (single) {
+                    py::array_t<double> out(6);
+                    std::memcpy(out.mutable_data(), result.memptr(), 6 * sizeof(double));
+                    return out;
+                }
+                return simpy::arma_to_numpy::mat_to_arr(std::move(result));
+            }
+
+            const auto it4 = tensor4_kinds.find(kind);
+            if (it4 == tensor4_kinds.end()) {
+                throw invalid_argument("rotate_voigt: unknown kind '" + kind + "'. Valid: stress, strain, "
+                                       "stiffness, compliance, strain_concentration, stress_concentration");
+            }
+            // (6,6) one tensor, (6,6,N) one tensor per slice
+            if ((values.ndim() != 2 && values.ndim() != 3) || values.shape(0) != 6 || values.shape(1) != 6) {
+                throw invalid_argument("rotate_voigt: " + kind + " values must have shape (6, 6) or (6, 6, N)");
+            }
+            const bool single = values.ndim() == 2;
+            const cube t4 = as_cube(values);
+            check_rotation_count(R, t4.n_slices);
+            cube result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_rotate(t4, it4->second, R, active, n_threads);
+            }
+            if (single) {
+                return simpy::arma_to_numpy::mat_to_arr(mat(result.slice(0)));
+            }
+            return simpy::arma_to_numpy::cube_to_arr(std::move(result));
+        },
+        py::arg("values"), py::arg("DR"), py::arg("kind"), py::arg("active") = true,
+        py::arg("n_threads") = 4,
+        simcoon_docs::rotate_voigt);
 
     m.def("dR_drotvec",
         [](py::array_t<double> rotvec) {

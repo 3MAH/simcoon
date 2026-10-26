@@ -322,4 +322,63 @@ constexpr auto dR_drotvec_free = R"pbdoc(
     Rotation in Exponential Coordinates", J. Math. Imaging Vis., 2015.
 )pbdoc";
 
+constexpr auto rotate_voigt = R"pbdoc(
+    Rotate a batch of Voigt tensors by rotation matrices, one per tensor.
+
+    The batch counterpart of ``Rotation.apply_stress`` / ``apply_strain`` /
+    ``apply_stiffness`` / ``apply_compliance`` / ``apply_strain_concentration`` /
+    ``apply_stress_concentration`` on the layout of :func:`simcoon.umat` and
+    :func:`simcoon.objective_rate`: tensors as columns ``(6, N)`` or slices
+    ``(6, 6, N)``, rotations as slices ``(3, 3, N)`` (e.g. the ``DR`` returned by
+    ``objective_rate``). It builds no ``Rotation`` object: the loop over the points
+    runs in C++, in parallel and without the GIL.
+
+    ``rotate_voigt(values, DR, kind, active)`` equals
+    ``Rotation.from_matrix(DR.transpose(2, 0, 1)).apply_<kind>(values, active)`` up to
+    round-off (a few ulps).
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Stress or strain vectors, shape ``(6,)`` or ``(6, N)``, or 6x6 tensors, shape
+        ``(6, 6)`` or ``(6, 6, N)``, depending on ``kind``. Strains use engineering
+        shear components (``2 eps_12``, ...), as everywhere in simcoon.
+    DR : numpy.ndarray
+        Rotation matrices, shape ``(3, 3, N)``, or ``(3, 3)`` / ``(3, 3, 1)`` for one
+        rotation applied to every tensor.
+    kind : str
+        ``"stress"``, ``"strain"`` (vectors), ``"stiffness"``, ``"compliance"``,
+        ``"strain_concentration"`` or ``"stress_concentration"`` (6x6 tensors): the rule
+        of the corresponding ``Rotation.apply_*`` method.
+    active : bool, optional
+        If True (default), active rotation (``R . X . R^T``); if False, the inverse
+        (passive) one.
+    n_threads : int, optional
+        Number of threads of the loop: 1 runs serially, 0 uses all the cores. Default 4,
+        as :func:`simcoon.umat`. Batches of at most 100 tensors always run serially.
+
+    Returns
+    -------
+    numpy.ndarray
+        The rotated tensors, with the shape of ``values`` (Fortran order).
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import simcoon as smc
+
+        N = 1000
+        F0 = np.repeat(np.eye(3)[:, :, None], N, axis=2)
+        F1 = F0 + 0.01 * np.random.rand(3, 3, N)
+        D, DR, Omega = smc.objective_rate("log_R", F0, F1, 1.0)
+
+        stress = np.random.rand(6, N)
+        stress_rot = smc.rotate_voigt(stress, DR, "stress", n_threads=0)
+
+        L = np.repeat(smc.L_iso([70000.0, 0.3], "Enu")[:, :, None], N, axis=2)
+        L_rot = smc.rotate_voigt(L, DR, "stiffness", n_threads=0)
+)pbdoc";
+
 } // namespace simcoon_docs

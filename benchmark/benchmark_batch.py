@@ -10,7 +10,10 @@ iteration on all its integration points: ``sim.umat``/``sim.umat_T`` on
 - ``fedooUL_<law>`` — updated Lagrangian, one global iteration:
   ``objective_rate("log_R")``, ``Rotation.from_matrix`` + ``apply_strain``/
   ``apply_stress``, ``umat`` with ``corate=3`` and the box tangent, then the two
-  ``Lt_convert`` (``DsigmaDe_2_DSDE``, ``DSDE_2_Dsigma_LieDD``).
+  ``Lt_convert`` (``DsigmaDe_2_DSDE``, ``DSDE_2_Dsigma_LieDD``);
+- ``fedooUL2_<law>`` — the same iteration with ``rotate_voigt`` instead of
+  ``Rotation``, ``umat`` called with positional arguments and ``n_threads``
+  passed to every call (fedoo once it uses ``rotate_voigt``).
 
 Every (case, N, n_threads) is timed as the MINIMUM wall time per call over
 adaptive repetitions (least-noise estimator on a loaded machine). The
@@ -156,6 +159,40 @@ def fedoo_ul_case(name, N, n_threads):
     return call
 
 
+def fedoo_ul2_case(name, N, n_threads):
+    """fedooUL_<law> as fedoo runs it with rotate_voigt: no scipy Rotation, umat called with
+    positional arguments, n_threads passed to every batch call. Falls back on the Rotation
+    path and the default Lt_convert threads where the simcoon timed lacks them."""
+    props, nstatev = law(name)
+    props = F(np.asarray(props, float).reshape(-1, 1))
+    F0 = rand_F(N, 0.02, seed=1)
+    F1 = F(F0 + 0.004 * np.eye(3)[:, :, None] * np.array([1.0, -0.5, -0.5])[:, None, None])
+    e0 = F(np.zeros((6, N)))
+    s0 = F(np.zeros((6, N)))
+    statev = F(np.zeros((nstatev, N)))
+    Wm = F(np.zeros((4, N)))
+    temp = np.array([290.0])
+    rotate = getattr(sim, "rotate_voigt", None)
+    lt_kw = {"n_threads": n_threads} if "n_threads" in (sim.Lt_convert.__doc__ or "") else {}
+
+    def call():
+        de, _D, DR, _Omega = sim.objective_rate("log_R", F0, F1, 0.01, True, n_threads)
+        if rotate is not None:
+            e = rotate(e0, DR, "strain", True, n_threads)
+            s = rotate(s0, DR, "stress", True, n_threads)
+        else:
+            rot = sim.Rotation.from_matrix(DR.transpose(2, 0, 1))
+            e = rot.apply_strain(e0)
+            s = rot.apply_stress(s0)
+        # umat_name ... Wm, temp, ndi, nshr, n_threads, tangent_mode, corate, work_correction,
+        # tangent_output, start
+        sig, _sv, _wm, Lt = sim.umat(name, e, de, F0, F1, s, DR, props, statev, 1.0, 0.01, Wm,
+                                     temp, 3, None, n_threads, 2, 3, True, "box", False)
+        dsde = sim.Lt_convert(Lt, F1, sig, "DsigmaDe_2_DSDE", **lt_kw)
+        return sim.Lt_convert(dsde, F1, sig, "DSDE_2_Dsigma_LieDD", **lt_kw)
+    return call
+
+
 def build(case, N, n_threads):
     """Return a zero-argument callable timing *case* on N points."""
     if case == "umat_ELISO":
@@ -218,6 +255,18 @@ def build(case, N, n_threads):
         return lambda: L.push_forward(Fm)
     if case.startswith("fedooUL_"):
         return fedoo_ul_case(case.split("_", 1)[1], N, n_threads)
+    if case.startswith("fedooUL2_"):
+        return fedoo_ul2_case(case.split("_", 1)[1], N, n_threads)
+    if case == "rotate_voigt_strain_stress":   # the rotate_voigt form of rot_from_matrix_apply_strain
+        DR = rand_F(N, 0.0)
+        e = F(np.ones((6, N)))
+        return lambda: (sim.rotate_voigt(e, DR, "strain", True, n_threads),
+                        sim.rotate_voigt(e, DR, "stress", True, n_threads))
+    if case == "rotate_voigt_stiffness":
+        from scipy.spatial.transform import Rotation as R
+        DR = F(R.random(N, random_state=0).as_matrix().reshape(N, 3, 3).transpose(1, 2, 0))
+        L = F(np.repeat((np.eye(6) * 1000.0)[:, :, None], N, axis=2))
+        return lambda: sim.rotate_voigt(L, DR, "stiffness", True, n_threads)
     if case.startswith("fedooSS_"):
         name = case.split("_", 1)[1]
         return umat_case(name, *law(name), N, "el", n_threads=n_threads, temp=True)
@@ -233,6 +282,7 @@ ALL_CASES = [
     "tensor4_push_forward",
     "fedooSS_ELISO", "fedooSS_EPICP", "fedooSS_MODUL",
     "fedooUL_ELISO", "fedooUL_EPICP", "fedooUL_MODUL",
+    "fedooUL2_ELISO", "fedooUL2_EPICP", "fedooUL2_MODUL",
 ]
 
 

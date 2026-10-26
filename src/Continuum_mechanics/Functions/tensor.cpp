@@ -972,7 +972,7 @@ static arma::vec::fixed<6> col_fixed6(const arma::mat &m, arma::uword j) {
 }
 
 arma::mat batch_rotate(const arma::mat &voigt, Tensor2Type vtype,
-                       const arma::cube &rot_matrices, bool active) {
+                       const arma::cube &rot_matrices, bool active, unsigned int n_threads) {
     int N = voigt.n_cols;
     check_batch_broadcast(rot_matrices.n_slices, N,
                           "batch_rotate", "rot_matrices", "voigt.n_cols");
@@ -983,7 +983,7 @@ arma::mat batch_rotate(const arma::mat &voigt, Tensor2Type vtype,
         tensor2 t = tensor2::from_voigt(col_fixed6(voigt, i), vtype);
         Rotation R = Rotation::from_matrix(slice_fixed<3,3>(rot_matrices, broadcast ? 0 : i));
         result.col(i) = t.rotate(R, active).voigt();
-    });
+    }, simcoon_parallel_cutoff, n_threads);
     return result;
 }
 
@@ -1075,7 +1075,7 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
 }
 
 arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
-                           const arma::cube &rot_matrices, bool active) {
+                           const arma::cube &rot_matrices, bool active, unsigned int n_threads) {
     int N = t4.n_slices;
     check_batch_broadcast(rot_matrices.n_slices, N,
                           "batch_rotate", "rot_matrices", "t4.n_slices");
@@ -1087,7 +1087,7 @@ arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
         Rotation R = Rotation::from_matrix(slice_fixed<3,3>(rot_matrices, broadcast ? 0 : i));
         const arma::mat::fixed<6,6> out = L.rotate(R, active).mat();
         std::memcpy(result.slice_memptr(i), out.memptr(), 36*sizeof(double));
-    });
+    }, simcoon_parallel_cutoff, n_threads);
     return result;
 }
 
