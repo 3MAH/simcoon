@@ -491,6 +491,13 @@ struct StatevTensor {
  * @c layout_declared says the list is complete (an empty list: no tensorial state); a material
  * frame kernel that has not declared it is refused under corates 4 and 5.
  *
+ * @c material_tangent marks a kernel built on \f$ \mathbf{F} \f$ whose native tangent is the
+ * material one, \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ (a pull-back of its spatial tangent):
+ * called with corate_type_material_tangent it returns that tangent instead of a box, and its
+ * stress and work do not depend on the corate it is given. A caller that needs
+ * \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ asks for it (select_umat_M_finite) instead of
+ * converting the box back.
+ *
  * @see output_convention_of
  */
 struct umat_convention {
@@ -498,6 +505,7 @@ struct umat_convention {
     bool material_frame = false;
     bool layout_declared = false;
     std::vector<StatevTensor> statev_tensors = {};
+    bool material_tangent = false;
 };
 
 /**
@@ -539,6 +547,13 @@ bool stress_output_is_kirchhoff(const std::string &umat_name);
 bool total_formulation_serves(const std::string &umat_name);
 
 /**
+ * @brief True when the named kernel can return its tangent as \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$
+ *        (umat_convention::material_tangent, corate_type_material_tangent): the kernels built on
+ *        \f$ \mathbf{F} \f$ (hyperelastic potentials, Saint-Venant-Kirchhoff). Never throws.
+ */
+bool material_tangent_serves(const std::string &umat_name);
+
+/**
  * @brief Kirchhoff stress at the exit of a kernel run under the total formulation.
  *
  * A log-strain box (@p box true) returned \f$ \mathbf{T} \f$: \f$ \boldsymbol{\tau} \f$ is its
@@ -572,6 +587,10 @@ arma::vec total_formulation_tau(const arma::vec &sigma, const arma::vec &Detot, 
  *        or corate_type_total for the total formulation: the kernel then works on \f$ \ln\mathbf{U} \f$ and its
  *        dual stress \f$ \mathbf{T} \f$ instead of \f$ \ln\mathbf{V} \f$ and \f$ \boldsymbol{\tau} \f$
  * @param tnew_dt New increment of time if the max number of iteration has not converged
+ * @param material_tangent true: Lt is returned as the material tangent \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$
+ *        instead of the box tangent of @p corate_type. Honoured only for a kernel that
+ *        material_tangent_serves() (it is then called with corate_type_material_tangent; the
+ *        stress, the work and statev are unchanged); the caller checks it.
  * @details Under the logarithmic corates (2, 3, 5) the mechanical work is corrected to the true
  * work per reference volume (see Delta_work_conjugacy). Example: 
  * @code 
@@ -605,7 +624,7 @@ arma::vec total_formulation_tau(const arma::vec &sigma, const arma::vec &Detot, 
     select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, pnewdt);
  * @endcode
 */
-void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt);
+void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt, const bool &material_tangent = false);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering small strain assumption
@@ -659,7 +678,7 @@ void select_umat_M(phase_characteristics &rve, const arma::mat &DR_global,const 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 void run_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt);
 
-void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, const int &, double &);
+void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, const int &, double &, const bool &material_tangent = false);
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */    
     
 /**

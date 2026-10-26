@@ -1118,6 +1118,7 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
         case 4:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // Truesdell: the convected box IS the Lie tangent
         case 5:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau)*inv(A_F(F));   // log_F: De = A^F:D dt, stress carried by sym(DF X DF^-1)
         case corate_type_total:  return DSDE_2_logU_box(DSDE, F, tau);            // strain space: dT/dH in reference components
+        case corate_type_material_tangent:  return DSDE;            // the material tangent itself
         case 2:                                                     // XBM (logarithmic)
         case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
                                                                     // R frame (Hoger/Miehe d(ln U)/dC in rate form),
@@ -1164,6 +1165,7 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
         case 4:  return Dtau_LieDD_2_DSDE(Lt, F);                   // Truesdell: convected box = Lie tangent
         case 5:  return DtauDe_JaumannDD_2_DSDE(Lt*A_F(F), F, tau); // log_F: inverse of the forward map
         case corate_type_total:  return logU_box_2_DSDE(Lt, F, tau);              // strain space: P^T Lt P + T:L
+        case corate_type_material_tangent:  return Lt;              // already dS/dE
         case 2:                                                     // XBM and...
         case 3:                                                     // log_R: exact map (see DSDE_2_DtauDe_corate)
         default: return DtauDe_2_DSDE(Lt, F, tau);
@@ -1180,10 +1182,35 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
         case 4:  return Dtau_LieDD;                                   // Truesdell: the convected box IS the Lie tangent
         case 5:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau)*inv(A_F(F));   // log_F: chain rule through De = A^F:D dt
         case corate_type_total:  return DSDE_2_logU_box(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);   // strain space, through dS/dE
+        case corate_type_material_tangent:  return Dtau_LieDD_2_DSDE(Dtau_LieDD, F);   // the pull-back alone
         case 2:                                                       // XBM and...
         case 3:                                                       // log_R: exact spectral map
         default: return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);
     }
+}
+
+// Box tangent d(tau)/d(e) at a pure stretch V = exp(e) of an isotropic response, from its Lie
+// tangent (full doc in objective_rates.hpp): Lt : de = Jc : dt + dt tau + tau dt with
+// dt = N (H % N^T de N) N^T, H_ab = tanh(e_a - e_b)/(e_a - e_b).
+mat Dtau_LieDD_2_DtauDe_stretch(const mat &Dtau_LieDD, const vec::fixed<3> &e, const mat::fixed<3,3> &N, const mat &tau) {
+    m33 H;
+    for (int a = 0; a < 3; ++a) {
+        for (int b = 0; b < 3; ++b) {
+            const double d = e(a) - e(b);
+            H(a, b) = (std::fabs(d) > 1.e-4) ? std::tanh(d)/d : 1. - d*d/3. + 2.*d*d*d*d/15.;   // Taylor of tanh(d)/d
+        }
+    }
+    const arma::mat::fixed<6,6> Jc(Dtau_LieDD);
+    const m33 tau_(tau);
+    mat Lt(6, 6);
+    double y[6];
+    for (int j = 0; j < 6; ++j) {
+        const m33 dt = N * (H % (N.t() * unit_strain_tensor(j) * N)) * N.t();
+        box_apply(Jc, dt, y);
+        const m33 dtau = v2t_stress_arr(y) + dt * tau_ + tau_ * dt;
+        set_stress_col(Lt, j, dtau);
+    }
+    return Lt;
 }
 
 // Canonical box tangent Lt = d(tau_hat)/d(De) (full doc in objective_rates.hpp).

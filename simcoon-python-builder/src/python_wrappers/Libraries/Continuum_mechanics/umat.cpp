@@ -548,6 +548,12 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// log-corate work correction (finite-strain calls only): decided once, not per point
 		const bool work_correction = work_correction_on && kirchhoff_normalize
 		                             && simcoon::work_correction_applies(corate_type);
+		// tangent_output 'material' or 'spatial' from a law built on F: the law is asked for its native
+		// tangent dS/dE (corate_type_material_tangent) instead of the box of corate_type, mapped back
+		// below otherwise; its stress and work do not depend on the corate
+		const bool native_dSdE = tangent_out != tangent_out_box && !cs.active() && arguments_type == 2
+		                         && simcoon::material_tangent_serves(umat_name_py);
+		const int corate_law = native_dSdE ? simcoon::corate_type_material_tangent : corate_type;
 		const mat I3 = eye(3, 3);
 		auto point_kernel = [&](int pt) {
 			// Alias the props column without copying: the parallel region makes no
@@ -632,7 +638,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						break;
 					}
 					case 2: {
-						umat_function_finite(umat_name_py, etot, Detot_pt, F0_pt, F1_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, corate_type, tangent_mode);
+						umat_function_finite(umat_name_py, etot, Detot_pt, F0_pt, F1_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, corate_law, tangent_mode);
 						break;
 					}
 				}
@@ -732,8 +738,10 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			}
 			if (tangent_out != tangent_out_box && !material_face) {   // material_face: already dS/dE
 				// same maps as Lt_convert on the returned (Cauchy) stress, with the corate the law ran with
-				const mat dSdE = simcoon::DtauDe_corate_2_DSDE(Lt_s, corate_type, F1_s,
-				                                               arma::det(F1_s)*simcoon::v2t_stress(sigma));
+				// (none: the law returned dS/dE itself)
+				const mat dSdE = native_dSdE ? mat(Lt_s)
+				                             : simcoon::DtauDe_corate_2_DSDE(Lt_s, corate_type, F1_s,
+				                                                             arma::det(F1_s)*simcoon::v2t_stress(sigma));
 				Lt_s = (tangent_out == tangent_out_material) ? dSdE : simcoon::DSDE_2_Dsigma_LieDD(dSdE, F1_s);
 			}
 		};

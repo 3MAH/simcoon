@@ -26,6 +26,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/eig_sym3.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <stdexcept>
 
@@ -313,12 +315,18 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
             "ElasticityModule: a hyperelastic block supports ndi = 3 only (got "
             + std::to_string(ndi) + ")");
     }
-    // eps_el -> V_el = exp(eps_el) -> b_el = exp(2 eps_el). Passing V_el where
-    // the response expects F is what makes the returned box tangent
+    // eps_el -> V_el = exp(eps_el) -> b_el = exp(2 eps_el), from one spectral decomposition of
+    // eps_el. Passing V_el where the response expects F is what makes the returned box tangent
     // d(tau)/d(eps_el): the frame is corotational here, so R = I.
     const arma::mat eps_t = v2t_strain(eps_el);
-    const arma::mat V_el = eR_to_F(eps_t, arma::eye(3, 3));
-    const arma::mat b_el = V_el * V_el;
+    arma::vec::fixed<3> e;
+    arma::mat::fixed<3,3> N;
+    if (!eig_sym_3x3(e, N, eps_t)) {
+        throw simcoon::exception_expmat_sym("Error in expmat_sym function inside ElasticityModule::evaluate.");
+    }
+    const arma::vec::fixed<3> exp_e = arma::exp(e);
+    const arma::mat V_el = spectral_compose_3x3(N, exp_e);
+    const arma::mat b_el = spectral_compose_3x3(N, exp_e % exp_e);
     const double J_el = std::exp(arma::trace(eps_t));
 
     // An anisotropic potential carries reference fibre directions: push them forward with
@@ -331,6 +339,16 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
                                     isochoric_invariants(b_el, J_el), J_el, A);
     // tau = dpsi/deps_el per reference volume (isotropic psi); corate 3, never the solver's.
     const bool total = (kinematic_form_ == KinematicForm::total);
+    if (!total && A.empty()) {
+        // Isotropic potential: the box d(tau)/d(eps_el) in closed form from the Lie tangent on the
+        // eigenbasis of eps_el (Dtau_LieDD_2_DtauDe_stretch), instead of the pull-back to dS/dE
+        // and the spectral map of corate 3 (a second decomposition, of V_el^2). The Truesdell box
+        // (corate 4) is the Lie tangent itself.
+        arma::mat Lt_Lie;
+        hyper_invariants_response(dW, b_el, J_el, V_el, 4, sigma, Lt_Lie, A);
+        Lt = Dtau_LieDD_2_DtauDe_stretch(Lt_Lie, e, N, v2t_stress(sigma));
+        return;
+    }
     hyper_invariants_response(dW, b_el, J_el, V_el, total ? corate_type_total : 3, sigma, Lt, A);
     if (total) {
         // dual stress of H_el: equal to tau when coaxial, and what makes a fibre potential exact

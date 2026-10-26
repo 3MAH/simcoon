@@ -157,6 +157,34 @@ bool newton_correction(const mat &K, const vec &r, vec &Delta) {
     return Delta.is_finite();
 }
 
+// Material tangent of a law built on F (corate_type_material_tangent) for the Green-Lagrange and
+// Biot residuals: such a law closes on dS/dE, so the Newton asks for it instead of having the box
+// built and pulled back again (two spectral maps per iteration). Between that kernel call and the
+// next Jacobian, sv_M->Lt holds dS/dE at the F1 and tau recorded here; the box tangent, the
+// contract of sv_M->Lt everywhere else, is restored once the Newton loop is over.
+struct material_tangent_state {
+    bool held = false;
+    mat F1;
+    vec tau;
+};
+
+// dS/dE for the Jacobian: the held native tangent at its own state, else the box pulled back as
+// without it (a restarted attempt whose state moved: the box of that evaluation, then the usual map)
+mat jacobian_DSDE(const material_tangent_state &mt, const mat &Lt, const simcoon::state_variables &sv, const int &corate_type) {
+    if (!mt.held)
+        return simcoon::DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, simcoon::v2t_stress(sv.tau));
+    if (approx_equal(mt.F1, sv.F1, "absdiff", 0.) && approx_equal(mt.tau, sv.tau, "absdiff", 0.))
+        return Lt;
+    const mat Lt_box = simcoon::DSDE_2_DtauDe_corate(Lt, corate_type, mt.F1, simcoon::v2t_stress(mt.tau));
+    return simcoon::DtauDe_corate_2_DSDE(Lt_box, corate_type, sv.F1, simcoon::v2t_stress(sv.tau));
+}
+
+void restore_box_tangent(material_tangent_state &mt, simcoon::state_variables_M &sv, const int &corate_type) {
+    if (!mt.held) return;
+    sv.Lt = simcoon::DSDE_2_DtauDe_corate(sv.Lt, corate_type, mt.F1, simcoon::v2t_stress(mt.tau));
+    mt.held = false;
+}
+
 }  // namespace
 
 namespace simcoon{
@@ -283,14 +311,16 @@ void mechanical_residual(state_variables &sv, const unsigned int &control_type, 
 
 // Jacobian of the control type's stress measure with respect to its strain, from the box tangent
 // Lt = dtau/de: Lt itself (1, 3), dS/dE (2, corate-matched pull-back, no J), dBiot/dU (4)
-// (written to C for 2 and 4, Lt returned as is otherwise)
-const mat &control_tangent(state_variables &sv, const mat &Lt, const unsigned int &control_type, const int &corate_type, mat &C) {
+// (written to C for 2 and 4, Lt returned as is otherwise). With mt, Lt may hold the native dS/dE
+// of a law built on F (material_tangent_state), used as is instead of the box pull-back.
+const mat &control_tangent(state_variables &sv, const mat &Lt, const unsigned int &control_type, const int &corate_type, mat &C,
+                           const material_tangent_state *mt = nullptr) {
     if (control_type == 2) {
-        C = DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, v2t_stress(sv.tau));
+        C = mt ? jacobian_DSDE(*mt, Lt, sv, corate_type) : DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, v2t_stress(sv.tau));
         return C;
     }
     if (control_type == 4) {
-        const mat DSDE = DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, v2t_stress(sv.tau));
+        const mat DSDE = mt ? jacobian_DSDE(*mt, Lt, sv, corate_type) : DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, v2t_stress(sv.tau));
         mat R = zeros(3,3);
         mat U = zeros(3,3);
         RU_decomposition(R, U, sv.F1);
@@ -420,6 +450,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
     int nK = 0; // The size of the problem to solve
     mat K;
     mat invK;
+    material_tangent_state native_Lt;   // see material_tangent_state
     int compteur = 0.;
     
     int inc = 0.;
@@ -596,6 +627,9 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     ///Saving stress and stress set point at the beginning of the loop
                                 
                                     error = 1.;
+                                    // dS/dE straight from a law built on F for the PKII / Biot residuals
+                                    const bool ask_material_tangent = (blocks[i].control_type == 2 || blocks[i].control_type == 4)
+                                                                      && material_tangent_serves(umat_name);
                                     
                                     if (blocks[i].control_type == 1 || blocks[i].control_type == 2)
                                         sv_M->DEtot = zeros(6);
@@ -608,7 +642,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             // classic
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
                                             //we use the ddsdde (Lt) from the previous increment
-                                            Lt_2_K(control_tangent(*sv_M, sv_M->Lt, blocks[i].control_type, corate_type, C), K, sptr_meca->cBC_meca, lambda_solver);
+                                            Lt_2_K(control_tangent(*sv_M, sv_M->Lt, blocks[i].control_type, corate_type, C, &native_Lt), K, sptr_meca->cBC_meca, lambda_solver);
 
                                             ///Newton correction (prediction of the component of the strain tensor)
                                             bool inv_success = newton_correction(K, residual, Delta);
@@ -649,7 +683,12 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
                                         }
                                         rve.to_start();
-                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt, ask_material_tangent);
+                                        if (ask_material_tangent) {
+                                            native_Lt.held = true;
+                                            native_Lt.F1 = sv_M->F1;
+                                            native_Lt.tau = sv_M->tau;
+                                        }
 
                                         mechanical_residual(*sv_M, blocks[i].control_type, sptr_meca->cBC_meca, sptr_meca->mecas, inc, Dtinc, sptr_meca->BC_R, DR, lambda_solver, residual);
                                         compteur++;
@@ -664,6 +703,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         }
                                         
                                     }
+                                    restore_box_tangent(native_Lt, *sv_M, corate_type);
                                     
                                 }
                                 

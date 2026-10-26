@@ -71,6 +71,18 @@ constexpr int tangent_default = tangent_algorithmic;
 /// a state function of \f$ \mathbf{F} \f$, and on its dual stress \f$ \mathbf{T} \f$.
 constexpr int corate_type_total = 6;
 
+/// Tangent form carried in the corate_type slot of a finite-strain kernel CALL: the kernel returns
+/// its tangent as the material tangent \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ instead of the box
+/// tangent of a rate. Not a kinematic choice and never a solver corate: the caller runs its own
+/// kinematics and passes this value only to a kernel built on \f$ \mathbf{F} \f$ that declares it
+/// (umat_convention::material_tangent, material_tangent_serves()), whose stress and work do not
+/// depend on the corate. \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ is the form those kernels close
+/// on (a pull-back of their spatial tangent), so a caller that needs it (the solver under
+/// Green-Lagrange or Biot control, sim.umat with tangent_output 'material' or 'spatial') skips the
+/// box map and its inverse, two spectral maps per call. The corate dispatchers of
+/// objective_rates.hpp accept it (identity on \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$).
+constexpr int corate_type_material_tangent = 7;
+
 /// Kinematic form of the finite-strain constitutive update, for the interfaces that name it:
 /// @c rate (objective rates, \f$ \ln\mathbf{V} \f$ and \f$ \boldsymbol{\tau} \f$) or @c total
 /// (\f$ \ln\mathbf{U} \f$ and its dual stress \f$ \mathbf{T} \f$, no rate). In a corate_type

@@ -48,7 +48,8 @@ constexpr auto isochoric_pstretch = R"pbdoc(
     Parameters
     ----------
     input : pybind11::array_t<double>
-        A 3x3 matrix representing the left Cauchy-Green tensor \( \mathbf{b} \) or the Eulerian stretch tensor \( \mathbf{v} \).
+        A 3x3 matrix representing the left Cauchy-Green tensor \( \mathbf{b} \) or the Eulerian stretch tensor \( \mathbf{v} \),
+        or its Voigt vector (6). A batch: a 3x3xN array of such tensors, or a 6xN array of Voigt columns.
     input_tensor : str, optional
         A string indicating the type of input tensor ("b" for \( \mathbf{b} \) or "V" for \( \mathbf{v} \)). Default is "V".
     J : double, optional
@@ -59,7 +60,9 @@ constexpr auto isochoric_pstretch = R"pbdoc(
     Returns
     -------
     pybind11::array_t<double>
-        A column vector of dimension 3 containing the three isochoric principal stretches.
+        A column vector of dimension 3 containing the three isochoric principal stretches; for a
+        batch, a 3xN array (one column per point, computed in parallel, the GIL released; J is
+        shared by every point, 0 to compute it from each tensor).
 
     Notes
     -----

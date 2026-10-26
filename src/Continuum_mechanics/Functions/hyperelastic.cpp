@@ -542,40 +542,56 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
-
-    mat b_bar2;
-    try {
-        b_bar2 = powmat(b_bar,2);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_powmat("Error in powmat function inside L_iso_hyper_invariants.");
-    }            
-
-    mat dev_b_bar = dev(b_bar);    
-    mat dev_b_bar2 = dev(b_bar2);        
+    mat dev_b_bar = dev(b_bar);
     vec I_bar = isochoric_invariants(b,J);
     mat Id = eye(3,3);
-    mat H_bar = auto_sym_dyadic_operator(b_bar);
-
-    mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
 
     // Plain locals on purpose: a function-local static of an armadillo type registers a
     // destructor that runs at DLL unload, and on Windows the unload order of the extension
     // module, the BLAS/LAPACK DLLs and the CRT is not defined — freeing the matrix after its
     // allocator is gone aborts the process once the tests are over. These are 6x6 identities,
-    // negligible next to the six dyadic products this function already builds per call.
-    mat I_real = Ireal();
-    mat I_vol = Ivol();
+    // negligible next to the dyadic products this function builds per call.
     mat I_dev = Idev();
 
-    mat gamma_1 = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id);
-    mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
-                    + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
-    mat gamma_11 = gamma_quadratic(dev_b_bar);
-    mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
-    mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
+    // Only the terms of a non-zero potential derivative are built, summed in the order of the
+    // full expression (a skipped term adds an exact zero): a Neo-Hookean potential needs gamma_1
+    // alone, and the I_2 terms cost b_bar^2 and five more dyadic products.
+    mat Lt = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id)*dWdI_1_bar;
+    if ((dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.)) {
+        mat b_bar2;
+        try {
+            b_bar2 = powmat(b_bar,2);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_powmat("Error in powmat function inside L_iso_hyper_invariants.");
+        }
+        mat dev_b_bar2 = dev(b_bar2);
+        mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
+        if (dWdI_2_bar != 0.) {
+            mat I_real = Ireal();
+            mat I_vol = Ivol();
+            mat H_bar = auto_sym_dyadic_operator(b_bar);
+            mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
+                            + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
+            Lt += gamma_2*dWdI_2_bar;
+        }
+        if (dW2dI_11_bar != 0.) {
+            Lt += gamma_quadratic(dev_b_bar)*dW2dI_11_bar;
+        }
+        if (dW2dI_12_bar != 0.) {
+            mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
+            Lt += gamma_12*dW2dI_12_bar;
+        }
+        if (dW2dI_22_bar != 0.) {
+            mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
+            Lt += gamma_22*dW2dI_22_bar;
+        }
+    }
+    else if (dW2dI_11_bar != 0.) {
+        Lt += gamma_quadratic(dev_b_bar)*dW2dI_11_bar;
+    }
 
-    return (1./J)*(gamma_1*dWdI_1_bar+gamma_2*dWdI_2_bar+gamma_11*dW2dI_11_bar+gamma_12*dW2dI_12_bar+gamma_22*dW2dI_22_bar);
+    return (1./J)*Lt;
 }
 
 mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const double &mJ) {

@@ -159,6 +159,37 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
         }
     };*/
 
+    // F of a batch of N stresses: (3,3,N), or (N,3,3) transposed to it
+    auto batch_F = [&F](const unsigned int N) -> py::array_t<double> {
+        if ((int)F.ndim() == 3) {
+            if ((unsigned int)F.shape(0) == N && F.shape(1) == 3 && F.shape(2) == 3) {
+                return F.attr("transpose")(py::make_tuple(1,2,0)).cast<py::array_t<double>>();
+            }
+            if ((unsigned int)F.shape(0) == 3 && F.shape(1) == 3 && (unsigned int)F.shape(2) == N) {
+                return F;
+            }
+        }
+        throw std::invalid_argument("For a batch of N stresses, F must be shaped (3,3,N) or (N,3,3) with matching N");
+    };
+
+    if(sigma.ndim() == 3) {
+        // Batch of 3x3 stresses (3,3,N): per point, GIL released, through the slice memory
+        if ((sigma.shape(0) != 3) || (sigma.shape(1) != 3)) {
+            throw std::invalid_argument("Invalid shape of the three-dimensional array. Expected (3,3,N): one 3x3 stress per slice");
+        }
+        const unsigned int N = sigma.shape(2);
+        const py::array_t<double> F_in = batch_F(N);
+        const cube sigma_cpp_list = simpy::numpy_to_arma::arr_to_cube_view(sigma);
+        const cube F_cpp_list = simpy::numpy_to_arma::arr_to_cube_view(F_in);
+        cube stress(3, 3, N);   // every slice written below
+        parallel_for_nogil(static_cast<int>(N), [&](int i) {
+            const mat sigma_cpp(const_cast<double *>(sigma_cpp_list.slice_memptr(i)), 3, 3, false, true);
+            const mat F_cpp(const_cast<double *>(F_cpp_list.slice_memptr(i)), 3, 3, false, true);
+            mat out(stress.slice_memptr(i), 3, 3, false, true);
+            out = functor_stress_converter(sigma_cpp, F_cpp, J);
+        });
+        return simpy::arma_to_numpy::cube_to_arr(stress, copy);
+    }
     if(sigma.ndim() == 1) {
         if(sigma.size() == 6) {
             mat sigma_cpp = simcoon::v2t_stress(simpy::numpy_to_arma::arr_to_col(sigma));
@@ -248,7 +279,7 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
         }
     }
     else {
-        throw std::invalid_argument("Invalid number of dimensions for input 'sigma'. Expected 1 or 2.");
+        throw std::invalid_argument("Invalid number of dimensions for input 'sigma'. Expected 1, 2 or 3.");
     }    
 }
 

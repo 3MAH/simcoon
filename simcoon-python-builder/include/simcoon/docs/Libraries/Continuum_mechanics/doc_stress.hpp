@@ -17,6 +17,7 @@ sigma : pybind11::array_t<double>
         - 1D array with 6 elements: Voigt vector [s11, s22, s33, s23, s13, s12].
         - 2D array with shape (3,3): full 3x3 stress matrix.
         - 2D array with shape (6,N): list of N Voigt stress vectors (columns).
+        - 3D array with shape (3,3,N): N 3x3 stress matrices.
 F : pybind11::array_t<double>
         The deformation gradient. Accepted shapes:
         - (3,3) for a single conversion.

@@ -834,6 +834,7 @@ arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F,
  * equal ones. \f$ \mathbf{T} \f$ is recovered from @p tau by
  * Kirchoff2LogStressU(). @c DSDE_2_DtauDe_corate maps
  * \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}\to\mathbf{L}_t \f$; @c DtauDe_corate_2_DSDE is its inverse.
+ * corate_type_material_tangent (a tangent form, not a rate): both are the identity.
 */
 arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, const arma::mat &F, const arma::mat &tau);
@@ -888,6 +889,8 @@ arma::vec box_covector_2_dE(const arma::vec &d_box, const arma::mat &F, const in
  * with the stress carried by \f$ \mathrm{sym}(\Delta\mathbf{F}\,\boldsymbol\tau\,\Delta\mathbf{F}^{-1}) \f$:
  * \f$ \mathbb{C}^J : (\mathbb{A}^F)^{-1} \f$, finite-difference verified, equal to the log box for
  * isotropic laws. corate_type_total goes through \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$.
+ * corate_type_material_tangent returns \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$ itself, the
+ * pull-back alone (Dtau_LieDD_2_DSDE).
  *
  * @param Dtau_LieDD the spatial Kirchhoff-Lie tangent \f$ \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
  * @param corate_type the solver's corate (see corate_kinematics)
@@ -896,6 +899,31 @@ arma::vec box_covector_2_dE(const arma::vec &d_box, const arma::mat &F, const in
  * @return the box tangent in @p corate_type
  */
 arma::mat Dtau_LieDD_2_DtauDe_corate(const arma::mat &Dtau_LieDD, const int &corate_type, const arma::mat &F, const arma::mat &tau);
+
+/**
+ * @brief Box tangent \f$ \partial\boldsymbol\tau/\partial\mathbf{e} \f$ at a pure stretch
+ *        \f$ \mathbf{F} = \mathbf{V} = \exp(\mathbf{e}) \f$, in closed form from the spatial (Lie) tangent of an
+ *        ISOTROPIC response.
+ *
+ * With \f$ \boldsymbol\tau(\mathbf{b}) \f$ isotropic and \f$ \mathbf{b} = \exp(2\mathbf{e}) \f$:
+ * \f$ J\boldsymbol{\mathsf{c}}:\mathbf{d} = \partial_{\mathbf{b}}\boldsymbol\tau:(\mathbf{d}\mathbf{b}+\mathbf{b}\mathbf{d})
+ * - (\mathbf{d}\boldsymbol\tau+\boldsymbol\tau\mathbf{d}) \f$, and the Daleckii-Krein derivative of
+ * \f$ \exp(2\mathbf{e}) \f$ on the eigenbasis \f$ \mathbf{N} \f$ of \f$ \mathbf{e} \f$ (eigenvalues \f$ e_a \f$) gives
+ * \f[ \mathbf{L}_t:\delta\mathbf{e} = J\boldsymbol{\mathsf{c}}:\tilde{\mathbf{d}} + \tilde{\mathbf{d}}\boldsymbol\tau + \boldsymbol\tau\tilde{\mathbf{d}},
+ *     \qquad \tilde{\mathbf{d}} = \mathbf{N}\left(H \circ \mathbf{N}^T\delta\mathbf{e}\,\mathbf{N}\right)\mathbf{N}^T,
+ *     \qquad H_{ab} = \frac{\tanh(e_a - e_b)}{e_a - e_b} \f]
+ * (Miehe and Lambrecht, 2001). The same tangent as Dtau_LieDD_2_DtauDe_corate() with corate 3 and
+ * \f$ \mathbf{F} = \mathbf{V} \f$ (pull-back, then the exact spectral map; \f$ \mathbf{R} = \mathbf{I} \f$), with no
+ * second spectral decomposition and no pull-back. Not valid for an anisotropic response
+ * (\f$ \boldsymbol\tau \f$ not an isotropic function of \f$ \mathbf{b} \f$): use the general map.
+ *
+ * @param Dtau_LieDD the spatial Kirchhoff-Lie tangent \f$ J\boldsymbol{\mathsf{c}} \f$ (6x6 Voigt)
+ * @param e eigenvalues of the logarithmic strain \f$ \mathbf{e} = \ln\mathbf{V} \f$
+ * @param N its eigenvectors (columns)
+ * @param tau Kirchhoff stress (3x3)
+ * @return the box tangent (6x6 Voigt, engineering strain)
+ */
+arma::mat Dtau_LieDD_2_DtauDe_stretch(const arma::mat &Dtau_LieDD, const arma::vec::fixed<3> &e, const arma::mat::fixed<3,3> &N, const arma::mat &tau);
 
 /**
  * @brief Assemble the canonical box tangent

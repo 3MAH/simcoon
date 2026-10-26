@@ -4,6 +4,7 @@
 
 #include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <armadillo>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
@@ -54,6 +55,36 @@ py::array_t<double> isochoric_invariants(const py::array_t<double> &input, const
 }
 
 py::array_t<double> isochoric_pstretch(const py::array_t<double> &input, const std::string &input_tensor, const double &J, const bool &copy) {
+
+    // Batch: (3,3,N) tensors, or (6,N) Voigt columns with N > 1 -> (3,N) stretches, per point in
+    // parallel with the GIL released. J is shared by every point (0: from each tensor).
+    const bool tensors = input.ndim() == 3;
+    const bool voigt_cols = input.ndim() == 2 && input.shape(0) == 6 && input.shape(1) > 1;
+    if (tensors || voigt_cols) {
+        const bool is_b = (input_tensor == "b");
+        if (!is_b && input_tensor != "V" && input_tensor != "v") {
+            throw std::invalid_argument("Invalid input string to describe the input tensor: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");
+        }
+        cube X_t;
+        mat X_v;
+        if (tensors) {
+            X_t = simpy::numpy_to_arma::arr_to_cube_view(input);
+            if (X_t.n_rows != 3 || X_t.n_cols != 3) {
+                throw std::invalid_argument("Invalid shape of the three-dimensional array. Expected (3,3,N)");
+            }
+        }
+        else {
+            X_v = simpy::numpy_to_arma::arr_to_mat_view(input);
+        }
+        const int nb_points = tensors ? X_t.n_slices : X_v.n_cols;
+        mat out(3, nb_points);   // every column written below
+        parallel_for_nogil(nb_points, [&](int pt) {
+            const mat X = tensors ? mat(const_cast<double *>(X_t.slice_memptr(pt)), 3, 3, false, true)
+                                  : simcoon::v2t_strain(X_v.col(pt));
+            out.col(pt) = is_b ? simcoon::isochoric_pstretch_from_b(X, J) : simcoon::isochoric_pstretch_from_V(X, J);
+        });
+        return simpy::arma_to_numpy::mat_to_arr(out, false);
+    }
 
     if(input.ndim() == 1) {
         if(input.size() == 6) {

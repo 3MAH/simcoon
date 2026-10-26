@@ -242,17 +242,19 @@ const std::map<string, umat_convention> &umat_conventions()
         // HYPOO: the rate counterpart of ELORT, tau_{n+1} = tau_n + L : DEel
         {"HYPOO", {SM::kirchhoff, true, true, {}}},
 
-        // --- finite kernels: build the tangent from F, then convert it to corate_type ---
-        {"SNTVE", {SM::kirchhoff}},
-        {"NEOHI", {SM::kirchhoff}},
-        {"NEOHC", {SM::kirchhoff}},
-        {"MOORI", {SM::kirchhoff}},
-        {"YEOHH", {SM::kirchhoff}},
-        {"ISHAH", {SM::kirchhoff}},
-        {"GETHH", {SM::kirchhoff}},
-        {"SWANH", {SM::kirchhoff}},
-        {"OGDEN", {SM::kirchhoff}},
-        {"HOLZA", {SM::kirchhoff}},
+        // --- finite kernels: build the tangent from F, then convert it to corate_type; their
+        // native tangent is dS/dE (material_tangent: returned as is under
+        // corate_type_material_tangent) ---
+        {"SNTVE", {SM::kirchhoff, false, false, {}, true}},
+        {"NEOHI", {SM::kirchhoff, false, false, {}, true}},
+        {"NEOHC", {SM::kirchhoff, false, false, {}, true}},
+        {"MOORI", {SM::kirchhoff, false, false, {}, true}},
+        {"YEOHH", {SM::kirchhoff, false, false, {}, true}},
+        {"ISHAH", {SM::kirchhoff, false, false, {}, true}},
+        {"GETHH", {SM::kirchhoff, false, false, {}, true}},
+        {"SWANH", {SM::kirchhoff, false, false, {}, true}},
+        {"OGDEN", {SM::kirchhoff, false, false, {}, true}},
+        {"HOLZA", {SM::kirchhoff, false, false, {}, true}},
 
         // --- foreign conventions simcoon does not own ---
         // Plugin adapters: the contract is the host code's (Abaqus DDSDDE is Cauchy-based).
@@ -297,6 +299,13 @@ bool stress_output_is_kirchhoff(const std::string &umat_name)
 bool total_formulation_serves(const std::string &umat_name)
 {
     return umat_name != "HYPOO" && stress_output_is_kirchhoff(umat_name);
+}
+
+bool material_tangent_serves(const std::string &umat_name)
+{
+    const auto &conventions = umat_conventions();
+    auto it = conventions.find(umat_name);
+    return it != conventions.end() && it->second.material_tangent;
 }
 
 vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, const bool &box, double &dW)
@@ -553,7 +562,7 @@ void leave_finite_box(state_variables &sv, const finite_box &box, const int &cor
 
 }  // namespace
 
-void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
+void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt, const bool &material_tangent)
 {
     // The finite route runs 3D (the solver imposes stress-free components through mixed boundary
     // conditions); condensed states go through select_umat_M or sim.umat.
@@ -579,6 +588,9 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     umat_convention conv{StressMeasure::kirchhoff};
     if (id_umat >= 0)
         conv = output_convention_of(rve.sptr_matprops->umat_name);
+    // The corate the kernel's tangent is expressed in: the solver's, or the material tangent
+    // dS/dE when asked for and declared (a kernel built on F: the corate shapes nothing else)
+    const int corate_Lt = (material_tangent && conv.material_tangent) ? corate_type_material_tangent : corate_type;
 
     if (id_umat == 200) {   // MODUL
         // tau = d psi / d eps_el is a stored-energy law only when the accumulated strain is ln V:
@@ -636,7 +648,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                  break;
              }
             case 8: {
-                umat_saint_venant(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
+                umat_saint_venant(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }
             case 201: {
@@ -651,15 +663,15 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             case 9: {
-                umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
+                umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }                         
             case 10: case 11: case 12: case 13: case 14: case 15: case 16: {
-                umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
+                umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }
             case 22: {
-                umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
+                umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }
             case 300: {
@@ -679,7 +691,8 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             umat_M->L = rotate_stiffness(umat_M->L, box.R_hat);
         }
         leave_finite_box(*umat_M, box, corate_type, umat_M->Wm);
-        // No tangent conversion: every kernel emits Lt in corate_type already.
+        // No tangent conversion: every kernel emits Lt in corate_type already (in dS/dE when the
+        // material tangent was asked for and served).
         rve.local2global();
 }
     
@@ -980,7 +993,7 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
     }
 }
 
-void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt)
+void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt, const bool &material_tangent)
 {
 
     tnew_dt = 1.;
@@ -993,7 +1006,7 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
             break;
         }
         case 2: case 3: case 4: case 5: case 6: {
-            select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt);
+            select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt, material_tangent);
             break;
         }
         default: {
