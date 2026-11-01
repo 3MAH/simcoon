@@ -308,6 +308,93 @@ bool real_logmat_3x3(const arma::mat &A_in, arma::mat &logA) {
 
 } // namespace
 
+void geodesic_F_increments(const arma::mat &F_prev, const arma::vec &BC_meca, const arma::vec &inc_coef, const double &BC_Time,
+                           arma::vec &times, arma::mat &mecas, arma::mat &BC_mecas)
+{
+    const unsigned int ninc = times.n_elem;
+
+    // Target deformation gradient
+    arma::mat F_target(3,3);
+    for (unsigned int k = 0; k < 9; ++k) {
+        F_target(k/3, k%3) = BC_meca(k);
+    }
+
+    // Relative deformation over the step
+    arma::mat F_prev_inv;
+    bool inv_success = arma::inv(F_prev_inv, F_prev);
+    if (!inv_success) {
+        throw simcoon::exception_solver("Singular deformation gradient F_prev in generate_kin.");
+    }
+    arma::mat F_tilde = F_target * F_prev_inv;
+
+    // Logarithm of the total transformation: real-arithmetic path first
+    // (portable — see real_logmat_3x3), arma::logmat (complex Schur) only
+    // as a fallback for pathological steps.
+    arma::mat logF;
+    if (!real_logmat_3x3(F_tilde, logF)) {
+        logF = arma::real(arma::logmat(F_tilde));
+    }
+
+    // Normalization of incremental weights
+    double wsum = arma::accu(inc_coef);
+
+    // Safety check (optional but recommended)
+    if (wsum <= 0.0) {
+        throw std::runtime_error("Sum of inc_coef must be positive");
+    }
+
+    // Initialize deformation at start of step
+    arma::mat F_i = F_prev;
+
+    for (unsigned int inc = 0; inc < ninc; ++inc) {
+
+        // Incremental time weighted by inc_coef (matches deformation weighting)
+        times(inc) = (inc_coef(inc) / wsum) * BC_Time;
+
+        // Incremental generator (normalized weights)
+        arma::mat delta_L = (inc_coef(inc) / wsum) * logF;
+
+        // Exponential map (real Pade scaling-and-squaring — no LAPACK Schur)
+        arma::mat D_i = arma::expmat(delta_L);
+
+        // Multiplicative update
+        F_i = D_i * F_i;
+
+        // Store deformation history and the generator of the increment
+        for (unsigned int k = 0; k < 9; ++k) {
+            BC_mecas(inc,k) = F_i(k/3, k%3);
+            mecas(inc,k) = delta_L(k/3, k%3);
+        }
+    }
+}
+
+void tabulated_F_increments(const arma::mat &F_prev, const arma::Col<int> &cBC_meca, const unsigned int &control_type,
+                            arma::mat &mecas, arma::mat &BC_mecas)
+{
+    const arma::mat I = arma::eye(3,3);
+    arma::mat F_n = F_prev;
+    for (unsigned int inc = 0; inc < BC_mecas.n_rows; ++inc) {
+        arma::mat F_i(3,3);
+        for (unsigned int k = 0; k < 9; ++k) {
+            F_i(k/3, k%3) = (cBC_meca(k) == 2) ? F_n(k/3, k%3)
+                          : BC_mecas(inc,k) + ((control_type == 6) ? I(k/3, k%3) : 0.);
+        }
+        arma::mat F_n_inv;
+        if (!arma::inv(F_n_inv, F_n)) {
+            throw simcoon::exception_solver("Singular deformation gradient in a tabulated kinematic step.");
+        }
+        arma::mat delta_L;
+        if (!real_logmat_3x3(F_i*F_n_inv, delta_L)) {
+            delta_L = arma::real(arma::logmat(F_i*F_n_inv));
+        }
+        for (unsigned int k = 0; k < 9; ++k) {
+            BC_mecas(inc,k) = F_i(k/3, k%3);
+            mecas(inc,k) = delta_L(k/3, k%3);
+        }
+        F_n = F_i;
+    }
+}
+
 //-------------------------------------------------------------
 void step_meca::generate_kin(const double &mTime, const mat &mF, const double &mT)
 //-------------------------------------------------------------
@@ -341,67 +428,9 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     }
     
     if (mode < 3) {
-
-        // Previous deformation gradient
-        arma::mat F_prev = mF;     // 3x3
-
-        // Target deformation gradient
-        arma::mat F_target(3,3);
-        for (unsigned int k = 0; k < 9; ++k) {
-            F_target(k/3, k%3) = BC_meca(k);
-        }
-
-        // Relative deformation over the step
-        arma::mat F_prev_inv;
-        bool inv_success = arma::inv(F_prev_inv, F_prev);
-        if (!inv_success) {
-            throw simcoon::exception_solver("Singular deformation gradient F_prev in step_meca::generate_kin.");
-        }
-        arma::mat F_tilde = F_target * F_prev_inv;
-
-        // Logarithm of the total transformation: real-arithmetic path first
-        // (portable — see real_logmat_3x3), arma::logmat (complex Schur) only
-        // as a fallback for pathological steps.
-        arma::mat logF;
-        if (!real_logmat_3x3(F_tilde, logF)) {
-            logF = arma::real(arma::logmat(F_tilde));
-        }
-
-        // Normalization of incremental weights
-        double wsum = arma::accu(inc_coef);
-
-        // Safety check (optional but recommended)
-        if (wsum <= 0.0) {
-            throw std::runtime_error("Sum of inc_coef must be positive");
-        }
-
-        // Initialize deformation at start of step
-        arma::mat F_i = F_prev;
-
-        for (unsigned int inc = 0; inc < ninc; ++inc) {
-
-            // Incremental time weighted by inc_coef (matches deformation weighting)
-            times(inc) = (inc_coef(inc) / wsum) * BC_Time;
-
-            // Incremental generator (normalized weights)
-            arma::mat delta_L = (inc_coef(inc) / wsum) * logF;
-
-            // Exponential map (real Pade scaling-and-squaring — no LAPACK Schur)
-            arma::mat D_i = arma::expmat(delta_L);
-
-            // Multiplicative update
-            F_i = D_i * F_i;
-
-            // Store deformation history
-            for (unsigned int k = 0; k < 9; ++k) {
-                BC_mecas(inc,k) = F_i(k/3, k%3);
-
-                if (inc == 0)
-                    mecas(inc,k) = F_i(k/3, k%3) - F_prev(k/3, k%3);
-                else
-                    mecas(inc,k) = F_i(k/3, k%3) - BC_mecas(inc-1,k);
-            }
-        }
+        // control type 6 prescribes grad u = F - I
+        const vec F_target = (control_type == 6) ? vec(BC_meca + vectorise(I2)) : BC_meca;
+        geodesic_F_increments(mF, F_target, inc_coef, BC_Time, times, mecas, BC_mecas);
     }
     else if (mode ==3){ ///Incremental loading
         
@@ -471,17 +500,14 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) < 2){
-                    mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
                     BC_mecas(i,k) = BC_file(kT+1);
                     kT++;
-                }
-                else if (cBC_meca(k) == 2){
-                    mecas(i,k) = 0.;
-                    BC_mecas(i,k) = 0.;
                 }
             }
             BC_file_n = BC_file;
         }
+        // F and the generator of each increment; the components absent from the table hold
+        tabulated_F_increments(mF, cBC_meca, control_type, mecas, BC_mecas);
         //At the end, everything static becomes a deformation-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2)

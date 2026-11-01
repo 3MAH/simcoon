@@ -196,9 +196,6 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
         if ((blocks[i].control_type < 1) || (blocks[i].control_type > 6)) {
             throw std::invalid_argument("solver_run: control_type must be in [1, 6]; got " + std::to_string(blocks[i].control_type));
         }
-        if ((blocks[i].type == 2) && (blocks[i].control_type != 1)) {
-            throw std::invalid_argument("solver_run: thermomechanical blocks only support control_type 1 (small strain)");
-        }
 
         py::list steps_py = bd["steps"].cast<py::list>();
         blocks[i].nstep = static_cast<unsigned int>(py::len(steps_py));

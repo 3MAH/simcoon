@@ -82,7 +82,8 @@ Thermomechanical loading
 ------------------------
 
 :class:`~simcoon.solver.StepThermomeca` activates the coupled heat equation
-(block type 2, small strain), with ``thermal_control`` set to
+(block type 2, any control type: under finite strain with ``kinematic_form``
+``"rate"`` (log_R) or ``"total"``, see :doc:`solver`), with ``thermal_control`` set to
 ``'temperature'`` (ramp to ``T_final``), ``'heat_flux'`` (prescribed ``Q``) or
 ``'convection'`` (0D convection with coefficient ``q_conv``):
 
@@ -107,9 +108,21 @@ For finite-element couplers, the point-wise thermomechanical UMAT batch entry
 ``sim.umat_T(...)`` complements ``sim.umat(...)``; it returns
 ``(sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT)``, with ``r`` the heat of the
 increment per reference volume (see :doc:`output`). With ``F0`` and ``F1`` it runs
-under finite strain, for ``ELISO`` only so far, in the rate form under log_R
+under finite strain, for every law, in the rate form under log_R
 (``kinematic_form="rate"``, the default) or in the total form
-(``kinematic_form="total"``); the stress is Cauchy in and out, as for ``sim.umat``.
+(``kinematic_form="total"``); the stress is Cauchy in and out, as for ``sim.umat``,
+and the kernels run in the lab frame transported by ``DR`` (as ``sim.umat``: anisotropy
+axes are not convected there, unlike in the solver).
+``tangent_output`` selects the derivatives, as for ``sim.umat``: ``"box"`` (default),
+``"material"`` (:math:`\partial\mathbf{S}/\partial\mathbf{E}`,
+:math:`\partial\mathbf{S}/\partial\theta`, :math:`\partial r/\partial\mathbf{E}`, total
+Lagrangian) or ``"spatial"`` (the Cauchy Lie tangent,
+:math:`\partial\boldsymbol\sigma/\partial\theta` and the heat per current volume,
+:math:`r/J` with
+:math:`\partial(r/J)/\partial\mathbf{d} = (\mathbf{F}\,\partial r/\partial\mathbf{E}\,\mathbf{F}^{T} - r\,\mathbf{I})/J`,
+updated Lagrangian); ``"box"`` and ``"material"`` keep the heat per reference volume.
+``r``, ``drdE`` and ``drdT`` are increments: a heat equation takes ``r/dtime``,
+``drdE/dtime`` and ``drdT/dtime``.
 ``sim.umat`` takes the temperature increment as ``DT=`` (with ``temp=``), so that
 thermal expansion follows a prescribed temperature without the heat balance.
 

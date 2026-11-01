@@ -309,10 +309,77 @@ vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, con
     return sigma;
 }
 
+namespace {
+
+// The thermomechanical name -> dispatch id map, shared by the small- and finite-strain dispatches;
+// -1 for a name it does not hold
+int thermo_umat_id(const std::string &umat_name)
+{
+    static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10}};
+    auto it_umat = list_umat.find(umat_name);
+    return (it_umat != list_umat.end()) ? it_umat->second : -1;
+}
+
+// One call of the thermomechanical kernel, fed the strain pair of the route: (Etot, DEtot) under
+// small strain, the box strain (etot, Detot) under finite strain
+void call_umat_T(const int &id_umat, phase_characteristics &rve, state_variables_T &sv, const vec &strain, const vec &Dstrain, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, double &tnew_dt)
+{
+    switch (id_umat) {
+        case 0: {
+//            umat_external_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt);
+            break;
+        }
+        case 1: {
+            umat_elasticity_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 2: {
+            umat_elasticity_trans_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 3: {
+            umat_elasticity_ortho_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 4: {
+            umat_plasticity_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 10: {
+            umat_plasticity_johnson_cook_CCP_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 5: {
+            umat_plasticity_kin_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+           break;
+        }
+        case 6: {
+            umat_zener_fast_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 7: {
+            umat_zener_Nfast_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 8: {
+            umat_prony_Nfast_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 9: {
+            umat_sma_unified_T_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        default: {
+            throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
+        }
+    }
+}
+
+}  // namespace
+
 static void select_umat_T_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
     UNUSED(solver_type);
-    static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10}};
 
     // Same frame handling as select_umat_M_finite: the caller's DR is global;
     // rotate it with the other state variables so the local UMAT receives the
@@ -320,59 +387,8 @@ static void select_umat_T_3D(phase_characteristics &rve, const mat &DR_global,co
     rve.sptr_sv_global->DR = DR_global;
     rve.global2local();
     auto umat_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_local);
-    const mat &DR = umat_T->DR;
-    
-    auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
-    switch (it_umat != list_umat.end() ? it_umat->second : -1) {
-        case 0: {
-//            umat_external_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt);
-            break;
-        }
-        case 1: {
-            umat_elasticity_iso_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 2: {
-            umat_elasticity_trans_iso_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 3: {
-            umat_elasticity_ortho_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 4: {
-            umat_plasticity_iso_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 10: {
-            umat_plasticity_johnson_cook_CCP_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 5: {
-            umat_plasticity_kin_iso_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-           break;
-        }
-        case 6: {
-            umat_zener_fast_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 7: {
-            umat_zener_Nfast_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 8: {
-            umat_prony_Nfast_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        case 9: {
-            umat_sma_unified_T_T(rve.sptr_matprops->umat_name, umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt, umat_T->tangent_mode);
-            break;
-        }
-        default: {
-            throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
-        }
-    }
-    // Thermomechanical route is small strain (F = I, J = 1): the UMATs return Cauchy sigma;
+    call_umat_T(thermo_umat_id(rve.sptr_matprops->umat_name), rve, *umat_T, umat_T->Etot, umat_T->DEtot, umat_T->DR, Time, DTime, ndi, nshr, start, tnew_dt);
+    // Small strain (F = I, J = 1): the UMATs return Cauchy sigma;
     // mirror the mechanical stress-route convention (see select_umat_M/_finite) so the
     // Kirchhoff-route consumers (output tau/J, set_start, sinks) stay correct: tau = J sigma = sigma,
     // PKII = sigma. Without this the thermomechanical outputs read an empty tau (zero stress).
@@ -400,6 +416,141 @@ vec transport_convected(const vec &v, const mat &M, const int &corate_type, cons
     return tensor2(mat(0.5*(X + X.t())), type).to_arma_voigt();
 }
 
+
+// The work around a box kernel on the finite route, shared by select_umat_M_finite and
+// select_umat_T_finite. Before the call: the start state transported with THIS increment's DR,
+// the total form's dual stress T, the material frame R_hat and, under corates 4/5, the declared
+// statev convected. After it: the stress back to the lab, the Kirchhoff route stress, the
+// true work under the log corates, the stored strains restored.
+struct finite_box {
+    vec etot_stored;     // set_start transports it at commit, with the increment it belongs to
+    vec Detot_stored;
+    vec tau_start_lab;   // committed, untransported: for the work correction
+    vec tau_start_tr;    // the start stress the kernel integrates from
+    umat_convention conv{StressMeasure::kirchhoff};
+    bool total = false;
+    mat R_hat;
+    mat DR_kernel;
+};
+
+finite_box enter_finite_box(state_variables &sv, const umat_convention &conv, const std::string &umat_name, const int &corate_type)
+{
+    finite_box box;
+    box.conv = conv;
+    box.total = (corate_type == corate_type_total);
+    const mat &DR = sv.DR;
+
+    // Transport the start state with THIS increment's DR before the kernel sees it, so the
+    // total strain, the start stress and the internal variables (rotated by DR inside the
+    // kernels) all live in the same configuration.
+    box.etot_stored = sv.etot;
+    box.tau_start_lab = sv.sigma;
+    if (corate_type != 4 && corate_type != 5) {
+        sv.etot = rotate_strain(box.etot_stored, DR);
+        sv.sigma = rotate_stress(sv.sigma, DR);
+    }
+    else if (corate_type == 4) {   // Truesdell, DR = DF: strain lower-, Kirchhoff stress upper-convected
+        mat DR_inv;
+        if (!inv(DR_inv, DR))
+            throw simcoon::exception_inv("finite route: DF is not invertible");
+        sv.etot = t2v_strain(DR_inv.t()*v2t_strain(box.etot_stored)*DR_inv);
+        sv.sigma = t2v_stress(DR*v2t_stress(sv.sigma)*DR.t());
+    }
+    else {   // log_F, DR = DF: similarity transport, as in set_start
+        mat DR_inv;
+        if (!inv(DR_inv, DR))
+            throw simcoon::exception_inv("finite route: DF is not invertible");
+        sv.etot = t2v_strain(DR*v2t_strain(box.etot_stored)*DR_inv);
+        sv.sigma = t2v_stress(DR*v2t_stress(sv.sigma)*DR_inv);
+    }
+    box.tau_start_tr = sv.sigma;
+
+    if (box.total)
+        sv.sigma = t2v_stress(Kirchoff2LogStressU(v2t_stress(sv.sigma), sv.F0));
+
+    // A box kernel runs in the frame that follows the material, R_hat (see umat_convention), so
+    // its anisotropy axes rotate with the body and its statev lives in that frame. For corates
+    // 0-3, R_hat_{n+1} = DR R_hat_n and the frame-relative increment is I; for 4 and 5 it is the
+    // rotation-free stretch M, applied here to the declared statev tensors.
+    box.Detot_stored = sv.Detot;
+    if (corate_type == 4) {
+        // Truesdell: the kernel's increment is the closed-form Almansi increment of DR = DF,
+        // whatever the solver's control variable is (logarithmic control increments ln V).
+        sv.Detot = t2v_strain(Euler_Almansi(DR));
+    }
+    box.R_hat = eye(3,3);
+    box.DR_kernel = DR;
+    if (conv.material_frame) {
+        const bool convected = (corate_type == 4 || corate_type == 5);
+        mat R_hat_n;
+        if (!convected) {
+            R_hat_n = sv.R;
+            box.R_hat = DR*sv.R;
+        }
+        else {
+            mat U;
+            RU_decomposition(R_hat_n, U, sv.F0);
+            RU_decomposition(box.R_hat, U, sv.F1);
+        }
+        sv.etot = rotate_strain(sv.etot, box.R_hat.t());
+        sv.Detot = rotate_strain(sv.Detot, box.R_hat.t());   // the Truesdell override, if any
+        sv.sigma = rotate_stress(sv.sigma, box.R_hat.t());
+        box.DR_kernel = eye(3,3);
+        if (convected) {
+            if (!conv.layout_declared) {
+                throw simcoon::exception_solver(
+                    "corate_type " + std::to_string(corate_type) + " requires the tensorial "
+                    "internal variables of '" + umat_name + "' to be declared "
+                    "(umat_conventions, umat_smart.cpp); use corate_type 3");
+            }
+            const mat M = box.R_hat.t()*DR*R_hat_n;
+            for (const StatevTensor &t : conv.statev_tensors) {
+                if (t.offset + 6 > static_cast<int>(sv.statev.n_elem)) {
+                    throw simcoon::exception_solver(
+                        "'" + umat_name + "' declares a statev tensor at offset "
+                        + std::to_string(t.offset) + ", past nstatev = " + std::to_string(sv.statev.n_elem));
+                }
+                const vec x = sv.statev.subvec(t.offset, t.offset + 5);
+                sv.statev.subvec(t.offset, t.offset + 5) = transport_convected(x, M, corate_type, t.type);
+            }
+        }
+    }
+    return box;
+}
+
+void leave_finite_box(state_variables &sv, const finite_box &box, const int &corate_type, vec &Wm)
+{
+    // Back from the material frame (statev stays in it); the caller rotates its own tangents
+    if (box.conv.material_frame)
+        sv.sigma = rotate_stress(sv.sigma, box.R_hat);
+
+    // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Every
+    // NATIVE kernel returns it directly, so this is a pass-through for all but the
+    // foreign-convention ones (the UMEXT/UMABA plugin adapters, whose contract belongs to
+    // the host code). Cauchy is a derived OUTPUT (tau/J), never on the route.
+    if (box.total) {
+        double dW_T;
+        sv.tau = total_formulation_tau(sv.sigma, sv.Detot, sv.F1, box.conv.material_frame, dW_T);
+        Wm(0) += dW_T;
+        Wm(1) += dW_T;
+        sv.sigma = sv.tau;
+    }
+    else if (box.conv.stress == StressMeasure::kirchhoff)
+        sv.tau = sv.sigma;                                                      // the kernel's output IS the Kirchhoff stress
+    else
+        sv.tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(sv.sigma), sv.F1));  // foreign Cauchy -> Kirchhoff
+    sv.PKII = t2v_stress(Kirchoff2PKII(v2t_stress(sv.tau), sv.F1));
+
+    // Log corates: replace the kernel's work by the stress power, in one frame.
+    const double dW = Delta_work_conjugacy(box.tau_start_lab, box.tau_start_tr, sv.tau, box.Detot_stored,
+                                           sv.F0, sv.F1, corate_type);
+    Wm(0) += dW;
+    Wm(1) += dW;
+
+    sv.etot = box.etot_stored;
+    sv.Detot = box.Detot_stored;
+}
+
 }  // namespace
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
@@ -421,34 +572,6 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     rve.sptr_sv_global->DR = DR_global;
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
-    const mat &DR = umat_M->DR;
-
-    // Transport the start state with THIS increment's DR before the kernel sees it, so the
-    // total strain, the start stress and the internal variables (rotated by DR inside the
-    // kernels) all live in the same configuration. The stored etot is left untransported:
-    // set_start transports it at commit, together with the increment it belongs to.
-    const vec etot_stored = umat_M->etot;
-    const vec tau_start_lab = umat_M->sigma;   // committed, untransported: for the work correction
-    if (corate_type != 4 && corate_type != 5) {
-        umat_M->etot = rotate_strain(etot_stored, DR);
-        umat_M->sigma = rotate_stress(umat_M->sigma, DR);
-    }
-    else if (corate_type == 4) {   // Truesdell, DR = DF: strain lower-, Kirchhoff stress upper-convected
-        mat DR_inv;
-        if (!inv(DR_inv, DR))
-            throw simcoon::exception_inv("select_umat_M_finite: DF is not invertible");
-        umat_M->etot = t2v_strain(DR_inv.t()*v2t_strain(etot_stored)*DR_inv);
-        umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR.t());
-    }
-    else {   // log_F, DR = DF: similarity transport, as in set_start
-        mat DR_inv;
-        if (!inv(DR_inv, DR))
-            throw simcoon::exception_inv("select_umat_M_finite: DF is not invertible");
-        umat_M->etot = t2v_strain(DR*v2t_strain(etot_stored)*DR_inv);
-        umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR_inv);
-    }
-
-    const vec tau_start_tr = umat_M->sigma;   // the start stress the kernel integrates from
 
     // ONE declaration per kernel (output_convention_of) answers the questions below. It THROWS
     // for a kernel that has not declared, so a new one is caught instead of inheriting a
@@ -470,13 +593,10 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
 
     // Total formulation: admission and stress contract in total_formulation_serves().
     const bool total = (corate_type == corate_type_total);
-    if (total) {
-        if (id_umat >= 0 && !total_formulation_serves(rve.sptr_matprops->umat_name)) {
-            throw simcoon::exception_solver(
-                "the total formulation (strain space) does not serve '"
-                + rve.sptr_matprops->umat_name + "'; use the rate formulation");
-        }
-        umat_M->sigma = t2v_stress(Kirchoff2LogStressU(v2t_stress(umat_M->sigma), umat_M->F0));
+    if (total && id_umat >= 0 && !total_formulation_serves(rve.sptr_matprops->umat_name)) {
+        throw simcoon::exception_solver(
+            "the total formulation (strain space) does not serve '"
+            + rve.sptr_matprops->umat_name + "'; use the rate formulation");
     }
 
     if (id_umat == 7 && corate_type == 4) {   // EPCHA
@@ -487,53 +607,8 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             "(corate_type 4) cannot keep consistent; use corate_type 3 (or 5)");
     }
 
-    // A box kernel runs in the frame that follows the material, R_hat (see umat_convention), so
-    // its anisotropy axes rotate with the body and its statev lives in that frame. For corates
-    // 0-3, R_hat_{n+1} = DR R_hat_n and the frame-relative increment is I; for 4 and 5 it is the
-    // rotation-free stretch M, applied here to the declared statev tensors.
-    const vec Detot_stored = umat_M->Detot;
-    if (corate_type == 4) {
-        // Truesdell: the kernel's increment is the closed-form Almansi increment of DR = DF,
-        // whatever the solver's control variable is (logarithmic control increments ln V).
-        umat_M->Detot = t2v_strain(Euler_Almansi(DR));
-    }
-    mat R_hat = eye(3,3);
-    mat DR_kernel = DR;
-    if (conv.material_frame) {
-        const bool convected = (corate_type == 4 || corate_type == 5);
-        mat R_hat_n;
-        if (!convected) {
-            R_hat_n = umat_M->R;
-            R_hat = DR*umat_M->R;
-        }
-        else {
-            mat U;
-            RU_decomposition(R_hat_n, U, umat_M->F0);
-            RU_decomposition(R_hat, U, umat_M->F1);
-        }
-        umat_M->etot = rotate_strain(umat_M->etot, R_hat.t());
-        umat_M->Detot = rotate_strain(umat_M->Detot, R_hat.t());   // the Truesdell override, if any
-        umat_M->sigma = rotate_stress(umat_M->sigma, R_hat.t());
-        DR_kernel = eye(3,3);
-        if (convected) {
-            if (!conv.layout_declared) {
-                throw simcoon::exception_solver(
-                    "corate_type " + std::to_string(corate_type) + " requires the tensorial "
-                    "internal variables of '" + rve.sptr_matprops->umat_name + "' to be declared "
-                    "(umat_conventions, umat_smart.cpp); use corate_type 3");
-            }
-            const mat M = R_hat.t()*DR*R_hat_n;
-            for (const StatevTensor &t : conv.statev_tensors) {
-                if (t.offset + 6 > static_cast<int>(umat_M->statev.n_elem)) {
-                    throw simcoon::exception_solver(
-                        "'" + rve.sptr_matprops->umat_name + "' declares a statev tensor at offset "
-                        + std::to_string(t.offset) + ", past nstatev = " + std::to_string(umat_M->statev.n_elem));
-                }
-                const vec x = umat_M->statev.subvec(t.offset, t.offset + 5);
-                umat_M->statev.subvec(t.offset, t.offset + 5) = transport_convected(x, M, corate_type, t.type);
-            }
-        }
-    }
+    const finite_box box = enter_finite_box(*umat_M, conv, rve.sptr_matprops->umat_name, corate_type);
+    const mat &DR_kernel = box.DR_kernel;
 
     switch (id_umat) {
 
@@ -598,41 +673,57 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             }
         }
     
-        // Back from the material frame: the stress and the box tangent (both in the kernel's
-        // frame) to the lab; statev stays in the material frame.
+        // Back from the material frame: the box tangent, in the kernel's frame, to the lab
         if (conv.material_frame) {
-            umat_M->sigma = rotate_stress(umat_M->sigma, R_hat);
-            umat_M->Lt = rotate_stiffness(umat_M->Lt, R_hat);
-            umat_M->L = rotate_stiffness(umat_M->L, R_hat);
+            umat_M->Lt = rotate_stiffness(umat_M->Lt, box.R_hat);
+            umat_M->L = rotate_stiffness(umat_M->L, box.R_hat);
         }
-
-        // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Every
-        // NATIVE kernel returns it directly, so this is a pass-through for all but the
-        // foreign-convention ones (the UMEXT/UMABA plugin adapters, whose contract belongs to
-        // the host code). Cauchy is a derived OUTPUT (tau/J), never on the route.
-        if (total) {
-            double dW_T;
-            umat_M->tau = total_formulation_tau(umat_M->sigma, umat_M->Detot, umat_M->F1, conv.material_frame, dW_T);
-            umat_M->Wm(0) += dW_T;
-            umat_M->Wm(1) += dW_T;
-            umat_M->sigma = umat_M->tau;
-        }
-        else if (conv.stress == StressMeasure::kirchhoff)
-            umat_M->tau = umat_M->sigma;                                                      // the kernel's output IS the Kirchhoff stress
-        else
-            umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // foreign Cauchy -> Kirchhoff
-        umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
-
-        // Log corates: replace the kernel's work by the stress power, in one frame.
-        const double dW = Delta_work_conjugacy(tau_start_lab, tau_start_tr, umat_M->tau, Detot_stored,
-                                               umat_M->F0, umat_M->F1, corate_type);
-        umat_M->Wm(0) += dW;
-        umat_M->Wm(1) += dW;
-
+        leave_finite_box(*umat_M, box, corate_type, umat_M->Wm);
         // No tangent conversion: every kernel emits Lt in corate_type already.
-        umat_M->etot = etot_stored;
-        umat_M->Detot = Detot_stored;
         rve.local2global();
+}
+    
+static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
+{
+    UNUSED(solver_type);
+    if (ndi < 3) {
+        throw std::invalid_argument("select_umat_T_finite: condensed stress states (ndi < 3) are not supported on the finite route");
+    }
+    // log_R (3) accumulates ln V and the total form reads ln U: the box strain the kernels'
+    // entropy and energies were written for. Under 4/5 the stretched start stress would shift
+    // eta_start and produce a heat that does not exist; 0-2 are not the production rate.
+    if (corate_type != 3 && corate_type != corate_type_total) {
+        throw simcoon::exception_solver(
+            "thermomechanical finite strain serves corate_type 3 (log_R) or the total "
+            "formulation; got corate_type = " + std::to_string(corate_type));
+    }
+    const int id_umat = thermo_umat_id(rve.sptr_matprops->umat_name);
+    if (id_umat < 0) {
+        throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
+    }
+
+    rve.sptr_sv_global->DR = DR_global;
+    rve.global2local();
+    auto umat_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_local);
+
+    // Every thermomechanical kernel is secant in the strain it is fed, so it reads as a law in
+    // the log strain: a Kirchhoff box run in the material frame. No statev layout is declared,
+    // which corates 4/5 would need (refused above).
+    const umat_convention conv{StressMeasure::kirchhoff, true, false, {}};
+    const finite_box box = enter_finite_box(*umat_T, conv, rve.sptr_matprops->umat_name, corate_type);
+    call_umat_T(id_umat, rve, *umat_T, umat_T->etot, umat_T->Detot, box.DR_kernel, Time, DTime, ndi, nshr, start, tnew_dt);
+
+    // Back from the material frame: dSdT and drdE are Voigt vectors stored as a mat (as in
+    // rotate_l2g), both rotated with the stress operator
+    umat_T->dSdE = rotate_stiffness(umat_T->dSdE, box.R_hat);
+    umat_T->dSdT = reshape(rotate_stress(vec(vectorise(umat_T->dSdT)), box.R_hat), size(umat_T->dSdT));
+    umat_T->drdE = reshape(rotate_stress(vec(vectorise(umat_T->drdE)), box.R_hat), size(umat_T->drdE));
+    leave_finite_box(*umat_T, box, corate_type, umat_T->Wm);
+    // total form: dtau/dtheta at fixed F is the map of dT/dtheta (linear at fixed F); dSdE and
+    // drdE stay box derivatives, r per reference volume
+    if (box.total)
+        umat_T->dSdT = reshape(t2v_stress(LogStressU2Kirchoff(v2t_stress(vec(vectorise(umat_T->dSdT))), umat_T->F1)), size(umat_T->dSdT));
+    rve.local2global();
 }
     
 static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
@@ -859,7 +950,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
         condense_tangent_T(cs, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT);
 }
 
-void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt)
+void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt)
 {
     
     tnew_dt = 1.;
@@ -872,10 +963,10 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
             select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
-//        case 2: case 3: case 4: case 5: {
-//        select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-//        break;
-//        }
+        case 2: case 3: case 4: case 5: case 6: {
+            select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt);
+            break;
+        }
         default: {
             throw simcoon::exception_solver("run_umat: control type " + std::to_string(control_type)
                                             + " is not supported by this block type");

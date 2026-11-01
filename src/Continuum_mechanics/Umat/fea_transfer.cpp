@@ -25,8 +25,14 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
+#include <simcoon/Simulation/Phase/state_variables.hpp>
+#include <simcoon/Simulation/Phase/state_variables_T.hpp>
 
 using namespace std;
 using namespace arma;
@@ -195,6 +201,80 @@ mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
     const vec I = {1., 1., 1., 0., 0., 0.};
     const mat sigma_I = sigma * I.t();
     return Lt + 0.5*(sigma_I + sigma_I.t());
+}
+
+int abaqus_kinematic_form(const char *cmname) {
+    // CMNAME is a space-padded CHARACTER*80 (no terminator); a C string stops at '\0', so
+    // each character is read only past a non-terminating one. `_R` must be the whole
+    // suffix: any other tail (EPICP_REF, ...) is ignored, as before the suffix existed
+    auto end = [](char c) { return c == ' ' || c == '\0'; };
+    return (cmname[5] == '_' && (cmname[6] == 'R' || cmname[6] == 'r') && end(cmname[7])) ? 3 : corate_type_total;
+}
+
+int abaqus_kinematic_statev(const int &corate_type) {
+    return (corate_type == corate_type_total) ? 0 : 15;
+}
+
+bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int &corate_type, const bool &thermomechanical, const double *dfgrd1) {
+    if (ndi != 3 || !abaqus_nlgeom(dfgrd1))
+        return false;
+    if (thermomechanical)   // the finite thermomechanical dispatch serves every law of the small one
+        return true;
+    const auto &names = finite_umat_names();
+    auto it = names.find(umat_name);
+    if (it == names.end() || it->second <= 1)   // UMEXT, UMABA: foreign plugins keep their own convention
+        return false;
+    return corate_type != corate_type_total || total_formulation_serves(umat_name);
+}
+
+void abaqus2smart_finite(state_variables &sv, const double *drot, const double *dfgrd0, const double *dfgrd1, const double *kin_statev, const int &corate_type, const double &DTime) {
+    sv.F0 = mat(dfgrd0, 3, 3);
+    sv.F1 = mat(dfgrd1, 3, 3);
+    // Abaqus rotated STRESS by DROT for its own corotational route: back to the global basis
+    const mat DROT(drot, 3, 3);
+    sv.sigma = det(sv.F0)*rotate_stress(sv.sigma, mat(DROT.t()));
+    sv.tau = sv.sigma;
+    sv.Etot = t2v_strain(Green_Lagrange(sv.F0));
+    sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
+    if (corate_type == corate_type_total) {   // a state function of F
+        sv.etot = t2v_strain(0.5*logmat_sympd(mat(sv.F0.t()*sv.F0)));
+        sv.R = eye(3, 3);
+    }
+    else {
+        sv.etot = vec(kin_statev, 6);
+        sv.R = mat(kin_statev + 6, 3, 3);
+        if (!any(vectorise(sv.R)))   // STATEV starts at zero: an undeformed start
+            sv.R.eye();
+    }
+    mat D, Omega;
+    const double dt = (DTime > simcoon::iota) ? DTime : 1.;   // D dt is what the increment uses
+    corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, dt);
+    sv.Detot = t2v_strain(Delta_log_strain_corate(sv.F0, sv.F1, sv.DR, D, Omega, dt, corate_type));
+}
+
+void smart2abaqus_finite_M(const state_variables &sv, const mat &Lt, const int &corate_type, vec &sigma, mat &ddsdde, double *kin_statev) {
+    const mat tau = v2t_stress(sv.tau);
+    const mat DSDE = DtauDe_corate_2_DSDE(Lt, corate_type, sv.F1, tau);
+    sigma = sv.tau/det(sv.F1);
+    ddsdde = DSDE_2_Dsigma_JaumannDD(DSDE, sv.F1, v2t_stress(sigma));
+    if (corate_type != corate_type_total) {   // the commit of set_start
+        const vec etot_end = rotate_strain(sv.etot, sv.DR) + sv.Detot;
+        const mat R_end = sv.DR*sv.R;
+        std::copy(etot_end.begin(), etot_end.end(), kin_statev);
+        std::copy(R_end.begin(), R_end.end(), kin_statev + 6);
+    }
+}
+
+void smart2abaqus_finite_T(const state_variables_T &sv, const int &corate_type, const double &DTime, vec &sigma, mat &ddsdde, vec &ddsddt, double &rpl, vec &drplde, double &drpldt, double *kin_statev) {
+    smart2abaqus_finite_M(sv, sv.dSdE, corate_type, sigma, ddsdde, kin_statev);
+    const double J = det(sv.F1);
+    const double per_volume_time = (DTime > simcoon::iota) ? 1./(J*DTime) : 0.;
+    ddsddt = vectorise(sv.dSdT)/J;
+    rpl = sv.r*per_volume_time;
+    drpldt = sv.drdT(0, 0)*per_volume_time;
+    const vec drdE = box_covector_2_dE(vectorise(sv.drdE), sv.F1, corate_type);
+    const vec I = {1., 1., 1., 0., 0., 0.};
+    drplde = (t2v_stress(sv.F1*v2t_stress(drdE)*sv.F1.t()) - sv.r*I)*per_volume_time;
 }
 
 void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt_kernel, const bool &nlgeom, const vec &Etot_end)
