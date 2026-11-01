@@ -89,11 +89,12 @@ bool condensed_newton_step(const condensed_state &cs, arma::vec &DEtot, const ar
  *
  * The unknown, the residual and the Jacobian are any consistent triple: under finite strain the
  * law's own pair (ln V and \f$ \hat{\boldsymbol\tau} \f$ under the rate form, \f$ \mathbf{H} = \ln\mathbf{U} \f$
- * and its dual \f$ \mathbf{T} \f$ under the total one, sim.umat condense='approximate'), or the
+ * and its dual \f$ \mathbf{T} \f$ under the total one, sim.umat condense='spatial_face'), or the
  * Green-Lagrange \f$ \mathbf{E}_C \f$, the second Piola-Kirchhoff \f$ \mathbf{S}_C \f$ and
- * \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ (condense='exact'). \f$ \mathbf{S}_C = \mathbf{0} \f$ is the
+ * \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ (condense='material_face'). \f$ \mathbf{S}_C = \mathbf{0} \f$ is the
  * traction-free condition on the free material faces (\f$ \mathbf{P}\mathbf{e}_3 = \mathbf{F}\mathbf{S}\mathbf{e}_3 = \mathbf{0} \f$
- * for a shell). The two coincide at small strain and when the free directions are principal for
+ * for a shell), the pull-back of \f$ \boldsymbol\sigma\mathbf{n} = \mathbf{0} \f$ with \f$ \mathbf{n} \propto \mathbf{F}^{-T}\mathbf{e}_3 \f$;
+ * the law's pair frees the face of normal \f$ \mathbf{R}\mathbf{e}_3 \f$ (condense='spatial_face'). The two coincide at small strain and when the free directions are principal for
  * \f$ \mathbf{U} \f$ (truss, plane stress of a material symmetric about the free planes);
  * otherwise the law's pair leaves \f$ \mathbf{S}_C \f$ of second order in the shears that couple kept
  * and free directions, \f$ S_{33} \simeq -(\gamma_{13}\tau_{13} + \gamma_{23}\tau_{23}) \simeq -\mu\gamma_t^2 \f$

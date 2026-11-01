@@ -424,12 +424,12 @@ def test_spatial_tangent_output_is_the_lie_derivative(name, form):
     (dict(tangent_output="lagrangian"), "'box', 'material' or 'spatial'"),
     (dict(tangent_output="material", small=True), "needs F0 and F1"),
     (dict(tangent_output="material", ndi=2), "condensed stress states"),
-    (dict(tangent_output="box", ndi=2, condense="exact"), "tangent_output='material'"),
+    (dict(tangent_output="box", ndi=2, condense="material_face"), "tangent_output='material'"),
 ])
 def test_tangent_output_requests_outside_the_scope_are_refused(kwargs, match):
     F = _cube(_F(0.5))
     args = dict(tangent_output=kwargs["tangent_output"], ndi=kwargs.get("ndi", 3),
-                condense=kwargs.get("condense", "approximate"))
+                condense=kwargs.get("condense", "spatial_face"))
     if not kwargs.get("small"):
         args.update(F0=F, F1=F)
     with pytest.raises(ValueError, match=match):
