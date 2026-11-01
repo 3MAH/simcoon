@@ -878,7 +878,7 @@ constexpr auto umat_T = R"pbdoc(
         log_R the maps are the
         continuous ones (box strain R ln U R^T at fixed rotation), as umat's;
         the total form's are exact. Condensed states (ndi < 3) return 'box', or
-        'material' under condense='exact'.
+        'material' under condense='material_face'.
 
     Returns
     -------

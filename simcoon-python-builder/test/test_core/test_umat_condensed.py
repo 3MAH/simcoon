@@ -594,7 +594,7 @@ def test_umat_T_total_and_material_face_condensed():
         out = sim.umat_T("ELISO", _col(np.zeros(6)), Detot, _col(np.zeros(6)), I3, _col(props), _col([0.0]),
                          0.0, 1.0, _col(np.zeros(4)), _col(np.zeros(3)), np.array([293.15]), np.array([DT]),
                          ndi=2, n_threads=1, start=True, F0=I3, F1=F1, kinematic_form="total", condense=condense,
-                         tangent_output="material" if condense == "exact" else "box")
+                         tangent_output="material" if condense == "material_face" else "box")
         H1 = Detot.ravel()
         return dict(s=out[0].ravel(), r=out[4].ravel()[0], L=out[5][:, :, 0], dT=out[6].ravel(),
                     rE=out[7].ravel(), rT=out[8].ravel()[0], F=Rm @ expm(sim.v2t_strain(H1)))
