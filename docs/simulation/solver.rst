@@ -353,7 +353,7 @@ Path and block parameters
 
 **blocks**: the loading blocks, run in order. A block is mechanical or thermomechanical (coupled heat equation) according to its steps: all the steps of a block are :class:`~simcoon.solver.StepMeca` (``"thermomechanical": false``) or all are :class:`~simcoon.solver.StepThermomeca` (``"thermomechanical": true``).
 
-**control_type**: kinematic framework and control variables of the block. NLGEOM (non-linear geometry) is activated from ``"green_lagrange"`` on; thermomechanical blocks only support ``"small_strain"``:
+**control_type**: kinematic framework and control variables of the block, for mechanical and thermomechanical blocks alike. NLGEOM (non-linear geometry) is activated from ``"green_lagrange"`` on; a thermomechanical NLGEOM block needs ``kinematic_form`` ``"logarithmic_R"`` (``"rate"``) or ``"total"`` (see *Thermomechanical blocks under finite strain* below):
 
 .. list-table::
    :header-rows: 1
@@ -462,7 +462,12 @@ For ``"F"`` and ``"gradU"`` control types the state is the full tensor, 9 compon
 
     11  12  13  21  22  23  31  32  33
 
-``control`` is then ``"strain"`` for all of them and ``value`` holds the target :math:`\mathbf{F}` (or :math:`\nabla\mathbf{u}`).
+``control`` is then ``"strain"`` for all of them and ``value`` holds the target :math:`\mathbf{F}` (or :math:`\nabla\mathbf{u} = \mathbf{F} - \mathbf{I}`).
+The increments follow the geodesic :math:`\mathbf{F}_i = \exp(\Delta\mathbf{L}_i)\,\mathbf{F}_{i-1}`, each with its constant generator
+:math:`\Delta\mathbf{L}_i` (a tabular step reads it between two rows, :math:`\ln(\mathbf{F}_i\mathbf{F}_{i-1}^{-1})`; a ``"zero"``
+component of the table holds its value). A sub-increment of fraction :math:`s` of the increment, from a step cut or
+``Dn_init < 1``, prescribes :math:`\exp(s\,\Delta\mathbf{L}_i)\,\mathbf{F}` over :math:`s\,\delta t`, as the other control types
+prescribe :math:`s` times their increment; the sub-increment that closes the increment lands on :math:`\mathbf{F}_i` exactly.
 
 For the mixed finite-strain control types (``"green_lagrange"``, ``"logarithmic"``, ``"biot"``) a rotation rate can be superimposed with **BC_w**, a 3x3 spin matrix applied during the step:
 
@@ -478,6 +483,23 @@ Mechanical steps only carry **T_final** (above). Thermomechanical steps (``"ther
 - ``"temperature"`` (T): imposed temperature, ramped to **T_final**
 - ``"heat_flux"`` (Q): imposed heat flux **Q** on the RVE (``0.0`` for adiabatic conditions)
 - ``"convection"`` (C): 0D convection :math:`Q = -q_{conv}\,(T - T_{init})` with coefficient **q_conv**
+
+.. note::
+
+   **Thermomechanical blocks under finite strain.** Every thermomechanical law is secant in the
+   strain it is fed, so under NLGEOM it reads as a law in the logarithmic strain: ``ln V``
+   accumulated by ``"logarithmic_R"`` (the rate form, the default) or ``ln U`` and its dual
+   stress under ``"total"``, in the frame that follows the material (anisotropy axes rotate with
+   the body). Its parameters read accordingly: the density is the reference one
+   :math:`\rho_0`, the expansion coefficient a logarithmic one. The entropy, the heat of the
+   increment :math:`r`, the works and the imposed **Q** and **q_conv** are all per unit
+   *reference* volume, and the stress in the entropy is the Kirchhoff stress
+   :math:`\boldsymbol{\tau}`. The total form is exact: :math:`\mathbf{T}:\dot{\mathbf{H}} =
+   \boldsymbol{\tau}:\mathbf{D}`. Under the rate form the kernel's power differs from
+   :math:`\boldsymbol{\tau}:\mathbf{D}` when the stress is not coaxial with the stretch; the
+   difference is booked to **Wm** and **Wm_r**, never to the heat. The other rates are refused.
+   Under ``"F"`` / ``"gradU"`` control with a heat flux or a convection, the Newton runs on the
+   temperature alone.
 
 .. code-block:: json
 

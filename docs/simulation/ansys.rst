@@ -156,8 +156,8 @@ Model Codes
      - See SMA documentation
    * - 10
      - LLDM0
-     - Lemaitre-Chaboche damage
-     - :math:`E, \nu, \alpha, \sigma_y, H, S, s, D_c`
+     - Ladevèze-Le Dantec ply damage with effective-stress plasticity
+     - 18 props, 10 statev (see the header documentation)
    * - 11
      - ZENER
      - Kelvin viscoelastic (single branch)

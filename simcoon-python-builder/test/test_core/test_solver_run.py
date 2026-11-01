@@ -545,13 +545,6 @@ def test_closest_point_mode_is_accepted_everywhere():
 # error paths
 # ---------------------------------------------------------------------------
 
-def test_thermomechanical_rejects_finite_strain_control():
-    step = StepThermomeca(control="stress", value=[0.0] * 6, T_final=300.0)
-    with pytest.raises(ValueError):
-        solve(Block(steps=[step], control_type="logarithmic"), "ELISO",
-              ELISO_T_PROPS, 1)
-
-
 def test_bad_control_flag():
     with pytest.raises(ValueError):
         StepMeca(control=["bad_flag"] * 6, value=[0.0] * 6).to_dict(1, 290.0)
