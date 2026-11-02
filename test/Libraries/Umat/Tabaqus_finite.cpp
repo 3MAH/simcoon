@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
+#include <stdexcept>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
@@ -86,7 +87,7 @@ struct point {
         if (!thermo) {
             rve.construct(0, 1);
             auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
-            sv->resize(nstatev - 4 - nstatev_kin);
+            sv->resize(abaqus_law_statev(nstatev, 4, ndi, nshr, corate_type));
             rve.sptr_matprops->resize(nprops);
             abaqus2smart_M(stress_a, ddsdde_a, stran, dstran, time_a, dtime, temperature, dtemp, nprops, props_v.memptr(), nstatev - nstatev_kin, statev.data(), ndi, nshr, DROT.memptr(), sv->sigma, sv->Lt, sv->Etot, sv->DEtot, sv->T, sv->DT, Time, DTime, props_smart, sv->Wm, sv->statev, DR, start);
             rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
@@ -101,7 +102,7 @@ struct point {
         else {
             rve.construct(0, 2);
             auto sv = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
-            sv->resize(nstatev - 7 - nstatev_kin);
+            sv->resize(abaqus_law_statev(nstatev, 7, ndi, nshr, corate_type));
             rve.sptr_matprops->resize(nprops);
             const double drpldt_in = 0.;
             abaqus2smart_T(stress_a, ddsdde_a, ddsddt_a, drplde_a, drpldt_in, stran, dstran, time_a, dtime, temperature, dtemp, nprops, props_v.memptr(), nstatev - nstatev_kin, statev.data(), ndi, nshr, DROT.memptr(), sv->sigma, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT, sv->Etot, sv->DEtot, sv->T, sv->DT, Time, DTime, props_smart, sv->Wm, sv->Wt, sv->statev, DR, start);
@@ -157,8 +158,19 @@ TEST(Tabaqus_finite, kinematic_form_and_route)
     EXPECT_EQ(abaqus_kinematic_form("EPICP_                        "), corate_type_total);
     EXPECT_EQ(abaqus_kinematic_form("EPICP_"), corate_type_total);
     EXPECT_EQ(abaqus_kinematic_form("EPICPR                        "), corate_type_total);
+    // a NUL-terminated name is read up to its terminator only
+    EXPECT_EQ(abaqus_kinematic_form("ELI"), corate_type_total);
+    EXPECT_EQ(abaqus_kinematic_form(""), corate_type_total);
     EXPECT_EQ(abaqus_kinematic_statev(corate_type_total), 0);
     EXPECT_EQ(abaqus_kinematic_statev(3), 15);
+    // STATEV left to the law: header (4 or 7), stress-free strain when ndi < 3, then the frame of _R
+    EXPECT_EQ(abaqus_law_statev(12, 4, 3, 3, corate_type_total), 8);
+    EXPECT_EQ(abaqus_law_statev(27, 4, 3, 3, 3), 8);
+    EXPECT_EQ(abaqus_law_statev(30, 7, 3, 3, 3), 8);
+    EXPECT_EQ(abaqus_law_statev(15, 4, 2, 1, corate_type_total), 8);   // plane stress: 3 condensed
+    EXPECT_EQ(abaqus_law_statev(19, 4, 3, 3, 3), 0);
+    EXPECT_THROW(abaqus_law_statev(12, 4, 3, 3, 3), std::invalid_argument);   // EPICP's DEPVAR, renamed EPICP_R
+    EXPECT_THROW(abaqus_law_statev(3, 4, 3, 3, corate_type_total), std::invalid_argument);
 
     const mat F = F_test(1.), I = eye(3, 3);
     EXPECT_TRUE(abaqus_finite_route("EPICP", 3, corate_type_total, false, F.memptr()));

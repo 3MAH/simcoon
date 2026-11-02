@@ -21,9 +21,12 @@
 
 #include <iostream>
 #include <algorithm>
+#include <stdexcept>
+#include <string>
 #include <assert.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -208,11 +211,25 @@ int abaqus_kinematic_form(const char *cmname) {
     // each character is read only past a non-terminating one. `_R` must be the whole
     // suffix: any other tail (EPICP_REF, ...) is ignored, as before the suffix existed
     auto end = [](char c) { return c == ' ' || c == '\0'; };
+    for (int i = 0; i < 7; i++) {
+        if (cmname[i] == '\0') return corate_type_total;
+    }
     return (cmname[5] == '_' && (cmname[6] == 'R' || cmname[6] == 'r') && end(cmname[7])) ? 3 : corate_type_total;
 }
 
 int abaqus_kinematic_statev(const int &corate_type) {
     return (corate_type == corate_type_total) ? 0 : 15;
+}
+
+int abaqus_law_statev(const int &nstatev, const int &nheader, const int &ndi, const int &nshr, const int &corate_type) {
+    const int nbridge = nheader + static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem) + abaqus_kinematic_statev(corate_type);
+    if (nstatev < nbridge) {
+        throw std::invalid_argument("Abaqus UMAT: DEPVAR = " + std::to_string(nstatev) + " is below the "
+                                    + std::to_string(nbridge) + " entries the bridge keeps"
+                                    + ((corate_type == corate_type_total) ? std::string() : std::string(" (the _R suffix takes 15)"))
+                                    + ", before the law's own");
+    }
+    return nstatev - nbridge;
 }
 
 bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int &corate_type, const bool &thermomechanical, const double *dfgrd1) {
@@ -237,7 +254,10 @@ void abaqus2smart_finite(state_variables &sv, const double *drot, const double *
     sv.Etot = t2v_strain(Green_Lagrange(sv.F0));
     sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
     if (corate_type == corate_type_total) {   // a state function of F
-        sv.etot = t2v_strain(0.5*logmat_sympd(mat(sv.F0.t()*sv.F0)));
+        mat lnC0;
+        if (!logmat_sympd(lnC0, mat(sv.F0.t()*sv.F0)))
+            throw simcoon::exception_logmat_sympd("abaqus2smart_finite: F0^T F0 is not positive definite");
+        sv.etot = t2v_strain(0.5*lnC0);
         sv.R = eye(3, 3);
     }
     else {

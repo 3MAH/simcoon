@@ -468,8 +468,9 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				throw std::invalid_argument("umat: the total formulation (strain space) needs F0 and F1 to map the stress to and from the Cauchy stress");
 			}
 		}
-		// condense='material_face' needs the deformation gradients (without them both conditions are sigma_C = 0)
-		const bool material_face = cs.active() && condense_material_face(condense) && kirchhoff_normalize;
+		// condense='material_face' needs the deformation gradients (without them both conditions are sigma_C = 0);
+		// the name is checked on every call, condensed or not
+		const bool material_face = condense_material_face(condense) && cs.active() && kirchhoff_normalize;
 		if (material_face && !total && corate_type != 3) {
 			throw std::invalid_argument("umat: condense='material_face' runs under kinematic_form='rate' (log_R) or 'total'");
 		}
@@ -772,7 +773,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		}
 		// as launch_umat; under 'material_face' dSdE, dSdT and drdE come back as the material derivatives
 		// dS/dE, dS/dtheta, dr/dE condensed on the kept components
-		const bool material_face = cs.active() && condense_material_face(condense) && finite;
+		const bool material_face = condense_material_face(condense) && cs.active() && finite;
 		// tangent_output, as launch_umat: the box derivatives as the kernels return them, or the
 		// material (TL) / spatial (UL) ones of the stress and the heat, converted per point
 		enum { tangent_out_box, tangent_out_material, tangent_out_spatial };

@@ -412,6 +412,15 @@ layout as the Ansys ``ustatev`` when ``nC = 0``, see :doc:`ansys`). The
 thermomechanical bridge stores the three thermal energies ``Wt, Wt_r, Wt_ir``
 after ``Wm``: ``*DEPVAR`` is then ``nstatev_smart + 7 + nC``. A material whose
 name carries the ``_R`` suffix (rate form under ``NLGEOM``) needs 15 more.
+A ``*DEPVAR`` below the bridge's own entries stops the analysis with a message;
+one that covers them but not the model's variables cannot be detected.
+
+Errors inside the UMAT never reach Abaqus as C++ exceptions. A numerical
+failure of the trial state (a singular deformation gradient, a failed matrix
+logarithm or square root) prints its cause to the job log and returns
+``PNEWDT = 0.5``, so Abaqus retries the increment smaller. An input error (an
+unknown material name, a ``*DEPVAR`` too small, an unsupported stress state)
+prints its cause and aborts the job: no smaller increment would cure it.
 
 Available Models
 ----------------

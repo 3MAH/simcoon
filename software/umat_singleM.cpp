@@ -24,6 +24,8 @@
 
 #include <iostream>
 #include <fstream>
+#include <cstdlib>
+#include <stdexcept>
 #include <assert.h>
 #include <string.h>
 #include <armadillo>
@@ -77,7 +79,7 @@ using namespace arma;
 using namespace simcoon;
 
 extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc)
-{
+try {
     UNUSED(sse);
     UNUSED(spd);
 	UNUSED(scd);
@@ -105,9 +107,9 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	// STATEV: Wm, then the stress-free strain when ndi < 3 (abaqus2smart_M), then the law, then
 	// the rate form's strain and frame (abaqus_kinematic_statev, CMNAME suffix _R)
 	const int corate_type = abaqus_kinematic_form(cmname);
+	const int nstatev_smart = abaqus_law_statev(nstatev, 4, ndi, nshr, corate_type);   // throws on a short DEPVAR
 	const int nstatev_kin = abaqus_kinematic_statev(corate_type);
 	double *kin_statev = statev + nstatev - nstatev_kin;
-	int nstatev_smart = nstatev - 4 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem) - nstatev_kin;
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -143,4 +145,15 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
     
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt, abaqus_nlgeom(dfgrd1), rve_sv_M->Etot + rve_sv_M->DEtot);
+}
+catch (const std::runtime_error &e) {
+    // a numerical failure of the trial state (a simcoon_error, an Armadillo decomposition): Abaqus
+    // retries the increment smaller. No exception may cross into the Fortran caller
+    std::cerr << "simcoon UMAT: " << e.what() << "; step cut requested\n";
+    pnewdt = 0.5;
+}
+catch (const std::exception &e) {
+    // an input error (unknown law, DEPVAR too small, unsupported state): no smaller increment cures it
+    std::cerr << "simcoon UMAT: " << e.what() << "; the analysis stops\n";
+    std::abort();
 }

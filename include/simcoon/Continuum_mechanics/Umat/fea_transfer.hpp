@@ -231,6 +231,7 @@ bool abaqus_nlgeom(const double *dfgrd1);
  *          abaqus_kinematic_statev() STATEV entries. `_R` must be the whole suffix (case
  *          insensitive): any other tail after the five characters (`EPICP_REF`, `EPICP_R2`)
  *          is ignored and gives the total form, as names were read before the suffix existed.
+ *          A NUL-terminated name (a C caller) is read up to its terminator only.
  * @param cmname the CMNAME argument of the UMAT (space padded, 80 characters)
  * @return corate_type_total, or 3 for `_R`
  */
@@ -242,6 +243,24 @@ int abaqus_kinematic_form(const char *cmname);
  *        the total form.
  */
 int abaqus_kinematic_statev(const int &corate_type);
+
+/**
+ * @brief STATEV entries left to the law of an Abaqus UMAT.
+ * @details STATEV holds, in order, the bridge's header (@p nheader: 4 for Wm, 7 for Wm and Wt),
+ *          the stress-free strain of a condensed state (ndi < 3, make_condensed_state()), the
+ *          law's variables, then the abaqus_kinematic_statev() entries of the kinematic form.
+ *          DEPVAR must cover the bridge's own entries: switching a material to `_R` asks for 15
+ *          DEPVAR more. The law's own count is not known here; DEPVAR short of it shifts the
+ *          frame entries into the law's variables.
+ * @param nstatev NSTATV (DEPVAR)
+ * @param nheader 4 (umat_singleM) or 7 (umat_singleT)
+ * @param ndi number of direct stress components
+ * @param nshr number of shear stress components
+ * @param corate_type abaqus_kinematic_form()
+ * @return the law's share of STATEV, \f$ \geq 0 \f$
+ * @throw std::invalid_argument when DEPVAR is below the bridge's own entries
+ */
+int abaqus_law_statev(const int &nstatev, const int &nheader, const int &ndi, const int &nshr, const int &corate_type);
 
 /**
  * @brief Whether an Abaqus call runs the finite-strain route (the deformation gradient driving

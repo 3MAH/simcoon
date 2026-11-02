@@ -43,6 +43,8 @@ set(TEST_SRCS
   test/Libraries/Umat/Tcondensed_states.cpp
   test/Libraries/Umat/Tthermo_finite.cpp
   test/Libraries/Umat/Tabaqus_finite.cpp
+  test/Libraries/Umat/Tumat_singleM.cpp
+  test/Libraries/Umat/Tumat_singleT.cpp
   test/Libraries/Umat/Tdamage_LLD_0.cpp
   test/Libraries/Umat/Tunified_TR.cpp
   test/Libraries/Umat/Modular/Tmodular_umat.cpp
@@ -76,6 +78,11 @@ target_include_directories(Treference_umats PRIVATE ${CMAKE_SOURCE_DIR}/test/Lib
 # tangent assembly, and a finite-difference Jacobian.
 target_sources(Ttutorial_umat PRIVATE ${CMAKE_SOURCE_DIR}/examples/umat_tutorial/umat_tutorial_J2.cpp)
 target_include_directories(Ttutorial_umat PRIVATE ${CMAKE_SOURCE_DIR}/examples/umat_tutorial)
+
+# The Abaqus entries (software/umat_singleM.cpp, umat_singleT.cpp) each define umat_: one test
+# executable per entry, calling it as Abaqus does.
+target_sources(Tumat_singleM PRIVATE ${CMAKE_SOURCE_DIR}/software/umat_singleM.cpp)
+target_sources(Tumat_singleT PRIVATE ${CMAKE_SOURCE_DIR}/software/umat_singleT.cpp)
 
 # Add external test executables (non-MSVC only)
 if(NOT MSVC)
