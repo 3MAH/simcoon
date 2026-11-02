@@ -324,6 +324,26 @@ prints the cause, prefixed by ``simcoon USERMAT:``, and then:
   below ``4 + nC``, an unsupported element layout): the job stops at once (message
   ending with ``the analysis stops``); fix the input and resubmit.
 
+Thermomechanical coupling
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Ansys bridge is mechanical only. The heat a simcoon law produces,
+:math:`r = \Delta\gamma - \theta\,\Delta\eta` with its exact derivatives, is not passed to
+Ansys: USERMAT has no documented way to return a heat source.
+
+.. warning::
+
+   Do not use ``MP,QRATE`` with a simcoon material. ``QRATE`` converts a fixed fraction
+   :math:`\beta` of the plastic work :math:`\boldsymbol{\sigma}:\dot{\boldsymbol{\varepsilon}}^p`
+   into heat (a Taylor-Quinney coefficient). That heats the stored part of the work
+   (``Wm_ir``) as well as the dissipated one (``Wm_d``), and ignores the thermoelastic
+   coupling. The bridge leaves ``epsPl`` at zero on purpose, so a ``QRATE`` heating built on
+   it stays zero; do not fill it in to "restore" that heating.
+
+For a coupled thermomechanical analysis, use the Abaqus thermomechanical bridge
+(``umat_singleT.cpp``, which returns ``RPL``, ``DRPLDE`` and ``DRPLDT``, see :doc:`abaqus`) or
+the simcoon solver with thermomechanical blocks (:doc:`solver`).
+
 Limitations and Workarounds
 ---------------------------
 
