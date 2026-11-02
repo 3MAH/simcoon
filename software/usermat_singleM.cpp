@@ -36,7 +36,7 @@
 ///         - External state variables are not supported
 ///         - Internal state variables cannot be initialized to non-zero values
 ///         - No standard way of defining orthotropic axes
-///         - No way of controlling time step increase/decrease
+///         - No control of the time step beyond a cutback request (keycut)
 ///
 ///         Material properties in Ansys:
 ///         - props[0]: Model code (see select_umat_M for available models)
@@ -201,8 +201,8 @@ try {
     vec props_smart = zeros(nprops_smart);
     mat DR = eye(3, 3);
 
-    ansys2smart_M(stress, strain, dstrain, *Time, *Temp, *dTemp, nprops_smart, prop + 1, *nStatev, ustatev,
-                  *nDirect, *nShear, rotateM, rve_sv_M->sigma, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T,
+    ansys2smart_M(stress, dsdePl, strain, dstrain, *Time, *Temp, *dTemp, nprops_smart, prop + 1, *nStatev, ustatev,
+                  *nDirect, *nShear, rotateM, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T,
                   rve_sv_M->DT, props_smart, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops_smart, props_smart);
 
@@ -214,15 +214,18 @@ try {
     // simcoon asks for a smaller increment through pnewdt < 1: Ansys bisects on keycut = 1.
     if (pnewdt < 1.) *keycut = 1;
 }
-catch (const std::runtime_error &e) {
-    // a numerical failure of the trial state (a simcoon_error, an Armadillo decomposition): Ansys
-    // retries the increment smaller. No exception may cross into the Fortran caller
-    std::cerr << "simcoon USERMAT: " << e.what() << "; cutback requested\n";
+catch (const std::exception &e) {
+    // no exception may cross into the Fortran caller: a numerical failure of the trial state asks
+    // Ansys for a cutback, an input error (fea_numerical_failure) stops the analysis
+    std::cerr << "simcoon USERMAT: " << e.what();
+    if (!fea_numerical_failure(e)) {
+        std::cerr << "; the analysis stops\n";
+        std::abort();
+    }
+    std::cerr << "; cutback requested\n";
     *keycut = 1;
 }
-catch (const std::exception &e) {
-    // an input error (unknown model code, USTATEV too small, unsupported element layout): no
-    // smaller increment cures it
-    std::cerr << "simcoon USERMAT: " << e.what() << "; the analysis stops\n";
+catch (...) {
+    std::cerr << "simcoon USERMAT: unknown exception; the analysis stops\n";
     std::abort();
 }

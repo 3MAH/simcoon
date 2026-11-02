@@ -23,7 +23,7 @@
 ///@date 12/04/2013
 
 #include <iostream>
-#include <fstream>
+#include <algorithm>
 #include <cstdlib>
 #include <stdexcept>
 #include <assert.h>
@@ -111,14 +111,7 @@ try {
 	const int nstatev_kin = abaqus_kinematic_statev(corate_type);
 	double *kin_statev = statev + nstatev - nstatev_kin;
     vec props_smart = zeros(nprops);
-    vec statev_smart = zeros(nstatev_smart);
-    
-	vec sigma = zeros(6);
-	vec Etot = zeros(6);
-	vec DEtot = zeros(6);
-	mat Lt = zeros(6,6);
-	mat DR = zeros(3,3);
-    vec Wm = zeros(4);
+	mat DR;
     
 	const string umat_name(cmname, 5);   // CMNAME carries no terminator: the law is its first five characters
 	   
@@ -146,14 +139,18 @@ try {
     
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt, abaqus_nlgeom(dfgrd1), rve_sv_M->Etot + rve_sv_M->DEtot);
 }
-catch (const std::runtime_error &e) {
-    // a numerical failure of the trial state (a simcoon_error, an Armadillo decomposition): Abaqus
-    // retries the increment smaller. No exception may cross into the Fortran caller
-    std::cerr << "simcoon UMAT: " << e.what() << "; step cut requested\n";
-    pnewdt = 0.5;
-}
 catch (const std::exception &e) {
-    // an input error (unknown law, DEPVAR too small, unsupported state): no smaller increment cures it
-    std::cerr << "simcoon UMAT: " << e.what() << "; the analysis stops\n";
+    // no exception may cross into the Fortran caller: a numerical failure of the trial state asks
+    // Abaqus for a smaller increment, an input error (fea_numerical_failure) stops the analysis
+    std::cerr << "simcoon UMAT: " << e.what();
+    if (!fea_numerical_failure(e)) {
+        std::cerr << "; the analysis stops\n";
+        std::abort();
+    }
+    std::cerr << "; step cut requested\n";
+    pnewdt = std::min(pnewdt, 0.5);   // keep a smaller cut the law asked for before the failure
+}
+catch (...) {
+    std::cerr << "simcoon UMAT: unknown exception; the analysis stops\n";
     std::abort();
 }

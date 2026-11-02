@@ -234,6 +234,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// Validate up front, in serial context: the per-point dispatch below
 		// runs inside a non-exception-safe parallel region (GCD/OpenMP) where a
 		// throw would std::terminate the host process.
+		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_closest_point) {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
 			                            + std::to_string(tangent_mode));
@@ -468,9 +469,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				throw std::invalid_argument("umat: the total formulation (strain space) needs F0 and F1 to map the stress to and from the Cauchy stress");
 			}
 		}
-		// condense='material_face' needs the deformation gradients (without them both conditions are sigma_C = 0);
-		// the name is checked on every call, condensed or not
-		const bool material_face = condense_material_face(condense) && cs.active() && kirchhoff_normalize;
+		// condense='material_face' needs the deformation gradients (without them both conditions are sigma_C = 0)
+		const bool material_face = cs.active() && condense_material && kirchhoff_normalize;
 		if (material_face && !total && corate_type != 3) {
 			throw std::invalid_argument("umat: condense='material_face' runs under kinematic_form='rate' (log_R) or 'total'");
 		}
@@ -724,6 +724,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
 
+		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_closest_point) {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
 			                            + std::to_string(tangent_mode));
@@ -773,7 +774,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		}
 		// as launch_umat; under 'material_face' dSdE, dSdT and drdE come back as the material derivatives
 		// dS/dE, dS/dtheta, dr/dE condensed on the kept components
-		const bool material_face = condense_material_face(condense) && cs.active() && finite;
+		const bool material_face = cs.active() && condense_material && finite;
 		// tangent_output, as launch_umat: the box derivatives as the kernels return them, or the
 		// material (TL) / spatial (UL) ones of the stress and the heat, converted per point
 		enum { tangent_out_box, tangent_out_material, tangent_out_spatial };

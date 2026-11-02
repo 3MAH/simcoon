@@ -29,9 +29,7 @@
 using namespace std;
 using namespace arma;
 
-extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc);
-
-extern "C" void usermat_(int *matId, int *elemId, int *kDomIntPt, int *kLayer, int *kSectPt, int *ldStep, int *iSubst, int *keycut, int *nDirect, int *nShear, int *ncomp, int *nStatev, int *nProp, int *nPt, double *Time, double *dTime, double *Temp, double *dTemp, double *stress, double *ustatev, double *dsdePl, double *sedEl, double *sedPl, double *epseq, double *strain, double *dstrain, double *epsPl, double *prop, double *coords, double *rotateM, double *defGrad_t, double *defGrad, double *tsstif);
+#include "fea_entries.hpp"
 
 namespace {
 
@@ -88,10 +86,9 @@ struct point {
             cmname.resize(80, ' ');
             double sse = 0., spd = 0., scd = 0., rpl = 0., drpldt = 0., ddsddt[6] = {0.}, drplde[6] = {0.};
             const double time_a[2] = {time, time}, I[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
-        const arma::mat drot = DR;
             umat_(stress_aba.data(), statev_aba.data(), ddsdde.data(), sse, spd, scd, rpl, ddsddt, drplde, drpldt,
                   stran_aba.data(), dstran.data(), time_a, dtime, 293.15, 0., 0., 0., &cmname[0], lay.ndi, lay.nshr,
-                  ntens, nstatev, mat.props.memptr(), nprops, 0., drot.memptr(), pnewdt, 1., I, I, 1, 1, 0., 1, 1, 1);
+                  ntens, nstatev, mat.props.memptr(), nprops, 0., DR.memptr(), pnewdt, 1., I, I, 1, 1, 0., 1, 1, 1);
         }
         // Ansys: the model code first
         vector<double> prop(1 + nprops);
@@ -103,7 +100,6 @@ struct point {
         const arma::mat rot_rows = DR.t();
         double coords[3] = {0.}, rotateM[9], F[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.}, tsstif[2] = {0.};
         std::copy(rot_rows.begin(), rot_rows.end(), rotateM);
-        if (DR.is_zero()) std::fill(rotateM, rotateM + 9, 0.);
         usermat_(&one, &one, &one, &one, &one, &one, &one, &keycut, &nDirect, &nShear, &ncomp, &nStatev, &nProp,
                  &one, &Time, &dTime, &Temp, &dTemp, stress_ans.data(), statev_ans.data(), dsdePl.data(), &sedEl,
                  &sedPl, &epseq, strain_ans.data(), dstrain.data(), epsPl.data(), prop.data(), coords, rotateM,
@@ -130,7 +126,6 @@ struct point {
             EXPECT_NEAR(stress_ans[ia], stress_aba[i], tol*(1. + fabs(stress_aba[i])));
             for (int j = 0; j < ntens; j++) {
                 const int ja = ans_of(lay.abaqus[j]);
-                EXPECT_TRUE(std::isfinite(dsdePl[ja*ntens + ia]));
                 EXPECT_NEAR(dsdePl[ja*ntens + ia], ddsdde[j*ntens + i], tol*scale);
             }
         }

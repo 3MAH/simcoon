@@ -1085,14 +1085,11 @@ mat dH_dE(const mat &C) {
     vec c;
     mat N;
     eig_sym(c, N, C);
-    // g_ab = (ln c_a - ln c_b)/(2 (c_a - c_b)), the log ratio through log1p: the difference of the
-    // two logs cancels for close eigenvalues
+    // g_ab: the divided difference of 1/2 ln, free of the cancellation of two close logs
     mat g(3, 3);
     for (int a = 0; a < 3; a++)
-        for (int b = 0; b < 3; b++) {
-            const double x = (c(a) - c(b))/c(b);
-            g(a, b) = (fabs(x) > 1.e-12) ? 0.5*log1p(x)/(c(a) - c(b)) : 0.5*(1. - 0.5*x)/c(b);
-        }
+        for (int b = 0; b < 3; b++)
+            g(a, b) = logU_spectral::dd1(c(a), c(b));
     mat P(6, 6);
     for (int j = 0; j < 6; j++) {
         vec e = zeros(6);

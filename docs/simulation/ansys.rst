@@ -307,10 +307,18 @@ their stress vanishes, around the 3D law, and keeps them to start the next incre
 them; ``dsdePl`` is the tangent condensed on the element's components. Other layouts
 (beams, ``nDirect = 1`` with shears) are refused.
 
-Errors inside the USERMAT never reach Ansys as C++ exceptions. A numerical failure of the
-trial state prints its cause and sets ``keycut = 1``; an input error (an unknown model code,
-a ``TB,STATE`` count below ``4 + nC``, an unsupported layout) prints its cause and aborts
-the job.
+What happens when the USERMAT fails
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As for Abaqus (:doc:`abaqus`), the bridge never lets a C++ error reach Ansys. It
+prints the cause, prefixed by ``simcoon USERMAT:``, and then:
+
+- **the increment is too large** (a trial state the model cannot handle): it sets
+  ``keycut = 1`` and Ansys bisects the substep (message ending with
+  ``cutback requested``);
+- **the input is wrong** (an unknown model code in ``props[0]``, a ``TB,STATE`` count
+  below ``4 + nC``, an unsupported element layout): the job stops at once (message
+  ending with ``the analysis stops``); fix the input and resubmit.
 
 Limitations and Workarounds
 ---------------------------

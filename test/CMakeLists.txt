@@ -81,7 +81,7 @@ target_sources(Ttutorial_umat PRIVATE ${CMAKE_SOURCE_DIR}/examples/umat_tutorial
 target_include_directories(Ttutorial_umat PRIVATE ${CMAKE_SOURCE_DIR}/examples/umat_tutorial)
 
 # The Abaqus entries (software/umat_singleM.cpp, umat_singleT.cpp) each define umat_: one test
-# executable per entry, calling it as Abaqus does.
+# executable per entry (both on Tumat_single.hpp), calling it as Abaqus does.
 target_sources(Tumat_singleM PRIVATE ${CMAKE_SOURCE_DIR}/software/umat_singleM.cpp)
 target_sources(Tumat_singleT PRIVATE ${CMAKE_SOURCE_DIR}/software/umat_singleT.cpp)
 # The Ansys entry (usermat_), checked against the Abaqus one in the same executable

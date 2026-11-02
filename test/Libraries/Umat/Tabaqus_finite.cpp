@@ -27,6 +27,7 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -171,6 +172,12 @@ TEST(Tabaqus_finite, kinematic_form_and_route)
     EXPECT_EQ(fea_law_statev(19, 4, 3, 3, 3), 0);
     EXPECT_THROW(fea_law_statev(12, 4, 3, 3, 3), std::invalid_argument);   // EPICP's DEPVAR, renamed EPICP_R
     EXPECT_THROW(fea_law_statev(3, 4, 3, 3, corate_type_total), std::invalid_argument);
+    // the FE entries cut the increment on a numerical failure only
+    EXPECT_TRUE(fea_numerical_failure(simcoon::exception_inv("singular")));
+    EXPECT_TRUE(fea_numerical_failure(simcoon::exception_logmat_sympd("not SPD")));
+    EXPECT_TRUE(fea_numerical_failure(std::runtime_error("an Armadillo decomposition")));
+    EXPECT_FALSE(fea_numerical_failure(simcoon::exception_solver("corate refused")));
+    EXPECT_FALSE(fea_numerical_failure(std::invalid_argument("unknown law")));
 
     const mat F = F_test(1.), I = eye(3, 3);
     EXPECT_TRUE(abaqus_finite_route("EPICP", 3, corate_type_total, false, F.memptr()));

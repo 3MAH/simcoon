@@ -32,6 +32,7 @@
 */
 
 #pragma once
+#include <exception>
 #include <string>
 #include <armadillo>
 
@@ -264,6 +265,18 @@ int abaqus_kinematic_statev(const int &corate_type);
 int fea_law_statev(const int &nstatev, const int &nheader, const int &ndi, const int &nshr, const int &corate_type);
 
 /**
+ * @brief Whether an exception out of a material-point call is a numerical failure of the trial
+ *        state, which a smaller increment may cure.
+ * @details True for a std::runtime_error (a simcoon_error of a matrix function or decomposition,
+ *          an Armadillo failure) other than simcoon::exception_solver, which the dispatch raises
+ *          for an unsupported configuration (a refused corate or formulation); false for those and
+ *          for an input error (std::logic_error: an unknown law, a short STATEV, an unsupported
+ *          element layout). The FE entries (umat_singleM, umat_singleT, usermat_singleM) request a
+ *          smaller increment on true and stop the analysis on false.
+ */
+bool fea_numerical_failure(const std::exception &e);
+
+/**
  * @brief Whether an Abaqus call runs the finite-strain route (the deformation gradient driving
  *        select_umat_M_finite / the thermomechanical finite dispatch).
  * @details True for an NLGEOM step (abaqus_nlgeom()) with three direct components (3D, plane
@@ -433,6 +446,7 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
  *          not a rotation (zero, as left by an Ansys release that does not fill it) reads as the
  *          identity.
  * @param stress Ansys stress (ncomp)
+ * @param dsdePl Ansys tangent on input (ncomp x ncomp, column-major), as abaqus2smart_M reads DDSDDE
  * @param strain Ansys total strain at the start of the increment (ncomp)
  * @param dstrain Ansys strain increment (ncomp)
  * @param Time time at the start of the increment
@@ -446,6 +460,7 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
  * @param nShear number of shear components
  * @param rotateM Ansys rotateM (9)
  * @param sigma [out] stress (6)
+ * @param Lt [out] the input tangent (6x6, zero outside the element's components)
  * @param Etot [out] total strain at the start (6), the stored stress-free strain included (rotated by DR)
  * @param DEtot [out] strain increment (6)
  * @param T [out] temperature
@@ -457,11 +472,11 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
  * @param start [out] first increment (Time = 0)
  * @throw std::invalid_argument for a component layout the bridge does not serve
  */
-void ansys2smart_M(const double *stress, const double *strain, const double *dstrain,
+void ansys2smart_M(const double *stress, const double *dsdePl, const double *strain, const double *dstrain,
     const double &Time, const double &Temp, const double &dTemp,
     const int &nprops, const double *props, const int &nstatev, const double *statev,
     const int &nDirect, const int &nShear, const double *rotateM,
-    arma::vec &sigma, arma::vec &Etot, arma::vec &DEtot, double &T, double &DT,
+    arma::vec &sigma, arma::mat &Lt, arma::vec &Etot, arma::vec &DEtot, double &T, double &DT,
     arma::vec &props_smart, arma::vec &Wm, arma::vec &statev_smart, arma::mat &DR, bool &start);
 
 /**
