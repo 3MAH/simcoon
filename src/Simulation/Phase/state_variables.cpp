@@ -167,6 +167,7 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
 state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
 //------------------------------------------------------
 {
+	tangent_mode = sv.tangent_mode;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;

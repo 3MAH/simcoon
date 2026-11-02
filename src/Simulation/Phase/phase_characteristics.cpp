@@ -170,6 +170,7 @@ void phase_characteristics::construct(const int &mshape_type, const int &msv_typ
         case 0: {
             sptr_sv_global = std::make_shared<state_variables>();
             sptr_sv_local = std::make_shared<state_variables>();
+            break;
         }
         case 1: {
             sptr_sv_global = std::make_shared<state_variables_M>();

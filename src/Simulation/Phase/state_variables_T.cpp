@@ -156,18 +156,7 @@ state_variables_T::~state_variables_T()
 state_variables_T& state_variables_T::operator = (const state_variables_T& sv)
 //----------------------------------------------------------------------
 {
-	Etot = sv.Etot;
-	DEtot = sv.DEtot;
-	etot = sv.etot;
-	Detot = sv.Detot;
-	PKII = sv.PKII;
-	PKII_start = sv.PKII_start;
-	tau = sv.tau;
-	tau_start = sv.tau_start;
-    sigma = sv.sigma;
-    sigma_start = sv.sigma_start;
-    F0 = sv.F0;
-    F1 = sv.F1;
+    state_variables::operator=(sv);   //common fields, U0, U1, R, DR and tangent_mode included
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
     dSdE = sv.dSdE;
@@ -179,17 +168,10 @@ state_variables_T& state_variables_T::operator = (const state_variables_T& sv)
     Wt = sv.Wt;
     Wm_start = sv.Wm_start;
     Wt_start = sv.Wt_start;
-    
+
     Q = sv.Q;
     r = sv.r;
     r_in = sv.r_in;
-    T = sv.T;
-    DT = sv.DT;
-    
-    nstatev = sv.nstatev;
-    statev = sv.statev;
-    statev_start = sv.statev_start;
-    
 
 	return *this;
 }
@@ -198,18 +180,7 @@ state_variables_T& state_variables_T::operator = (const state_variables_T& sv)
 state_variables_T& state_variables_T::copy_fields_T (const state_variables_T& sv)
 //----------------------------------------------------------------------
 {
-	Etot = sv.Etot;
-	DEtot = sv.DEtot;
-	etot = sv.etot;
-	Detot = sv.Detot;
-	PKII = sv.PKII;
-	PKII_start = sv.PKII_start;
-	tau = sv.tau;
-	tau_start = sv.tau_start;
-    sigma = sv.sigma;
-    sigma_start = sv.sigma_start;
-    F0 = sv.F0;
-    F1 = sv.F1;
+    state_variables::copy_fields(sv);   //common fields, U0, U1, R and DR included
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
     dSdE = sv.dSdE;
@@ -225,8 +196,6 @@ state_variables_T& state_variables_T::copy_fields_T (const state_variables_T& sv
     Q = sv.Q;
     r = sv.r;
     r_in = sv.r_in;
-    T = sv.T;
-    DT = sv.DT;
 
 	return *this;
 }

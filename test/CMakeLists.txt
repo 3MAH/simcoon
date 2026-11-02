@@ -22,6 +22,7 @@ set(TEST_SRCS
 
   # Libraries - Phase
   test/Libraries/Phase/Tmaterial_characteristics.cpp
+  test/Libraries/Phase/Tstate_variables.cpp
 
   # Libraries - Maths
   test/Libraries/Maths/Tlagrange.cpp
