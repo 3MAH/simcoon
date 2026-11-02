@@ -955,11 +955,8 @@ Tensor4Type infer_inverse_type(Tensor4Type t4type) {
 // Batch loops below use simcoon_parallel_for_safe (parallel.hpp): exception-safe GCD/OpenMP,
 // so a singular slice raises a catchable error instead of terminating the process.
 //
-// IMPORTANT: never call Cube::slice(i) inside these loops. Armadillo lazily builds a
-// per-slice Mat accessor behind a per-cube std::mutex + heap allocation (Cube_meat.hpp,
-// create_mat_ptr): on a fresh cube that is one lock+malloc per item, which serializes the
-// whole parallel loop (profiled: threads spent ~10x more time in __psynch_mutexwait than
-// computing). slice_memptr() is a plain pointer lookup — copy through these helpers instead.
+// IMPORTANT: never call Cube::slice(i) inside these loops (see slice_view.hpp): these helpers
+// copy through slice_memptr() into fixed-size matrices instead.
 
 template<arma::uword R, arma::uword C>
 static arma::mat::fixed<R,C> slice_fixed(const arma::cube &c, arma::uword s) {

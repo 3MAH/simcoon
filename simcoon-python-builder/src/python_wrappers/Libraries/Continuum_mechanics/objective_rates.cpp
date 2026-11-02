@@ -8,6 +8,7 @@
 #include <armadillo>
 
 #include <simcoon/python_wrappers/parallel_nogil.hpp>
+#include <simcoon/slice_view.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/parameter.hpp>
@@ -120,13 +121,23 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             }
         }
         const bool F0_per_point = F0_one.is_empty();
+        // checked here, in serial context, instead of aliasing past the numpy buffers
+        if (F1_cpp.n_rows != 3 || F1_cpp.n_cols != 3
+                || (F0_per_point && (F0_cpp.n_rows != 3 || F0_cpp.n_cols != 3 || F0_cpp.n_slices != F1_cpp.n_slices))
+                || (!F0_per_point && (F0_one.n_rows != 3 || F0_one.n_cols != 3))) {
+            throw std::invalid_argument("objective_rate: F1 must be (3, 3, N) and F0 (3, 3), (3, 3, 1) or (3, 3, N)");
+        }
 
         parallel_for_nogil(nb_points, [&](int pt) {
-            const mat &F0_pt = F0_per_point ? F0_cpp.slice(pt) : F0_one;
-            simcoon::corate_kinematics(corate, DR.slice(pt), D.slice(pt), Omega.slice(pt), F0_pt, F1_cpp.slice(pt), DTime);
+            // slice aliases: never Cube::slice in the parallel region (slice_view.hpp)
+            const mat F0_s = F0_per_point ? simcoon::slice_view(F0_cpp, pt) : mat();
+            const mat &F0_pt = F0_per_point ? F0_s : F0_one;
+            const mat F1_pt = simcoon::slice_view(F1_cpp, pt);
+            mat DR_pt = simcoon::slice_view(DR, pt), D_pt = simcoon::slice_view(D, pt), Omega_pt = simcoon::slice_view(Omega, pt);
+            simcoon::corate_kinematics(corate, DR_pt, D_pt, Omega_pt, F0_pt, F1_pt, DTime);
             if (return_de) {
                 vec de_col = de.unsafe_col(pt);
-                de_col = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_pt, F1_cpp.slice(pt), DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, corate));
+                de_col = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_pt, F1_pt, DR_pt, D_pt, Omega_pt, DTime, corate));
             }
         }, n_threads);
         if (return_de){	                     
@@ -211,11 +222,12 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         if (F_cpp.n_slices != Lt_cpp.n_slices || stress_cpp.n_cols != Lt_cpp.n_slices) {
             throw std::invalid_argument("Lt_convert: Lt, F and stress must carry one entry per point");
         }
-        cube Lt_converted(6, 6, nb_points);
+        cube Lt_converted(6, 6, nb_points, fill::none);   // every slice written below
         // one point per item, own output slice: parallel, GIL released (6x6 allocations)
         parallel_for_nogil(nb_points, [&](int pt) {
-            Lt_converted.slice(pt) = convert_pt(Lt_cpp.slice(pt), F_cpp.slice(pt),
-                                                simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
+            mat out_pt = simcoon::slice_view(Lt_converted, pt);
+            out_pt = convert_pt(simcoon::slice_view(Lt_cpp, pt), simcoon::slice_view(F_cpp, pt),
+                                simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
         });
         return simpy::arma_to_numpy::cube_to_arr(Lt_converted, false);
     }
