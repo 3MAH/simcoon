@@ -22,8 +22,10 @@ The Ansys ``USERMAT`` subroutine interface differs from Abaqus in several ways:
   (in practice the Green-Naghdi one), passes Cauchy stress and logarithmic strain
   already rotated, and defines ``dsdePl`` as :math:`\partial \Delta\boldsymbol{\sigma} / \partial \Delta\boldsymbol{\varepsilon}`
   in that frame, with no :math:`J` factor: the kernel tangent is passed as is
-  (unlike Abaqus, see :doc:`abaqus`); ``rotateM`` rotates the tensorial state variables
-- **No time step control**: Cannot request smaller time steps from within USERMAT
+  (unlike Abaqus, see :doc:`abaqus`); ``rotateM`` (read row by row) rotates the tensorial
+  state variables, and an array that is not a rotation (zero, left unfilled) reads as the identity
+- **Time step control**: limited to a cutback request (``keycut = 1``), raised when the law
+  asks for a smaller increment or the trial state fails numerically
 - **State variable initialization**: Cannot set non-zero initial values
 - **Model selection**: Uses numeric model code in props[0] instead of material name
   (the code maps to the same 5-character names — see :doc:`umat_catalog` for
@@ -104,7 +106,7 @@ Unlike Abaqus where the model is selected by material name, Ansys uses a **model
     TBDATA,5,200       ! sigma_y
     TBDATA,6,1000      ! H
     
-    ! Define state variables (nstatev_smart + 4)
+    ! Define state variables (nstatev_smart + 4 + nC; nC = 0 in 3D)
     TB,STATE,1,,12
 
 Model Codes
@@ -219,24 +221,25 @@ Architecture
     │              usermat_singleM.cpp (bridge)                     │
     │                                                               │
     │  ┌─────────────────────────────────────────────────────────┐  │
-    │  │  ansys2smart_M()                                        │  │
-    │  │  - Converts stress, dsdePl, strain, dstrain → Armadillo │  │
+    │  │  ansys2smart_M()  (fea_transfer.hpp)                    │  │
+    │  │  - Converts stress, strain, dstrain → Armadillo         │  │
     │  │  - Remaps Voigt indices (swaps 4 ↔ 5 for 3D)            │  │
-    │  │  - Extracts model code from props[0]                    │  │
+    │  │  - Reads Wm, the stored stress-free strain, the law     │  │
     │  └─────────────────────────────────────────────────────────┘  │
     │                           │                                   │
     │                           ▼                                   │
     │  ┌─────────────────────────────────────────────────────────┐  │
     │  │  select_umat_M(rve, ...)                                │  │
-    │  │  - Looks up model name from code (e.g., 5 → "EPICP")    │  │
-    │  │  - Dispatches to appropriate model                      │  │
+    │  │  - Model name from the code in props[0] (5 → "EPICP")   │  │
+    │  │  - Plane stress, 1D: solves the stress-free components  │  │
     │  └─────────────────────────────────────────────────────────┘  │
     │                           │                                   │
     │                           ▼                                   │
     │  ┌─────────────────────────────────────────────────────────┐  │
-    │  │  smart2ansys_M()                                        │  │
+    │  │  smart2ansys_M()  (fea_transfer.hpp)                    │  │
     │  │  - Converts sigma, Lt → stress, dsdePl arrays           │  │
     │  │  - Remaps Voigt indices back to Ansys convention        │  │
+    │  │  - Writes Wm, the stress-free strain, the law           │  │
     │  └─────────────────────────────────────────────────────────┘  │
     └───────────────────────────────────────────────────────────────┘
                                 │
@@ -294,9 +297,20 @@ Same as Abaqus - simcoon uses a specific layout for state variables:
 .. code-block:: none
 
     ustatev[0:3]              - Work quantities (Wm, Wm_r, Wm_ir, Wm_d)
-    ustatev[4:nStatev-1]      - Model-specific state variables
+    ustatev[4:4+nC]           - Stress-free strain components (plane stress, 1D)
+    ustatev[4+nC:nStatev-1]   - Model-specific state variables
 
-Set the number of state variables in MAPDL with ``TB,STATE,mat_id,,nstatev``.
+Set the number of state variables in MAPDL with ``TB,STATE,mat_id,,nstatev``, with
+``nstatev = nstatev_smart + 4 + nC``: ``nC = 0`` in 3D, plane strain and axisymmetry, 3 in
+plane stress (33, 13, 23), 5 in 1D. The material point solves those components so that
+their stress vanishes, around the 3D law, and keeps them to start the next increment from
+them; ``dsdePl`` is the tangent condensed on the element's components. Other layouts
+(beams, ``nDirect = 1`` with shears) are refused.
+
+Errors inside the USERMAT never reach Ansys as C++ exceptions. A numerical failure of the
+trial state prints its cause and sets ``keycut = 1``; an input error (an unknown model code,
+a ``TB,STATE`` count below ``4 + nC``, an unsupported layout) prints its cause and aborts
+the job.
 
 Limitations and Workarounds
 ---------------------------
@@ -310,7 +324,7 @@ Based on MFront's experience with Ansys:
    - Initializing in the first increment based on material properties
    - Using a separate initialization step
 
-3. **No time step control**: Unlike Abaqus where ``pnewdt`` can request smaller steps, Ansys USERMAT cannot control the time step. Use sufficiently small increments for nonlinear problems.
+3. **Limited time step control**: Unlike Abaqus where ``pnewdt`` sets the ratio of the next step, Ansys USERMAT only requests a cutback (``keycut = 1``). Use sufficiently small increments for nonlinear problems.
 
 4. **Modelling hypothesis ambiguity**: Plane strain and axisymmetric cases have identical tensor dimensions. If your model treats them differently, consider using a material property flag to distinguish them.
 
@@ -351,7 +365,7 @@ Troubleshooting
 
 **Convergence issues**
 
-- Check that ``TB,STATE`` count matches ``nstatev_smart + 4``
+- Check that ``TB,STATE`` count matches ``nstatev_smart + 4 + nC``
 - Verify material properties are in correct units
 - Start with small load increments
 - The first property must be the model code

@@ -45,6 +45,7 @@ set(TEST_SRCS
   test/Libraries/Umat/Tabaqus_finite.cpp
   test/Libraries/Umat/Tumat_singleM.cpp
   test/Libraries/Umat/Tumat_singleT.cpp
+  test/Libraries/Umat/Tusermat_singleM.cpp
   test/Libraries/Umat/Tdamage_LLD_0.cpp
   test/Libraries/Umat/Tunified_TR.cpp
   test/Libraries/Umat/Modular/Tmodular_umat.cpp
@@ -83,6 +84,8 @@ target_include_directories(Ttutorial_umat PRIVATE ${CMAKE_SOURCE_DIR}/examples/u
 # executable per entry, calling it as Abaqus does.
 target_sources(Tumat_singleM PRIVATE ${CMAKE_SOURCE_DIR}/software/umat_singleM.cpp)
 target_sources(Tumat_singleT PRIVATE ${CMAKE_SOURCE_DIR}/software/umat_singleT.cpp)
+# The Ansys entry (usermat_), checked against the Abaqus one in the same executable
+target_sources(Tusermat_singleM PRIVATE ${CMAKE_SOURCE_DIR}/software/usermat_singleM.cpp ${CMAKE_SOURCE_DIR}/software/umat_singleM.cpp)
 
 # Add external test executables (non-MSVC only)
 if(NOT MSVC)

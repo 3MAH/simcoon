@@ -48,33 +48,52 @@ namespace simcoon {
 
 namespace {
 
-// Abaqus arrays hold the element's ntens components in order (ndi direct, then nshr shears 12,
-// 13, 23): entry i is the simcoon component K(i). The others have zero strain (ndi = 3) or are
-// stress-free, solved by the material point (ndi < 3, condensed_state.hpp)
-struct abaqus_components {
-    int ndi, ntens;
-    abaqus_components(const int &ndi_, const int &nshr) : ndi(ndi_), ntens(ndi_ + nshr) {}
-    int operator()(const int &i) const { return (i < ndi) ? i : 3 + i - ndi; }
+// FE arrays hold the element's ntens components: entry i is the simcoon component K(i). The
+// others have zero strain (ndi = 3) or are stress-free, solved by the material point (ndi < 3,
+// condensed_state.hpp)
+struct fea_components {
+    int ntens;
+    int K[6];
+    int operator()(const int &i) const { return K[i]; }
 };
 
-// Abaqus vector -> simcoon 6 entries (vec, 6x1 or 1x6 mat), zero outside K
-template <class V> void abaqus2vec(const double *a, const abaqus_components &K, V &v) {
+// Abaqus: ndi direct, then the nshr shears 12, 13, 23
+fea_components abaqus_components(const int &ndi, const int &nshr) {
+    fea_components c{ndi + nshr, {0, 0, 0, 0, 0, 0}};
+    for (int i = 0; i < c.ntens; i++) c.K[i] = (i < ndi) ? i : 3 + i - ndi;
+    return c;
+}
+
+// Ansys: 11, 22, 33, 12, 23, 13 in 3D (13 and 23 swapped), 11, 22, 33, 12 in plane strain and
+// axisymmetry, 11, 22, 12 in plane stress, 11 in 1D
+fea_components ansys_components(const int &nDirect, const int &nShear) {
+    if (nDirect == 3 && nShear == 3) return {6, {0, 1, 2, 3, 5, 4}};
+    if (nDirect == 3 && nShear == 1) return {4, {0, 1, 2, 3, 0, 0}};
+    if (nDirect == 2 && nShear == 1) return {3, {0, 1, 3, 0, 0, 0}};
+    if (nDirect == 1 && nShear == 0) return {1, {0, 0, 0, 0, 0, 0}};
+    throw std::invalid_argument("Ansys USERMAT: nDirect = " + std::to_string(nDirect) + ", nShear = "
+                                + std::to_string(nShear) + " is not supported (3D, plane strain, "
+                                "axisymmetric, plane stress and 1D are)");
+}
+
+// FE vector -> simcoon 6 entries (vec, 6x1 or 1x6 mat), zero outside K
+template <class V> void fe2vec(const double *a, const fea_components &K, V &v) {
     v.zeros();
     for (int i = 0; i < K.ntens; i++) v(K(i)) = a[i];
 }
 
-template <class V> void vec2abaqus(const V &v, const abaqus_components &K, double *a) {
+template <class V> void vec2fe(const V &v, const fea_components &K, double *a) {
     for (int i = 0; i < K.ntens; i++) a[i] = v(K(i));
 }
 
 // column-major ntens x ntens <-> the K x K block of a 6x6
-void abaqus2mat(const double *a, const abaqus_components &K, mat &M) {
+void fe2mat(const double *a, const fea_components &K, mat &M) {
     M.zeros(6, 6);
     for (int j = 0; j < K.ntens; j++)
         for (int i = 0; i < K.ntens; i++) M(K(i), K(j)) = a[j*K.ntens + i];
 }
 
-void mat2abaqus(const mat &M, const abaqus_components &K, double *a) {
+void mat2fe(const mat &M, const fea_components &K, double *a) {
     for (int j = 0; j < K.ntens; j++)
         for (int i = 0; i < K.ntens; i++) a[j*K.ntens + i] = M(K(i), K(j));
 }
@@ -98,9 +117,9 @@ void write_free_strain(const vec &Etot_end, const int &offset, const uvec &C, do
 
 void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int &nstatev, double *statev, const int &ndi, const int &nshr, vec &sigma, mat &Lt, vec &Wm, vec &statev_smart)
 {
-    const abaqus_components K(ndi, nshr);
-    abaqus2vec(stress, K, sigma);
-    abaqus2mat(ddsdde, K, Lt);
+    const fea_components K = abaqus_components(ndi, nshr);
+    fe2vec(stress, K, sigma);
+    fe2mat(ddsdde, K, Lt);
 
     for (int i=0; i<4; i++) {
         Wm(i) = statev[i];
@@ -112,11 +131,11 @@ void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int 
 
 void abaqus2smart_M(const double *stress, const double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
-    const abaqus_components K(ndi, nshr);
-    abaqus2vec(stress, K, sigma);
-    abaqus2vec(stran, K, Etot);
-    abaqus2vec(dstran, K, DEtot);
-    abaqus2mat(ddsdde, K, Lt);
+    const fea_components K = abaqus_components(ndi, nshr);
+    fe2vec(stress, K, sigma);
+    fe2vec(stran, K, Etot);
+    fe2vec(dstran, K, DEtot);
+    fe2mat(ddsdde, K, Lt);
 
     ///@brief rotation matrix
     DR = mat(drot, 3, 3);
@@ -149,13 +168,13 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
 
 void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &dSdE, mat &dSdT, mat &drpldE, mat &drpldT, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &Wt, vec &statev_smart, mat &DR, bool &start) {
 
-    const abaqus_components K(ndi, nshr);
-    abaqus2vec(stress, K, sigma);
-    abaqus2vec(stran, K, Etot);
-    abaqus2vec(dstran, K, DEtot);
-    abaqus2mat(ddsdde, K, dSdE);
-    abaqus2vec(ddsddt, K, dSdT);
-    abaqus2vec(drplde, K, drpldE);
+    const fea_components K = abaqus_components(ndi, nshr);
+    fe2vec(stress, K, sigma);
+    fe2vec(stran, K, Etot);
+    fe2vec(dstran, K, DEtot);
+    fe2mat(ddsdde, K, dSdE);
+    fe2vec(ddsddt, K, dSdT);
+    fe2vec(drplde, K, drpldE);
     drpldT(0) = drpldt;
 
     ///@brief rotation matrix
@@ -221,10 +240,10 @@ int abaqus_kinematic_statev(const int &corate_type) {
     return (corate_type == corate_type_total) ? 0 : 15;
 }
 
-int abaqus_law_statev(const int &nstatev, const int &nheader, const int &ndi, const int &nshr, const int &corate_type) {
+int fea_law_statev(const int &nstatev, const int &nheader, const int &ndi, const int &nshr, const int &corate_type) {
     const int nbridge = nheader + static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem) + abaqus_kinematic_statev(corate_type);
     if (nstatev < nbridge) {
-        throw std::invalid_argument("Abaqus UMAT: DEPVAR = " + std::to_string(nstatev) + " is below the "
+        throw std::invalid_argument("the STATEV size (Abaqus DEPVAR, Ansys TB,STATE) " + std::to_string(nstatev) + " is below the "
                                     + std::to_string(nbridge) + " entries the bridge keeps"
                                     + ((corate_type == corate_type_total) ? std::string() : std::string(" (the _R suffix takes 15)"))
                                     + ", before the law's own");
@@ -302,9 +321,9 @@ void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &n
     // the tangent arrives condensed (select_umat_M): DDSDDE is its K x K block; sigma (x) I only
     // for NLGEOM with 3 direct components, plane stress and 1D take it as it is
     const mat Lt = (nlgeom && ndi == 3) ? abaqus_jacobian(Lt_kernel, sigma) : Lt_kernel;
-    const abaqus_components K(ndi, nshr);
-    vec2abaqus(sigma, K, stress);
-    mat2abaqus(Lt, K, ddsdde);
+    const fea_components K = abaqus_components(ndi, nshr);
+    vec2fe(sigma, K, stress);
+    mat2fe(Lt, K, ddsdde);
 
     ///@brief : Pass the state variables
     for (int i=0; i<4; i++) {
@@ -323,11 +342,11 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     UNUSED(nstatev);
     // simcoon -> the INPUT arrays of an Abaqus UMAT (UMABA plugin): ddsdde is overwritten by
     // that UMAT, so the kernel tangent goes out as it is
-    const abaqus_components K(ndi, nshr);
-    vec2abaqus(sigma, K, stress);
-    vec2abaqus(Etot, K, stran);
-    vec2abaqus(DEtot, K, dstran);
-    mat2abaqus(Lt_kernel, K, ddsdde);
+    const fea_components K = abaqus_components(ndi, nshr);
+    vec2fe(sigma, K, stress);
+    vec2fe(Etot, K, stran);
+    vec2fe(DEtot, K, dstran);
+    mat2fe(Lt_kernel, K, ddsdde);
 
     ///@brief rotation matrix
     std::copy(DR.begin(), DR.end(), drot);
@@ -361,11 +380,11 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
 
     // dSdE, dSdT, drpldE and drpldT arrive condensed on the element's components (select_umat_T)
     const mat dSdE = (nlgeom && ndi == 3) ? abaqus_jacobian(dSdE_kernel, sigma) : dSdE_kernel;
-    const abaqus_components K(ndi, nshr);
-    vec2abaqus(sigma, K, stress);
-    mat2abaqus(dSdE, K, ddsdde);
-    vec2abaqus(dSdT, K, ddsddt);
-    vec2abaqus(drpldE, K, drplde);
+    const fea_components K = abaqus_components(ndi, nshr);
+    vec2fe(sigma, K, stress);
+    mat2fe(dSdE, K, ddsdde);
+    vec2fe(dSdT, K, ddsddt);
+    vec2fe(drpldE, K, drplde);
     drpldt = drpldT(0,0);
     rpl = r;
 
@@ -388,159 +407,59 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
 // ANSYS USERMAT TRANSFER FUNCTIONS
 //=============================================================================
 
-void ansys2smart_M(const double *stress, const double *dstran,
-    const double &sedEl, const double &sedPl, const double &epseq,
-    const double *statev, const double *props,
-    const double &Time, const double &DTime,
-    const double &temperature, const double &Dtemperature,
-    const int &ncomp, const int &nprops, const int &nstatev,
-    vec &sigma, vec &DEtot, vec &Wm, 
-    vec &statev_smart, vec &props_smart,
-    double &T, double &DT)
+void ansys2smart_M(const double *stress, const double *strain, const double *dstrain,
+    const double &Time, const double &Temp, const double &dTemp,
+    const int &nprops, const double *props, const int &nstatev, const double *statev,
+    const int &nDirect, const int &nShear, const double *rotateM,
+    vec &sigma, vec &Etot, vec &DEtot, double &T, double &DT,
+    vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
-    // Ansys uses Voigt notation: (11, 22, 33, 12, 23, 13)
-    // simcoon uses:              (11, 22, 33, 12, 13, 23)
-    // So components 4 and 5 are swapped
-    
-    if (ncomp == 6) {  // 3D
-        // Stress: swap components 4 and 5
-        sigma(0) = stress[0];
-        sigma(1) = stress[1];
-        sigma(2) = stress[2];
-        sigma(3) = stress[3];
-        sigma(4) = stress[5];  // Ansys 13 → simcoon index 4
-        sigma(5) = stress[4];  // Ansys 23 → simcoon index 5
-        
-        // Strain increment: swap components 4 and 5
-        DEtot(0) = dstran[0];
-        DEtot(1) = dstran[1];
-        DEtot(2) = dstran[2];
-        DEtot(3) = dstran[3];
-        DEtot(4) = dstran[5];  // Ansys 13 → simcoon index 4
-        DEtot(5) = dstran[4];  // Ansys 23 → simcoon index 5
-    }
-    else if (ncomp == 4) {  // 2D (plane strain/axisymmetric)
-        sigma(0) = stress[0];
-        sigma(1) = stress[1];
-        sigma(2) = stress[2];
-        sigma(3) = stress[3];
-        
-        DEtot(0) = dstran[0];
-        DEtot(1) = dstran[1];
-        DEtot(2) = dstran[2];
-        DEtot(3) = dstran[3];
-    }
-    else if (ncomp == 3) {  // 2D plane stress
-        sigma(0) = stress[0];
-        sigma(1) = stress[1];
-        sigma(3) = stress[2];
-        
-        DEtot(0) = dstran[0];
-        DEtot(1) = dstran[1];
-        DEtot(3) = dstran[2];
-    }
-    else if (ncomp == 1) {  // 1D
-        sigma(0) = stress[0];
-        DEtot(0) = dstran[0];
-    }
-    
-    // Temperature
-    T = temperature;
-    DT = Dtemperature;
-    
-    // Material properties
+    const fea_components K = ansys_components(nDirect, nShear);
+    fe2vec(stress, K, sigma);
+    fe2vec(strain, K, Etot);
+    fe2vec(dstrain, K, DEtot);
+
+    // rotateM row by row; anything but a rotation (zero, unfilled) is no rotation
+    DR = mat(rotateM, 3, 3).t();
+    if (norm(DR.t()*DR - eye(3, 3), "fro") > 1.e-8 || det(DR) <= 0.)
+        DR = eye(3, 3);
+
+    T = Temp;
+    DT = dTemp;
+    start = (Time < 1E-12);
+
     for (int i = 0; i < nprops; i++) {
         props_smart(i) = props[i];
     }
-    
-    // Work quantities from sedEl and sedPl
-    Wm(0) = sedEl + sedPl;  // Total strain energy
-    Wm(1) = sedEl;          // Elastic (reversible) strain energy
-    Wm(2) = sedPl;          // Plastic (irreversible) strain energy
-    Wm(3) = 0.;             // Damage energy (not directly available)
-    
-    // State variables (first 4 are Wm, then user statev)
-    int nstatev_smart = nstatev - 4;
-    for (int i = 0; i < nstatev_smart; i++) {
-        statev_smart(i) = statev[i + 4];
+    for (int i = 0; i < 4; i++) {
+        Wm(i) = statev[i];
+    }
+    const uvec C = make_condensed_state(nDirect, nShear).C;
+    read_free_strain(statev, 4, C, DR, Etot);
+    const int offset = 4 + C.n_elem;
+    for (int i = 0; i < nstatev - offset; i++) {
+        statev_smart(i) = statev[i + offset];
     }
 }
 
-void smart2ansys_M(double *stress, double *ddsdde,
-    double &sedEl, double &sedPl, double *statev,
-    const int &ncomp,
+void smart2ansys_M(double *stress, double *dsdePl, double *statev,
+    const int &nDirect, const int &nShear,
     const vec &sigma, const mat &Lt,
-    const vec &Wm, const vec &statev_smart)
+    const vec &Wm, const vec &statev_smart, const vec &Etot_end)
 {
-    // Ansys uses Voigt notation: (11, 22, 33, 12, 23, 13)
-    // simcoon uses:              (11, 22, 33, 12, 13, 23)
-    // So components 4 and 5 are swapped
-    
-    if (ncomp == 6) {  // 3D
-        // Stress: swap components 4 and 5
-        stress[0] = sigma(0);
-        stress[1] = sigma(1);
-        stress[2] = sigma(2);
-        stress[3] = sigma(3);
-        stress[4] = sigma(5);  // simcoon 23 → Ansys index 4
-        stress[5] = sigma(4);  // simcoon 13 → Ansys index 5
-        
-        // Tangent matrix: need to swap rows 4↔5 and columns 4↔5
-        // Create permutation: simcoon indices [0,1,2,3,4,5] → Ansys [0,1,2,3,5,4]
-        int perm[6] = {0, 1, 2, 3, 5, 4};
-        
-        for (int i = 0; i < 6; i++) {
-            for (int j = 0; j < 6; j++) {
-                // Ansys uses row-major storage
-                ddsdde[i * 6 + j] = Lt(perm[i], perm[j]);
-            }
-        }
-    }
-    else if (ncomp == 4) {  // 2D (plane strain/axisymmetric)
-        stress[0] = sigma(0);
-        stress[1] = sigma(1);
-        stress[2] = sigma(2);
-        stress[3] = sigma(3);
-        
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                ddsdde[i * 4 + j] = Lt(i, j);
-            }
-        }
-    }
-    else if (ncomp == 3) {  // 2D plane stress
-        stress[0] = sigma(0);
-        stress[1] = sigma(1);
-        stress[2] = sigma(3);
-        
-        // Condense tangent for plane stress
-        assert(Lt(2,2) > 0.);
-        ddsdde[0] = Lt(0,0) - Lt(0,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[4] = Lt(1,1) - Lt(1,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[3] = Lt(0,1) - Lt(0,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[1] = Lt(1,0) - Lt(1,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[6] = Lt(0,3) - Lt(0,2)*Lt(2,3)/Lt(2,2);
-        ddsdde[7] = Lt(1,3) - Lt(1,2)*Lt(2,3)/Lt(2,2);
-        ddsdde[2] = Lt(3,0) - Lt(3,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[5] = Lt(3,1) - Lt(3,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[8] = Lt(3,3) - Lt(3,2)*Lt(2,3)/Lt(2,2);
-    }
-    else if (ncomp == 1) {  // 1D
-        stress[0] = sigma(0);
-        ddsdde[0] = Lt(0,0);
-    }
-    
-    // Work quantities
-    sedEl = Wm(1);  // Elastic strain energy
-    sedPl = Wm(2);  // Plastic strain energy
-    
-    // State variables
+    const fea_components K = ansys_components(nDirect, nShear);
+    vec2fe(sigma, K, stress);
+    mat2fe(Lt, K, dsdePl);
+
     for (int i = 0; i < 4; i++) {
         statev[i] = Wm(i);
     }
+    const uvec C = make_condensed_state(nDirect, nShear).C;
+    write_free_strain(Etot_end, 4, C, statev);
+    const int offset = 4 + C.n_elem;
     for (unsigned int i = 0; i < statev_smart.n_elem; i++) {
-        statev[i + 4] = statev_smart(i);
+        statev[i + offset] = statev_smart(i);
     }
 }
-    
+
 } // namespace simcoon

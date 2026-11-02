@@ -103,7 +103,7 @@ try {
     // STATEV: Wm, Wt, then the stress-free strain when ndi < 3 (abaqus2smart_T), then the law,
     // then the rate form's strain and frame (abaqus_kinematic_statev, CMNAME suffix _R)
     const int corate_type = abaqus_kinematic_form(cmname);
-    const int nstatev_smart = abaqus_law_statev(nstatev, 7, ndi, nshr, corate_type);   // throws on a short DEPVAR
+    const int nstatev_smart = fea_law_statev(nstatev, 7, ndi, nshr, corate_type);   // throws on a short DEPVAR
     const int nstatev_kin = abaqus_kinematic_statev(corate_type);
     double *kin_statev = statev + nstatev - nstatev_kin;
     vec props_smart = zeros(nprops);
