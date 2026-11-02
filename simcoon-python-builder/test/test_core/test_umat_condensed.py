@@ -286,7 +286,9 @@ def test_hyperelastic_condensed_through_ln_V(name, props, ndi, nshr):
     s3, J3 = solved(lnv)
     np.testing.assert_allclose(s, s3, rtol=1e-9, atol=1e-9 * np.abs(s3).max())
     np.testing.assert_array_equal(s[C], 0.0)
-    h = 1e-6
+    # the reference Newton stalls near 1e-12 relative on tau_C for the nearly incompressible laws
+    # (MOORI: kappa/mu ~ 4e4); h = 1e-6 divides that noise up to the 1e-6 bound
+    h = 1e-4
     fd = np.zeros((len(K), len(K)))
     for j, k in enumerate(K):
         lp, lm = lnv.copy(), lnv.copy()
