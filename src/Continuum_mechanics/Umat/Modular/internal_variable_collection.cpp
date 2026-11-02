@@ -30,7 +30,7 @@ namespace simcoon {
 
 InternalVariable& InternalVariableCollection::add_scalar(const std::string& name, double init) {
     if (has(name)) {
-        throw std::runtime_error("InternalVariableCollection: variable '" + name + "' already exists");
+        throw std::logic_error("InternalVariableCollection: variable '" + name + "' already exists");
     }
 
     variables_.emplace_back(name, init);
@@ -45,7 +45,7 @@ InternalVariable& InternalVariableCollection::add_vec(
     const std::string& name, const arma::vec& init,
     bool objective, Tensor2Type vtype) {
     if (has(name)) {
-        throw std::runtime_error("InternalVariableCollection: variable '" + name + "' already exists");
+        throw std::logic_error("InternalVariableCollection: variable '" + name + "' already exists");
     }
 
     variables_.emplace_back(name, init, objective, vtype);
@@ -59,7 +59,7 @@ InternalVariable& InternalVariableCollection::add_vec(
 InternalVariable& InternalVariableCollection::add_mat(const std::string& name, const arma::mat& init, bool objective,
                                                       Tensor4Type t4type) {
     if (has(name)) {
-        throw std::runtime_error("InternalVariableCollection: variable '" + name + "' already exists");
+        throw std::logic_error("InternalVariableCollection: variable '" + name + "' already exists");
     }
 
     variables_.emplace_back(name, init, objective, t4type);
@@ -75,7 +75,7 @@ InternalVariable& InternalVariableCollection::add_mat(const std::string& name, c
 InternalVariable& InternalVariableCollection::get(const std::string& name) {
     auto it = name_to_index_.find(name);
     if (it == name_to_index_.end()) {
-        throw std::runtime_error("InternalVariableCollection: variable '" + name + "' not found");
+        throw std::logic_error("InternalVariableCollection: variable '" + name + "' not found");
     }
     return variables_[it->second];
 }
@@ -83,7 +83,7 @@ InternalVariable& InternalVariableCollection::get(const std::string& name) {
 const InternalVariable& InternalVariableCollection::get(const std::string& name) const {
     auto it = name_to_index_.find(name);
     if (it == name_to_index_.end()) {
-        throw std::runtime_error("InternalVariableCollection: variable '" + name + "' not found");
+        throw std::logic_error("InternalVariableCollection: variable '" + name + "' not found");
     }
     return variables_[it->second];
 }
@@ -109,7 +109,7 @@ void InternalVariableCollection::compute_offsets(unsigned int base_offset) {
 
 void InternalVariableCollection::pack_all(arma::vec& statev) const {
     if (!offsets_computed_) {
-        throw std::runtime_error("InternalVariableCollection: compute_offsets must be called before pack_all");
+        throw std::logic_error("InternalVariableCollection: compute_offsets must be called before pack_all");
     }
 
     for (const auto& var : variables_) {
@@ -119,7 +119,7 @@ void InternalVariableCollection::pack_all(arma::vec& statev) const {
 
 void InternalVariableCollection::unpack_all(const arma::vec& statev) {
     if (!offsets_computed_) {
-        throw std::runtime_error("InternalVariableCollection: compute_offsets must be called before unpack_all");
+        throw std::logic_error("InternalVariableCollection: compute_offsets must be called before unpack_all");
     }
 
     for (auto& var : variables_) {

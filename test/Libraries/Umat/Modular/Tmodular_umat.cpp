@@ -169,12 +169,12 @@ TEST_F(InternalVariableTest, TensorViews) {
 
     // Type-mismatch rejection
     InternalVariable scalar_iv("d", 0.1);
-    EXPECT_THROW(scalar_iv.as_strain(), std::runtime_error);
-    EXPECT_THROW(scalar_iv.as_stiffness(), std::runtime_error);
-    EXPECT_THROW(EP.as_stiffness(), std::runtime_error);
-    EXPECT_THROW(L_iv.as_strain(), std::runtime_error);
-    EXPECT_THROW(scalar_iv.as_tensor2_start(), std::runtime_error);
-    EXPECT_THROW(EP.as_tensor4_start(), std::runtime_error);
+    EXPECT_THROW(scalar_iv.as_strain(), std::logic_error);
+    EXPECT_THROW(scalar_iv.as_stiffness(), std::logic_error);
+    EXPECT_THROW(EP.as_stiffness(), std::logic_error);
+    EXPECT_THROW(L_iv.as_strain(), std::logic_error);
+    EXPECT_THROW(scalar_iv.as_tensor2_start(), std::logic_error);
+    EXPECT_THROW(EP.as_tensor4_start(), std::logic_error);
 }
 
 // Typed 6x6 rotation: a compliance-typed matrix variable must rotate with the
@@ -221,8 +221,8 @@ TEST_F(InternalVariableTest, PackUnpackOutOfBoundsThrows) {
     InternalVariable iv("v", init, false);
     iv.set_offset(5);            // needs indices 5..10
     arma::vec statev = arma::zeros(8);   // too short
-    EXPECT_THROW(iv.pack(statev), std::runtime_error);
-    EXPECT_THROW(iv.unpack(statev), std::runtime_error);
+    EXPECT_THROW(iv.pack(statev), std::logic_error);
+    EXPECT_THROW(iv.unpack(statev), std::logic_error);
     arma::vec ok = arma::zeros(11);
     EXPECT_NO_THROW(iv.pack(ok));
     EXPECT_DOUBLE_EQ(ok(10), 6.0);
@@ -510,7 +510,7 @@ TEST(ModularHyperelastic, EvaluateRejectsReducedDimension) {
     em.configure(ElasticityType::HYPER_INVARIANTS, yeoh_block, offset);
     vec sigma;
     mat Lt;
-    EXPECT_THROW(em.evaluate(zeros<vec>(6), 2, 1, sigma, Lt), std::runtime_error);
+    EXPECT_THROW(em.evaluate(zeros<vec>(6), 2, 1, sigma, Lt), std::invalid_argument);
 }
 
 // evaluate()'s tangent must be d(tau)/d(eps_el) of the potential itself:
@@ -599,7 +599,7 @@ TEST_F(ElasticityModuleTest, EvaluateThrowsWhenNotConfigured) {
     ElasticityModule em;
     vec sigma;
     mat Lt;
-    EXPECT_THROW(em.evaluate(arma::zeros<vec>(6), 3, 3, sigma, Lt), std::runtime_error);
+    EXPECT_THROW(em.evaluate(arma::zeros<vec>(6), 3, 3, sigma, Lt), std::invalid_argument);
 }
 
 // The module is 3D whatever ndi: a condensed state (ndi < 3) is solved around the whole law
@@ -752,7 +752,7 @@ TEST_F(ElasticityModuleTest, ConventionEquivalence) {
     vec props_bad = {9.0, E, nu, 0.0};
     offset = 0;
     EXPECT_THROW(em_bad.configure(ElasticityType::ISOTROPIC, props_bad, offset),
-                 std::runtime_error);
+                 std::invalid_argument);
 }
 
 TEST_F(ElasticityModuleTest, ThermalExpansion) {
@@ -842,20 +842,20 @@ TEST_F(ElasticityModuleTest, RejectsInadmissibleMaterial) {
     EXPECT_THROW(
         em.configure_orthotropic(70000., 0.3, 0.3, 30000., 0.3, 15000.,
                                  8000., 6000., 5000., 0., 0., 0.),
-        std::runtime_error);
+        std::invalid_argument);
 
     ElasticityModule em2;
     // Invalid axis: L_isotrans would exit(0); the guard throws instead.
     EXPECT_THROW(
         em2.configure_transverse_isotropic(230000., 15000., 0.02, 0.4,
                                            50000., 0., 0., /*axis*/ 0),
-        std::runtime_error);
+        std::invalid_argument);
     // Physically inadmissible (nuTL^2 * EL/ET too large -> indefinite L):
     // caught by the positive-definiteness check.
     EXPECT_THROW(
         em2.configure_transverse_isotropic(230000., 15000., 0.2, 0.4,
                                            50000., 0., 0., /*axis*/ 3),
-        std::runtime_error);
+        std::invalid_argument);
     // Admissible carbon-fibre-like constants: accepted.
     EXPECT_NO_THROW(
         em2.configure_transverse_isotropic(230000., 15000., 0.02, 0.4,

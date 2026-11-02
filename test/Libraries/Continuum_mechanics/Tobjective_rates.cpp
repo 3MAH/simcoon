@@ -783,3 +783,14 @@ TEST(Tobjective_rates, total_formulation_increment_is_a_state_function)
     }
     EXPECT_FALSE(work_correction_applies(6));
 }
+
+TEST(Tobjective_rates, dH_dE_close_eigenvalues)
+{
+    // dH/dE is continuous in C: two eigenvalues a relative 3e-12 apart, just past the coincident
+    // branch, give the coincident value up to O(3e-12); the difference of the two logs is a few
+    // 1e-5 off there
+    const double d = 3.e-12;
+    const mat P0 = dH_dE(diagmat(vec({3., 3., 5.})));
+    const mat Pd = dH_dE(diagmat(vec({3., 3.*(1. + d), 5.})));
+    EXPECT_LT(norm(Pd - P0, "inf"), 10.*d);
+}

@@ -20,6 +20,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * @brief Implementation of InternalVariable class
  */
 
+#include <stdexcept>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 
@@ -59,7 +60,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::vec& ini
     , statev_offset_(0)
 {
     if (init.n_elem != 6) {
-        throw std::runtime_error("InternalVariable: vector must have 6 components, got " +
+        throw std::logic_error("InternalVariable: vector must have 6 components, got " +
                                 std::to_string(init.n_elem));
     }
 }
@@ -80,7 +81,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::mat& ini
     , statev_offset_(0)
 {
     if (init.n_rows != 6 || init.n_cols != 6) {
-        throw std::runtime_error("InternalVariable: matrix must be 6x6, got " +
+        throw std::logic_error("InternalVariable: matrix must be 6x6, got " +
                                 std::to_string(init.n_rows) + "x" + std::to_string(init.n_cols));
     }
 }
@@ -103,42 +104,42 @@ unsigned int InternalVariable::size() const {
 
 double& InternalVariable::scalar() {
     if (type_ != IVarType::SCALAR) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access scalar on non-scalar type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access scalar on non-scalar type");
     }
     return scalar_value_;
 }
 
 const double& InternalVariable::scalar() const {
     if (type_ != IVarType::SCALAR) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access scalar on non-scalar type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access scalar on non-scalar type");
     }
     return scalar_value_;
 }
 
 arma::vec& InternalVariable::raw_voigt() {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec on non-vector type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access vec on non-vector type");
     }
     return vec_value_;
 }
 
 const arma::vec& InternalVariable::raw_voigt() const {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec on non-vector type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access vec on non-vector type");
     }
     return vec_value_;
 }
 
 arma::mat& InternalVariable::raw_mat() {
     if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat on non-matrix type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access mat on non-matrix type");
     }
     return mat_value_;
 }
 
 const arma::mat& InternalVariable::raw_mat() const {
     if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat on non-matrix type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access mat on non-matrix type");
     }
     return mat_value_;
 }
@@ -147,42 +148,42 @@ const arma::mat& InternalVariable::raw_mat() const {
 
 double& InternalVariable::scalar_start() {
     if (type_ != IVarType::SCALAR) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access scalar_start on non-scalar type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access scalar_start on non-scalar type");
     }
     return scalar_start_;
 }
 
 const double& InternalVariable::scalar_start() const {
     if (type_ != IVarType::SCALAR) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access scalar_start on non-scalar type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access scalar_start on non-scalar type");
     }
     return scalar_start_;
 }
 
 arma::vec& InternalVariable::raw_voigt_start() {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec_start on non-vector type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access vec_start on non-vector type");
     }
     return vec_start_;
 }
 
 const arma::vec& InternalVariable::raw_voigt_start() const {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec_start on non-vector type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access vec_start on non-vector type");
     }
     return vec_start_;
 }
 
 arma::mat& InternalVariable::raw_mat_start() {
     if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat_start on non-matrix type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access mat_start on non-matrix type");
     }
     return mat_start_;
 }
 
 const arma::mat& InternalVariable::raw_mat_start() const {
     if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat_start on non-matrix type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted to access mat_start on non-matrix type");
     }
     return mat_start_;
 }
@@ -191,14 +192,14 @@ const arma::mat& InternalVariable::raw_mat_start() const {
 
 double InternalVariable::delta_scalar() const {
     if (type_ != IVarType::SCALAR) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted delta_scalar on non-scalar type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted delta_scalar on non-scalar type");
     }
     return scalar_value_ - scalar_start_;
 }
 
 arma::vec InternalVariable::delta_vec() const {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted delta_vec on non-vector type");
+        throw std::logic_error("InternalVariable '" + name_ + "': attempted delta_vec on non-vector type");
     }
     return vec_value_ - vec_start_;
 }
@@ -251,7 +252,7 @@ void InternalVariable::rotate(const Rotation& R) {
 
 tensor2 InternalVariable::as_tensor2(Tensor2Type vtype) const {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable::as_tensor2: variable '" + name_
+        throw std::logic_error("InternalVariable::as_tensor2: variable '" + name_
                                  + "' is not VECTOR_6");
     }
     return tensor2::from_voigt(vec_value_, vtype);
@@ -259,7 +260,7 @@ tensor2 InternalVariable::as_tensor2(Tensor2Type vtype) const {
 
 tensor2 InternalVariable::as_tensor2_start(Tensor2Type vtype) const {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable::as_tensor2_start: variable '" + name_
+        throw std::logic_error("InternalVariable::as_tensor2_start: variable '" + name_
                                  + "' is not VECTOR_6");
     }
     return tensor2::from_voigt(vec_start_, vtype);
@@ -267,7 +268,7 @@ tensor2 InternalVariable::as_tensor2_start(Tensor2Type vtype) const {
 
 tensor4 InternalVariable::as_tensor4(Tensor4Type t4type) const {
     if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable::as_tensor4: variable '" + name_
+        throw std::logic_error("InternalVariable::as_tensor4: variable '" + name_
                                  + "' is not MATRIX_6x6");
     }
     return tensor4(mat_value_, t4type);
@@ -275,7 +276,7 @@ tensor4 InternalVariable::as_tensor4(Tensor4Type t4type) const {
 
 tensor4 InternalVariable::as_tensor4_start(Tensor4Type t4type) const {
     if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable::as_tensor4_start: variable '" + name_
+        throw std::logic_error("InternalVariable::as_tensor4_start: variable '" + name_
                                  + "' is not MATRIX_6x6");
     }
     return tensor4(mat_start_, t4type);
@@ -283,7 +284,7 @@ tensor4 InternalVariable::as_tensor4_start(Tensor4Type t4type) const {
 
 void InternalVariable::set_tensor2(const tensor2& t) {
     if (type_ != IVarType::VECTOR_6) {
-        throw std::runtime_error("InternalVariable::set_tensor2: variable '" + name_
+        throw std::logic_error("InternalVariable::set_tensor2: variable '" + name_
                                  + "' is not VECTOR_6");
     }
     // Re-express in this variable's own convention via the 3x3 (convention-
@@ -293,7 +294,7 @@ void InternalVariable::set_tensor2(const tensor2& t) {
 
 void InternalVariable::set_tensor4(const tensor4& t) {
     if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable::set_tensor4: variable '" + name_
+        throw std::logic_error("InternalVariable::set_tensor4: variable '" + name_
                                  + "' is not MATRIX_6x6");
     }
     // Re-express in this variable's own convention via the Mandel form
@@ -306,7 +307,7 @@ void InternalVariable::set_tensor4(const tensor4& t) {
 void InternalVariable::pack(arma::vec& statev) const {
     const unsigned int offset = statev_offset_;
     if (offset + size() > statev.n_elem) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': pack out of bounds (offset "
+        throw std::logic_error("InternalVariable '" + name_ + "': pack out of bounds (offset "
                                  + std::to_string(offset) + " + size " + std::to_string(size())
                                  + " > nstatev " + std::to_string(statev.n_elem) + ")");
     }
@@ -330,7 +331,7 @@ void InternalVariable::pack(arma::vec& statev) const {
 void InternalVariable::unpack(const arma::vec& statev) {
     const unsigned int offset = statev_offset_;
     if (offset + size() > statev.n_elem) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': unpack out of bounds (offset "
+        throw std::logic_error("InternalVariable '" + name_ + "': unpack out of bounds (offset "
                                  + std::to_string(offset) + " + size " + std::to_string(size())
                                  + " > nstatev " + std::to_string(statev.n_elem) + ")");
     }

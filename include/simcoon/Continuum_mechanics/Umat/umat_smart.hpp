@@ -539,6 +539,18 @@ bool stress_output_is_kirchhoff(const std::string &umat_name);
 bool total_formulation_serves(const std::string &umat_name);
 
 /**
+ * @brief True when the named thermomechanical kernel can run under the total formulation.
+ *
+ * The thermomechanical kernels admitted are those written as log-strain boxes: Kirchhoff stress,
+ * secant in the strain they are fed, so that the total form hands them \f$ \ln\mathbf{U} \f$ and
+ * reads \f$ \mathbf{T} \f$, with \f$ \mathbf{T}:\dot{\mathbf{H}} = \boldsymbol{\tau}:\mathbf{D} \f$
+ * carrying their free energy, dissipation and heat over exactly. The list is explicit: a new
+ * kernel (one written on the Cauchy stress or on \f$ \mathbf{F} \f$) is refused under the total
+ * form until it is checked and added. Never throws.
+ */
+bool total_formulation_serves_T(const std::string &umat_name);
+
+/**
  * @brief Kirchhoff stress at the exit of a kernel run under the total formulation.
  *
  * A log-strain box (@p box true) returned \f$ \mathbf{T} \f$: \f$ \boldsymbol{\tau} \f$ is its

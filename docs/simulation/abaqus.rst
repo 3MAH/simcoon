@@ -412,6 +412,30 @@ layout as the Ansys ``ustatev`` when ``nC = 0``, see :doc:`ansys`). The
 thermomechanical bridge stores the three thermal energies ``Wt, Wt_r, Wt_ir``
 after ``Wm``: ``*DEPVAR`` is then ``nstatev_smart + 7 + nC``. A material whose
 name carries the ``_R`` suffix (rate form under ``NLGEOM``) needs 15 more.
+For example, ``EPICP`` (8 variables) in a 3D element needs ``*DEPVAR`` = 12, and
+``EPICP_R`` needs 27. The bridge checks that ``*DEPVAR`` is at least its own
+share (here 4, or 19 with ``_R``); it cannot know how many variables the model
+itself needs, so a ``*DEPVAR`` that is too small for the model goes unnoticed.
+
+What happens when the UMAT fails
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The bridge never lets a C++ error reach Abaqus (that would kill the job without
+explanation). It prints the cause in the job log (``.log``), prefixed by
+``simcoon UMAT:``, and then does one of two things:
+
+- **The increment is too large** (for example a trial deformation gradient the
+  model cannot handle, or a matrix logarithm that fails): it sets
+  ``PNEWDT = 0.5``, and Abaqus retries the increment with a smaller time step.
+  The message ends with ``step cut requested``.
+- **The input is wrong** (an unknown material name, a ``*DEPVAR`` smaller than
+  the bridge's share, an unsupported element or option): a smaller increment
+  would not help, so the job stops at once through the Abaqus utility ``XIT``
+  (the ``.msg`` and ``.sta`` files are closed properly). The message ends with
+  ``the analysis stops``; fix the input file and resubmit.
+
+The bridge library therefore leaves the symbol ``xit_`` to Abaqus, which
+resolves it when it loads the user subroutine.
 
 Available Models
 ----------------

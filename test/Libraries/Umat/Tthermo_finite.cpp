@@ -128,3 +128,13 @@ TEST(ThermoFinite, OtherRatesAreRefused) {
     for (const int corate : {0, 1, 2, 4, 5})
         EXPECT_THROW(one_increment("ELISO", De_probe, 0., 2, corate), simcoon::exception_solver) << corate;
 }
+
+// The total form admits the thermomechanical kernels written as log-strain boxes, by name
+TEST(ThermoFinite, TotalFormAdmission) {
+    for (const auto &kv : laws())
+        EXPECT_TRUE(total_formulation_serves_T(kv.first)) << kv.first;
+    for (const string name : {"ZENNK", "SMADC", "SMAAI", "SMAAC"})
+        EXPECT_TRUE(total_formulation_serves_T(name)) << name;
+    for (const string name : {"HYPOO", "NEOHC", "MODUL", "UMEXT", "XXXXX"})
+        EXPECT_FALSE(total_formulation_serves_T(name)) << name;
+}

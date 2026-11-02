@@ -56,7 +56,7 @@ void ViscoelasticMechanism::configure(const arma::vec& props, int& offset) {
         etaS_i_[i] = props(offset + 4 * i + 3);
 
         if (etaS_i_[i] <= 0.0 || etaB_i_[i] <= 0.0) {
-            throw std::runtime_error(
+            throw std::invalid_argument(
                 "ViscoelasticMechanism: bulk and shear viscosities must be > 0");
         }
 
