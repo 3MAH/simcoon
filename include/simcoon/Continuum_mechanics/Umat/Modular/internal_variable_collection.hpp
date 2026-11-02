@@ -62,7 +62,7 @@ public:
      * @param init Initial value (default: 0.0)
      * @return Reference to the created variable (scalars are always
      *         objective — no flag; see InternalVariable::is_objective())
-     * @throws std::runtime_error if name already exists
+     * @throws std::logic_error if name already exists
      */
     InternalVariable& add_scalar(const std::string& name, double init = 0.0);
 
@@ -74,7 +74,7 @@ public:
      *        pass false for velocity/rate-like variables, which rotate_all
      *        must not co-rotate)
      * @return Reference to the created variable
-     * @throws std::runtime_error if name already exists
+     * @throws std::logic_error if name already exists
      */
     InternalVariable& add_vec(const std::string& name,
                                const arma::vec& init = arma::zeros(6),
@@ -87,7 +87,7 @@ public:
      * @param init Initial value (default: zeros)
      * @param objective Whether the quantity is objective (default: true)
      * @return Reference to the created variable
-     * @throws std::runtime_error if name already exists
+     * @throws std::logic_error if name already exists
      */
     InternalVariable& add_mat(const std::string& name, const arma::mat& init = arma::zeros(6, 6), bool objective = true,
                               Tensor4Type t4type = Tensor4Type::stiffness);
@@ -98,7 +98,7 @@ public:
      * @brief Get a variable by name
      * @param name The variable name
      * @return Reference to the variable
-     * @throws std::runtime_error if name not found
+     * @throws std::logic_error if name not found
      */
     InternalVariable& get(const std::string& name);
 
@@ -106,7 +106,7 @@ public:
      * @brief Get a variable by name (const)
      * @param name The variable name
      * @return Const reference to the variable
-     * @throws std::runtime_error if name not found
+     * @throws std::logic_error if name not found
      */
     const InternalVariable& get(const std::string& name) const;
 

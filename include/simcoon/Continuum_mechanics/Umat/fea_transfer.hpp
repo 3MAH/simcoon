@@ -281,7 +281,8 @@ bool fea_numerical_failure(const std::exception &e);
  *        select_umat_M_finite / the thermomechanical finite dispatch).
  * @details True for an NLGEOM step (abaqus_nlgeom()) with three direct components (3D, plane
  *          strain, axisymmetric) and a law the finite dispatch serves in the requested form
- *          (every thermomechanical law; the mechanical ones of finite_umat_names(), the total
+ *          (every thermomechanical law under the rate form, the total form where
+ *          total_formulation_serves_T(); the mechanical ones of finite_umat_names(), the total
  *          form only where total_formulation_serves()). Otherwise the bridge keeps the
  *          corotational small-strain route on STRAN/DSTRAN (plane stress and 1D, NLGEOM=NO,
  *          the small-strain-only laws).
@@ -441,10 +442,10 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
  *          swapped against simcoon; 11, 22, 33, 12 in plane strain and axisymmetry; 11, 22, 12 in
  *          plane stress; 11 in 1D). USTATEV holds the four works Wm, then the stress-free strain
  *          of a condensed state (plane stress, 1D: the components select_umat_M solves, in simcoon
- *          order), then the law's variables, as the Abaqus bridge (abaqus2smart_M). rotateM is
- *          read row by row as the rotation increment DR of the state variables; an array that is
- *          not a rotation (zero, as left by an Ansys release that does not fill it) reads as the
- *          identity.
+ *          order), then the law's variables, as the Abaqus bridge (abaqus2smart_M). Ansys hands
+ *          stress and strain in its co-rotated frame, where every variable is defined and updated:
+ *          the rotation increment of the law is the identity (the former rotateM argument is
+ *          unused, reserved by Ansys).
  * @param stress Ansys stress (ncomp)
  * @param dsdePl Ansys tangent on input (ncomp x ncomp, column-major), as abaqus2smart_M reads DDSDDE
  * @param strain Ansys total strain at the start of the increment (ncomp)
@@ -458,36 +459,38 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
  * @param statev USTATEV
  * @param nDirect number of direct components
  * @param nShear number of shear components
- * @param rotateM Ansys rotateM (9)
  * @param sigma [out] stress (6)
  * @param Lt [out] the input tangent (6x6, zero outside the element's components)
- * @param Etot [out] total strain at the start (6), the stored stress-free strain included (rotated by DR)
+ * @param Etot [out] total strain at the start (6), the stored stress-free strain included
  * @param DEtot [out] strain increment (6)
  * @param T [out] temperature
  * @param DT [out] temperature increment
  * @param props_smart [out] law properties
  * @param Wm [out] works (4)
  * @param statev_smart [out] law state variables
- * @param DR [out] rotation increment
  * @param start [out] first increment (Time = 0)
  * @throw std::invalid_argument for a component layout the bridge does not serve
  */
 void ansys2smart_M(const double *stress, const double *dsdePl, const double *strain, const double *dstrain,
     const double &Time, const double &Temp, const double &dTemp,
     const int &nprops, const double *props, const int &nstatev, const double *statev,
-    const int &nDirect, const int &nShear, const double *rotateM,
+    const int &nDirect, const int &nShear,
     arma::vec &sigma, arma::mat &Lt, arma::vec &Etot, arma::vec &DEtot, double &T, double &DT,
-    arma::vec &props_smart, arma::vec &Wm, arma::vec &statev_smart, arma::mat &DR, bool &start);
+    arma::vec &props_smart, arma::vec &Wm, arma::vec &statev_smart, bool &start);
 
 /**
  * @brief simcoon -> Ansys USERMAT (mechanical).
  * @details The stress and dsdePl (ncomp x ncomp, column-major) on the element's components; the
  *          tangent arrives condensed from select_umat_M for plane stress and 1D and goes out as it
  *          is (the kernel tangent, no further term). USTATEV gets Wm, the solved stress-free strain
- *          and the law's variables (ansys2smart_M()).
+ *          and the law's variables (ansys2smart_M()). sedEl and sedPl, which Ansys uses for output
+ *          only, get the recoverable work \f$ W_m^r \f$ and the non-recoverable one
+ *          \f$ W_m^{ir} + W_m^d \f$.
  * @param stress [out] Ansys stress (ncomp)
  * @param dsdePl [out] Ansys tangent (ncomp x ncomp, column-major)
  * @param statev [out] USTATEV
+ * @param sedEl [out] elastic work (Ansys output)
+ * @param sedPl [out] plastic work (Ansys output)
  * @param nDirect number of direct components
  * @param nShear number of shear components
  * @param sigma stress (6)
@@ -496,7 +499,7 @@ void ansys2smart_M(const double *stress, const double *dsdePl, const double *str
  * @param statev_smart law state variables
  * @param Etot_end total strain at the end of the increment (6)
  */
-void smart2ansys_M(double *stress, double *dsdePl, double *statev,
+void smart2ansys_M(double *stress, double *dsdePl, double *statev, double &sedEl, double &sedPl,
     const int &nDirect, const int &nShear,
     const arma::vec &sigma, const arma::mat &Lt,
     const arma::vec &Wm, const arma::vec &statev_smart, const arma::vec &Etot_end);

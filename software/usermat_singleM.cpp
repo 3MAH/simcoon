@@ -48,8 +48,9 @@
 ///           (plane stress nC = 3, 1D nC = 5, otherwise none)
 ///         - ustatev[4+nC:nStatev-1]: Model-specific state variables
 ///
-///         rotateM (read row by row) is the rotation increment of the state variables; an
-///         array that is not a rotation reads as the identity.
+///         Ansys hands stress and strain in its co-rotated frame, where every variable is
+///         defined and updated: the rotation increment is the identity (rotateM is unused).
+///         sedEl, sedPl (output only) get Wm_r and Wm_ir + Wm_d.
 ///         The conversions are ansys2smart_M / smart2ansys_M (fea_transfer.hpp).
 
 #include <iostream>
@@ -58,6 +59,9 @@
 #include <string>
 #include <armadillo>
 #include <map>
+#ifdef _MSC_VER
+#include <stdlib.h>
+#endif
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -68,6 +72,19 @@
 using namespace std;
 using namespace arma;
 using namespace simcoon;
+
+namespace {
+
+// Ansys documents no C-callable stop for USERMAT: abort, without the error-report dialog the
+// Windows CRT would open (it hangs a batch job)
+[[noreturn]] void stop_analysis() {
+#ifdef _MSC_VER
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+    std::abort();
+}
+
+}  // namespace
 
 ///@brief Map from model code to 5-character UMAT name
 static const std::map<int, std::string> model_code_to_name = {
@@ -140,7 +157,7 @@ static const std::map<int, std::string> model_code_to_name = {
 ///@param epsPl Plastic strain array (input, dimension ncomp)
 ///@param prop Material properties array (input, dimension nProp)
 ///@param coords Integration point coordinates (input, dimension 3)
-///@param rotateM Rotation matrix (input, dimension 3x3, row-major; identity when not a rotation)
+///@param rotateM Reserved by Ansys (var0, unused), not read
 ///@param defGrad_t Deformation gradient at time t (input, dimension 3x3)
 ///@param defGrad Deformation gradient at time t+dt (input, dimension 3x3)
 ///@param tsstif Transverse shear stiffness (for shells)
@@ -165,11 +182,10 @@ try {
     UNUSED(iSubst);
     UNUSED(ncomp);
     UNUSED(nPt);
-    UNUSED(sedEl);
-    UNUSED(sedPl);
     UNUSED(epseq);
     UNUSED(epsPl);
     UNUSED(coords);
+    UNUSED(rotateM);
     UNUSED(defGrad_t);
     UNUSED(defGrad);
     UNUSED(tsstif);
@@ -199,16 +215,15 @@ try {
     rve_sv_M->resize(nstatev_smart);
     rve.sptr_matprops->resize(nprops_smart);
     vec props_smart = zeros(nprops_smart);
-    mat DR = eye(3, 3);
 
     ansys2smart_M(stress, dsdePl, strain, dstrain, *Time, *Temp, *dTemp, nprops_smart, prop + 1, *nStatev, ustatev,
-                  *nDirect, *nShear, rotateM, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T,
-                  rve_sv_M->DT, props_smart, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
+                  *nDirect, *nShear, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T,
+                  rve_sv_M->DT, props_smart, rve_sv_M->Wm, rve_sv_M->statev, start);
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops_smart, props_smart);
 
-    select_umat_M(rve, DR, *Time, *dTime, *nDirect, *nShear, start, solver_type, pnewdt);
+    select_umat_M(rve, eye(3, 3), *Time, *dTime, *nDirect, *nShear, start, solver_type, pnewdt);
 
-    smart2ansys_M(stress, dsdePl, ustatev, *nDirect, *nShear, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Wm,
+    smart2ansys_M(stress, dsdePl, ustatev, *sedEl, *sedPl, *nDirect, *nShear, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Wm,
                   rve_sv_M->statev, rve_sv_M->Etot + rve_sv_M->DEtot);
 
     // simcoon asks for a smaller increment through pnewdt < 1: Ansys bisects on keycut = 1.
@@ -220,12 +235,12 @@ catch (const std::exception &e) {
     std::cerr << "simcoon USERMAT: " << e.what();
     if (!fea_numerical_failure(e)) {
         std::cerr << "; the analysis stops\n";
-        std::abort();
+        stop_analysis();
     }
     std::cerr << "; cutback requested\n";
     *keycut = 1;
 }
 catch (...) {
     std::cerr << "simcoon USERMAT: unknown exception; the analysis stops\n";
-    std::abort();
+    stop_analysis();
 }

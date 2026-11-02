@@ -430,8 +430,12 @@ explanation). It prints the cause in the job log (``.log``), prefixed by
   The message ends with ``step cut requested``.
 - **The input is wrong** (an unknown material name, a ``*DEPVAR`` smaller than
   the bridge's share, an unsupported element or option): a smaller increment
-  would not help, so the job stops at once. The message ends with
+  would not help, so the job stops at once through the Abaqus utility ``XIT``
+  (the ``.msg`` and ``.sta`` files are closed properly). The message ends with
   ``the analysis stops``; fix the input file and resubmit.
+
+The bridge library therefore leaves the symbol ``xit_`` to Abaqus, which
+resolves it when it loads the user subroutine.
 
 Available Models
 ----------------

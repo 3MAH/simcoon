@@ -178,14 +178,14 @@ public:
     /**
      * @brief Access scalar value (mutable)
      * @return Reference to scalar value
-     * @throws std::runtime_error if type is not SCALAR
+     * @throws std::logic_error if type is not SCALAR
      */
     double& scalar();
 
     /**
      * @brief Access scalar value (const)
      * @return Const reference to scalar value
-     * @throws std::runtime_error if type is not SCALAR
+     * @throws std::logic_error if type is not SCALAR
      */
     const double& scalar() const;
 
@@ -199,7 +199,7 @@ public:
      * whenever the source is a typed tensor). To reconstruct the tensorial
      * quantity, do NOT re-tag raw copies — use as_tensor2()/as_tensor2_start(),
      * which pair the components with the variable's own vtype().
-     * @throws std::runtime_error if type is not VECTOR_6
+     * @throws std::logic_error if type is not VECTOR_6
      */
     arma::vec& raw_voigt();
 
@@ -207,7 +207,7 @@ public:
      * @brief Access the raw Voigt components (const)
      * @return Const reference to the 6-component vector (this variable's
      *         Tensor2Type convention)
-     * @throws std::runtime_error if type is not VECTOR_6
+     * @throws std::logic_error if type is not VECTOR_6
      */
     const arma::vec& raw_voigt() const;
 
@@ -215,13 +215,13 @@ public:
      * @brief Access the raw 6x6 components (mutable). Same escape-hatch
      * semantics as raw_voigt(): components are in this variable's Tensor4Type
      * convention; prefer set_tensor4() for typed sources.
-     * @throws std::runtime_error if type is not MATRIX_6x6
+     * @throws std::logic_error if type is not MATRIX_6x6
      */
     arma::mat& raw_mat();
 
     /**
      * @brief Access the raw 6x6 components (const)
-     * @throws std::runtime_error if type is not MATRIX_6x6
+     * @throws std::logic_error if type is not MATRIX_6x6
      */
     const arma::mat& raw_mat() const;
 
@@ -305,7 +305,7 @@ public:
      *   factor-2.
      * - Tensor2Type::symmetric when no specific physical convention applies.
      *
-     * @throws std::runtime_error if type() != VECTOR_6
+     * @throws std::logic_error if type() != VECTOR_6
      */
     /// When @p vtype_override is left default (none), the variable's own
     /// stored Tensor2Type is used — callers never need to pass it explicitly
@@ -317,7 +317,7 @@ public:
     /// Typed view of the START value (state at the beginning of the
     /// increment) — the tensorial counterpart of raw_voigt_start(), so
     /// backward-Euler closed forms can be written fully typed.
-    /// @throws std::runtime_error if type() != VECTOR_6
+    /// @throws std::logic_error if type() != VECTOR_6
     [[nodiscard]] tensor2 as_tensor2_start() const { return as_tensor2_start(vtype_); }
     [[nodiscard]] tensor2 as_tensor2_start(Tensor2Type vtype) const;
 
@@ -326,12 +326,12 @@ public:
 
     /// Default view: the variable's own stored Tensor4Type is used (see
     /// as_tensor2() for the same pattern on vectors).
-    /// @throws std::runtime_error if type() != MATRIX_6x6
+    /// @throws std::logic_error if type() != MATRIX_6x6
     [[nodiscard]] tensor4 as_tensor4() const { return as_tensor4(t4type_); }
     [[nodiscard]] tensor4 as_tensor4(Tensor4Type t4type) const;
 
     /// Typed view of the START value (see as_tensor2_start()).
-    /// @throws std::runtime_error if type() != MATRIX_6x6
+    /// @throws std::logic_error if type() != MATRIX_6x6
     [[nodiscard]] tensor4 as_tensor4_start() const { return as_tensor4_start(t4type_); }
     [[nodiscard]] tensor4 as_tensor4_start(Tensor4Type t4type) const;
 
@@ -343,12 +343,12 @@ public:
     /// stress-typed tensor2 to a strain-typed variable cannot silently drop
     /// the factor-2 shear convention. No-op re-expression when conventions
     /// already match.
-    /// @throws std::runtime_error if type() != VECTOR_6
+    /// @throws std::logic_error if type() != VECTOR_6
     void set_tensor2(const tensor2& t);
 
     /// Same contract as set_tensor2: re-expressed in the variable's own
     /// Tensor4Type (via the convention-free Mandel form).
-    /// @throws std::runtime_error if type() != MATRIX_6x6
+    /// @throws std::logic_error if type() != MATRIX_6x6
     void set_tensor4(const tensor4& t);
 
     // ========== Serialization ==========
@@ -370,7 +370,7 @@ public:
      * @param statev The state variable vector to pack into
      *
      * Writes size() values starting at statev_offset_.
-     * @throws std::runtime_error if statev_offset_ + size() exceeds statev —
+     * @throws std::logic_error if statev_offset_ + size() exceeds statev —
      * a partial write would silently corrupt the state.
      */
     void pack(arma::vec& statev) const;
@@ -381,7 +381,7 @@ public:
      *
      * Reads size() values starting at statev_offset_ into BOTH the current
      * and the start value (state restoration).
-     * @throws std::runtime_error if statev_offset_ + size() exceeds statev.
+     * @throws std::logic_error if statev_offset_ + size() exceeds statev.
      */
     void unpack(const arma::vec& statev);
 };

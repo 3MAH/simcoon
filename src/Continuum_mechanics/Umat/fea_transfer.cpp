@@ -257,8 +257,8 @@ bool fea_numerical_failure(const std::exception &e) {
 bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int &corate_type, const bool &thermomechanical, const double *dfgrd1) {
     if (ndi != 3 || !abaqus_nlgeom(dfgrd1))
         return false;
-    if (thermomechanical)   // the finite thermomechanical dispatch serves every law of the small one
-        return true;
+    if (thermomechanical)   // the finite thermomechanical dispatch serves every law of the small one under log_R
+        return corate_type != corate_type_total || total_formulation_serves_T(umat_name);
     const auto &names = finite_umat_names();
     auto it = names.find(umat_name);
     if (it == names.end() || it->second <= 1)   // UMEXT, UMABA: foreign plugins keep their own convention
@@ -410,9 +410,9 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
 void ansys2smart_M(const double *stress, const double *dsdePl, const double *strain, const double *dstrain,
     const double &Time, const double &Temp, const double &dTemp,
     const int &nprops, const double *props, const int &nstatev, const double *statev,
-    const int &nDirect, const int &nShear, const double *rotateM,
+    const int &nDirect, const int &nShear,
     vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT,
-    vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
+    vec &props_smart, vec &Wm, vec &statev_smart, bool &start)
 {
     const fea_components K = ansys_components(nDirect, nShear);
     const condensed_state cs = make_condensed_state(nDirect, nShear);
@@ -420,11 +420,6 @@ void ansys2smart_M(const double *stress, const double *dsdePl, const double *str
     fe2vec(strain, K, Etot);
     fe2vec(dstrain, K, DEtot);
     fe2mat(dsdePl, K, Lt);
-
-    // rotateM row by row; anything but a rotation (zero, unfilled) is no rotation
-    DR = mat(rotateM, 3, 3).t();
-    if (norm(DR.t()*DR - eye(3, 3), "fro") > 1.e-8 || det(DR) <= 0.)
-        DR = eye(3, 3);
 
     T = Temp;
     DT = dTemp;
@@ -436,10 +431,10 @@ void ansys2smart_M(const double *stress, const double *dsdePl, const double *str
     for (int i = 0; i < 4; i++) {
         Wm(i) = statev[i];
     }
-    unpack_statev(statev, nstatev, 4, cs.C, DR, Etot, statev_smart);
+    unpack_statev(statev, nstatev, 4, cs.C, eye(3, 3), Etot, statev_smart);   // co-rotated: no rotation
 }
 
-void smart2ansys_M(double *stress, double *dsdePl, double *statev,
+void smart2ansys_M(double *stress, double *dsdePl, double *statev, double &sedEl, double &sedPl,
     const int &nDirect, const int &nShear,
     const vec &sigma, const mat &Lt,
     const vec &Wm, const vec &statev_smart, const vec &Etot_end)
@@ -452,6 +447,8 @@ void smart2ansys_M(double *stress, double *dsdePl, double *statev,
     for (int i = 0; i < 4; i++) {
         statev[i] = Wm(i);
     }
+    sedEl = Wm(1);
+    sedPl = Wm(2) + Wm(3);
     pack_statev(Etot_end, statev_smart, 4, cs.C, statev);
 }
 

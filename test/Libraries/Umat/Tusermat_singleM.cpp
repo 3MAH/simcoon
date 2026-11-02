@@ -61,7 +61,8 @@ struct point {
     vector<double> stress_aba, statev_aba, stran_aba, stress_ans, statev_ans, strain_ans;
     vector<double> ddsdde, dsdePl;
     double time = 0.;
-    arma::mat DR = eye(3, 3);   // rotation increment: DROT (column-major) for Abaqus, rotateM (row-major) for Ansys
+    arma::mat rotateM = zeros(3, 3);   // what the Ansys call carries in its reserved rotateM slot
+    double sedEl = 0., sedPl = 0.;
     int keycut = 0;
     double pnewdt = 1.;
 
@@ -88,21 +89,19 @@ struct point {
             const double time_a[2] = {time, time}, I[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
             umat_(stress_aba.data(), statev_aba.data(), ddsdde.data(), sse, spd, scd, rpl, ddsddt, drplde, drpldt,
                   stran_aba.data(), dstran.data(), time_a, dtime, 293.15, 0., 0., 0., &cmname[0], lay.ndi, lay.nshr,
-                  ntens, nstatev, mat.props.memptr(), nprops, 0., DR.memptr(), pnewdt, 1., I, I, 1, 1, 0., 1, 1, 1);
+                  ntens, nstatev, mat.props.memptr(), nprops, 0., I, pnewdt, 1., I, I, 1, 1, 0., 1, 1, 1);
         }
         // Ansys: the model code first
         vector<double> prop(1 + nprops);
         prop[0] = mat.code;
         std::copy(mat.props.begin(), mat.props.end(), prop.begin() + 1);
         int one = 1, nDirect = lay.ndi, nShear = lay.nshr, ncomp = ntens, nStatev = nstatev, nProp = 1 + nprops;
-        double Time = time, dTime = dtime, Temp = 293.15, dTemp = 0., sedEl = 0., sedPl = 0., epseq = 0.;
+        double Time = time, dTime = dtime, Temp = 293.15, dTemp = 0., epseq = 0.;
         vector<double> epsPl(ntens, 0.);
-        const arma::mat rot_rows = DR.t();
-        double coords[3] = {0.}, rotateM[9], F[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.}, tsstif[2] = {0.};
-        std::copy(rot_rows.begin(), rot_rows.end(), rotateM);
+        double coords[3] = {0.}, F[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.}, tsstif[2] = {0.};
         usermat_(&one, &one, &one, &one, &one, &one, &one, &keycut, &nDirect, &nShear, &ncomp, &nStatev, &nProp,
                  &one, &Time, &dTime, &Temp, &dTemp, stress_ans.data(), statev_ans.data(), dsdePl.data(), &sedEl,
-                 &sedPl, &epseq, strain_ans.data(), dstrain.data(), epsPl.data(), prop.data(), coords, rotateM,
+                 &sedPl, &epseq, strain_ans.data(), dstrain.data(), epsPl.data(), prop.data(), coords, rotateM.memptr(),
                  F, F, tsstif);
         for (int i = 0; i < ntens; i++) {
             stran_aba[i] += dstran[i];
@@ -156,29 +155,28 @@ TEST(Tusermat_singleM, matches_the_abaqus_entry)
     }
 }
 
-TEST(Tusermat_singleM, rotation_increment_and_unfilled_rotateM)
+TEST(Tusermat_singleM, rotateM_is_not_read)
 {
-    // a rotation increment turns the state variables on both entries alike
+    // Ansys hands stress and strain co-rotated and reserves rotateM: whatever it holds, the answer
+    // is the Abaqus one with no rotation increment
     point p(L3D, EPICP);
+    p.rotateM = {{cos(0.05), -sin(0.05), 0.}, {sin(0.05), cos(0.05), 0.}, {0., 0., 1.}};
     for (int inc = 0; inc < 6; inc++) {
-        p.DR = {{cos(0.05), -sin(0.05), 0.}, {sin(0.05), cos(0.05), 0.}, {0., 0., 1.}};
         p.step(dE_path(inc), 0.5);
         SCOPED_TRACE("inc " + to_string(inc));
         p.expect_same(1.e-12);
     }
-    // a zero rotateM (an Ansys release that leaves it unfilled) is no rotation
-    point q(L3D, EPICP), r(L3D, EPICP);
-    q.DR.zeros();
-    for (int inc = 0; inc < 6; inc++) {
-        q.step(dE_path(inc), 0.5, false);
-        r.step(dE_path(inc), 0.5, false);
-    }
-    double moved = 0.;
-    for (size_t i = 0; i < q.statev_ans.size(); i++) {
-        EXPECT_NEAR(q.statev_ans[i], r.statev_ans[i], 1.e-12*(1. + fabs(r.statev_ans[i])));
-        moved = std::max(moved, fabs(p.statev_ans[i] - r.statev_ans[i]));
-    }
-    EXPECT_GT(moved, 1.e-6);   // the rotation did turn the plastic strain
+}
+
+TEST(Tusermat_singleM, works_go_to_sedEl_and_sedPl)
+{
+    // output only for Ansys: sedEl = Wm_r, sedPl = Wm_ir + Wm_d, the latter grows on a plastic path
+    point p(L3D, EPICP);
+    for (int inc = 0; inc < 4; inc++)
+        p.step(dE_path(inc), 0.5);
+    EXPECT_DOUBLE_EQ(p.sedEl, p.statev_ans[1]);
+    EXPECT_DOUBLE_EQ(p.sedPl, p.statev_ans[2] + p.statev_ans[3]);
+    EXPECT_GT(p.sedPl, 0.);
 }
 
 TEST(Tusermat_singleM, plane_stress_elastic_tangent)

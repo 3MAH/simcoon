@@ -187,7 +187,8 @@ TEST(Tabaqus_finite, kinematic_form_and_route)
     EXPECT_FALSE(abaqus_finite_route("HYPOO", 3, corate_type_total, false, F.memptr()));   // not a total-form law...
     EXPECT_TRUE(abaqus_finite_route("HYPOO", 3, 3, false, F.memptr()));                    // ...but a rate one
     EXPECT_FALSE(abaqus_finite_route("UMABA", 3, 3, false, F.memptr()));
-    EXPECT_TRUE(abaqus_finite_route("SMADI", 3, corate_type_total, true, F.memptr()));      // every thermomechanical law
+    EXPECT_TRUE(abaqus_finite_route("SMADI", 3, corate_type_total, true, F.memptr()));      // every thermomechanical law...
+    EXPECT_FALSE(abaqus_finite_route("HYPOO", 3, corate_type_total, true, F.memptr()));     // ...the total form where admitted
 }
 
 TEST(Tabaqus_finite, total_ELISO_is_hencky)
@@ -218,6 +219,25 @@ TEST(Tabaqus_finite, objectivity_is_exact_in_total_form)
         EXPECT_LT(norm(b.ddsdde - rotate_stiffness(a.ddsdde, Q)), 1.e-10*norm(a.ddsdde));
     }
     EXPECT_GT(a.statev[5], 1.e-3);   // p: the path is plastic
+}
+
+TEST(Tabaqus_finite, total_form_thermal_EPICP_is_the_mechanical_one)
+{
+    // The total form hands the thermal kernel ln U and reads T, as it does the mechanical log-strain
+    // box: at DTEMP = 0 thermal EPICP gives mechanical EPICP's stress, Jacobian and plastic state
+    // along a plastic path
+    point m("EPICP", props_EPICP_M, 8, false), t("EPICP", props_EPICP_T, 8, true);
+    const int n = 4;
+    for (int k = 0; k < n; k++) {
+        const mat F0 = F_test(double(k)/n), F1 = F_test(double(k + 1)/n);
+        m.call(F0, F1, eye(3, 3), 0.25);
+        t.call(F0, F1, eye(3, 3), 0.25, 0.);
+        EXPECT_LT(norm(t.stress - m.stress), 1.e-10*norm(m.stress)) << k;
+        EXPECT_LT(norm(t.ddsdde - m.ddsdde), 1.e-8*norm(m.ddsdde)) << k;
+        for (int i = 0; i < 8; i++)
+            EXPECT_NEAR(t.statev[7 + i], m.statev[4 + i], 1.e-10*(1. + fabs(m.statev[4 + i]))) << k << " statev " << i;
+    }
+    EXPECT_GT(m.statev[5], 1.e-3);   // p: the path is plastic
 }
 
 TEST(Tabaqus_finite, rate_form_keeps_its_strain_and_frame)

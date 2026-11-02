@@ -22,8 +22,9 @@ The Ansys ``USERMAT`` subroutine interface differs from Abaqus in several ways:
   (in practice the Green-Naghdi one), passes Cauchy stress and logarithmic strain
   already rotated, and defines ``dsdePl`` as :math:`\partial \Delta\boldsymbol{\sigma} / \partial \Delta\boldsymbol{\varepsilon}`
   in that frame, with no :math:`J` factor: the kernel tangent is passed as is
-  (unlike Abaqus, see :doc:`abaqus`); ``rotateM`` (read row by row) rotates the tensorial
-  state variables, and an array that is not a rotation (zero, left unfilled) reads as the identity
+  (unlike Abaqus, see :doc:`abaqus`). Every variable, the state variables included, is
+  defined and updated in that frame, so the bridge applies no rotation of its own (the
+  ``rotateM`` slot is reserved and unused by Ansys)
 - **Time step control**: limited to a cutback request (``keycut = 1``), raised when the law
   asks for a smaller increment or the trial state fails numerically
 - **State variable initialization**: Cannot set non-zero initial values
@@ -299,6 +300,9 @@ Same as Abaqus - simcoon uses a specific layout for state variables:
     ustatev[0:3]              - Work quantities (Wm, Wm_r, Wm_ir, Wm_d)
     ustatev[4:4+nC]           - Stress-free strain components (plane stress, 1D)
     ustatev[4+nC:nStatev-1]   - Model-specific state variables
+
+The energy outputs ``sedEl`` and ``sedPl``, which Ansys uses for output only, get the
+recoverable work ``Wm_r`` and the non-recoverable one ``Wm_ir + Wm_d``.
 
 Set the number of state variables in MAPDL with ``TB,STATE,mat_id,,nstatev``, with
 ``nstatev = nstatev_smart + 4 + nC``: ``nC = 0`` in 3D, plane strain and axisymmetry, 3 in

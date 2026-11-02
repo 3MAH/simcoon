@@ -208,7 +208,7 @@ public:
      *
      * Dispatch: VON_MISES → deta_stress; HILL/DFA/ANISOTROPIC →
      * ddHill_stress / ddDFA_stress / ddAni_stress with the configured params.
-     * @throws std::runtime_error if has_flow_hessian() is false.
+     * @throws std::invalid_argument if has_flow_hessian() is false.
      */
     [[nodiscard]] arma::mat flow_hessian(const arma::vec& sigma) const;
 

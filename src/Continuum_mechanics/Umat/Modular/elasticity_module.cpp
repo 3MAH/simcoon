@@ -42,7 +42,7 @@ static const char* conv_string(IsoConv conv) {
         case IsoConv::lambdamu: return "lambdamu";
         case IsoConv::mulambda: return "mulambda";
     }
-    throw std::runtime_error("ElasticityModule: unknown isotropic convention code "
+    throw std::invalid_argument("ElasticityModule: unknown isotropic convention code "
                              + std::to_string(static_cast<int>(conv)) + " (valid: 0..5)");
 }
 
@@ -51,7 +51,7 @@ static const char* conv_string(CubicConv conv) {
         case CubicConv::EnuG: return "EnuG";
         case CubicConv::Cii:  return "Cii";
     }
-    throw std::runtime_error("ElasticityModule: unknown cubic convention code "
+    throw std::invalid_argument("ElasticityModule: unknown cubic convention code "
                              + std::to_string(static_cast<int>(conv)) + " (valid: 0..1)");
 }
 
@@ -60,7 +60,7 @@ static const char* conv_string(OrthoConv conv) {
         case OrthoConv::EnuG: return "EnuG";
         case OrthoConv::Cii:  return "Cii";
     }
-    throw std::runtime_error("ElasticityModule: unknown orthotropic convention code "
+    throw std::invalid_argument("ElasticityModule: unknown orthotropic convention code "
                              + std::to_string(static_cast<int>(conv)) + " (valid: 0..1)");
 }
 
@@ -116,7 +116,7 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
     // Single parameterization today — reject unknown codes now so a future
     // convention cannot be silently misread from old props streams.
     if (conv != IsotransConv::EnuG) {
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "ElasticityModule: unknown transverse-isotropic convention code "
             + std::to_string(static_cast<int>(conv)) + " (valid: 0)");
     }
@@ -125,7 +125,7 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
     // process (exit(0)!) on an invalid axis — a throw here keeps the failure
     // catchable and attributable.
     if (axis < 1 || axis > 3) {
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "ElasticityModule: transverse-isotropic axis must be 1, 2 or 3, got "
             + std::to_string(axis));
     }
@@ -281,7 +281,7 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
             const auto potential = static_cast<HyperPotential>(static_cast<int>(props(offset)));
             const int n_params = static_cast<int>(props(offset + 1));
             if (n_params < 1) {
-                throw std::runtime_error(
+                throw std::invalid_argument(
                     "ElasticityModule: HYPER_INVARIANTS needs at least one potential parameter");
             }
             const arma::vec params = props.subvec(offset + 2, offset + 1 + n_params);
@@ -291,7 +291,7 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
             break;
         }
         default:
-            throw std::runtime_error("ElasticityModule: unknown elasticity type");
+            throw std::invalid_argument("ElasticityModule: unknown elasticity type");
     }
 }
 
@@ -301,7 +301,7 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
                                 arma::vec& sigma, arma::mat& Lt) const {
     (void)nshr;
     if (!configured_) {
-        throw std::runtime_error("ElasticityModule: not configured");
+        throw std::invalid_argument("ElasticityModule: not configured");
     }
     if (type_ != ElasticityType::HYPER_INVARIANTS) {
         sigma = L_ * eps_el;
@@ -309,7 +309,7 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
         return;
     }
     if (ndi != 3) {   // condensed states are solved around the whole law (condensed_state.hpp)
-        throw std::runtime_error(
+        throw std::invalid_argument(
             "ElasticityModule: a hyperelastic block supports ndi = 3 only (got "
             + std::to_string(ndi) + ")");
     }
@@ -340,7 +340,7 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
 
 arma::vec ElasticityModule::thermal_strain(double DT) const {
     if (!configured_) {
-        throw std::runtime_error("ElasticityModule: not configured");
+        throw std::invalid_argument("ElasticityModule: not configured");
     }
     return alpha_ * DT;
 }

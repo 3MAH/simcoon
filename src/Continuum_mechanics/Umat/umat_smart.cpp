@@ -299,6 +299,13 @@ bool total_formulation_serves(const std::string &umat_name)
     return umat_name != "HYPOO" && stress_output_is_kirchhoff(umat_name);
 }
 
+bool total_formulation_serves_T(const std::string &umat_name)
+{
+    static const std::set<std::string> served = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "ZENER", "ZENNK",
+                                                 "PRONK", "SMADI", "SMADC", "SMAAI", "SMAAC", "EPJCK"};
+    return served.count(umat_name) > 0;
+}
+
 vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, const bool &box, double &dW)
 {
     dW = 0.;
@@ -700,6 +707,11 @@ static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_globa
     const int id_umat = thermo_umat_id(rve.sptr_matprops->umat_name);
     if (id_umat < 0) {
         throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
+    }
+    if (corate_type == corate_type_total && !total_formulation_serves_T(rve.sptr_matprops->umat_name)) {
+        throw simcoon::exception_solver(
+            "the total formulation (strain space) does not serve the thermomechanical '"
+            + rve.sptr_matprops->umat_name + "'; use the rate formulation");
     }
 
     rve.sptr_sv_global->DR = DR_global;

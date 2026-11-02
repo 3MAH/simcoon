@@ -24,7 +24,6 @@
 
 #include <iostream>
 #include <algorithm>
-#include <cstdlib>
 #include <stdexcept>
 #include <assert.h>
 #include <string.h>
@@ -77,6 +76,10 @@
 using namespace std;
 using namespace arma;
 using namespace simcoon;
+
+// The Abaqus utility that terminates the analysis (flushing the .msg and .sta files, every MPI
+// rank alike), to be called instead of STOP
+extern "C" void xit_();
 
 extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc)
 try {
@@ -145,12 +148,12 @@ catch (const std::exception &e) {
     std::cerr << "simcoon UMAT: " << e.what();
     if (!fea_numerical_failure(e)) {
         std::cerr << "; the analysis stops\n";
-        std::abort();
+        xit_();
     }
     std::cerr << "; step cut requested\n";
     pnewdt = std::min(pnewdt, 0.5);   // keep a smaller cut the law asked for before the failure
 }
 catch (...) {
     std::cerr << "simcoon UMAT: unknown exception; the analysis stops\n";
-    std::abort();
+    xit_();
 }
