@@ -6,7 +6,7 @@ Two dumps:
 - ``solver`` — every result field (``scalar_data`` and ``field_data``) of:
 
   * the ``benchmark_solver.py`` cases (with ``record_tangent=True``);
-  * each family of ``bench/bench_legacy_vs_modular.py``, under its legacy
+  * each family of ``benchmark/bench_legacy_vs_modular.py``, under its legacy
     name and as its MODUL twin, on ``examples/data/MODUL_path.json``;
   * every ``sim.solver.solve`` call made by a few gallery examples (EPCHA,
     MODUL closest point, SMA_T, SMA_TR, thermomechanical SMA_T): the examples are
@@ -119,7 +119,6 @@ def solver_cases():
     from simcoon.solver import Block, StepMeca
 
     sys.path.insert(0, str(REPO / "benchmark"))
-    sys.path.insert(0, str(REPO / "bench"))
     import benchmark_solver as bs
     import bench_legacy_vs_modular as blm
 
@@ -130,7 +129,7 @@ def solver_cases():
         blk = Block(steps=[StepMeca(control=["strain"] + ["stress"] * 5, value=value,
                                     ninc=cfg["ninc"], time=1.0)],
                     control_type=cfg["control_type"])
-        cases.append((f"bench/{name}", lambda blk=blk, name=name, cfg=cfg: sim.solver.solve(
+        cases.append((f"benchmark/{name}", lambda blk=blk, name=name, cfg=cfg: sim.solver.solve(
             blk, name, cfg["props"], cfg["nstatev"], T_init=290.0, corate=2,
             record_tangent=True)))
 

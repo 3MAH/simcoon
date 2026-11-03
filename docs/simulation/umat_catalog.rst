@@ -693,6 +693,6 @@ Each adapter-served name is validated at two levels:
   elastic/power-law families, < 2e-3 for the Voce/Chaboche family (legacy
   incremental vs modular closed-form Voce integration).
 
-A benchmark row per family lives in ``bench/bench_legacy_vs_modular.py``:
+A benchmark row per family lives in ``benchmark/bench_legacy_vs_modular.py``:
 results show no measurable adapter overhead, and the modular
 engine runs at 0.8-1.2x the speed of the removed kernels on all families.

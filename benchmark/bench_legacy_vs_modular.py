@@ -25,9 +25,9 @@ is the constitutive kernel alone rather than the path-file parse the two arms
 share.
 
 Usage:
-    python bench/bench_legacy_vs_modular.py              # EPICP, EPCHA, PRONK
-    python bench/bench_legacy_vs_modular.py --all        # + the adapter families
-    python bench/bench_legacy_vs_modular.py --families EPCHA,EPHIL --repeats 8
+    python benchmark/bench_legacy_vs_modular.py              # EPICP, EPCHA, PRONK
+    python benchmark/bench_legacy_vs_modular.py --all        # + the adapter families
+    python benchmark/bench_legacy_vs_modular.py --families EPCHA,EPHIL --repeats 8
 
 Run from anywhere; paths resolve relative to the repo. Requires the simcoon
 python package (editable install). Results land in a temp dir and are removed.

@@ -1,11 +1,23 @@
 # Benchmarks and non-regression tools
 
+> **Temporary folder.** These scripts serve two ongoing efforts and will be
+> removed once both are done; nothing in the library or the test suite uses them.
+>
+> 1. **Computation time.** Each optimization step is checked for its outputs
+>    (`dump_results.py`: bit-identical, or its worst differences published) and
+>    for its speed (`benchmark_batch.py`, `benchmark_solver.py`, interleaved A/B
+>    against the previous step).
+> 2. **Moving the laws to the modular engine, one at a time.** A legacy name is
+>    routed to MODUL through a props adapter (code 201 in `umat_smart.cpp`) once
+>    `dump_results.py` shows the same response and `bench_legacy_vs_modular.py`
+>    shows no loss of speed. The table at the end tracks where each law stands.
+
 | Script | Measures |
 |---|---|
 | `benchmark_solver.py` | the 0D solver, in-memory route against the path-file route |
 | `benchmark_batch.py` | the batch APIs (N points per call) and fedoo-like iteration sequences |
 | `dump_results.py` | output arrays of the solver and of the batch `umat`, compared between two builds |
-| `../bench/bench_legacy_vs_modular.py` | the legacy kernels against their MODUL twins |
+| `bench_legacy_vs_modular.py` | the legacy kernels against their MODUL twins |
 
 ## Solver benchmark
 
@@ -57,7 +69,7 @@ interleave runs of the two builds and pass all the files to `summary`.
 compares two such dumps:
 
 - `solver`: all result fields of the `benchmark_solver.py` cases, of each family
-  of `bench/bench_legacy_vs_modular.py` (legacy name and MODUL twin), and of every
+  of `bench_legacy_vs_modular.py` (legacy name and MODUL twin), and of every
   `solve` call of five gallery examples (EPCHA, MODUL closest point, SMA_T,
   SMA_TR, thermomechanical SMA_T) — 1435 arrays;
 - `batch`: `sim.umat` on 997 points over six loading/unloading increments, for
@@ -78,7 +90,7 @@ publishes its worst differences.
 
 ## Legacy kernels against their MODUL twins
 
-`bench/bench_legacy_vs_modular.py` times a legacy UMAT against the equivalent
+`bench_legacy_vs_modular.py` times a legacy UMAT against the equivalent
 MODUL configuration (interleaved A/B, minimum over repeats). Only EPICP, EPCHA
 and PRONK still run a legacy kernel: ELISO, ELIST, ELORT, EPKCP, EPHIL, EPHAC,
 EPANI, EPDFA, EPCHG and EPHIN are routed to the modular engine by a props
@@ -86,23 +98,38 @@ adapter (code 201 in `umat_smart.cpp`), so for them the benchmark compares the
 modular engine with itself. By default it runs the three true pairs; `--all`
 adds the adapter families, flagged as such.
 
-## Hotspots of the February 2026 profiling: measured state
+## Hotspots of the February 2026 profiling: current state
 
 The (superseded) PR #63 profiling listed five hotspots of the C++ engine. Their
-state, measured on 2.2.0 (October 2026, `benchmark_solver.py` cases and
-per-component timings of an ELISO increment, about 3 µs in Python):
+state was measured on 2.2.0 (October 2026, `benchmark_solver.py` cases and
+per-component timings of an ELISO increment, about 3 µs in Python), then updated
+with the optimization lots that followed:
 
-| # | Hotspot (February) | Measured state | Measured cost |
+| # | Hotspot (February) | State | Measured cost (2.2.0) |
 |---|---|---|---|
 | 1 | UMAT dispatch maps rebuilt on every call (`select_umat_*`, `umat_smart.cpp`) | **fixed**: `static const` maps | 24 ns per lookup (~1 % of an increment); rebuilt, the map would cost ~1.9 µs |
-| 2 | `inv(K)` then multiply instead of `solve` in the global Newton (`solver.cpp`) | **present** | ~650 ns per iteration, 20 % of a mixed-control ELISO increment; `arma::solve` gains only 0–30 % on a 6×6 (LAPACK call overhead), a fixed-size stack solver is needed |
+| 2 | `inv(K)` then multiply instead of `solve` in the global Newton (`solver.cpp`) | **fixed** in the mixed-control Newton: `newton_correction`, a fixed-size LU on the stack (`small_lu<7>`), no LAPACK call; the RNL path (`solver_type` 1) still uses `inv(K)` | ~650 ns per iteration, 20 % of a mixed-control ELISO increment; `arma::solve` gains only 0–30 % on a 6×6 (LAPACK call overhead) |
 | 3 | Allocations inside the Newton loop | **absent** on the solver side | 0 malloc per iteration; the allocations of an increment are in the constitutive kernels (fixed-size matrices to use there) |
 | 4 | Rotations applied to isotropic materials (`global2local`/`local2global`) | products already skipped; **copies remain** | ~250 ns per UMAT call |
 | 5 | State-variable packing with copies (`statev_2_phases`/`phases_2_statev`) | **outside the 0D path** (Abaqus interface and plugins only) | 0 on the measured loads |
 
-The dominant costs of a small-strain increment are now elsewhere: the modular
-engine rebuilt at every call for the names routed through it (~0.9 µs of an
-ELISO increment), the result sink, and `Kirchoff2PKII` evaluated with F = I.
-Measure with `benchmark_solver.py` (memory route, high `ninc`) and
+The costs that dominated a small-strain increment next have been removed as
+well: the modular engine is no longer rebuilt at every call (a per-thread cache
+of the `ModularUMAT` instance; it cost ~0.9 µs of an ELISO increment), the result
+sink reserves its records up front, and `Kirchoff2PKII` is skipped when F = I
+exactly. What remains is in the constitutive kernels: heap temporaries and the
+LAPACK inverse of the algorithmic tangent. Measure with `benchmark_solver.py` (memory route, high `ninc`) and
 `benchmark_batch.py` before and after any change, and check the outputs with
 `dump_results.py`.
+
+## Migration of the laws to the modular engine
+
+State of the mechanical dispatch (`umat_smart.cpp`); the thermomechanical one
+(`umat_T`) has no adapter yet, every law there runs its legacy kernel.
+
+| Status | Laws |
+|---|---|
+| Routed to MODUL (adapter, code 201) | ELISO, ELIST, ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN |
+| MODUL equivalent exists, adapter to write | NEOHC, MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA (`HYPER_INVARIANTS` block, same `HyperPotential`); NEOHI to confirm (neo-Hookean with the quadratic volumetric term, kappa = 2/D1) |
+| MODUL equivalent exists, legacy kept while faster | EPICP, EPCHA, PRONK |
+| No MODUL equivalent | OGDEN (principal stretches), SNTVE, HYPOO, EPJCK, LLDM0 (anisotropic damage), ZENER, ZENNK (Kelvin chains), SMA family, micromechanics (MIHEN, MIMTN, MISCN, MIPLN) |

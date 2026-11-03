@@ -21,7 +21,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  *
  * The legacy UMATs whose physics ModularUMAT replicates exactly (proven by
  * the equivalence tests in test_modular.py and gated by
- * bench/bench_legacy_vs_modular.py) keep their NAME and PROPS ABI: a
+ * benchmark/bench_legacy_vs_modular.py) keep their NAME and PROPS ABI: a
  * per-name translator turns the legacy props vector into the MODUL props
  * stream and the call is forwarded to umat_modular. statev: the modular
  * engine claims the FIRST required slots of the caller's array (legacy
