@@ -171,7 +171,7 @@ PYBIND11_MODULE(_core, m)
     m.def("Cauchy", &Cauchy, "F"_a, "copy"_a = true, simcoon_docs::Cauchy);
     m.def("Green_Lagrange", &Green_Lagrange, "F"_a, "copy"_a = true, simcoon_docs::Green_Lagrange);
     m.def("Euler_Almansi", &Euler_Almansi, "F"_a, "copy"_a = true, simcoon_docs::Euler_Almansi);
-    m.def("Log_strain", &Log_strain, "F"_a, "voigt_form"_a = false, "copy"_a = true, simcoon_docs::Log_strain);
+    m.def("Log_strain", &Log_strain, "F"_a, "voigt_form"_a = false, "copy"_a = true, "n_threads"_a = 4, simcoon_docs::Log_strain);
     m.def("finite_L", &finite_L, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_L);
     m.def("finite_D", &finite_D, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_D);
     m.def("finite_W", &finite_W, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_W);

@@ -74,6 +74,9 @@ inline int chunk_size(int N) {
 /// blocks on the loop is the lock cycle behind the 1.11.2 macOS parallel-UMAT deadlock
 /// (numpy allocation -> PyDataMem_NEW -> GIL inside GCD). Do all numpy<->arma conversion BEFORE
 /// the loop, and release the GIL around the C++ call in the Python bindings.
+///
+/// @warning @p func must not call Cube::slice(i): its first access of a slice takes a per-cube
+/// lock and a heap allocation, which serializes the loop. Use simcoon::slice_view (slice_view.hpp).
 template<typename F>
 void simcoon_parallel_for_safe(int N, F&& func, int cutoff = simcoon_parallel_cutoff,
                                unsigned int n_threads = 0) {
