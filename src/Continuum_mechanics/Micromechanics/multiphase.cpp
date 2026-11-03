@@ -164,8 +164,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
 	while ((error > simcoon::precision_micro)&&(nbiter <= simcoon::maxiter_micro)) {
 	  
         for(int i=0; i<nphases; i++) {
-            auto sv_r = std::dynamic_pointer_cast<state_variables_M>(phase.sub_phases[i].sptr_sv_global);
-            DE_N[i] = sv_r->DEtot;
+            DE_N[i] = phase.sub_phases[i].sptr_sv_global->DEtot;   //a state_variables member: no cast
         }
 
         //Compute the strain concentration tensor for each phase:
@@ -210,8 +209,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
         
         error = 0.;
         for(int i=0; i<nphases; i++) {
-            auto sv_r = std::dynamic_pointer_cast<state_variables_M>(phase.sub_phases[i].sptr_sv_global);
-            error += norm(DE_N[i] - sv_r->DEtot,2);
+            error += norm(DE_N[i] - phase.sub_phases[i].sptr_sv_global->DEtot,2);
         }
         error*=(1./nphases);
         nbiter++;
@@ -249,13 +247,13 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     //	Homogenization
 	//Compute the effective stress
 	umat_phase_M->sigma = zeros(6);
-    for (auto r : phase.sub_phases) {
+    for (auto &r : phase.sub_phases) {
 		umat_phase_M->sigma += r.sptr_shape->concentration*r.sptr_sv_global->sigma;
 	}
     
     umat_phase_M->Lt = zeros(6,6);
 	// Compute the effective tangent modulus, and the effective stress
-    for (auto r : phase.sub_phases) {
+    for (auto &r : phase.sub_phases) {
         umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
 		umat_phase_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
 	}
