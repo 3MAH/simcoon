@@ -641,39 +641,77 @@ truss) keeps mode 3: the law runs 3D and the state is solved around it.
 Numerical options of the local Newton
 =====================================
 
-Some kernels take optional trailing ``props`` slots that select a numerical variant of their
-local integration. All default to 0, the historical behaviour, bit for bit; giving a slot gives
-the ones before it. They are read wherever the props go (``solve``, ``sim.umat``, phases).
+A few laws accept extra trailing ``props`` that change *how* the local return mapping is
+solved, not the constitutive law itself. Omit them and nothing changes: every option defaults
+to 0, which reproduces the historical results bit for bit. Props are positional, so to set an
+option you must also write the slots before it (0 keeps their default). The options apply
+wherever props are passed (``solve``, ``sim.umat``, phases).
 
-* ``ncp`` (EPICP ``props[6]``, EPKCP ``props[7]``, ``MODUL`` the slot after the last mechanism,
-  written by ``ModularMaterial(ncp="min")``): the complementarity function of the cutting-plane loop.
-  0 is the normalised Fischer-Burmeister function. 1 takes, on a single surface, the
-  semi-smooth Newton step of :math:`\min(\Delta p^*, -\Phi) = 0` — the classic cutting plane on the
-  active row (Ortiz and Simo 1986), whose first step from :math:`\Delta p = 0` is the full Newton
-  step where Fischer-Burmeister takes two thirds of it — and falls back to Fischer-Burmeister for
-  the rest of the local solve as soon as its error grows. Several coupled surfaces keep
-  Fischer-Burmeister. With isotropic or linear (Prager) kinematic hardening the return is the
-  same to the local tolerance and the local iterations drop from 6 to 3. Armstrong-Frederick back
-  stresses are refused (``MODUL``) and the Chaboche kernels do not take the option: the cutting
-  plane integrates those back stresses along its own iterates, and the full steps of min-NCP give
-  a different return, up to 46 % off the closest-point update on coarse increments of the
-  Chaboche identification programmes where Fischer-Burmeister stays within 4 %, without the
-  residual ever growing (the fallback cannot see it). For those laws, ``tangent_mode = 3`` (the
-  closest-point update) is the converged alternative.
-* ``closed_form`` (EPICP ``props[7]``): with ``tangent_mode = 2``, the consistent tangent of the
-  radial return in closed form (Simo and Taylor 1985),
-  :math:`3K\,\mathbb{I}_{vol} + 2G\theta\,\mathbb{I}_{dev} - 2G\bar\theta\,\mathbf{N}\otimes\mathbf{N}`,
-  instead of the generic assembly with its 6x6 inverse. Same operator to round-off at the
-  converged return.
+.. list-table::
+   :header-rows: 1
 
-For EPCHA in a uniaxial 0D path, ``tangent_mode = 1`` (continuum) gives the same iterates as
-the default mode 2 (to :math:`10^{-14}` on the Chaboche identification programmes) for about 27 %
-less time; ``tangent_mode = 3`` (closest point) is a different, backward-Euler update (1 to 2 %
-off the cutting plane there) at about 2.3 times the cost.
+   * - Option
+     - Slot
+     - 0 (default)
+     - 1
+   * - ``ncp``
+     - EPICP ``props[6]``, EPKCP ``props[7]``, ``MODUL``: the slot after the last mechanism
+       (``ModularMaterial(ncp="min")``)
+     - Fischer-Burmeister complementarity
+     - min complementarity (classic cutting plane)
+   * - ``closed_form``
+     - EPICP ``props[7]``, with ``tangent_mode = 2``
+     - generic tangent assembly (6x6 inverse)
+     - closed-form radial-return tangent
+
+``ncp``: a faster local solve for simple plasticity
+---------------------------------------------------
+
+**Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
+The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
+With several coupled surfaces the option has no effect: Fischer-Burmeister is kept.
+If the min step makes the error grow, the solver switches back to Fischer-Burmeister for the
+rest of the increment.
+
+**Do not use it** with Armstrong-Frederick (Chaboche) back stresses. ``MODUL`` refuses the
+combination, and the Chaboche kernels do not read the slot. Those back stresses are integrated
+along the cutting-plane iterates, so the full min steps land on a different answer, without
+any growth in the residual that the fallback could detect. On coarse increments of the
+Chaboche identification programmes, this answer is up to 46 % off the closest-point update,
+where Fischer-Burmeister stays within 4 %. For an accurate Chaboche return, use
+``tangent_mode = 3`` (closest point).
+
+.. note::
+
+   Why it is faster: on the active surface, min-NCP solves
+   :math:`\min(\Delta p^*, -\Phi) = 0` by semi-smooth Newton. This is the classic cutting plane
+   (Ortiz and Simo 1986), whose first step from :math:`\Delta p = 0` is the full Newton step.
+   Fischer-Burmeister takes only two thirds of it.
+
+``closed_form``: a cheaper consistent tangent
+---------------------------------------------
+
+With ``tangent_mode = 2``, EPICP builds the consistent tangent of the radial return in closed
+form (Simo and Taylor 1985),
+:math:`3K\,\mathbb{I}_{vol} + 2G\theta\,\mathbb{I}_{dev} - 2G\bar\theta\,\mathbf{N}\otimes\mathbf{N}`,
+instead of the generic assembly. It is the same operator to round-off at the converged return,
+without the 6x6 inverse.
+
+Choosing ``tangent_mode`` for EPCHA (0D uniaxial)
+-------------------------------------------------
+
+* ``tangent_mode = 1`` (continuum) gives the same iterates as the default mode 2 (to
+  :math:`10^{-14}` on the Chaboche identification programmes) for about 27 % less time.
+* ``tangent_mode = 3`` (closest point) is a different update, backward Euler: 1 to 2 % off the
+  cutting plane there, at about 2.3 times the cost.
+
+Global Newton tolerance
+-----------------------
 
 The global Newton has its own option, ``solve(..., precision_rel=...)``
-(``solver_params::precision_rel``): the tolerance on the residual norm becomes
-:math:`\max(\mathrm{precision}, \mathrm{precision\_rel}\,|\boldsymbol\tau|)`, see :doc:`python_solver`.
+(``solver_params::precision_rel``). The residual tolerance becomes
+:math:`\max(\mathrm{precision}, \mathrm{precision\_rel}\,|\boldsymbol\tau|)`, see
+:doc:`python_solver`.
 
 Validation and performance
 ==========================
