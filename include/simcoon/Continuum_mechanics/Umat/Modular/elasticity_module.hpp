@@ -152,7 +152,7 @@ private:
         // umat_modular reconstructs the module on every configuration change.
         arma::mat R;
         if (!arma::chol(R, L_)) {
-            throw std::runtime_error(
+            throw std::invalid_argument(
                 "ElasticityModule: stiffness is not positive definite "
                 "(check the elastic constants and their order)");
         }

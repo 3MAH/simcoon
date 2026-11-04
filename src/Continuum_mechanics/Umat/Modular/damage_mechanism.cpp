@@ -90,7 +90,7 @@ void DamageMechanism::configure(const arma::vec& props, int& offset) {
 
     // Validate parameters
     if (Y_c_ <= Y_0_) {
-        throw std::runtime_error("DamageMechanism: Y_c must be greater than Y_0");
+        throw std::invalid_argument("DamageMechanism: Y_c must be greater than Y_0");
     }
 }
 

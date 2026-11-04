@@ -206,12 +206,12 @@ TEST(ModularUMATCache, ConcurrentThreads) {
 }
 
 // A call that throws must not leave its instance in the cache: here initialize() fails half-way
-// (variables registered, statev too short to unpack), and reusing that instance would register
-// the variables a second time.
+// (variables registered, statev too short to unpack: a configuration error, std::logic_error), and
+// reusing that instance would register the variables a second time.
 TEST(ModularUMATCache, FailedCallIsNotReused) {
     const material m = plastic_damage(333.0);   // props used by no other test: a new entry
     point bad(1);   // nstatev says 10, statev holds 1 value
-    EXPECT_THROW(call_cached(m, bad, increment(0, 1.2e-3), 0.0, true), std::runtime_error);
+    EXPECT_THROW(call_cached(m, bad, increment(0, 1.2e-3), 0.0, true), std::logic_error);
 
     point cached(m.nstatev), fresh(m.nstatev);
     for (int inc = 0; inc < 10; ++inc) {
@@ -221,7 +221,7 @@ TEST(ModularUMATCache, FailedCallIsNotReused) {
     }
 
     // the same on an instance already in use: the failing call drops it, the next one rebuilds it
-    EXPECT_THROW(call_cached(m, bad, increment(3, 1.2e-3), 0.3, false), std::runtime_error);
+    EXPECT_THROW(call_cached(m, bad, increment(3, 1.2e-3), 0.3, false), std::logic_error);
     for (int inc = 10; inc < 12; ++inc) {
         ASSERT_NO_THROW(call_cached(m, cached, increment(inc, 1.2e-3), 0.1 * inc, false));
         call_fresh(m, fresh, increment(inc, 1.2e-3), 0.1 * inc, false);

@@ -1133,11 +1133,11 @@ mat dH_dE(const mat &C) {
     vec c;
     mat N;
     eig_sym(c, N, C);
+    // g_ab: the divided difference of 1/2 ln, free of the cancellation of two close logs
     mat g(3, 3);
     for (int a = 0; a < 3; a++)
         for (int b = 0; b < 3; b++)
-            g(a, b) = (fabs(c(a) - c(b)) > 1.e-12*c.max()) ? 0.5*(log(c(a)) - log(c(b)))/(c(a) - c(b))
-                                                          : 0.5/c(a);
+            g(a, b) = logU_spectral::dd1(c(a), c(b));
     mat P(6, 6);
     for (int j = 0; j < 6; j++) {
         vec e = zeros(6);

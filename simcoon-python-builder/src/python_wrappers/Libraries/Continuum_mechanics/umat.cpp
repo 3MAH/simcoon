@@ -261,6 +261,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// Validate up front, in serial context: the per-point dispatch below
 		// runs inside a non-exception-safe parallel region (GCD/OpenMP) where a
 		// throw would std::terminate the host process.
+		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
 		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
 		// ncp: complementarity function of the local cutting plane, by name (NCPMethod)
@@ -501,7 +502,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			}
 		}
 		// condense='material_face' needs the deformation gradients (without them both conditions are sigma_C = 0)
-		const bool material_face = cs.active() && condense_material_face(condense) && kirchhoff_normalize;
+		const bool material_face = cs.active() && condense_material && kirchhoff_normalize;
 		if (material_face && !total && corate_type != 3) {
 			throw std::invalid_argument("umat: condense='material_face' runs under kinematic_form='rate' (log_R) or 'total'");
 		}
@@ -789,6 +790,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
 
+		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
 		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
 		static const std::map<string, int> list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10} };
@@ -836,7 +838,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		}
 		// as launch_umat; under 'material_face' dSdE, dSdT and drdE come back as the material derivatives
 		// dS/dE, dS/dtheta, dr/dE condensed on the kept components
-		const bool material_face = cs.active() && condense_material_face(condense) && finite;
+		const bool material_face = cs.active() && condense_material && finite;
 		// tangent_output, as launch_umat: the box derivatives as the kernels return them, or the
 		// material (TL) / spatial (UL) ones of the stress and the heat, converted per point
 		enum { tangent_out_box, tangent_out_material, tangent_out_spatial };

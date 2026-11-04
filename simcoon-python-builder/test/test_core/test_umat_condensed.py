@@ -234,6 +234,13 @@ def test_condensed_refusals():
         sim.umat(*args, ndi=2, condense="material_face", tangent_output="material", corate="jaumann", n_threads=1)
     with pytest.raises(ValueError, match="spatial_face"):
         sim.umat(*args, ndi=2, condense="bogus", n_threads=1)
+    # the name is checked in 3D too: the former 'exact' is refused, not silently ignored
+    with pytest.raises(ValueError, match="spatial_face"):
+        sim.umat(*args, ndi=3, condense="exact", n_threads=1)
+    with pytest.raises(ValueError, match="spatial_face"):
+        sim.umat_T("ELISO", _col(np.zeros(6)), _col(np.zeros(6)), _col(np.zeros(6)), I3, _col([RHO, C_P, E, NU, 0.0]),
+                   _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), _col(np.zeros(3)), np.array([293.15]), np.array([0.0]),
+                   ndi=3, condense="exact", n_threads=1, start=True)
 
 
 # --- finite strain: F1 follows the solved stretch through ln V ----------------------------------
@@ -280,8 +287,9 @@ def test_hyperelastic_condensed_through_ln_V(name, props, ndi, nshr):
     s3, J3 = solved(lnv)
     np.testing.assert_allclose(s, s3, rtol=1e-9, atol=1e-9 * np.abs(s3).max())
     np.testing.assert_array_equal(s[C], 0.0)
-    # central FD of a stress that carries a large pressure (~1e4 kappa J): at h = 1e-6 its round-off
-    # over 2h is ~1e-6 of the tangent, the tolerance itself; at 1e-4 the error is truncation, ~1e-8
+    # the reference Newton stalls near 1e-12 relative on tau_C for the nearly incompressible laws
+    # (MOORI: kappa/mu ~ 4e4): at h = 1e-6 that noise over 2h reaches the 1e-6 bound; at h = 1e-4
+    # the error is truncation, ~1e-8
     h = 1e-4
     fd = np.zeros((len(K), len(K)))
     for j, k in enumerate(K):

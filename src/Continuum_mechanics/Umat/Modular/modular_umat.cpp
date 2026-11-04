@@ -159,7 +159,7 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
                 break;
             }
             default:
-                throw std::runtime_error("ModularUMAT: unknown mechanism type " +
+                throw std::invalid_argument("ModularUMAT: unknown mechanism type " +
                                         std::to_string(mech_type));
         }
     }
@@ -185,7 +185,7 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
     // Check that we have enough state variables
     int required = static_cast<int>(base);
     if (nstatev < required) {
-        throw std::runtime_error("ModularUMAT: nstatev (" + std::to_string(nstatev) +
+        throw std::invalid_argument("ModularUMAT: nstatev (" + std::to_string(nstatev) +
                                 ") < required (" + std::to_string(required) + ")");
     }
 
@@ -195,7 +195,7 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
     // mechanism that gains/loses a variable without updating required_nstatev()
     // fails here on the first initialize, not with a corrupted statev later.
     if (required_nstatev() != required) {
-        throw std::runtime_error(
+        throw std::logic_error(
             "ModularUMAT: required_nstatev() (" + std::to_string(required_nstatev()) +
             ") disagrees with the registered statev size (" + std::to_string(required) +
             ") — the hand-counted estimate has drifted from register_variables()");

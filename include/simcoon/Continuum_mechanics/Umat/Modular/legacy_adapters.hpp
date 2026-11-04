@@ -52,7 +52,7 @@ bool has_legacy_adapter(const std::string& umat_name);
  * forwarded untouched (umat_modular's signature, without its kinematic form). @p ncp, the
  * NCPMethod code of the run, is the complementarity function of the cutting plane (EPKCP).
  *
- * @throws std::runtime_error (with the legacy name prefixed) if the name has
+ * @throws std::invalid_argument (with the legacy name prefixed) if the name has
  * no registered translator or if the caller's nstatev is smaller than the
  * modular configuration requires.
  */

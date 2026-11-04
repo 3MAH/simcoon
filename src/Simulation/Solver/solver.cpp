@@ -353,7 +353,9 @@ void control_thermal(const state_variables &sv, const vec &dSdT_box, const vec &
         drdE = drdE_box;
         return;
     }
-    const mat Fi = inv(sv.F1);
+    mat Fi;
+    if (!inv(Fi, sv.F1))   // a trial F1 the Newton loop bisects away
+        throw simcoon::exception_inv("control_thermal: F1 is not invertible");
     const mat dS = Fi*v2t_stress(dSdT_box)*Fi.t();
     const vec drdE_E = box_covector_2_dE(drdE_box, sv.F1, corate_type);
     if (control_type == 2) {

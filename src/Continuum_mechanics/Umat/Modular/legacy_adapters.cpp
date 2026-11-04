@@ -109,7 +109,7 @@ vec translate_EPCHG(const vec& p) {
     static const int yield_map[4] = {0, 3, 4, 5};
     static const int n_crit_map[4] = {0, 6, 7, 9};
     if (crit_legacy < 0 || crit_legacy > 3) {
-        throw std::runtime_error("EPCHG: unknown criteria code "
+        throw std::invalid_argument("EPCHG: unknown criteria code "
                                  + std::to_string(crit_legacy));
     }
     const int n_crit = n_crit_map[crit_legacy];
@@ -210,7 +210,7 @@ void umat_legacy_modular(
 
     const auto it = registry().find(umat_name);
     if (it == registry().end()) {
-        throw std::runtime_error("umat_legacy_modular: no adapter registered for '"
+        throw std::invalid_argument("umat_legacy_modular: no adapter registered for '"
                                  + umat_name + "'");
     }
     const vec props_mod = it->second(props);
@@ -220,8 +220,10 @@ void umat_legacy_modular(
                      nstatev, statev,
                      T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d,
                      ndi, nshr, start, tnew_dt, tangent_mode, KinematicForm::rate, ncp);
-    } catch (const std::runtime_error& e) {
-        throw std::runtime_error("'" + umat_name + "' (modular adapter): "
+    } catch (const std::logic_error& e) {
+        // a configuration error, named after the legacy law; numerical failures pass through
+        // with their own type (the step-cut policy)
+        throw std::invalid_argument("'" + umat_name + "' (modular adapter): "
                                  + e.what());
     }
 }

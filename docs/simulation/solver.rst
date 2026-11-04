@@ -455,6 +455,8 @@ Parameters:
 - **control**, **value**: the prescribed mechanical state (below)
 - **T_final**: temperature at the end of the step, ``null`` to hold the current one (mechanical steps: imposed temperature, thermal expansion without the heat equation)
 
+Every block, mechanical or thermomechanical, starts with a zero-increment call to the law that primes its tangent. There is nothing to subdivide on that call: a law that requests a step cut there (a state it cannot evaluate, such as an SMA started inside its transformation zone) stops the run with an error naming the block. Start such a block from a state the law accepts.
+
 Mechanical state specification
 """"""""""""""""""""""""""""""
 

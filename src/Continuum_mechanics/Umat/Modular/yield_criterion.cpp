@@ -152,7 +152,7 @@ void YieldCriterion::configure(YieldType type, const arma::vec& props, int& offs
             break;
         }
         default:
-            throw std::runtime_error("YieldCriterion: unknown yield type");
+            throw std::invalid_argument("YieldCriterion: unknown yield type");
     }
 }
 
@@ -160,14 +160,14 @@ void YieldCriterion::configure(YieldType type, const arma::vec& props, int& offs
 
 double YieldCriterion::equivalent_stress(const arma::vec& sigma) const {
     if (!configured_) {
-        throw std::runtime_error("YieldCriterion: not configured");
+        throw std::invalid_argument("YieldCriterion: not configured");
     }
     return Eq_stress(sigma, type_string(), params_);
 }
 
 arma::vec YieldCriterion::flow_direction(const arma::vec& sigma) const {
     if (!configured_) {
-        throw std::runtime_error("YieldCriterion: not configured");
+        throw std::invalid_argument("YieldCriterion: not configured");
     }
     return dEq_stress(sigma, type_string(), params_);
 }
@@ -206,7 +206,7 @@ bool YieldCriterion::has_stable_flow_direction() const noexcept {
 
 arma::mat YieldCriterion::flow_hessian(const arma::vec& sigma) const {
     if (!configured_) {
-        throw std::runtime_error("YieldCriterion: not configured");
+        throw std::invalid_argument("YieldCriterion: not configured");
     }
     switch (type_) {
         case YieldType::VON_MISES:
@@ -218,14 +218,14 @@ arma::mat YieldCriterion::flow_hessian(const arma::vec& sigma) const {
         case YieldType::ANISOTROPIC:
             return ddAni_stress(sigma, params_);
         default:
-            throw std::runtime_error(
+            throw std::invalid_argument(
                 "YieldCriterion: no analytic flow Hessian for " + type_string());
     }
 }
 
 double YieldCriterion::equivalent_stress(const tensor2& sigma) const {
     if (!configured_) {
-        throw std::runtime_error("YieldCriterion: not configured");
+        throw std::invalid_argument("YieldCriterion: not configured");
     }
     if (type_ == YieldType::VON_MISES) {
         return Mises(sigma);
@@ -235,7 +235,7 @@ double YieldCriterion::equivalent_stress(const tensor2& sigma) const {
 
 tensor2 YieldCriterion::flow_direction(const tensor2& sigma) const {
     if (!configured_) {
-        throw std::runtime_error("YieldCriterion: not configured");
+        throw std::invalid_argument("YieldCriterion: not configured");
     }
     if (type_ == YieldType::VON_MISES) {
         return flow_normal(sigma);

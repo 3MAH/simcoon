@@ -32,6 +32,7 @@
 */
 
 #pragma once
+#include <exception>
 #include <string>
 #include <armadillo>
 
@@ -231,6 +232,7 @@ bool abaqus_nlgeom(const double *dfgrd1);
  *          abaqus_kinematic_statev() STATEV entries. `_R` must be the whole suffix (case
  *          insensitive): any other tail after the five characters (`EPICP_REF`, `EPICP_R2`)
  *          is ignored and gives the total form, as names were read before the suffix existed.
+ *          A NUL-terminated name (a C caller) is read up to its terminator only.
  * @param cmname the CMNAME argument of the UMAT (space padded, 80 characters)
  * @return corate_type_total, or 3 for `_R`
  */
@@ -244,11 +246,43 @@ int abaqus_kinematic_form(const char *cmname);
 int abaqus_kinematic_statev(const int &corate_type);
 
 /**
+ * @brief STATEV entries left to the law behind an FE bridge (Abaqus UMAT, Ansys USERMAT).
+ * @details STATEV holds, in order, the bridge's header (@p nheader: 4 for Wm, 7 for Wm and Wt),
+ *          the stress-free strain of a condensed state (ndi < 3, make_condensed_state()), the
+ *          law's variables, then the abaqus_kinematic_statev() entries of the kinematic form
+ *          (Abaqus only). The STATEV size (Abaqus DEPVAR, Ansys TB,STATE) must cover the
+ *          bridge's own entries: switching an Abaqus material to `_R` asks for 15 more. The
+ *          law's own count is not known here; a size short of it shifts the trailing entries
+ *          into the law's variables.
+ * @param nstatev the STATEV size (NSTATV, nStatev)
+ * @param nheader 4 (umat_singleM, usermat_singleM) or 7 (umat_singleT)
+ * @param ndi number of direct stress components
+ * @param nshr number of shear stress components
+ * @param corate_type abaqus_kinematic_form(), corate_type_total for Ansys
+ * @return the law's share of STATEV, \f$ \geq 0 \f$
+ * @throw std::invalid_argument when the size is below the bridge's own entries
+ */
+int fea_law_statev(const int &nstatev, const int &nheader, const int &ndi, const int &nshr, const int &corate_type);
+
+/**
+ * @brief Whether an exception out of a material-point call is a numerical failure of the trial
+ *        state, which a smaller increment may cure.
+ * @details True for a std::runtime_error (a simcoon_error of a matrix function or decomposition,
+ *          an Armadillo failure) other than simcoon::exception_solver, which the dispatch raises
+ *          for an unsupported configuration (a refused corate or formulation); false for those and
+ *          for an input error (std::logic_error: an unknown law, a short STATEV, an unsupported
+ *          element layout). The FE entries (umat_singleM, umat_singleT, usermat_singleM) request a
+ *          smaller increment on true and stop the analysis on false.
+ */
+bool fea_numerical_failure(const std::exception &e);
+
+/**
  * @brief Whether an Abaqus call runs the finite-strain route (the deformation gradient driving
  *        select_umat_M_finite / the thermomechanical finite dispatch).
  * @details True for an NLGEOM step (abaqus_nlgeom()) with three direct components (3D, plane
  *          strain, axisymmetric) and a law the finite dispatch serves in the requested form
- *          (every thermomechanical law; the mechanical ones of finite_umat_names(), the total
+ *          (every thermomechanical law under the rate form, the total form where
+ *          total_formulation_serves_T(); the mechanical ones of finite_umat_names(), the total
  *          form only where total_formulation_serves()). Otherwise the bridge keeps the
  *          corotational small-strain route on STRAN/DSTRAN (plane stress and 1D, NLGEOM=NO,
  *          the small-strain-only laws).
@@ -403,64 +437,72 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
 //=============================================================================
 
 /**
- * @brief Transfer Ansys USERMAT input arrays to simcoon format (mechanical)
- * @details Converts all USERMAT inputs from Ansys format to simcoon format.
- *          Handles Ansys Voigt notation: (11,22,33,12,23,13) by swapping 
- *          components 4 and 5.
- * 
- * @param stress Ansys stress array (ncomp)
- * @param dstran Ansys strain increment array (ncomp)
- * @param sedEl Specific elastic strain energy
- * @param sedPl Specific plastic strain energy
- * @param epseq Equivalent plastic strain
- * @param statev Ansys state variables array
- * @param props Ansys material properties array
- * @param Time Total time
- * @param DTime Time increment
- * @param temperature Temperature
- * @param Dtemperature Temperature increment
- * @param ncomp Number of stress/strain components
- * @param nprops Number of material properties
- * @param nstatev Number of state variables
- * @param sigma [out] simcoon stress vector
- * @param DEtot [out] simcoon strain increment vector
- * @param Wm [out] simcoon work quantities vector
- * @param statev_smart [out] simcoon state variables vector
- * @param props_smart [out] simcoon properties vector
- * @param T [out] simcoon temperature
- * @param DT [out] simcoon temperature increment
+ * @brief Ansys USERMAT -> simcoon (mechanical).
+ * @details Ansys passes the element's ncomp components (11, 22, 33, 12, 23, 13 in 3D: 13 and 23
+ *          swapped against simcoon; 11, 22, 33, 12 in plane strain and axisymmetry; 11, 22, 12 in
+ *          plane stress; 11 in 1D). USTATEV holds the four works Wm, then the stress-free strain
+ *          of a condensed state (plane stress, 1D: the components select_umat_M solves, in simcoon
+ *          order), then the law's variables, as the Abaqus bridge (abaqus2smart_M). Ansys hands
+ *          stress and strain in its co-rotated frame, where every variable is defined and updated:
+ *          the rotation increment of the law is the identity (the former rotateM argument is
+ *          unused, reserved by Ansys).
+ * @param stress Ansys stress (ncomp)
+ * @param dsdePl Ansys tangent on input (ncomp x ncomp, column-major), as abaqus2smart_M reads DDSDDE
+ * @param strain Ansys total strain at the start of the increment (ncomp)
+ * @param dstrain Ansys strain increment (ncomp)
+ * @param Time time at the start of the increment
+ * @param Temp temperature at the start of the increment
+ * @param dTemp temperature increment
+ * @param nprops number of law properties
+ * @param props the law properties (the bridge's model code excluded)
+ * @param nstatev USTATEV size
+ * @param statev USTATEV
+ * @param nDirect number of direct components
+ * @param nShear number of shear components
+ * @param sigma [out] stress (6)
+ * @param Lt [out] the input tangent (6x6, zero outside the element's components)
+ * @param Etot [out] total strain at the start (6), the stored stress-free strain included
+ * @param DEtot [out] strain increment (6)
+ * @param T [out] temperature
+ * @param DT [out] temperature increment
+ * @param props_smart [out] law properties
+ * @param Wm [out] works (4)
+ * @param statev_smart [out] law state variables
+ * @param start [out] first increment (Time = 0)
+ * @throw std::invalid_argument for a component layout the bridge does not serve
  */
-void ansys2smart_M(const double *stress, const double *dstran,
-    const double &sedEl, const double &sedPl, const double &epseq,
-    const double *statev, const double *props,
-    const double &Time, const double &DTime,
-    const double &temperature, const double &Dtemperature,
-    const int &ncomp, const int &nprops, const int &nstatev,
-    arma::vec &sigma, arma::vec &DEtot, arma::vec &Wm, 
-    arma::vec &statev_smart, arma::vec &props_smart,
-    double &T, double &DT);
+void ansys2smart_M(const double *stress, const double *dsdePl, const double *strain, const double *dstrain,
+    const double &Time, const double &Temp, const double &dTemp,
+    const int &nprops, const double *props, const int &nstatev, const double *statev,
+    const int &nDirect, const int &nShear,
+    arma::vec &sigma, arma::mat &Lt, arma::vec &Etot, arma::vec &DEtot, double &T, double &DT,
+    arma::vec &props_smart, arma::vec &Wm, arma::vec &statev_smart, bool &start);
 
 /**
- * @brief Transfer simcoon output to Ansys USERMAT format (mechanical)
- * @details Converts stress, tangent, and state variables to Ansys format.
- *          Handles Ansys Voigt notation by swapping components 4 and 5.
- * 
- * @param stress [out] Ansys stress array
- * @param ddsdde [out] Ansys tangent operator array
- * @param sedEl [out] Specific elastic strain energy
- * @param sedPl [out] Specific plastic strain energy
- * @param statev [out] Ansys state variables array
- * @param ncomp Number of stress/strain components
- * @param sigma simcoon stress vector
- * @param Lt simcoon tangent matrix
- * @param Wm simcoon work quantities vector
- * @param statev_smart simcoon state variables vector
+ * @brief simcoon -> Ansys USERMAT (mechanical).
+ * @details The stress and dsdePl (ncomp x ncomp, column-major) on the element's components; the
+ *          tangent arrives condensed from select_umat_M for plane stress and 1D and goes out as it
+ *          is (the kernel tangent, no further term). USTATEV gets Wm, the solved stress-free strain
+ *          and the law's variables (ansys2smart_M()). sedEl and sedPl, which Ansys uses for output
+ *          only, get the recoverable work \f$ W_m^r \f$ and the non-recoverable one
+ *          \f$ W_m^{ir} + W_m^d \f$.
+ * @param stress [out] Ansys stress (ncomp)
+ * @param dsdePl [out] Ansys tangent (ncomp x ncomp, column-major)
+ * @param statev [out] USTATEV
+ * @param sedEl [out] elastic work (Ansys output)
+ * @param sedPl [out] plastic work (Ansys output)
+ * @param nDirect number of direct components
+ * @param nShear number of shear components
+ * @param sigma stress (6)
+ * @param Lt tangent (6x6)
+ * @param Wm works (4)
+ * @param statev_smart law state variables
+ * @param Etot_end total strain at the end of the increment (6)
  */
-void smart2ansys_M(double *stress, double *ddsdde,
-    double &sedEl, double &sedPl, double *statev,
-    const int &ncomp,
+void smart2ansys_M(double *stress, double *dsdePl, double *statev, double &sedEl, double &sedPl,
+    const int &nDirect, const int &nShear,
     const arma::vec &sigma, const arma::mat &Lt,
-    const arma::vec &Wm, const arma::vec &statev_smart);
+    const arma::vec &Wm, const arma::vec &statev_smart, const arma::vec &Etot_end);
 
 
 /** @} */ // end of umat_mechanical group
