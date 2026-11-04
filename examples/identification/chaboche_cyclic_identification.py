@@ -30,11 +30,8 @@ loading path. This is encoded in three blocks of the ``path_id_N.json`` file:
 3. Block 3 (mode 3, tabular) — replay of the experimental table, read from the
    ``path_id_N_tab1.csv`` file the JSON references
 
-Blocks 1 and 2 only prepare the state, so they are discretized coarsely: 64
-increments per step (the stress differs from a 100-increment pre-cycle by less
-than 0.3 MPa), with ``Dn_mini = 0.1`` so the solver can still sub-increment for
-stiff trial parameters. A power of two keeps the increments summing exactly to
-the step time, so the replay starts exactly where block 2 ends.
+Blocks 1 and 2 use 100 increments per step, with ``Dn_mini = 0.1`` so the
+solver can still sub-increment for stiff trial parameters.
 
 The ``path_id_N.json`` / ``path_id_N_tab1.csv`` pairs are provided in ``data/``
 because they are tricky to construct manually (they were converted from the legacy

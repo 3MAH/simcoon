@@ -45,7 +45,7 @@ Parameter class
 
 .. code-block:: python
 
-   from simcoon.parameter import Parameter, read_parameters, copy_parameters, apply_parameters
+   from simcoon.parameter import Parameter, read_parameters
 
    # Create parameters programmatically
    params = [
@@ -78,7 +78,7 @@ A template is any text file, so the JSON inputs of the solver work as they are:
 ``keys/material.json`` with ``"props": [70000.0, 0.3, 1.0e-5, @sigmaY, @k, @m]``
 is not valid JSON until the substitution and is valid after it. The
 ``identification/json_keys_identification.py`` example runs this chain end to
-end (copy, apply, ``load_simulation_json``, ``solve``, ``calc_cost``,
+end (``KeyTemplate``, ``load_simulation_json``, ``solve``, ``calc_cost``,
 ``identification``).
 
 Constant class
@@ -88,45 +88,33 @@ Constants are fixed values (not optimized) that also use the key system:
 
 .. code-block:: python
 
-   from simcoon.constant import Constant, read_constants, copy_constants, apply_constants
+   from simcoon.constant import Constant, read_constants
 
 The ``Constant`` class is a ``NamedTuple`` with fields: ``number``, ``key``,
 ``input_values``, ``value``, ``sim_input_files``.
 
-File operations
-^^^^^^^^^^^^^^^
+Writing the working files
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: python
-
-   # 1. Copy template files from keys/ to data/
-   copy_parameters(params, src_path="keys", dst_path="data")
-
-   # 2. Replace keys with current values
-   params[0].value = 200.0  # set by optimizer
-   params[1].value = 0.3
-   apply_parameters(params, dst_path="data")
-
-This works with **any** file format — simcoon input files, FE meshes, JSON
-configs, etc. The key system is deliberately simple: it performs string
-replacement, making it compatible with any simulation tool.
-
-Inside an optimization loop, ``KeyTemplate`` does the copy and the
-substitutions of parameters and constants at once: the templates are read
-once, kept in memory, and each working file is written once per evaluation
-(same content as ``copy_parameters`` + ``apply_parameters`` +
-``apply_constants``):
+A ``KeyTemplate`` reads the template files of ``keys/`` once and keeps them in
+memory. Each ``write`` replaces the keys of the parameters, then those of the
+constants, by their current values and writes every working file once:
 
 .. code-block:: python
 
    from simcoon.parameter import KeyTemplate
 
-   template = KeyTemplate("keys", params, consts)
+   template = KeyTemplate("keys", params, consts)   # consts may be omitted
 
    def cost(x):
-       for p, v in zip(params, x):
+       for p, v in zip(params, x):   # values set by the optimizer
            p.value = v
        template.write("data")
        ...
+
+This works with **any** file format — simcoon input files, FE meshes, JSON
+configs, etc. The key system is deliberately simple: it performs string
+replacement, making it compatible with any simulation tool.
 
 
 ``identification()`` — Global Optimization
@@ -154,8 +142,8 @@ identified values are written back to each ``Parameter.value``.
 ``job.inp`` here is a placeholder: a template input deck of an **external**,
 file-driven solver, supplied by the user in the ``keys`` folder (it is not part
 of simcoon). ``sim_input_files`` is the bridge to such solvers: the keys are
-substituted into their decks before each evaluation (``copy_parameters`` +
-``apply_parameters``, called from ``my_cost_function``). Simcoon's own models
+substituted into their decks before each evaluation (``KeyTemplate.write``,
+called from ``my_cost_function``). Simcoon's own models
 no longer need it — pass ``props``, and for mean-field models the ``phases``,
 straight to :func:`~simcoon.solver.solve`, and leave ``sim_input_files`` out.
 
@@ -325,18 +313,18 @@ The key system works with any simulation tool. For example, with fedoo
 .. code-block:: python
 
    import subprocess
-   from simcoon.parameter import Parameter, copy_parameters, apply_parameters
+   from simcoon.parameter import KeyTemplate, Parameter
    from simcoon.identify import identification, calc_cost
 
    params = [
        Parameter(0, bounds=(100e3, 300e3), key="@E",
                  sim_input_files=["material.json"]),
    ]
+   template = KeyTemplate("keys", params)
 
    def cost(x):
        params[0].value = x[0]
-       copy_parameters(params, "keys", "data")
-       apply_parameters(params, "data")
+       template.write("data")
 
        # Run external solver
        subprocess.run(["python", "run_fedoo_simulation.py"])

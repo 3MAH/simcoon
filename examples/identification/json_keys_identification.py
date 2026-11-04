@@ -12,12 +12,8 @@ it becomes valid once the numbers are in, which is the whole point of a template
 
 The chain at each evaluation:
 
-1. the values replace the keys of ``keys/material.json`` in a working copy:
-   ``copy_parameters`` copies the template, ``apply_parameters`` and
-   ``apply_constants`` substitute the keys in place. A
-   :class:`~simcoon.parameter.KeyTemplate` does the same with the template read
-   once and kept in memory, and a single write of the working file per
-   evaluation, which is what this example uses;
+1. a :class:`~simcoon.parameter.KeyTemplate`, which read ``keys/material.json``
+   once, writes the working copy with the keys replaced by the current values;
 2. ``load_simulation_json`` reads the material back with the loading path,
 3. ``sim.solver.solve`` runs the tension test in memory,
 4. ``calc_cost`` compares the stress history with the experiment.
@@ -62,11 +58,7 @@ def build_working_dir(script_dir):
 
 
 def run_from_files(template, work):
-    """Substitute the keys, read the JSON pair back, run the test: sigma_11(t).
-
-    ``template.write(work)`` is ``copy_parameters`` + ``apply_parameters`` +
-    ``apply_constants`` with the template already in memory.
-    """
+    """Substitute the keys, read the JSON pair back, run the test: sigma_11(t)."""
     template.write(work)
     kwargs = load_simulation_json(os.path.join(work, "material.json"),
                                   os.path.join(work, "path.json"))

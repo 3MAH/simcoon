@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 from scipy.optimize import differential_evolution
 
-from simcoon.constant import Constant, apply_constants, copy_constants
+from simcoon.constant import Constant
 from simcoon.identify import calc_cost, calc_residuals, identification
-from simcoon.parameter import KeyTemplate, Parameter, apply_parameters, copy_parameters
+from simcoon.parameter import KeyTemplate, Parameter
 
 T = np.linspace(0.0, 1.0, 40)
 A_REF, B_REF = 3.0, 250.0
@@ -280,18 +280,12 @@ class TestKeyTemplate:
             p.value = v
         return keys, params, consts
 
-    def test_same_files_as_copy_apply_chain(self, tmp_path):
+    def test_parameters_then_constants_per_file(self, tmp_path):
         keys, params, consts = self.setup(tmp_path)
-        chain, tpl = tmp_path / "chain", tmp_path / "tpl"
-        chain.mkdir()
+        tpl = tmp_path / "tpl"
         tpl.mkdir()
-        copy_parameters(params, keys, chain)
-        copy_constants(consts, keys, chain)
-        apply_parameters(params, chain)
-        apply_constants(consts, chain)
         KeyTemplate(keys, params, consts).write(tpl)
-        for f in ("mat.json", "other.dat"):
-            assert (tpl / f).read_text() == (chain / f).read_text()
+        assert sorted(os.listdir(tpl)) == ["mat.json", "other.dat"]
         assert (tpl / "mat.json").read_text() == '{"props": [70000.0, 2000.0, 0.3, 0.3]}'
         assert (tpl / "other.dat").read_text() == "E=70000.0 m=0.3 mu=0.5"
 
@@ -305,18 +299,6 @@ class TestKeyTemplate:
         template.write(out)
         assert (out / "mat.json").read_text() == '{"props": [1.5, 2000.0, 0.3, 0.3]}'
         assert template.render("other.dat") == "E=1.5 m=0.3 mu=0.5"
-
-    def test_shared_file_copied_once(self, tmp_path, monkeypatch):
-        keys, params, consts = self.setup(tmp_path)
-        out = tmp_path / "out"
-        out.mkdir()
-        copied = []
-        import shutil
-        real_copy = shutil.copy
-        monkeypatch.setattr(shutil, "copy", lambda s, d: copied.append(os.path.basename(d))
-                            or real_copy(s, d))
-        copy_parameters(params, keys, out)
-        assert sorted(copied) == ["mat.json", "other.dat"]
 
     def test_invalid_paths(self, tmp_path):
         keys, params, consts = self.setup(tmp_path)

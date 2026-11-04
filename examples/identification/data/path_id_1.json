@@ -10,7 +10,7 @@
           "thermomechanical": false,
           "mode": "linear",
           "time": 1.0,
-          "ninc": 64,
+          "ninc": 100,
           "Dn_init": 1.0,
           "Dn_mini": 0.1,
           "control": [
@@ -35,7 +35,7 @@
           "thermomechanical": false,
           "mode": "linear",
           "time": 1.0,
-          "ninc": 64,
+          "ninc": 100,
           "Dn_init": 1.0,
           "Dn_mini": 0.1,
           "control": [
@@ -66,7 +66,7 @@
           "thermomechanical": false,
           "mode": "linear",
           "time": 1.0,
-          "ninc": 64,
+          "ninc": 100,
           "Dn_init": 1.0,
           "Dn_mini": 0.1,
           "control": [

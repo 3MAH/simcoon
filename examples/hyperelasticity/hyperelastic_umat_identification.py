@@ -17,9 +17,6 @@ rubber data using simcoon "as it ships":
   :class:`simcoon.parameter.Parameter` objects.
 - **Cost**: :func:`simcoon.calc_residuals`, the residuals whose sum of squares
   is :func:`simcoon.calc_cost` with the ``"nmse_per_response"`` metric.
-- **Shortcut**: the stress is linear in :math:`(C_{10}, C_{01})` at fixed
-  :math:`\\kappa`, so a linear least-squares fit on three simulations per case
-  gives the same parameters (last section).
 
 This is the library-native counterpart of
 ``examples/analysis/hyperelastic_parameter_identification.py``, which solves
@@ -43,7 +40,6 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.optimize import lsq_linear
 
 import simcoon as sim
 from simcoon.parameter import Parameter
@@ -199,41 +195,6 @@ def identify(jobs, n_starts=3, seed=42):
 
 
 ###############################################################################
-# Shortcut: linear least squares
-# ------------------------------
-#
-# At fixed :math:`\kappa` the Mooney-Rivlin stress is linear in
-# :math:`(C_{10}, C_{01})` for a given deformation, and the deformation of these
-# tests hardly depends on them (the material is near-incompressible, the
-# transverse stretches follow from :math:`J \approx 1`). The residuals are then
-# affine in the parameters: three simulations give them exactly enough to
-# solve a linear least-squares problem, and one more checks the result.
-#
-# Pure shear alone only determines :math:`C_{10} + C_{01}` (for an
-# incompressible material :math:`\bar{I}_1 = \bar{I}_2` in pure shear, so the
-# stress depends on the sum only): its 2-column Jacobian is singular, and any
-# point of the valley :math:`C_{10} + C_{01} = \text{const}` fits equally
-# well. The singular direction is dropped (``rcond``), which keeps the solution
-# closest to the reference point along the valley; compare the sums for PS.
-
-
-def identify_linear(jobs, x_ref=(0.2, 0.0), h=0.1):
-    """Linear least-squares fit from three simulations; return ``([C10, C01],
-    final_cost)``."""
-    x_ref = np.asarray(x_ref, dtype=float)
-    r_ref = residuals(x_ref, jobs)
-    J = np.column_stack([
-        (residuals(x_ref + h * e, jobs) - r_ref) / h for e in np.eye(2)
-    ])
-    x = x_ref + np.linalg.lstsq(J, -r_ref, rcond=1e-3)[0]
-    lb = np.array([p.bounds[0] for p in make_params()])
-    ub = np.array([p.bounds[1] for p in make_params()])
-    if np.any(x < lb) or np.any(x > ub):
-        x = x_ref + lsq_linear(J, -r_ref, bounds=(lb - x_ref, ub - x_ref)).x
-    return list(x), float(np.sum(residuals(x, jobs) ** 2))
-
-
-###############################################################################
 # Driver
 # ------
 #
@@ -284,7 +245,7 @@ def main():
     for name, _pf, _lc, _pc in CASES:
         lam_exp, P_exp = exp[name]
         (c10, c01), cost_i = identify([(name, programmes[name], lam_exp, P_exp)])
-        individual[name] = (c10, c01, cost_i)
+        individual[name] = (c10, c01)
         l10, l01 = LIT[name]
         print(f"{name:<6}{c10:>10.4f}{c01:>10.4f}{l10:>12.4f}{l01:>12.4f}{cost_i:>12.4e}")
 
@@ -297,26 +258,12 @@ def main():
     print(f"  C10 = {c10_c:.4f} MPa, C01 = {c01_c:.4f} MPa  "
           f"(NMSE/response = {cost_c:.4e})")
 
-    # ----- Linear least squares: same fits, 4 simulations each ------------ #
-    print("\n" + "-" * 66)
-    print(" LINEAR LEAST SQUARES (stress linear in C10, C01)")
-    print("-" * 66)
-    print(f"{'Case':<10}{'C10':>10}{'C01':>10}{'C10+C01':>10}{'NMSE':>12}"
-          f"{'NMSE above':>12}")
-    for name, case_jobs, ref_cost in [
-        *[(n, [(n, programmes[n], *exp[n])], individual[n][2]) for n, _pf, _lc, _pc in CASES],
-        ("combined", jobs, cost_c),
-    ]:
-        (c10, c01), cost_l = identify_linear(case_jobs)
-        print(f"{name:<10}{c10:>10.4f}{c01:>10.4f}{c10 + c01:>10.4f}{cost_l:>12.4e}"
-              f"{ref_cost:>12.4e}")
-
     # ----- Plot: individual (top) and combined (bottom) vs Treloar -------- #
     fig, axes = plt.subplots(2, 3, figsize=(15, 9))
     for col, (name, _pf, _lc, _pc) in enumerate(CASES):
         lam_exp, P_exp = exp[name]
         for row, (c10, c01, tag) in enumerate([
-            (*individual[name][:2], "individual"),
+            (*individual[name], "individual"),
             (c10_c, c01_c, "combined"),
         ]):
             ax = axes[row, col]

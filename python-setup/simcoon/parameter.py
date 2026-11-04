@@ -1,7 +1,6 @@
 import functools
 import os
 import re
-import shutil
 from typing import List, Optional, Sequence, Tuple, Union
 
 
@@ -91,60 +90,6 @@ def read_parameters(
     return params
 
 
-def copy_parameters(
-    params: List[Parameter],
-    src_path: Union[str, os.PathLike],
-    dst_path: Union[str, os.PathLike],
-) -> None:
-    """
-    Copy parameters file from a source path to a destination path, so that key values can be applied
-    :param params: List of Parameter objects
-    :param src_path: Source path
-    :param dst_path: Destination path
-    :return: None
-    """
-
-    if not isinstance(src_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike."
-        )
-
-    if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
-        )
-
-    # A file shared by several parameters is copied once
-    for ifiles in _input_files(params):
-        shutil.copy(os.path.join(src_path, ifiles), os.path.join(dst_path, ifiles))
-
-
-def apply_parameters(
-    params: List[Parameter],
-    dst_path: Union[str, os.PathLike],
-) -> None:
-    """
-    Apply parameters, i.e. replace in file the value of the key with the value of the Parameter
-    :param params: List of Parameter objects
-    :param src_path: Source path
-    :param dst_path: Destination path
-    :return: None
-    """
-    if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
-        )
-
-    # Each file is read and written once, with all its keys substituted
-    for ifiles in _input_files(params):
-        mod_files = os.path.join(dst_path, ifiles)
-        with open(mod_files, "r", encoding="utf-8") as in_files:
-            content = in_files.read()
-        content = substitute_keys(content, params, ifiles)
-        with open(mod_files, "w", encoding="utf-8") as ou_files:
-            ou_files.write(content)
-
-
 def _input_files(items) -> List[str]:
     """Distinct ``sim_input_files`` of *items*, in order of first appearance."""
     files = []
@@ -191,16 +136,14 @@ class KeyTemplate:
     """
     Template files held in memory, written with the keys substituted.
 
-    The file-based identification chain ``copy_parameters`` +
-    ``apply_parameters`` + ``apply_constants`` copies, then reads and rewrites
-    every input file once per parameter and per constant at each evaluation.
-    A ``KeyTemplate`` reads the templates once and :meth:`write` produces each
-    working file with a single write; the content is the same as the chain's.
+    The templates (e.g. the files of ``keys/``) are read once, at construction.
+    Each :meth:`write` substitutes the keys of the parameters, then those of the
+    constants, by their current values and writes every working file once. A key
+    is replaced only in the files its object lists in ``sim_input_files``.
 
     :param src_path: directory holding the template files (e.g. ``keys``)
     :param params: Parameter objects whose ``sim_input_files`` name the templates
     :param consts: Constant objects, substituted after the parameters
-                   (the order of ``apply_parameters`` then ``apply_constants``)
 
     Example::
 
@@ -208,7 +151,7 @@ class KeyTemplate:
         def cost(x):
             for p, v in zip(params, x):
                 p.value = v
-            template.write("data")      # instead of copy + apply + apply
+            template.write("data")
             ...
     """
 

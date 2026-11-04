@@ -3,11 +3,8 @@ Constant class to manage simcoon computations constants
 """
 
 import os
-import shutil
 from typing import List, NamedTuple, Union
 import numpy as np
-
-from simcoon.parameter import _input_files, substitute_keys
 
 
 class Constant(NamedTuple):
@@ -73,56 +70,3 @@ def read_constants(
             consts.append(const)
     return consts
 
-
-def copy_constants(
-    consts: List[Constant],
-    src_path: Union[str, os.PathLike],
-    dst_path: Union[str, os.PathLike],
-) -> None:
-    """
-    Copy constants file from a source path to a destination path, so that key values can be applied
-    :param consts: List of Constant objects
-    :param src_path: Source path
-    :param dst_path: Destination path
-    :return: None
-    """
-    if not isinstance(src_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike."
-        )
-
-    if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
-        )
-
-    # A file shared by several constants is copied once
-    for ifiles in _input_files(consts):
-        shutil.copy(os.path.join(src_path, ifiles), os.path.join(dst_path, ifiles))
-
-
-def apply_constants(
-    consts: List[Constant],
-    dst_path: Union[str, os.PathLike],
-) -> None:
-    """
-    Apply constants, i.e. replace in file the value of the key with the value of the Constant
-    :param params: List of Constant objects
-    :param src_path: Source path
-    :param dst_path: Destination path
-    :return: None
-    """
-    if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
-        )
-
-    # Each file is read and written once, with all its keys substituted
-    # (longest keys first, see ``substitute_keys``)
-    for ifiles in _input_files(consts):
-        mod_files = os.path.join(dst_path, ifiles)
-        with open(mod_files, "r", encoding="utf-8") as in_files:
-            content = in_files.read()
-        content = substitute_keys(content, consts, ifiles)
-        with open(mod_files, "w", encoding="utf-8") as ou_files:
-            ou_files.write(content)

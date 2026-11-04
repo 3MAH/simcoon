@@ -26,15 +26,11 @@ from simcoon.identify import identification, calc_cost, calc_residuals
 from simcoon.parameter import (
     Parameter,
     read_parameters,
-    copy_parameters,
-    apply_parameters,
     KeyTemplate,
 )
 from simcoon.constant import (
     Constant,
     read_constants,
-    copy_constants,
-    apply_constants,
 )
 
 # Backward compatibility alias - simmit was the legacy module name
