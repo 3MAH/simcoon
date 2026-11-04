@@ -605,13 +605,41 @@ selecting the rate that tangent is expressed in. The default is contract-preserv
 returns precisely the box the finite kernels used to produce unconditionally. Rescaling that
 tangent by :math:`1/J` at the boundary would break ``Lt_convert`` by exactly :math:`J`.
 
-Tangent-operator mode
-=====================
+Integrator and tangent operator
+===============================
 
-All models receive the solver's ``tangent_mode`` (named constants in
-``parameter.hpp`` / ``sim.tangent_*``): 0 = none (Lt = elastic L, explicit
-integration), 1 = continuum, 2 = algorithmic/Simo-Hughes (**default**),
-3 = closest-point (exact operator of the closest-point integrator where the law has one, else the algorithmic operator). Pre-2.0 numbering was 0 = continuum,
+A run makes three numerical choices for the laws with a return mapping, given to ``solve``
+and ``sim.umat`` by name:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Option
+     - Chooses
+     - Values
+     - Changes the converged answer
+   * - ``integrator``
+     - the discrete update of the local step
+     - ``"cutting_plane"`` (default), ``"closest_point"`` (backward Euler)
+     - yes: two different schemes
+   * - ``ncp``
+     - how the Kuhn-Tucker conditions are solved inside it
+     - ``"fischer_burmeister"`` (default), ``"min"``
+     - no, to the local tolerance (see below)
+   * - ``tangent_mode``
+     - the operator handed to the global Newton
+     - ``"none"``, ``"continuum"``, ``"algorithmic"`` (default)
+     - no: global convergence only
+
+``"algorithmic"`` is the consistent operator of the integrator that ran: Simo-Hughes after the
+cutting plane, the exact operator of the closest-point map after the closest point. The closest
+point is offered with that operator only (``integrator="closest_point"`` with ``"none"`` or
+``"continuum"`` raises ``ValueError``). ``tangent_mode = 3`` (``"closest_point"``), the former way
+to ask for the closest point, is no longer accepted: it raises ``ValueError``, pointing to
+``integrator="closest_point"``. Inside, the kernels still read one code (``kernel_tangent_mode``,
+``parameter.hpp``): 0 = none (Lt = elastic L, explicit integration), 1 = continuum,
+2 = algorithmic/Simo-Hughes (**default**), 3 = the closest-point integrator with its exact
+operator; a Python law (``PYEXT``) receives that code. Pre-2.0 numbering was 0 = continuum,
 1 = algorithmic — see :doc:`solver` for the migration note. The
 finite-strain hyperelastic models ignore the mode (their tangent is always
 the exact one of the hyperelastic law). So do the linear viscoelastic models (``ZENER``,
@@ -623,7 +651,7 @@ von Mises criterion and isotropic hardening only; with kinematic hardening or a 
 Drucker or Tresca criterion the cutting-plane update is path dependent and the operator is
 approximate (see the note on the scope of the algorithmic tangent in :doc:`solver`).
 
-**Mode 3 coverage (2.2).** The closest-point integrator with its exact operator runs for
+**Closest-point coverage (2.2).** The closest-point integrator with its exact operator runs for
 ``MODUL`` rows whose criterion has a flow Hessian (von Mises, Hill, DFA, Ani; with every
 hardening law and a hyperelastic block), for the dedicated kernels ``EPICP``, ``EPCHA``,
 ``EPICP`` / ``EPKCP`` thermomechanical, and for the SMA kernels ``SMADI`` / ``SMADC`` /
@@ -634,8 +662,8 @@ up to 5x on a non-proportional path, for an operator exact to :math:`10^{-8}`). 
 ``EPJCK`` (and the adapter-served von Mises + isotropic names) mode 3 is **identical to mode
 2 by construction**: with a radial flow the cutting-plane update already is the closest-point
 projection and the algorithmic operator is the exact Jacobian of the discrete map, including
-the rate term. Mode 3 falls back to the mode-2 operator for a Tresca or Drucker row, the
-thermomechanical SMA kernel and ``SMA_mono``. A condensed stress state (plane stress, beam,
+the rate term. The closest point falls back to the cutting plane and its mode-2 operator for a
+Tresca or Drucker row, the thermomechanical SMA kernel and ``SMA_mono``. A condensed stress state (plane stress, beam,
 truss) keeps mode 3: the law runs 3D and the state is solved around it.
 
 Numerical options of the local Newton
@@ -651,8 +679,8 @@ by name, and the ``props`` stay those of the law.
 ``solve(..., ncp="min")`` or ``sim.umat(..., ncp="min")`` switches the complementarity function
 of the cutting plane from Fischer-Burmeister (``ncp="fischer_burmeister"``, the default, the
 historical results bit for bit) to the min function, the classic cutting-plane step. EPICP,
-EPKCP and ``MODUL`` read it. Any other law, a thermomechanical block or a mean-field model
-raises ``ValueError`` for ``ncp="min"``.
+EPKCP and ``MODUL`` read it, in their cutting plane. Any other law, a thermomechanical block, a
+mean-field model or the closest-point integrator raises ``ValueError`` for ``ncp="min"``.
 
 **Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
 The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
@@ -669,7 +697,7 @@ along the cutting-plane iterates, so the full min steps land on a different answ
 any growth in the residual that the fallback could detect. On coarse increments of the
 Chaboche identification programmes, this answer is up to 46 % off the closest-point update,
 where Fischer-Burmeister stays within 4 %. For an accurate Chaboche return, use
-``tangent_mode = 3`` (closest point).
+``integrator="closest_point"``.
 
 How the two functions work
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -760,6 +788,8 @@ rows are coupled (off-diagonal terms of :math:`B`) and keep Fischer-Burmeister.
      - refused (``ValueError``), see above
    * - any other law, a thermomechanical block, a mean-field model
      - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
+   * - ``integrator="closest_point"``
+     - refused (``ValueError``): the closest-point integrator keeps Fischer-Burmeister
 
 On a batch of :math:`10^4` EPICP points (``sim.umat``, one thread), one increment takes 20 ms
 with Fischer-Burmeister and 14 ms with ``ncp="min"``. On a cyclic uniaxial ``MODUL`` solve
@@ -775,13 +805,13 @@ form (Simo and Taylor 1985),
 It is the operator of the generic assembly to round-off at the converged return, without its
 6x6 inverse.
 
-Choosing ``tangent_mode`` for EPCHA (0D uniaxial)
--------------------------------------------------
+Choosing the tangent and the integrator for EPCHA (0D uniaxial)
+----------------------------------------------------------------
 
 * ``tangent_mode = 1`` (continuum) gives the same iterates as the default mode 2 (to
   :math:`10^{-14}` on the Chaboche identification programmes) for about 27 % less time.
-* ``tangent_mode = 3`` (closest point) is a different update, backward Euler: 1 to 2 % off the
-  cutting plane there, at about 2.3 times the cost.
+* ``integrator="closest_point"`` is a different update,
+  backward Euler: 1 to 2 % off the cutting plane there, at about 2.3 times the cost.
 
 Global Newton tolerance
 -----------------------

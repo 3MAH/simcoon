@@ -139,8 +139,14 @@ Solver parameters
      - string or int
      - Former name of ``kinematic_form``: the same value under either name
    * - tangent_mode
-     - int
-     - Tangent-operator mode (default 2): see below
+     - string or int
+     - Tangent operator (default ``"algorithmic"``): see below
+   * - integrator
+     - string
+     - Local integrator, ``"cutting_plane"`` (default) or ``"closest_point"``: see below
+   * - ncp
+     - string
+     - Complementarity function of the cutting plane, ``"fischer_burmeister"`` (default) or ``"min"`` (see the UMAT catalog)
    * - solver_type
      - int
      - Solver strategy (0: Newton-Raphson)
@@ -159,8 +165,9 @@ Tangent-operator modes
 
 The ``tangent_mode`` keyword selects the tangent operator returned by the
 constitutive models (also exposed as named constants:
-``sim.tangent_none``, ``sim.tangent_continuum``, ``sim.tangent_algorithmic``,
-``sim.tangent_closest_point``):
+``sim.tangent_none``, ``sim.tangent_continuum``, ``sim.tangent_algorithmic``).
+It is the consistent operator of the local integrator that ran, chosen apart
+by ``integrator`` (below):
 
 .. list-table::
    :header-rows: 1
@@ -185,13 +192,15 @@ constitutive models (also exposed as named constants:
        viscoelastic and damage models and their ``MODUL`` compositions (see
        the note below); approximate otherwise (this was mode 1 before the 2.0
        renumbering)
-   * - 3
-     - closest-point
-     - Closest-point-projection integrator: the plastic strain uses the flow of
-       the converged state, so the consistent operator is the exact Jacobian
-       of the discrete update for every criterion and hardening law the
-       integrator supports (rolling out law by law in this version; a law
-       without it returns the algorithmic operator of mode 2)
+
+``integrator="closest_point"`` replaces the cutting-plane local loop (the
+default ``"cutting_plane"``) by the closest-point projection: the plastic strain
+uses the flow of the converged state, so the algorithmic operator becomes the
+exact Jacobian of the discrete update for every criterion and hardening law the
+integrator supports; a law or a row without it keeps the cutting plane. It takes
+``tangent_mode="algorithmic"``. It used to be ``tangent_mode=3``, which is no
+longer accepted (``ValueError``). See the UMAT catalog, integrator and tangent
+operator.
 
 .. note::
    **Scope of the algorithmic tangent (2.1).** The plastic return mapping is a
@@ -203,9 +212,10 @@ constitutive models (also exposed as named constants:
    path, and no tangent can be its exact derivative: the algorithmic operator is
    then a close approximation (about :math:`10^{-4}` to :math:`10^{-2}` relative,
    more for Tresca), which slows the global Newton iteration but leaves the
-   converged response unchanged. Mode 3 replaces the cutting-plane scheme by a
-   closest-point projection, which makes the operator exact for the laws that
-   carry it.
+   converged response unchanged. ``integrator="closest_point"`` (formerly mode 3)
+   replaces the cutting-plane scheme by a closest-point projection, which makes
+   the operator exact for the laws that carry it (see the UMAT catalog,
+   integrator and tangent operator).
 
 .. note::
    **2.0 renumbering.** Pre-2.0, ``tangent_mode 0`` meant *continuum* and

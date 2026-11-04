@@ -563,7 +563,26 @@ bool material_tangent_serves(const std::string &umat_name);
  * @param thermomechanical a thermomechanical run (no thermomechanical kernel reads it)
  * @throw std::invalid_argument for a code other than 0 or 1, or a law that does not read it
  */
-void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical);
+void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical,
+                      const int &tangent_mode = tangent_default);
+
+/**
+ * @brief The tangent code the kernels read for a choice of local integrator and tangent operator.
+ *
+ * The run chooses three things apart: the local integrator (@p integrator, integrator_* constants),
+ * the complementarity function inside it (ncp) and the operator handed to the global Newton
+ * (@p tangent_mode: none, continuum or algorithmic, the consistent operator of the integrator that
+ * ran). The kernels read one code, tangent_closest_point standing for the closest-point integrator
+ * with its exact operator:
+ * - integrator_cutting_plane: @p tangent_mode none, continuum or algorithmic, as given;
+ * - integrator_closest_point: tangent_closest_point, for the algorithmic tangent only (its
+ *   continuum operator and the explicit form are not provided).
+ * @p tangent_mode = tangent_closest_point is refused: the closest point is chosen by @p integrator.
+ * A law or a row without a closest-point update falls back to the cutting plane, as under
+ * tangent_closest_point (see the UMAT catalogue).
+ * @throw std::invalid_argument for an unknown code or a combination outside the above
+ */
+int kernel_tangent_mode(const int &integrator, const int &tangent_mode);
 
 /**
  * @brief Kirchhoff stress at the exit of a kernel run under the total formulation.

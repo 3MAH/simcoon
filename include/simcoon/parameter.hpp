@@ -62,8 +62,15 @@ constexpr double precision_umat = 1E-9;
 constexpr int tangent_none = 0;          ///< skip tangent assembly, Lt = elastic L (explicit integration)
 constexpr int tangent_continuum = 1;     ///< continuum operator (pre-2.0 mode 0)
 constexpr int tangent_algorithmic = 2;   ///< Simo-Hughes consistent operator (pre-2.0 mode 1)
-constexpr int tangent_closest_point = 3; ///< closest-point-projection integrator with its exact operator (return_mapping.hpp)
+constexpr int tangent_closest_point = 3; ///< kernel code: closest-point-projection integrator with its exact operator (return_mapping.hpp; kernel_tangent_mode)
 constexpr int tangent_default = tangent_algorithmic;
+
+// Local integrator of the laws with a return mapping (the integrator option of solve / sim.umat).
+// Not a kernel argument: kernel_tangent_mode() folds it with the tangent choice into the code
+// the kernels read, where the closest point is tangent_closest_point (a kernel code, not a
+// choice the Python API takes as tangent_mode).
+constexpr int integrator_cutting_plane = 0;   ///< convex cutting plane (default)
+constexpr int integrator_closest_point = 1;   ///< closest-point projection, backward Euler (return_mapping.hpp)
 
 /// Finite-strain formulation carried in the corate_type slot. Rate formulation: corate_type 0..5
 /// (corate_kinematics), the law works on \f$ \ln\mathbf{V} \f$ and the Kirchhoff stress

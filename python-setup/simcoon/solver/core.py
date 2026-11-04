@@ -11,7 +11,7 @@ import simcoon._core as _core
 from simcoon.pyumat import UMAT_NAME, registered
 
 from .blocks import Block, StepMeca, StepThermomeca
-from .maps import NCP_METHODS, TANGENT_MODES, as_code, kinematic_code, tangent_default
+from .maps import INTEGRATORS, NCP_METHODS, TANGENT_MODES, as_code, kinematic_code, tangent_default
 from .micromechanics import to_phase_dicts, euler_angles
 from .results import SolverResults
 
@@ -31,6 +31,7 @@ def solve(
     raise_on_abort: bool = True,
     kinematic_form: Union[str, int, None] = None,
     ncp: str = "fischer_burmeister",
+    integrator: str = "cutting_plane",
     **params,
 ) -> SolverResults:
     """Solve a homogeneous loading path with the C++ simcoon solver, in memory.
@@ -74,9 +75,9 @@ def solve(
           there). Under the rate form MODUL requires log_R (the modular Hencky
           composition).
     tangent_mode : str or int
-        Tangent operator mode: 'none', 'continuum', 'algorithmic' (default)
-        or 'closest_point' (closest-point projection integrator with its exact
-        operator where a law has one; the algorithmic operator elsewhere).
+        Tangent operator handed to the global Newton: 'none' (the elastic
+        operator), 'continuum' or 'algorithmic' (default), the consistent
+        operator of the local integrator that ran (see ``integrator``).
     solver_type : int
         0 = classic Newton-Raphson (default), 1 = RNL (control_type 1 only).
     orientation : simcoon.Rotation, dict or sequence of 3 floats
@@ -103,7 +104,16 @@ def solve(
         local iterations for isotropic or linear (Prager) kinematic hardening,
         the same return to the local tolerance. Read by EPICP, EPKCP and MODUL
         (refused for an Armstrong-Frederick back stress); any other law, and the
-        thermomechanical blocks, raise ValueError for 'min'. See the UMAT catalog.
+        thermomechanical blocks, raise ValueError for 'min', as does the
+        closest-point integrator. See the UMAT catalog.
+    integrator : str, optional
+        Local integrator of the laws with a return mapping: 'cutting_plane'
+        (the default) or 'closest_point', the backward-Euler closest-point
+        projection, a different discrete update (EPCHA: 1 to 2 % apart on
+        coarse increments) with its exact operator. It takes
+        ``tangent_mode='algorithmic'``. A law or a row without a closest-point
+        update (Tresca or Drucker rows, the thermomechanical SMA kernel,
+        SMA_mono) keeps the cutting plane.
     **params
         Numeric solver controls forwarded to the C++ loop: div_tnew_dt,
         mul_tnew_dt, miniter, maxiter, inforce, precision, precision_rel,
@@ -150,10 +160,16 @@ def solve(
 
     corate_type = kinematic_code(kinematic_form, corate)
     run_params = dict(params)
+    if isinstance(tangent_mode, (str, int)) and tangent_mode in ("closest_point", 3):
+        raise ValueError("tangent_mode 'closest_point' (3) is no longer a tangent choice: give "
+                         "integrator='closest_point' with tangent_mode='algorithmic'")
     run_params["tangent_mode"] = as_code(tangent_mode, TANGENT_MODES, "tangent mode")
     if not isinstance(ncp, str) or ncp not in NCP_METHODS:
         raise ValueError(f"ncp must be one of {sorted(NCP_METHODS)}; got {ncp!r}")
     run_params["ncp"] = NCP_METHODS[ncp]
+    if not isinstance(integrator, str) or integrator not in INTEGRATORS:
+        raise ValueError(f"integrator must be one of {sorted(INTEGRATORS)}; got {integrator!r}")
+    run_params["integrator"] = INTEGRATORS[integrator]
 
     blocks_py = []
     T_run = float(T_init)

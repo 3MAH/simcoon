@@ -65,8 +65,8 @@ def test_min_ncp_epicp():
 
 def test_closed_form_tangent_epicp():
     # tangent_mode 2 takes the radial-return tangent in closed form: the exact operator of the
-    # closest-point update (tangent_mode 3, generic assembly) at the same converged state
-    ref = run("EPICP", EPICP, 8, tangent_mode="closest_point")
+    # closest-point update (integrator="closest_point", generic assembly) at the same converged state
+    ref = run("EPICP", EPICP, 8, integrator="closest_point")
     res = run("EPICP", EPICP, 8)
     assert rel(res["Stress"], ref["Stress"]) < 1e-8
     assert rel(res["TangentMatrix"], ref["TangentMatrix"]) < 1e-7
@@ -133,6 +133,8 @@ def test_ncp_values_and_laws_are_checked():
         run("EPICP", EPICP, 8, ncp=1)
     with pytest.raises(ValueError, match="EPCHA"):
         run("EPCHA", EPCHA, 33, ncp="min")
+    with pytest.raises(ValueError, match="cutting-plane"):
+        run("EPICP", EPICP, 8, ncp="min", integrator="closest_point")
     with pytest.raises(ValueError, match="ncp"):
         sim.umat("EPCHA", np.zeros((6, 1)), np.zeros((6, 1)), np.array([]), np.array([]), np.zeros((6, 1)),
                  np.eye(3).reshape(3, 3, 1), np.asarray(EPCHA, float), np.zeros((33, 1)), 0.0, 1.0,

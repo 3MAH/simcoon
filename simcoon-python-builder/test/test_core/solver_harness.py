@@ -16,6 +16,21 @@ import numpy as np
 import simcoon as sim
 from simcoon.solver import Block, StepMeca
 
+# Closest point in the tests: the tests sweep a tangent "mode" with the kernel codes, 3 standing
+# for the closest-point integrator (sim.tangent_closest_point), which the API chooses with
+# integrator='closest_point' and the algorithmic tangent.
+CLOSEST_POINT = sim.tangent_closest_point
+
+
+def tangent_kwargs(mode):
+    """Keyword arguments of solve / sim.umat / sim.umat_T for a kernel tangent code:
+    CLOSEST_POINT (3) is integrator='closest_point' with tangent_mode=2, any other code is
+    tangent_mode itself on the cutting plane."""
+    if mode == CLOSEST_POINT:
+        return {"integrator": "closest_point", "tangent_mode": sim.tangent_algorithmic}
+    return {"tangent_mode": mode}
+
+
 # Historical column layout of res_global-0.txt:
 # 3 inc | 4 time | 8:14 log strain | 14:20 Kirchhoff stress | 20:29 R |
 # 29:38 F | 38:42 Wm, Wm_r, Wm_ir, Wm_d

@@ -17,6 +17,7 @@ from scipy.linalg import expm, logm
 
 import simcoon as sim
 from simcoon.modular import IsotropicElasticity, LinearIsotropicHardening, ModularMaterial, Plasticity
+from solver_harness import tangent_kwargs
 
 E, NU, SY = 70000.0, 0.3, 200.0
 G = E / (2.0 * (1.0 + NU))
@@ -125,7 +126,7 @@ PATH = np.array([3e-4, -1e-4, 0.0, 2e-4, -1.5e-4, 1e-4])
 def _umat(name, props, nstatev, e, de, s, sv, wm, T, tm, start, ndi=3, nshr=None):
     out = sim.umat(name, _col(e), _col(de), np.empty(0), np.empty(0), _col(s), I3, _col(props), _col(sv),
                    0.0, 0.05, _col(wm), temp=np.array([T]), ndi=ndi, nshr=nshr, n_threads=1, start=start,
-                   tangent_mode=tm)
+                   **tangent_kwargs(tm))
     return out[0].ravel(), out[1].ravel(), out[2].ravel(), out[3][:, :, 0]
 
 
@@ -466,7 +467,7 @@ def _total(name, H, ndi=3, nshr=None, condense="spatial_face", Rm=None):
     out = sim.umat(name, _col(np.zeros(6)), Detot, I3, np.asfortranarray((Rm @ expm(sim.v2t_strain(H)))[:, :, None]),
                    _col(np.zeros(6)), I3, _col(props), _col(np.zeros(nstatev)), 0.0, 1.0, _col(np.zeros(4)),
                    ndi=ndi, nshr=nshr, n_threads=1, kinematic_form="total", start=True, condense=condense,
-                   tangent_output="material" if condense == "material_face" else "box", tangent_mode=(tm or [2])[0])
+                   tangent_output="material" if condense == "material_face" else "box", **tangent_kwargs((tm or [2])[0]))
     H1 = Detot.ravel()
     return out[0].ravel(), out[3][:, :, 0], H1, Rm @ expm(sim.v2t_strain(H1))
 
@@ -748,6 +749,6 @@ def test_small_strain_faces_coincide(name):
     props, nstatev, T, scale, tm = LAWS[name]
     out = [sim.umat(name, _col(np.zeros(6)), _col(scale * PATH), np.empty(0), np.empty(0), _col(np.zeros(6)), I3,
                     _col(props), _col(np.zeros(nstatev)), 0.0, 0.05, _col(np.zeros(4)), temp=np.array([T]), ndi=2,
-                    n_threads=1, start=True, tangent_mode=tm, condense=c) for c in ("spatial_face", "material_face")]
+                    n_threads=1, start=True, **tangent_kwargs(tm), condense=c) for c in ("spatial_face", "material_face")]
     for a, b in zip(*out):
         np.testing.assert_array_equal(a, b)

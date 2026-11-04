@@ -115,6 +115,13 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
     throw py::error_already_set();
 }
 
+// Integrator code of the integrator name of sim.umat / sim.umat_T
+int integrator_code(const std::string &name) {
+	if (name == "cutting_plane") return simcoon::integrator_cutting_plane;
+	if (name == "closest_point") return simcoon::integrator_closest_point;
+	throw std::invalid_argument("umat: integrator must be 'cutting_plane' or 'closest_point'; got '" + name + "'");
+}
+
 // Code of a kinematic form given as "total", "rate" (log_R), or an objective rate by name or
 // code; -1 when not given. The names are those of simcoon.solver.maps.
 int kinematic_code(const py::object &value) {
@@ -246,23 +253,21 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		return (total_form ? total : rate).count(umat_name) > 0;
 	}
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py, const std::string &condense, const std::string &ncp_name){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode_py, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py, const std::string &condense, const std::string &ncp_name, const std::string &integrator_py){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
-		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
-		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
+		//               1 = continuum, 2 = algorithmic (DEFAULT); the closest point is
+		//               integrator='closest_point'. See parameter.hpp.
 
 		// Validate up front, in serial context: the per-point dispatch below
 		// runs inside a non-exception-safe parallel region (GCD/OpenMP) where a
 		// throw would std::terminate the host process.
-		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_closest_point) {
-			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
-			                            + std::to_string(tangent_mode));
-		}
+		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
+		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
 		// ncp: complementarity function of the local cutting plane, by name (NCPMethod)
 		if (ncp_name != "fischer_burmeister" && ncp_name != "min")
 			throw std::invalid_argument("umat: ncp must be 'fischer_burmeister' or 'min'; got '" + ncp_name + "'");
 		const int ncp = (ncp_name == "min") ? 1 : 0;
-		simcoon::check_ncp_serves(umat_name_py, ncp, false);
+		simcoon::check_ncp_serves(umat_name_py, ncp, false, tangent_mode);
 		// kinematic_form and corate (its former name) are one value; the dispatch carries the
 		// total formulation in the corate slot
 		const int form = kinematic_code(kinematic_form_py), former = kinematic_code(corate_py);
@@ -779,15 +784,13 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py, const std::optional<py::array_t<double>> &F0_py, const std::optional<py::array_t<double>> &F1_py, const py::object &kinematic_form_py, const std::string &condense, const std::string &tangent_output){
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode_py, const std::optional<bool> &start_py, const std::optional<py::array_t<double>> &F0_py, const std::optional<py::array_t<double>> &F1_py, const py::object &kinematic_form_py, const std::string &condense, const std::string &tangent_output, const std::string &integrator_py){
 		// Point-wise thermomechanical UMAT batch entry, mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
 
-		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_closest_point) {
-			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
-			                            + std::to_string(tangent_mode));
-		}
+		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
+		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
 		static const std::map<string, int> list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10} };
 		auto it_umat = list_umat.find(umat_name_py);
 		if (it_umat == list_umat.end()) {

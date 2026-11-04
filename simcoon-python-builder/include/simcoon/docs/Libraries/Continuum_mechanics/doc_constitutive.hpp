@@ -689,7 +689,8 @@ constexpr auto umat = R"pbdoc(
         OpenMP on Linux, one thread per hardware thread on Windows). Batches
         of 100 points or fewer always run serially.
     tangent_mode : int
-        0 none, 1 continuum, 2 algorithmic (default).
+        Operator returned as Lt: 0 none (the elastic L), 1 continuum, 2 algorithmic
+        (default), the consistent operator of the integrator that ran.
     corate : int or str, optional
         Former name of ``kinematic_form``: the same value under either name.
         As an objective rate, it is the one the returned tangent is expressed
@@ -786,7 +787,13 @@ constexpr auto umat = R"pbdoc(
         single surface with a Fischer-Burmeister fallback, about half the local
         iterations for isotropic or linear (Prager) kinematic hardening. Read by
         EPICP, EPKCP and MODUL (refused for an Armstrong-Frederick back stress);
-        any other law raises ValueError for 'min'. See the UMAT catalog.
+        any other law, and the closest-point integrator, raise ValueError for 'min'.
+        See the UMAT catalog.
+    integrator : str
+        Local integrator of the laws with a return mapping: 'cutting_plane'
+        (default) or 'closest_point' (backward Euler, a different discrete
+        update, with its exact operator; it takes tangent_mode=2). A law or a
+        row without a closest-point update keeps the cutting plane.
 
     Returns
     -------
@@ -856,7 +863,7 @@ constexpr auto umat_T = R"pbdoc(
     T, DT : numpy.ndarray
         Temperature at the start of the increment and its increment, one entry
         per point.
-    ndi, nshr, n_threads, tangent_mode, start, condense
+    ndi, nshr, n_threads, tangent_mode, start, condense, integrator
         As umat. Under condense='material_face' (finite strain, ndi < 3) dSdE, dSdT and
         drdE are the material derivatives dS/dE, dS/dtheta and dr/dE, condensed
         on the kept components (tangent_output='material').

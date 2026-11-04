@@ -511,23 +511,26 @@ def test_record_tangent_false_omits_tangent_history():
     assert "TangentMatrix" in solve(step, "ELISO", ELISO_PROPS, 1, T_init=290.0)
 
 
-@pytest.mark.parametrize("mode", ["none", "continuum", "algorithmic", "closest_point"])
-def test_tangent_modes_converge_to_same_state(mode):
+@pytest.mark.parametrize("mode", ["none", "continuum", "algorithmic"])
+@pytest.mark.parametrize("integrator", ["cutting_plane", "closest_point"])
+def test_tangent_modes_converge_to_same_state(mode, integrator):
+    if integrator == "closest_point" and mode != "algorithmic":
+        pytest.skip("the closest point is offered with its algorithmic operator only")
     step = StepMeca(control="stress", value=[400.0, 0, 0, 0, 0, 0], ninc=50)
     res = solve(step, "EPICP", EPICP_PROPS, EPICP_NSTATEV, T_init=290.0,
-                tangent_mode=mode)
+                tangent_mode=mode, integrator=integrator)
     assert res.status == 0
     np.testing.assert_allclose(res["Stress"][0, -1], 400.0, atol=1e-4)
 
 
-def test_closest_point_mode_is_accepted_everywhere():
-    """tangent_mode 3 is a valid mode on every entry point (solver, batched sim.umat). On EPICP
-    with linear hardening the closest-point and cutting-plane integrators solve the same radial
-    return, so modes 2 and 3 agree to the local tolerance."""
+def test_closest_point_integrator_is_accepted_everywhere():
+    """integrator='closest_point' is accepted on every entry point (solver, batched sim.umat). On
+    EPICP with linear hardening the closest-point and cutting-plane integrators solve the same
+    radial return, so they agree to the local tolerance."""
     lin = [70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 1.0]
     step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=10)
     r2 = solve(step, "EPICP", lin, EPICP_NSTATEV, T_init=290.0, tangent_mode=2)
-    r3 = solve(step, "EPICP", lin, EPICP_NSTATEV, T_init=290.0, tangent_mode=sim.tangent_closest_point)
+    r3 = solve(step, "EPICP", lin, EPICP_NSTATEV, T_init=290.0, integrator="closest_point")
     assert r3.status == 0
     np.testing.assert_allclose(r3["Stress"], r2["Stress"], rtol=1e-7, atol=1e-7)
     np.testing.assert_allclose(r3["TangentMatrix"], r2["TangentMatrix"], rtol=1e-6)
@@ -536,9 +539,33 @@ def test_closest_point_mode_is_accepted_everywhere():
     eye = np.asfortranarray(np.eye(3)[:, :, None])
     out = [sim.umat("EPICP", col(np.zeros(6)), col([0.01, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0),
                     col(np.zeros(6)), eye, col(lin), col(np.zeros(EPICP_NSTATEV)), 0.0, 1.0,
-                    col(np.zeros(4)), temp=np.full(1, 290.0), n_threads=1, tangent_mode=m)
-           for m in (2, 3)]
+                    col(np.zeros(4)), temp=np.full(1, 290.0), n_threads=1, integrator=i)
+           for i in ("cutting_plane", "closest_point")]
     np.testing.assert_allclose(out[1][0], out[0][0], rtol=1e-7, atol=1e-7)
+
+
+def test_integrator_and_tangent_choices_are_checked():
+    step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
+    args = (step, "EPICP", EPICP_PROPS, EPICP_NSTATEV)
+    # the closest point is an integrator, no longer a tangent choice
+    for old in (3, "closest_point"):
+        with pytest.raises(ValueError, match="integrator='closest_point'"):
+            solve(*args, T_init=290.0, tangent_mode=old)
+    with pytest.raises(ValueError, match="algorithmic"):
+        solve(*args, T_init=290.0, integrator="closest_point", tangent_mode="continuum")
+    with pytest.raises(ValueError):
+        solve(*args, T_init=290.0, integrator="radial")
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    call = lambda **kw: sim.umat("EPICP", col(np.zeros(6)), col([0.01, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0),
+                                 col(np.zeros(6)), np.asfortranarray(np.eye(3)[:, :, None]), col(EPICP_PROPS),
+                                 col(np.zeros(EPICP_NSTATEV)), 0.0, 1.0, col(np.zeros(4)),
+                                 temp=np.full(1, 290.0), n_threads=1, **kw)
+    with pytest.raises(ValueError, match="integrator='closest_point'"):
+        call(tangent_mode=3)
+    with pytest.raises(ValueError, match="algorithmic"):
+        call(integrator="closest_point", tangent_mode=0)
+    with pytest.raises(ValueError):
+        call(integrator="radial")
 
 
 # ---------------------------------------------------------------------------

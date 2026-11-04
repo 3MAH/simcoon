@@ -309,12 +309,40 @@ bool material_tangent_serves(const std::string &umat_name)
     return it != conventions.end() && it->second.material_tangent;
 }
 
-void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical)
+void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical,
+                      const int &tangent_mode)
 {
     if (ncp_method_of(ncp, "ncp") == NCPMethod::fischer_burmeister) return;
     if (thermomechanical || (umat_name != "EPICP" && umat_name != "EPKCP" && umat_name != "MODUL")) {
         throw std::invalid_argument("ncp='min' serves the mechanical cutting planes of EPICP, EPKCP and MODUL only; '"
                                     + umat_name + "'" + (thermomechanical ? " (thermomechanical)" : "") + " does not read it");
+    }
+    if (tangent_mode == tangent_closest_point) {
+        throw std::invalid_argument("ncp='min' serves the cutting-plane integrator only; the closest-point "
+                                    "integrator keeps Fischer-Burmeister");
+    }
+}
+
+int kernel_tangent_mode(const int &integrator, const int &tangent_mode)
+{
+    if (tangent_mode == tangent_closest_point) {
+        throw std::invalid_argument("tangent_mode 3 (closest point) is no longer a tangent choice: give "
+                                    "integrator='closest_point' with tangent_mode='algorithmic'");
+    }
+    if (tangent_mode < tangent_none || tangent_mode > tangent_algorithmic) {
+        throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
+                                    + std::to_string(tangent_mode));
+    }
+    switch (integrator) {
+        case integrator_cutting_plane:
+            return tangent_mode;
+        case integrator_closest_point:
+            if (tangent_mode == tangent_algorithmic) return tangent_closest_point;
+            throw std::invalid_argument("integrator='closest_point' returns its exact (algorithmic) operator only: "
+                                        "give tangent_mode='algorithmic'");
+        default:
+            throw std::invalid_argument("integrator must be 'cutting_plane' or 'closest_point'; got code "
+                                        + std::to_string(integrator));
     }
 }
 
