@@ -210,6 +210,28 @@ TEST(Tnum_solve, min_ncp_step)
     const vec Phi_up = {60.};
     step2(Phi_up, Y, B, Dp2, dp, error);
     EXPECT_TRUE(step2.fell_back());
+    // uncoupled rows (diagonal B): a surface next to an always-satisfied row (Phi = -Y_crit,
+    // the viscoelastic / damage rows of MODUL) takes the full step, the inert row stays at zero
+    const vec Phi2 = {30., -1.}, Y2 = {300., 1.};
+    mat B2 = zeros(2, 2);
+    B2(0, 0) = -2000.;
+    B2(1, 1) = -1.;
+    vec Dp3 = zeros(2), dp3;
+    double error3;
+    ncp_step step3(NCPMethod::min_fb_fallback);
+    step3(Phi2, Y2, B2, Dp3, dp3, error3);
+    EXPECT_EQ(Dp3(0), Dp(0));
+    EXPECT_EQ(Dp3(1), 0.);
+    EXPECT_FALSE(step3.fell_back());
+    // coupled rows keep Fischer-Burmeister, bit for bit
+    B2(0, 1) = B2(1, 0) = -10.;
+    vec Dp4 = zeros(2), dp4, Dp5 = zeros(2), dp5;
+    double error4, error5;
+    ncp_step step4(NCPMethod::min_fb_fallback);
+    step4(Phi2, Y2, B2, Dp4, dp4, error4);
+    Fischer_Burmeister_m(Phi2, Y2, B2, Dp5, dp5, error5);
+    EXPECT_EQ(Dp4(0), Dp5(0));
+    EXPECT_EQ(Dp4(1), Dp5(1));
     // option values
     EXPECT_EQ(ncp_method_of(0, "t"), NCPMethod::fischer_burmeister);
     EXPECT_EQ(ncp_method_of(1, "t"), NCPMethod::min_fb_fallback);

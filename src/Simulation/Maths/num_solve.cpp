@@ -392,30 +392,45 @@ NCPMethod ncp_method_of(const int &code, const string &where)
 
 void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp, vec &dp, double &error)
 {
-    // Several surfaces stay on Fischer-Burmeister: the active set of coupled surfaces makes the
-    // plain semi-smooth Newton cycle (SMA with three surfaces)
-    if (method_ == NCPMethod::fischer_burmeister || fallback_ || Phi.n_elem != 1) {
+    const uword n = Phi.n_elem;
+    // Coupled rows stay on Fischer-Burmeister: the active set of coupled surfaces makes the
+    // plain semi-smooth Newton cycle (SMA with three surfaces). Uncoupled rows (denom diagonal:
+    // one surface, or one next to the always-satisfied viscoelastic / damage rows of MODUL)
+    // are independent scalar problems.
+    bool uncoupled = (method_ != NCPMethod::fischer_burmeister) && !fallback_;
+    for (uword i = 0; uncoupled && i < n; i++)
+        for (uword j = 0; j < n; j++)
+            if (i != j && denom(i, j) != 0.) { uncoupled = false; break; }
+    if (!uncoupled) {
         Fischer_Burmeister_m(Phi, Y_crit, denom, Dp, dp, error);
         return;
     }
-    // min(Dp*, -Phi) = 0, Dp* = Dp |B|: an active row solves Phi + B dp = 0 (classic cutting
-    // plane), an inactive one resets its multiplier
-    const double B = denom(0, 0);
-    const double f = fabs(B);
-    const bool active = (Phi(0) > 0.) || (-Phi(0) < Dp(0)*f);
-    const double r = active ? -Phi(0) : Dp(0)*f;
-    const double J = active ? -B : ((f > 0.) ? f : 1.);
-    const double err = 2.*fabs(r)/fabs(Y_crit(0));
+    // min(Dp*, -Phi) = 0 row by row, Dp* = Dp |B|: an active row solves Phi + B dp = 0 (classic
+    // cutting plane), an inactive one resets its multiplier
+    vec r(n), J(n);
+    double err = 0.;
+    bool singular = false;
+    for (uword i = 0; i < n; i++) {
+        const double B = denom(i, i);
+        const double f = fabs(B);
+        const bool active = (Phi(i) > 0.) || (-Phi(i) < Dp(i)*f);
+        r(i) = active ? -Phi(i) : Dp(i)*f;
+        J(i) = active ? -B : ((f > 0.) ? f : 1.);
+        err += 2.*fabs(r(i))/fabs(Y_crit(i));
+        singular = singular || !(fabs(J(i)) > simcoon::iota);
+    }
     // a growing error: the semi-smooth Newton overshoots or cycles, Fischer-Burmeister from here
-    if ((prev_error_ >= 0. && err > prev_error_) || !(fabs(J) > simcoon::iota)) {
+    if ((prev_error_ >= 0. && err > prev_error_) || singular) {
         fallback_ = true;
         Fischer_Burmeister_m(Phi, Y_crit, denom, Dp, dp, error);
         return;
     }
     prev_error_ = err;
-    dp.set_size(1);
-    dp(0) = -r/J;
-    Dp(0) += dp(0);
+    dp.set_size(n);
+    for (uword i = 0; i < n; i++) {
+        dp(i) = -r(i)/J(i);
+        Dp(i) += dp(i);
+    }
     error = err;
 }
 

@@ -124,11 +124,14 @@ NCPMethod ncp_method_of(const int &code, const std::string &where);
  * 2002). The first step from \f$ \Delta p = 0 \f$ is the full Newton step, where the Fischer-Burmeister
  * function only takes two thirds of it: a linear hardening returns in one step instead of six.
  * Its @c error is \f$ \sum_i 2|r_i|/|Y^{crit}_i| \f$ of the entering iterate, the scale of the
- * Fischer-Burmeister measure near the solution. It applies to a single surface (one row): a
- * system of several surfaces keeps the Fischer-Burmeister step, the active set of coupled
- * surfaces making the plain semi-smooth Newton cycle. When the error grows from one call to the
- * next, or the row is singular, the solve falls back to Fischer-Burmeister for the remaining
- * calls (a nonlinear kinematic hardening can make the full step overshoot).
+ * Fischer-Burmeister measure near the solution. It applies row by row when the rows are
+ * uncoupled (@p denom diagonal): a single surface, or a surface next to the always-satisfied
+ * rows of the viscoelastic and damage mechanisms of MODUL (\f$ \Phi = -Y^{crit} \f$, no
+ * multiplier, no cross term), which stay at zero. A coupled system (off-diagonal terms, e.g.
+ * several yield surfaces) keeps the Fischer-Burmeister step, the active set of coupled surfaces
+ * making the plain semi-smooth Newton cycle. When the error grows from one call to the next, or
+ * a row is singular, the solve falls back to Fischer-Burmeister for the remaining calls (a
+ * nonlinear kinematic hardening can make the full step overshoot).
  *
  * One object per local solve (its state is the fallback).
  */

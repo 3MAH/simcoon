@@ -100,6 +100,21 @@ def test_min_ncp_modular_and_epkcp_adapter():
     assert rel(mod["Stress"], res["Stress"]) < 1e-12   # the adapter forwards the option
 
 
+@pytest.mark.parametrize("extra", ["prony", "damage"])
+def test_min_ncp_modular_with_inert_rows(extra):
+    # viscoelastic and damage rows are always satisfied and uncoupled: min-NCP applies to the
+    # yield surface next to them (the option has an effect) and gives the same return
+    from simcoon.modular import Damage, Viscoelasticity
+    other = (Viscoelasticity(terms=((20000.0, 0.3, 2000.0, 2000.0),) * 2) if extra == "prony"
+             else Damage(Y_0=0.1, Y_c=5.0))
+    mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5),
+                          [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5)), other])
+    ref = run("MODUL", mat.props, mat.nstatev)
+    res = run("MODUL", mat.props, mat.nstatev, ncp="min")
+    assert not np.array_equal(res["Stress"], ref["Stress"])
+    assert rel(res["Stress"], ref["Stress"]) < 1e-6
+
+
 def test_min_ncp_refuses_armstrong_frederick():
     # the cutting plane integrates AF back stresses along its iterates: min-NCP would change the
     # return far beyond the tolerance on coarse increments, so MODUL refuses the combination

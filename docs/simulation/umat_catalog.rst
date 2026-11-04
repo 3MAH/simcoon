@@ -656,7 +656,10 @@ raises ``ValueError`` for ``ncp="min"``.
 
 **Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
 The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
-With several coupled surfaces the option has no effect: Fischer-Burmeister is kept.
+In ``MODUL`` this includes a yield surface composed with viscoelastic (Prony) or damage
+mechanisms: their rows are always satisfied and uncoupled, so the min step applies to the yield
+surface next to them. With several coupled yield surfaces the option has no effect:
+Fischer-Burmeister is kept.
 If the min step makes the error grow, the solver switches back to Fischer-Burmeister for the
 rest of the increment.
 
@@ -724,9 +727,17 @@ near the solution it is at least as strict.
 
 **Fallback.** Within an increment, the min step switches to Fischer-Burmeister for the rest of
 the local solve as soon as its error grows from one iteration to the next (the full step
-overshoots, or the branch choice oscillates) or :math:`B` vanishes. Several coupled surfaces stay
-on Fischer-Burmeister from the start, because the plain semi-smooth Newton can cycle there, the
-set of active surfaces changing from one iteration to the next without converging.
+overshoots, or the branch choice oscillates) or :math:`B` vanishes. Coupled surfaces stay on
+Fischer-Burmeister from the start, because the plain semi-smooth Newton can cycle there, the set
+of active surfaces changing from one iteration to the next without converging.
+
+**Which rows count.** The min step applies row by row when the local Jacobian :math:`B` is
+diagonal, i.e. when the rows are independent scalar problems. That is the case of a single yield
+surface, and of a yield surface next to the rows of the viscoelastic and damage mechanisms of
+``MODUL``: those are integrated outside the Newton (the Prony branches in closed form, the damage
+by a fixed point), so their rows are always satisfied (:math:`\Phi = -Y^{crit}`), carry no
+multiplier and no cross term, and stay at zero. Two yield surfaces share the stress, so their
+rows are coupled (off-diagonal terms of :math:`B`) and keep Fischer-Burmeister.
 
 .. list-table:: What ``ncp="min"`` does, case by case
    :header-rows: 1
@@ -740,7 +751,10 @@ set of active surfaces changing from one iteration to the next without convergin
    * - EPKCP, ``MODUL`` with isotropic and Prager hardening
      - the Fischer-Burmeister return to the local tolerance (EPKCP and ``MODUL`` agree to
        :math:`10^{-12}`)
-   * - ``MODUL`` with several coupled surfaces
+   * - ``MODUL``, one yield surface with viscoelastic (Prony) or damage mechanisms
+     - the min step on the yield surface, the other rows untouched; the Fischer-Burmeister
+       return to the local tolerance
+   * - ``MODUL`` with several yield surfaces (coupled)
      - no effect: Fischer-Burmeister is kept
    * - ``MODUL`` with an Armstrong-Frederick back stress
      - refused (``ValueError``), see above
@@ -748,7 +762,9 @@ set of active surfaces changing from one iteration to the next without convergin
      - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
 
 On a batch of :math:`10^4` EPICP points (``sim.umat``, one thread), one increment takes 20 ms
-with Fischer-Burmeister and 14 ms with ``ncp="min"``.
+with Fischer-Burmeister and 14 ms with ``ncp="min"``. On a cyclic uniaxial ``MODUL`` solve
+(150 increments) the whole run drops by 17 % with one Prony branch next to the yield surface,
+29 % with three, 23 % with a damage mechanism.
 
 EPICP consistent tangent
 ------------------------
