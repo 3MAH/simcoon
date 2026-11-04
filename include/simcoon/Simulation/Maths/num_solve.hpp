@@ -61,8 +61,9 @@ void Fischer_Burmeister_m_limits(const arma::vec &, const arma::vec &, const arm
 /**
  * @brief Complementarity function of a local return-mapping Newton (the loops on Fischer_Burmeister_m).
  *
- * The option a kernel exposes through its @c props (see the UMAT catalogue): 0 is the historical
- * Fischer-Burmeister smoothing, the default.
+ * A numerical setting of the run, not a material parameter: solver_params::ncp and
+ * state_variables::ncp carry its code, set by the @c ncp option of @c solve and @c sim.umat
+ * (see the UMAT catalogue). Fischer-Burmeister, the historical smoothing, is the default.
  */
 enum class NCPMethod : int {
     fischer_burmeister = 0,  ///< normalised Fischer-Burmeister function (Fischer_Burmeister_m)
@@ -70,12 +71,12 @@ enum class NCPMethod : int {
 };
 
 /**
- * @brief The NCP method of a numeric option slot (props), checked: 0 or 1.
- * @param value the slot value
+ * @brief The NCP method of a code (solver_params::ncp, state_variables::ncp), checked: 0 or 1.
+ * @param code the code
  * @param where the caller, for the error message
  * @throw std::invalid_argument for any other value
  */
-NCPMethod ncp_method_of(const double &value, const std::string &where);
+NCPMethod ncp_method_of(const int &code, const std::string &where);
 
 /**
  * @brief One Newton step per call of a local complementarity solve, with the chosen function.

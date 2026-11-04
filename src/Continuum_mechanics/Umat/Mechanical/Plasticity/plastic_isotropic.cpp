@@ -49,12 +49,6 @@ namespace simcoon {
 ///@brief props[3] : J2 equivalent yield stress limit : sigmaY
 ///@brief props[4] : hardening parameter k
 ///@brief props[5] : exponent m
-///@brief Optional numerical options (0, the default, is the historical behaviour; giving a slot
-///@brief gives the ones before it):
-///@brief props[6] : local complementarity, 0 Fischer-Burmeister, 1 min-NCP with a
-///@brief            Fischer-Burmeister fallback (NCPMethod)
-///@brief props[7] : 1: algorithmic tangent in closed form (radial return, Simo and Taylor 1985),
-///@brief            for tangent_mode = 2
 
 ///@brief The elastic-plastic UMAT with isotropic hardening requires 8 statev:
 ///@brief statev[0] : T_init : Initial temperature
@@ -91,21 +85,16 @@ namespace simcoon {
  A_theta =
  */
 
-void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp_code)
 {
 
     UNUSED(umat_name);
+    UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
     
-    // Numerical options (trailing props, 0 = historical behaviour)
-    const NCPMethod ncp = (nprops > 6) ? ncp_method_of(props(6), "EPICP props(6)") : NCPMethod::fischer_burmeister;
-    if (nprops > 7 && props(7) != 0. && props(7) != 1.) {
-        throw std::invalid_argument("EPICP props(7): the closed-form tangent option must be 0 or 1; got "
-                                    + std::to_string(props(7)));
-    }
-    const bool closed_form_tangent = (nprops > 7) && (props(7) == 1.);
+    const NCPMethod ncp = ncp_method_of(ncp_code, "EPICP");
 
     //From the props to the material properties
     double E = props(0);
@@ -291,7 +280,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
             return dLambda_dsigma_l;
         };
     }
-    if (closed_form_tangent && !use_cpp && tangent_mode == simcoon::tangent_algorithmic && Ds_j(0) > simcoon::iota) {
+    if (!use_cpp && tangent_mode == simcoon::tangent_algorithmic && Ds_j(0) > simcoon::iota) {
         // Consistent tangent of the radial return in closed form (Simo and Taylor 1985; de Souza Neto
         // et al. 2008, box 7.4), L = 3K Ivol + 2G Idev:
         //   Lt = 3K Ivol + 2G theta Idev - 2G theta_bar N N^T,  N = s/|s|,

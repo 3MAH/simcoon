@@ -149,6 +149,10 @@ namespace simcoon{
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
+ * @param tangent_mode tangent_* constant (parameter.hpp); under tangent_mode 2 the consistent tangent
+ *        of the radial return is taken in closed form (Simo and Taylor 1985)
+ * @param ncp complementarity function of the cutting plane (NCPMethod code, state_variables::ncp):
+ *        0 Fischer-Burmeister (default), 1 min-NCP with a Fischer-Burmeister fallback
  *
  * @note Voigt notation convention: [11, 22, 33, 12, 13, 23] with engineering shear strains (\f$\gamma = 2\varepsilon\f$)
  * @note The consistent tangent modulus Lt ensures quadratic convergence in implicit Newton-Raphson schemes
@@ -174,7 +178,7 @@ namespace simcoon{
  *                         3, 3, true, tnew_dt);
  * @endcode
  */
-void umat_plasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
+void umat_plasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default, const int &ncp = 0);
     
 
 /** @} */ // end of umat_mechanical group

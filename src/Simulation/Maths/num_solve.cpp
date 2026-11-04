@@ -382,12 +382,12 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     
 }
                      
-NCPMethod ncp_method_of(const double &value, const string &where)
+NCPMethod ncp_method_of(const int &code, const string &where)
 {
-    if (value == 0.) return NCPMethod::fischer_burmeister;
-    if (value == 1.) return NCPMethod::min_fb_fallback;
-    throw std::invalid_argument(where + ": the complementarity option must be 0 (Fischer-Burmeister) or 1 "
-                                "(min-NCP with a Fischer-Burmeister fallback); got " + std::to_string(value));
+    if (code == 0) return NCPMethod::fischer_burmeister;
+    if (code == 1) return NCPMethod::min_fb_fallback;
+    throw std::invalid_argument(where + ": ncp must be 0 (Fischer-Burmeister) or 1 "
+                                "(min-NCP with a Fischer-Burmeister fallback); got " + std::to_string(code));
 }
 
 void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp, vec &dp, double &error)

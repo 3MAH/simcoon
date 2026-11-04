@@ -172,6 +172,7 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     //"lambda_solver" is the documented spelling (lambda is a Python keyword); "lambda" kept as alias
     ctrl.lambda = dget<double>(params_py, "lambda_solver", dget<double>(params_py, "lambda", ctrl.lambda));
     ctrl.tangent_mode = dget<int>(params_py, "tangent_mode", ctrl.tangent_mode);
+    ctrl.ncp = dget<int>(params_py, "ncp", ctrl.ncp);
 
     //Loading blocks
     unsigned int nblocks = static_cast<unsigned int>(py::len(blocks_py));

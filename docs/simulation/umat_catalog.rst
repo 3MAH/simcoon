@@ -52,14 +52,14 @@ Small-strain mechanical models
    * - EPICP
      - Von Mises + power-law isotropic hardening
      - legacy (kept)
-     - E, nu, alpha, sigmaY, k, m [, ncp, closed_form]
+     - E, nu, alpha, sigmaY, k, m
      - Pedagogical reference of the CCP return mapping; the hardening goes
        through the modular PowerLawHardening (C1 onset blend below p = 1e-6
        for m < 1, exact above), as EPJCK
    * - EPKCP
      - Von Mises + power-law isotropic + Prager kinematic
      - modular (adapter)
-     - E, nu, alpha, sigmaY, k, m, kX [, ncp]
+     - E, nu, alpha, sigmaY, k, m, kX
      - Legacy Prager writes X = kX·a; the modular twin uses X = (2/3)C·a,
        i.e. C = 1.5·kX (handled by the adapter)
    * - EPCHA
@@ -641,31 +641,18 @@ truss) keeps mode 3: the law runs 3D and the state is solved around it.
 Numerical options of the local Newton
 =====================================
 
-A few laws accept extra trailing ``props`` that change *how* the local return mapping is
-solved, not the constitutive law itself. Omit them and nothing changes: every option defaults
-to 0, which reproduces the historical results bit for bit. Props are positional, so to set an
-option you must also write the slots before it (0 keeps their default). The options apply
-wherever props are passed (``solve``, ``sim.umat``, phases).
-
-.. list-table::
-   :header-rows: 1
-
-   * - Option
-     - Slot
-     - 0 (default)
-     - 1
-   * - ``ncp``
-     - EPICP ``props[6]``, EPKCP ``props[7]``, ``MODUL``: the slot after the last mechanism
-       (``ModularMaterial(ncp="min")``)
-     - Fischer-Burmeister complementarity
-     - min complementarity (classic cutting plane)
-   * - ``closed_form``
-     - EPICP ``props[7]``, with ``tangent_mode = 2``
-     - generic tangent assembly (6x6 inverse)
-     - closed-form radial-return tangent
+These options change *how* the local return mapping is solved, not the constitutive law. They
+are settings of the run, not material parameters: they are given to ``solve`` or ``sim.umat``
+by name, and the ``props`` stay those of the law.
 
 ``ncp``: a faster local solve for simple plasticity
 ---------------------------------------------------
+
+``solve(..., ncp="min")`` or ``sim.umat(..., ncp="min")`` switches the complementarity function
+of the cutting plane from Fischer-Burmeister (``ncp="fischer_burmeister"``, the default, the
+historical results bit for bit) to the min function, the classic cutting-plane step. EPICP,
+EPKCP and ``MODUL`` read it. Any other law, a thermomechanical block or a mean-field model
+raises ``ValueError`` for ``ncp="min"``.
 
 **Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
 The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
@@ -674,7 +661,7 @@ If the min step makes the error grow, the solver switches back to Fischer-Burmei
 rest of the increment.
 
 **Do not use it** with Armstrong-Frederick (Chaboche) back stresses. ``MODUL`` refuses the
-combination, and the Chaboche kernels do not read the slot. Those back stresses are integrated
+combination, and the Chaboche kernels do not take the option. Those back stresses are integrated
 along the cutting-plane iterates, so the full min steps land on a different answer, without
 any growth in the residual that the fallback could detect. On coarse increments of the
 Chaboche identification programmes, this answer is up to 46 % off the closest-point update,
@@ -688,14 +675,14 @@ where Fischer-Burmeister stays within 4 %. For an accurate Chaboche return, use
    (Ortiz and Simo 1986), whose first step from :math:`\Delta p = 0` is the full Newton step.
    Fischer-Burmeister takes only two thirds of it.
 
-``closed_form``: a cheaper consistent tangent
----------------------------------------------
+EPICP consistent tangent
+------------------------
 
 With ``tangent_mode = 2``, EPICP builds the consistent tangent of the radial return in closed
 form (Simo and Taylor 1985),
-:math:`3K\,\mathbb{I}_{vol} + 2G\theta\,\mathbb{I}_{dev} - 2G\bar\theta\,\mathbf{N}\otimes\mathbf{N}`,
-instead of the generic assembly. It is the same operator to round-off at the converged return,
-without the 6x6 inverse.
+:math:`3K\,\mathbb{I}_{vol} + 2G\theta\,\mathbb{I}_{dev} - 2G\bar\theta\,\mathbf{N}\otimes\mathbf{N}`.
+It is the operator of the generic assembly to round-off at the converged return, without its
+6x6 inverse.
 
 Choosing ``tangent_mode`` for EPCHA (0D uniaxial)
 -------------------------------------------------

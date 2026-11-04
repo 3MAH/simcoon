@@ -50,6 +50,7 @@ struct solver_params {
     double precision_rel = 0.;  ///< > 0: tolerance max(precision, precision_rel |tau|), |tau| the Euclidean norm of the Kirchhoff stress (Voigt); 0: precision alone (default)
     double lambda = 10000.;     ///< penalty stiffness for strain-controlled components
     int tangent_mode = tangent_default; ///< tangent_* constants (parameter.hpp)
+    int ncp = 0;                ///< complementarity function of the local cutting plane (NCPMethod code), see state_variables::ncp
 };
 
 /**

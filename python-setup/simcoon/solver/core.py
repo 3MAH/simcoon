@@ -11,7 +11,7 @@ import simcoon._core as _core
 from simcoon.pyumat import UMAT_NAME, registered
 
 from .blocks import Block, StepMeca, StepThermomeca
-from .maps import TANGENT_MODES, as_code, kinematic_code, tangent_default
+from .maps import NCP_METHODS, TANGENT_MODES, as_code, kinematic_code, tangent_default
 from .micromechanics import to_phase_dicts, euler_angles
 from .results import SolverResults
 
@@ -30,6 +30,7 @@ def solve(
     record_tangent: bool = True,
     raise_on_abort: bool = True,
     kinematic_form: Union[str, int, None] = None,
+    ncp: str = "fischer_burmeister",
     **params,
 ) -> SolverResults:
     """Solve a homogeneous loading path with the C++ simcoon solver, in memory.
@@ -95,6 +96,14 @@ def solve(
         instead of returning the partial history. The solver aborts when the
         Newton loop does not converge at the minimal increment, or when the
         increment falls below ``Dn_mini`` with ``inforce=0``.
+    ncp : str
+        Complementarity function of the local cutting plane:
+        'fischer_burmeister' (default), or 'min', the classic cutting-plane step
+        on a single surface with a Fischer-Burmeister fallback: about half the
+        local iterations for isotropic or linear (Prager) kinematic hardening,
+        the same return to the local tolerance. Read by EPICP, EPKCP and MODUL
+        (refused for an Armstrong-Frederick back stress); any other law, and the
+        thermomechanical blocks, raise ValueError for 'min'. See the UMAT catalog.
     **params
         Numeric solver controls forwarded to the C++ loop: div_tnew_dt,
         mul_tnew_dt, miniter, maxiter, inforce, precision, precision_rel,
@@ -142,6 +151,9 @@ def solve(
     corate_type = kinematic_code(kinematic_form, corate)
     run_params = dict(params)
     run_params["tangent_mode"] = as_code(tangent_mode, TANGENT_MODES, "tangent mode")
+    if not isinstance(ncp, str) or ncp not in NCP_METHODS:
+        raise ValueError(f"ncp must be one of {sorted(NCP_METHODS)}; got {ncp!r}")
+    run_params["ncp"] = NCP_METHODS[ncp]
 
     blocks_py = []
     T_run = float(T_init)

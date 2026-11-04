@@ -66,6 +66,12 @@ TANGENT_MODES = {
     "closest_point": tangent_closest_point,
 }
 
+#: Complementarity functions of the local cutting plane (ncp carried by the state variables)
+NCP_METHODS = {
+    "fischer_burmeister": 0,
+    "min": 1,
+}
+
 
 def kinematic_code(kinematic_form=None, corate=None):
     """Code the C++ solver reads in its corate_type slot for a kinematic form.

@@ -246,7 +246,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		return (total_form ? total : rate).count(umat_name) > 0;
 	}
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py, const std::string &condense){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py, const std::string &condense, const std::string &ncp_name){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -258,6 +258,11 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
 			                            + std::to_string(tangent_mode));
 		}
+		// ncp: complementarity function of the local cutting plane, by name (NCPMethod)
+		if (ncp_name != "fischer_burmeister" && ncp_name != "min")
+			throw std::invalid_argument("umat: ncp must be 'fischer_burmeister' or 'min'; got '" + ncp_name + "'");
+		const int ncp = (ncp_name == "min") ? 1 : 0;
+		simcoon::check_ncp_serves(umat_name_py, ncp, false);
 		// kinematic_form and corate (its former name) are one value; the dispatch carries the
 		// total formulation in the corate slot
 		const int form = kinematic_code(kinematic_form_py), former = kinematic_code(corate_py);
@@ -374,13 +379,11 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			case 201: { // legacy names served by the modular adapter
 				// one shared id (mirrors umat_smart): the adapter dispatches on
 				// umat_name, so every legacy-modular name takes this case
-				umat_function = &simcoon::umat_legacy_modular;
-				arguments_type = 1;
+				arguments_type = 4;   // called by name: it takes the ncp option
 				break;
 			}
 			case 5: {
-				umat_function = &simcoon::umat_plasticity_iso;
-				arguments_type = 1;
+				arguments_type = 5;   // EPICP, called by name: it takes the ncp option
 				break;
 			}
 			case 33: {
@@ -634,7 +637,15 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						break;
 					}
 					case 3: {
-						simcoon::umat_modular(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate);
+						simcoon::umat_modular(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate, ncp);
+						break;
+					}
+					case 4: {
+						simcoon::umat_legacy_modular(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
+						break;
+					}
+					case 5: {
+						simcoon::umat_plasticity_iso(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 					case 2: {

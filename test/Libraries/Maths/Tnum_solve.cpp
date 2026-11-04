@@ -211,7 +211,7 @@ TEST(Tnum_solve, min_ncp_step)
     step2(Phi_up, Y, B, Dp2, dp, error);
     EXPECT_TRUE(step2.fell_back());
     // option values
-    EXPECT_EQ(ncp_method_of(0., "t"), NCPMethod::fischer_burmeister);
-    EXPECT_EQ(ncp_method_of(1., "t"), NCPMethod::min_fb_fallback);
-    EXPECT_THROW(ncp_method_of(2., "t"), std::invalid_argument);
+    EXPECT_EQ(ncp_method_of(0, "t"), NCPMethod::fischer_burmeister);
+    EXPECT_EQ(ncp_method_of(1, "t"), NCPMethod::min_fb_fallback);
+    EXPECT_THROW(ncp_method_of(2, "t"), std::invalid_argument);
 }

@@ -1,11 +1,10 @@
-"""Numerical options of the local and global Newton loops (lot 6, all off by default).
+"""Numerical options of the local and global Newton loops (all off by default).
 
-- local complementarity (trailing props: EPICP props[6], EPKCP props[7], MODUL through
-  ModularMaterial(ncp=...)): 0 the Fischer-Burmeister function, 1 min-NCP with a
-  Fischer-Burmeister fallback (single surface, isotropic or Prager hardening);
-- EPICP props[7] = 1: algorithmic tangent of the radial return in closed form;
+- solve(ncp=...), sim.umat(ncp=...): complementarity function of the local cutting plane,
+  'fischer_burmeister' (default) or 'min' (min-NCP with a Fischer-Burmeister fallback; single
+  surface, isotropic or Prager hardening), read by EPICP, EPKCP and MODUL;
 - solve(precision_rel=...): stress-scaled tolerance of the global residual.
-The default (absent option, or 0) is the historical behaviour, bit for bit.
+The default is the historical behaviour, bit for bit.
 """
 
 import numpy as np
@@ -47,25 +46,11 @@ def rel(a, b):
     return np.max(np.abs(np.asarray(a) - np.asarray(b))) / np.max(np.abs(np.asarray(b)))
 
 
-@pytest.mark.parametrize("name, props, nstatev, slots", [
-    ("EPICP", EPICP, 8, [0.0, 0.0]),
-    ("EPKCP", EPKCP, 14, [0.0]),
-])
-def test_zero_options_are_the_default(name, props, nstatev, slots):
-    ref = run(name, props, nstatev)
-    res = run(name, props + slots, nstatev)
+def test_default_ncp_is_the_default():
+    ref = run("EPKCP", EPKCP, 14)
+    res = run("EPKCP", EPKCP, 14, ncp="fischer_burmeister")
     for key in ("Stress", "Strain", "Statev", "TangentMatrix"):
         np.testing.assert_array_equal(res[key], ref[key])
-
-
-def test_modular_default_props_unchanged():
-    mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3),
-                          [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5))])
-    mat_min = ModularMaterial(mat.elasticity, mat.mechanisms, ncp="min")
-    np.testing.assert_array_equal(mat_min.props[:-1], mat.props)
-    assert mat_min.props[-1] == 1.0
-    with pytest.raises(ValueError):
-        ModularMaterial(mat.elasticity, mat.mechanisms, ncp="smooth")
 
 
 def test_min_ncp_epicp():
@@ -73,32 +58,32 @@ def test_min_ncp_epicp():
     # local tolerance; power law: within the local tolerance of the return
     for props, tol in ((EPICP_LIN, 1e-10), (EPICP, 1e-7)):
         ref = run("EPICP", props, 8)
-        res = run("EPICP", props + [1.0], 8)
+        res = run("EPICP", props, 8, ncp="min")
         assert rel(res["Stress"], ref["Stress"]) < tol
         assert rel(res["Statev"][1], ref["Statev"][1]) < 10 * tol
 
 
 def test_closed_form_tangent_epicp():
-    ref = run("EPICP", EPICP, 8)
-    res = run("EPICP", EPICP + [0.0, 1.0], 8)
+    # tangent_mode 2 takes the radial-return tangent in closed form: the exact operator of the
+    # closest-point update (tangent_mode 3, generic assembly) at the same converged state
+    ref = run("EPICP", EPICP, 8, tangent_mode="closest_point")
+    res = run("EPICP", EPICP, 8)
     assert rel(res["Stress"], ref["Stress"]) < 1e-8
     assert rel(res["TangentMatrix"], ref["TangentMatrix"]) < 1e-7
-    both = run("EPICP", EPICP + [1.0, 1.0], 8)
-    assert rel(both["Stress"], ref["Stress"]) < 1e-7
 
 
 def test_min_ncp_batch_umat():
-    # the same option through sim.umat (props per call)
+    # the same option through sim.umat
     N = 200
     rng = np.random.default_rng(2)
     F = np.asfortranarray
     Detot = F(4e-3 * rng.standard_normal((6, N)))
+    props = F(np.asarray(EPICP, float).reshape(-1, 1))
     out = []
-    for slots in ([], [1.0, 1.0]):
-        props = F(np.asarray(EPICP + slots, float).reshape(-1, 1))
+    for ncp in ("fischer_burmeister", "min"):
         sig, sv, Wm, Lt = sim.umat("EPICP", F(np.zeros((6, N))), Detot, np.array([]), np.array([]), F(np.zeros((6, N))),
                                    F(np.repeat(np.eye(3)[:, :, None], N, axis=2)), props, F(np.zeros((8, N))),
-                                   0.0, 1.0, F(np.zeros((4, N))), temp=np.array([293.15]), n_threads=1)
+                                   0.0, 1.0, F(np.zeros((4, N))), temp=np.array([293.15]), n_threads=1, ncp=ncp)
         out.append((sig, Lt))
     assert rel(out[1][0], out[0][0]) < 1e-7
     assert rel(out[1][1], out[0][1]) < 1e-6
@@ -107,10 +92,10 @@ def test_min_ncp_batch_umat():
 def test_min_ncp_modular_and_epkcp_adapter():
     mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5),
                           [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5),
-                                      kinematic_hardening=PragerHardening(C=15000.0))], ncp="min")
+                                      kinematic_hardening=PragerHardening(C=15000.0))])
     ref = run("EPKCP", EPKCP, 14)
-    res = run("EPKCP", EPKCP + [1.0], 14)
-    mod = run("MODUL", mat.props, mat.nstatev)
+    res = run("EPKCP", EPKCP, 14, ncp="min")
+    mod = run("MODUL", mat.props, mat.nstatev, ncp="min")
     assert rel(res["Stress"], ref["Stress"]) < 1e-6
     assert rel(mod["Stress"], res["Stress"]) < 1e-12   # the adapter forwards the option
 
@@ -120,19 +105,23 @@ def test_min_ncp_refuses_armstrong_frederick():
     # return far beyond the tolerance on coarse increments, so MODUL refuses the combination
     from simcoon.modular import ArmstrongFrederickHardening
     mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3),
-                          [Plasticity(sigma_Y=300.0, kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=200.0))],
-                          ncp="min")
-    with pytest.raises(Exception):
-        run("MODUL", mat.props, mat.nstatev)
+                          [Plasticity(sigma_Y=300.0, kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=200.0))])
+    run("MODUL", mat.props, mat.nstatev)
+    with pytest.raises(Exception, match="Armstrong-Frederick"):
+        run("MODUL", mat.props, mat.nstatev, ncp="min")
 
 
-def test_option_values_are_checked():
-    with pytest.raises(Exception):
-        run("EPICP", EPICP + [2.0], 8)
-    with pytest.raises(Exception):
-        run("EPICP", EPICP + [0.0, 0.5], 8)
-    with pytest.raises(Exception):
-        run("EPKCP", EPKCP + [3.0], 14)
+def test_ncp_values_and_laws_are_checked():
+    with pytest.raises(ValueError):
+        run("EPICP", EPICP, 8, ncp="smooth")
+    with pytest.raises(ValueError):
+        run("EPICP", EPICP, 8, ncp=1)
+    with pytest.raises(ValueError, match="EPCHA"):
+        run("EPCHA", EPCHA, 33, ncp="min")
+    with pytest.raises(ValueError, match="ncp"):
+        sim.umat("EPCHA", np.zeros((6, 1)), np.zeros((6, 1)), np.array([]), np.array([]), np.zeros((6, 1)),
+                 np.eye(3).reshape(3, 3, 1), np.asarray(EPCHA, float), np.zeros((33, 1)), 0.0, 1.0,
+                 np.zeros((4, 1)), ncp="min")
 
 
 def test_relative_global_tolerance():

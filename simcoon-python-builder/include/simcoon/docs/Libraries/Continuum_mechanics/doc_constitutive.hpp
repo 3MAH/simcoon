@@ -780,6 +780,13 @@ constexpr auto umat = R"pbdoc(
         sees T = temp at the start and T + DT at the end of the increment, as
         umat_T does: thermal expansion and temperature-dependent properties
         follow the prescribed temperature. Zero when not given.
+    ncp : str
+        Complementarity function of the local cutting plane:
+        'fischer_burmeister' (default), or 'min', the classic cutting-plane step on a
+        single surface with a Fischer-Burmeister fallback, about half the local
+        iterations for isotropic or linear (Prager) kinematic hardening. Read by
+        EPICP, EPKCP and MODUL (refused for an Armstrong-Frederick back stress);
+        any other law raises ValueError for 'min'. See the UMAT catalog.
 
     Returns
     -------

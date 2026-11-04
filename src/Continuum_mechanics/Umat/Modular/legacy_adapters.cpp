@@ -54,14 +54,12 @@ vec translate_ELORT(const vec& p) {
 }
 
 vec translate_EPKCP(const vec& p) {
-    // legacy: E nu alpha sigmaY k m kX [ncp]; legacy Prager X = kX*a (tensorial),
-    // modular X = (2/3) C a  ->  C = 1.5 kX. The optional p(7), the complementarity option,
-    // is the modular trailing option.
-    const vec head = {0, 0, p(0), p(1), p(2),
-                      1,
-                      0, 0, 2, 1, 1, 1,          // plasticity, Mises, PowerLaw, Prager
-                      p(3), p(4), p(5), 1.5 * p(6)};
-    return (p.n_elem > 7) ? vec(join_cols(head, vec{p(7)})) : head;
+    // legacy: E nu alpha sigmaY k m kX; legacy Prager X = kX*a (tensorial),
+    // modular X = (2/3) C a  ->  C = 1.5 kX
+    return vec{0, 0, p(0), p(1), p(2),
+               1,
+               0, 0, 2, 1, 1, 1,          // plasticity, Mises, PowerLaw, Prager
+               p(3), p(4), p(5), 1.5 * p(6)};
 }
 
 vec translate_EPHIL(const vec& p) {
@@ -208,7 +206,7 @@ void umat_legacy_modular(
     const double& T, const double& DT, const double& Time, const double& DTime,
     double& Wm, double& Wm_r, double& Wm_ir, double& Wm_d,
     const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
-    const int& tangent_mode) {
+    const int& tangent_mode, const int& ncp) {
 
     const auto it = registry().find(umat_name);
     if (it == registry().end()) {
@@ -221,7 +219,7 @@ void umat_legacy_modular(
                      static_cast<int>(props_mod.n_elem), props_mod,
                      nstatev, statev,
                      T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d,
-                     ndi, nshr, start, tnew_dt, tangent_mode);
+                     ndi, nshr, start, tnew_dt, tangent_mode, KinematicForm::rate, ncp);
     } catch (const std::runtime_error& e) {
         throw std::runtime_error("'" + umat_name + "' (modular adapter): "
                                  + e.what());

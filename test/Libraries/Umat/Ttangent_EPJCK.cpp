@@ -77,7 +77,14 @@ Out run_epjck(const vec &DEtot, double DTime, int tangent_mode, const vec &props
 Out run_epicp(const vec &DEtot, int tangent_mode) {
     // EPICP props = [E, nu, alpha, sigmaY, k, m] : the rate-independent, isothermal JC law
     const vec props = {JC_PROPS(0), JC_PROPS(1), JC_PROPS(2), JC_PROPS(3), JC_PROPS(4), JC_PROPS(5)};
-    return run_mech(&umat_plasticity_iso, "EPICP", props, 8, DEtot, 1., tangent_mode);
+    // EPICP takes the ncp option past the shared kernel signature: wrapped at its default
+    const umat_M_fn epicp = [](const string &n, const vec &E, const vec &DE, vec &s, mat &Lt, mat &L, const mat &DR,
+                               const int &np, const vec &p, const int &ns, vec &sv, const double &T, const double &DT,
+                               const double &t, const double &dt, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d,
+                               const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tm) {
+        umat_plasticity_iso(n, E, DE, s, Lt, L, DR, np, p, ns, sv, T, DT, t, dt, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tm);
+    };
+    return run_mech(epicp, "EPICP", props, 8, DEtot, 1., tangent_mode);
 }
 
 // Stress-target outer Newton using the kernel's Lt as the Jacobian, at fixed DTime; returns

@@ -97,6 +97,14 @@ DamageMechanism& ModularUMAT::add_damage(
     return static_cast<DamageMechanism&>(*mechanisms_.back());
 }
 
+void ModularUMAT::set_ncp(NCPMethod ncp) {
+    if (ncp == NCPMethod::min_fb_fallback && nonlinear_kinematic_) {
+        throw std::invalid_argument("MODUL: ncp='min' serves isotropic and linear (Prager) kinematic "
+                                    "hardening only, not Armstrong-Frederick back stresses");
+    }
+    ncp_ = ncp;
+}
+
 void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
     // Read elasticity type
     int el_type = static_cast<int>(props(offset));
@@ -108,7 +116,7 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
     // Read number of mechanisms
     int num_mech = static_cast<int>(props(offset));
     offset += 1;
-    bool nonlinear_kinematic = false;   // an Armstrong-Frederick back stress (see the ncp option below)
+    nonlinear_kinematic_ = false;   // an Armstrong-Frederick back stress (see set_ncp)
 
     // Configure each mechanism
     for (int i = 0; i < num_mech; ++i) {
@@ -124,7 +132,7 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
                 int N_iso = static_cast<int>(props(offset + 3));
                 int N_kin = static_cast<int>(props(offset + 4));
                 offset += 5;
-                nonlinear_kinematic = nonlinear_kinematic
+                nonlinear_kinematic_ = nonlinear_kinematic_
                     || (kin_type != static_cast<int>(KinHardType::NONE) && kin_type != static_cast<int>(KinHardType::PRAGER));
 
                 add_plasticity(
@@ -154,19 +162,6 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
                 throw std::runtime_error("ModularUMAT: unknown mechanism type " +
                                         std::to_string(mech_type));
         }
-    }
-
-    // Optional numerical options after the last mechanism (0 = historical behaviour)
-    ncp_ = (offset < static_cast<int>(props.n_elem)) ? ncp_method_of(props(offset), "MODUL complementarity option")
-                                                     : NCPMethod::fischer_burmeister;
-    // The cutting plane integrates Armstrong-Frederick back stresses along its own iterates: the
-    // full min-NCP steps give a different, and on coarse increments much less accurate, return than
-    // the damped Fischer-Burmeister ones (up to 0.46 off the closest-point update where FB stays
-    // at 0.04, on the Chaboche identification programmes), and the residual does not grow, so the
-    // fallback cannot catch it.
-    if (ncp_ == NCPMethod::min_fb_fallback && nonlinear_kinematic) {
-        throw std::invalid_argument("MODUL: the min-NCP complementarity option serves isotropic and linear "
-                                    "(Prager) kinematic hardening only, not Armstrong-Frederick back stresses");
     }
 
     // An anisotropic elastic potential composed with an inelastic mechanism is accepted on
@@ -972,7 +967,8 @@ void umat_modular(
     const bool& start,
     double& tnew_dt,
     const int& tangent_mode,
-    const KinematicForm& kinematic_form
+    const KinematicForm& kinematic_form,
+    const int& ncp
 ) {
     // One configured instance per configuration and thread (see modular_umat_cache):
     // parsing the props (stiffness, its positive-definiteness check, typed tensors)
@@ -981,6 +977,7 @@ void umat_modular(
     thread_local modular_umat_cache cache;
     ModularUMAT& mumat = cache.acquire(props, nstatev, kinematic_form);
     try {
+        mumat.set_ncp(ncp_method_of(ncp, "MODUL"));
         mumat.run(
             umat_name, Etot, DEtot, sigma, Lt, L, DR,
             nprops, props, nstatev, statev,

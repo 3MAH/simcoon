@@ -103,7 +103,8 @@ private:
     // Return-mapping controls (local internal-equilibrium Newton loop)
     int maxiter_;           ///< Maximum iterations for return mapping
     double precision_;      ///< Convergence tolerance
-    NCPMethod ncp_ = NCPMethod::fischer_burmeister;   ///< complementarity function of the cutting plane
+    NCPMethod ncp_ = NCPMethod::fischer_burmeister;   ///< complementarity function of the cutting plane (set_ncp)
+    bool nonlinear_kinematic_ = false;   ///< an Armstrong-Frederick back stress is configured (set_ncp refuses min-NCP)
 
     /// Composition invariant cached by initialize(): the flow-rule drift
     /// guard of run() is armed only when at least TWO guarded constraint
@@ -212,9 +213,6 @@ public:
      *     - N_prony, then N_prony quadruples of (E_i, nu_i, etaB_i, etaS_i)
      *   - For damage (type 2):
      *     - damage_type (0=linear, 1=exp, 2=power, 3=weibull), Y_0, Y_c, [type-specific params]
-     * - Optional numerical options after the last mechanism (absent or 0: historical behaviour):
-     *   - props[i]: local complementarity of the cutting plane, 0 Fischer-Burmeister, 1 min-NCP with
-     *     a Fischer-Burmeister fallback (NCPMethod; ModularMaterial(ncp=...))
      *
      * @param props Material properties vector
      * @param offset Starting offset (default: 0)
@@ -258,6 +256,18 @@ public:
         maxiter_ = maxiter;
         precision_ = precision;
     }
+
+    /**
+     * @brief Complementarity function of the cutting plane (the @c ncp option of the run).
+     *
+     * min-NCP is refused with an Armstrong-Frederick back stress: the cutting plane integrates it
+     * along its own iterates, so the full min-NCP steps give a different, and on coarse increments
+     * much less accurate, return than the damped Fischer-Burmeister ones (up to 0.46 off the
+     * closest-point update where Fischer-Burmeister stays at 0.04, on the Chaboche identification
+     * programmes), and the residual does not grow, so the fallback cannot catch it.
+     * @throw std::invalid_argument for min-NCP with an Armstrong-Frederick back stress
+     */
+    void set_ncp(NCPMethod ncp);
 
     /**
      * @brief Get total number of state variables required
@@ -568,7 +578,8 @@ private:
  * @p kinematic_form is the one argument past that interface. Under KinematicForm::total the
  * strain is \f$ \ln\mathbf{U} \f$ in reference components (DR is the identity) and @p sigma is
  * its dual stress \f$ \mathbf{T} \f$; only a hyperelastic elasticity block reads it
- * (ElasticityModule::evaluate).
+ * (ElasticityModule::evaluate). @p ncp, the NCPMethod code of the run (state_variables::ncp),
+ * selects the complementarity function of the cutting plane (ModularUMAT::set_ncp).
  *
  * Each thread keeps a few configured ModularUMAT instances, keyed on (props bit for bit,
  * nstatev, kinematic_form) and reused while that configuration recurs; the state is
@@ -600,7 +611,8 @@ void umat_modular(
     const bool& start,
     double& tnew_dt,
     const int& tangent_mode = tangent_default,
-    const KinematicForm& kinematic_form = KinematicForm::rate
+    const KinematicForm& kinematic_form = KinematicForm::rate,
+    const int& ncp = 0
 );
 
 /**
