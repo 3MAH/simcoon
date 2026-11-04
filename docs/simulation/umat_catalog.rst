@@ -668,12 +668,87 @@ Chaboche identification programmes, this answer is up to 46 % off the closest-po
 where Fischer-Burmeister stays within 4 %. For an accurate Chaboche return, use
 ``tangent_mode = 3`` (closest point).
 
-.. note::
+How the two functions work
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   Why it is faster: on the active surface, min-NCP solves
-   :math:`\min(\Delta p^*, -\Phi) = 0` by semi-smooth Newton. This is the classic cutting plane
-   (Ortiz and Simo 1986), whose first step from :math:`\Delta p = 0` is the full Newton step.
-   Fischer-Burmeister takes only two thirds of it.
+At each increment the law seeks the plastic multiplier :math:`\Delta p` of each yield surface
+that satisfies the Kuhn-Tucker conditions
+
+.. math::
+
+   \Phi \le 0, \qquad \Delta p \ge 0, \qquad \Phi\,\Delta p = 0,
+
+with :math:`\Phi` the yield function (for EPICP,
+:math:`\Phi = \sigma_{Mises} - R(p) - \sigma_Y`): either the point stays elastic
+(:math:`\Delta p = 0`, :math:`\Phi \le 0`) or it lies on the surface (:math:`\Phi = 0`,
+:math:`\Delta p > 0`). The cutting plane solves them by Newton on :math:`\Delta p`, with the
+linearisation :math:`\Phi(\Delta p + \delta p) \approx \Phi + B\,\delta p`,
+:math:`B = \partial\Phi/\partial\Delta p` (for von Mises with isotropic hardening
+:math:`B \approx -(3G + H)`, :math:`H` the hardening slope). A complementarity function turns
+the three conditions into one equation. Both variants use the normalised multiplier
+:math:`\Delta p^* = |B|\,\Delta p`, a stress like :math:`\Phi`.
+
+**Fischer-Burmeister** (``ncp="fischer_burmeister"``) solves
+
+.. math::
+
+   \sqrt{\Phi^2 + \Delta p^{*2}} + \Phi - \Delta p^* = 0 .
+
+The equation is smooth away from :math:`(0, 0)` and decides by itself whether the surface is
+active: Newton never chooses a branch. It extends as is to a coupled system of several surfaces
+(multi-mechanism ``MODUL``, the SMA kernels). Its first step is short: from
+:math:`\Delta p = 0` on a violated surface (:math:`\Phi > 0`), the residual is :math:`2\Phi`
+and its derivative :math:`2B - |B| = 3B`, so the step is :math:`-2\Phi/(3B)`, two thirds of the
+full cutting-plane step :math:`-\Phi/B`. The return then needs about 6 local iterations. The
+stopping criterion is the residual divided by :math:`\sigma_Y`, summed over the surfaces.
+
+**Min** (``ncp="min"``) solves
+
+.. math::
+
+   \min(\Delta p^*, -\Phi) = 0
+
+by semi-smooth Newton (primal-dual active set, Hintermueller, Ito and Kunisch 2002), which
+picks a branch at each iteration:
+
+* active surface (:math:`\Phi > 0` or :math:`-\Phi < \Delta p^*`): it solves
+  :math:`\Phi + B\,\delta p = 0`, the full step :math:`\delta p = -\Phi/B` of the classic cutting
+  plane (Ortiz and Simo 1986);
+* inactive surface: the multiplier goes back to zero, :math:`\delta p = -\Delta p`.
+
+With linear hardening :math:`\Phi` is affine in :math:`\Delta p`, so the first step is the exact
+return, and one more iteration confirms it. With a nonlinear hardening (power law) the return
+takes about 3 iterations instead of 6. The stopping criterion is twice the residual of the chosen
+branch over :math:`\sigma_Y`: on the first step this equals the Fischer-Burmeister residual, and
+near the solution it is at least as strict.
+
+**Fallback.** Within an increment, the min step switches to Fischer-Burmeister for the rest of
+the local solve as soon as its error grows from one iteration to the next (the full step
+overshoots, or the branch choice oscillates) or :math:`B` vanishes. Several coupled surfaces stay
+on Fischer-Burmeister from the start, because the plain semi-smooth Newton can cycle there, the
+set of active surfaces changing from one iteration to the next without converging.
+
+.. list-table:: What ``ncp="min"`` does, case by case
+   :header-rows: 1
+
+   * - Case
+     - Result
+   * - EPICP, linear isotropic hardening
+     - one exact step and one check; the Fischer-Burmeister return to :math:`10^{-10}`
+   * - EPICP, power-law isotropic hardening
+     - about 3 iterations instead of 6; the Fischer-Burmeister return to :math:`10^{-7}`
+   * - EPKCP, ``MODUL`` with isotropic and Prager hardening
+     - the Fischer-Burmeister return to the local tolerance (EPKCP and ``MODUL`` agree to
+       :math:`10^{-12}`)
+   * - ``MODUL`` with several coupled surfaces
+     - no effect: Fischer-Burmeister is kept
+   * - ``MODUL`` with an Armstrong-Frederick back stress
+     - refused (``ValueError``), see above
+   * - any other law, a thermomechanical block, a mean-field model
+     - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
+
+On a batch of :math:`10^4` EPICP points (``sim.umat``, one thread), one increment takes 20 ms
+with Fischer-Burmeister and 14 ms with ``ncp="min"``.
 
 EPICP consistent tangent
 ------------------------

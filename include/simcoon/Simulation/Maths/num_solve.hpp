@@ -35,6 +35,41 @@ void Fischer_Burmeister(const arma::vec &, const arma::vec &, const arma::mat &,
 
 void Fischer_Burmeister_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);
 
+/**
+ * @brief One Newton step of the normalised Fischer-Burmeister reformulation of the local
+ *        Kuhn-Tucker conditions (the default complementarity function of the cutting planes).
+ *
+ * The return mapping seeks multipliers \f$ \Delta p_i \f$ with
+ * \f$ \Phi_i \le 0,\ \Delta p_i \ge 0,\ \Phi_i\,\Delta p_i = 0 \f$ for each surface \f$ i \f$.
+ * With the normalised multiplier \f$ \Delta p_i^* = \Delta p_i\,|B_{ii}| \f$ (a stress, as
+ * \f$ \Phi_i \f$) these three conditions are the single equation
+ * \f[
+ *   \phi_i = \sqrt{\Phi_i^2 + \Delta p_i^{*2}} + \Phi_i - \Delta p_i^* = 0,
+ * \f]
+ * the Fischer-Burmeister function \f$ \sqrt{a^2+b^2} - a - b \f$ with \f$ a = -\Phi_i \f$,
+ * \f$ b = \Delta p_i^* \f$. It is smooth away from \f$ (0, 0) \f$ and decides by itself whether
+ * a surface is active, so the same equation serves one surface or a coupled system of N. The
+ * Newton step solves \f$ J\,\delta p = -\phi \f$ with, \f$ r_i = \sqrt{\Phi_i^2 + \Delta p_i^{*2}} \f$,
+ * \f[
+ *   J_{ij} = \left(\frac{\Phi_i}{r_i} + 1\right) B_{ij}
+ *            + \delta_{ij}\,|B_{ii}| \left(\frac{\Delta p_i^*}{r_i} - 1\right),
+ *   \qquad B_{ij} = \frac{\partial \Phi_i}{\partial \Delta p_j}.
+ * \f]
+ * From \f$ \Delta p = 0 \f$ on a violated surface (\f$ \Phi > 0 \f$, \f$ B < 0 \f$) one row
+ * gives \f$ \phi = 2\Phi \f$, \f$ J = 3B \f$: the step is two thirds of the full cutting-plane
+ * step \f$ -\Phi/B \f$, which ncp_step with NCPMethod::min_fb_fallback takes instead. A row with
+ * \f$ \Phi_i = \Delta p_i^* = 0 \f$ is frozen (\f$ J_{ii} = 10^{12} \f$); a singular \f$ J \f$
+ * gives a zero step. One and two surfaces are solved in closed form, more by LAPACK.
+ *
+ * @param[in] Phi constraints \f$ \Phi_i \f$ (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero), typically the yield stresses
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ *             (Fischer_Burmeister_residual)
+ * @throw simcoon::exception_det when LAPACK fails on a system of more than two surfaces
+ */
 void Fischer_Burmeister_m(const arma::vec &, const arma::vec &, const arma::mat &, arma::vec &, arma::vec &, double &);
 
 /**
