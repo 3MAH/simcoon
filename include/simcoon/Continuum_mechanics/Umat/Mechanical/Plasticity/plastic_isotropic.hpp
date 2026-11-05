@@ -93,6 +93,16 @@ namespace simcoon{
  * \dot{p} = \sqrt{\frac{2}{3} \dot{\boldsymbol{\varepsilon}}^p : \dot{\boldsymbol{\varepsilon}}^p} = \dot{\lambda}
  * \f]
  *
+ * The Gibbs free energy of the single (lead) mechanism, with internal variables
+ * \f$ p \f$ and \f$ \boldsymbol{\varepsilon}^p \f$, reads
+ * \f[
+ * G = -\frac{1}{2}\,\boldsymbol{\sigma} : \mathbf{S} : \boldsymbol{\sigma}
+ * - \boldsymbol{\sigma} : \boldsymbol{\varepsilon}^p
+ * - \boldsymbol{\sigma} : \boldsymbol{\alpha}\,(\theta - \theta_0)
+ * + c_0\left[(\theta - \theta_0) - \theta \ln\frac{\theta}{\theta_0}\right]
+ * - \eta_0\,\theta + E_0 + F(\theta, p)
+ * \f]
+ *
  * **Convex Cutting Plane Algorithm:**
  *
  * The CCP algorithm solves the return mapping problem by reformulating it as a complementarity problem:

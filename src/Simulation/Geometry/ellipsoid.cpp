@@ -15,7 +15,7 @@
  
  */
 
-///@file ellipsoid_characteristics.cpp
+///@file ellipsoid.cpp
 ///@brief Characteristics of an ellipsoidal thermomechanical phase, which hereditates from:
 ///- phase_characteristics
 ///@version 1.0
@@ -37,9 +37,6 @@ namespace simcoon{
 
 //=====Public methods for ellipsoid============================================
 
-/*!
-  \brief default constructor
-*/
 
 //-------------------------------------------------------------
 ellipsoid::ellipsoid() : geometry()
@@ -57,10 +54,6 @@ ellipsoid::ellipsoid() : geometry()
     phi_geom = 0.;
 }
 
-/*!
-  \brief Constructor with parameters
-*/
-
 //-------------------------------------------------------------
     ellipsoid::ellipsoid(const double &mconcentration, const int &mcoatingof, const int &mcoatedby, const double &ma1, const double &ma2, const double &ma3, const double &mpsi_geom, const double &mtheta_geom, const double &mphi_geom) : geometry(mconcentration)
 //-------------------------------------------------------------
@@ -77,10 +70,6 @@ ellipsoid::ellipsoid() : geometry()
     phi_geom = mphi_geom;
 }
 
-/*!
-  \brief Copy constructor
-  \param s ellipsoid_characteristics object to duplicate
-*/
 
 //------------------------------------------------------
 ellipsoid::ellipsoid(const ellipsoid& sv) : geometry(sv)
@@ -98,21 +87,11 @@ ellipsoid::ellipsoid(const ellipsoid& sv) : geometry(sv)
     phi_geom = sv.phi_geom;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
 
 //-------------------------------------
 ellipsoid::~ellipsoid() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for ellipsoid_characteristics
-*/
-    
-    
 //----------------------------------------------------------------------
 ellipsoid& ellipsoid::operator = (const ellipsoid& sv)
 //----------------------------------------------------------------------

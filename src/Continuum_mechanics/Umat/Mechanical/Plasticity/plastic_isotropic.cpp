@@ -41,50 +41,6 @@ using namespace arma;
 
 namespace simcoon {
     
-///@brief The elastic-plastic UMAT with isotropic hardening requires 6 constants for a mechanical coupling:
-
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
-///@brief props[3] : J2 equivalent yield stress limit : sigmaY
-///@brief props[4] : hardening parameter k
-///@brief props[5] : exponent m
-
-///@brief The elastic-plastic UMAT with isotropic hardening requires 8 statev:
-///@brief statev[0] : T_init : Initial temperature
-///@brief statev[1] : Accumulative plastic parameter: p
-///@brief statev[2] : Plastic strain 11: EP(0,0)
-///@brief statev[3] : Plastic strain 22: EP(1,1)
-///@brief statev[4] : Plastic strain 33: EP(2,2)
-///@brief statev[5] : Plastic strain 12: EP(0,1) (*2)
-///@brief statev[6] : Plastic strain 13: EP(0,2) (*2)
-///@brief statev[7] : Plastic strain 23: EP(1,2) (*2)
-
-/// The constitutive model has one lead mechanism, that contains two internal variables : p and EP
-/// The Gibbs free energy is:
-
-/*
- 
- \begin{eqnarray}
- G\left(\b{\sigma},\theta,\b{V}_1\right)&=& G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)+G^{\textrm{ir}} \left(\theta,p\right),
- \EqnCont
- G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)
- 
- = - \f{1}{2} \b{\sigma} \dcon \b{\mathcal{S}} \dcon \b{\sigma} + {c_0}\left[ [\theta-\theta_0]
- -\theta\ln\left(\f{\theta}{\theta_0}\right)\right]-\eta_0\theta+{E}_0 - \b{\sigma} : \b{\varepsilon}^{\textrm{p}}
- - \b\sigma : \b{\alpha} \left(\theta - \theta_0 \right),
- \EqnCont
- G^{\textrm{ir}}\left(\theta,p\right)&=&F(\theta,p)
- \label{eq:elastoplastic_Gibbs_potential}
- \end{eqnarray}
- 
- So the following quantitites are : (A_x = \pfg{G}{x})
- A_sigma = \varepsilon
- A_p =
- A_EP =
- A_theta =
- */
-
 void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp_code)
 {
 
@@ -143,10 +99,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     double Hp=0.;
     double dHpdp=0.;
 
-    // Power-law hardening k p^m through the modular block: for m < 1 the exact slope m k p^(m-1)
-    // is infinite at the onset and the cutting-plane Newton cycles on the first plastic increment
-    // (committed off-surface, silently); PowerLawHardening is exact for p >= 1e-6 and a C1
-    // quadratic blend below.
+    // PowerLawHardening: C1 blend below p = 1e-6 (slope of k p^m infinite at onset for m < 1)
     PowerLawHardening hardening;
     int hardening_offset = 0;
     hardening.configure(vec{k, m}, hardening_offset);
@@ -187,10 +140,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     int compteur = 0;
     double error = 1.;
 
-    // Closest-point projection (tangent_closest_point): the modular von Mises + power-law row on
-    // this kernel's props and state — radial return, the same converged state as the loop below
-    // to the local tolerance, with the helper's exact operator. Condensed states keep the loop.
-    // Bhat / K of the tail only feed the cutting-plane tangent.
+    // Bhat / K below only feed the cutting-plane tangent, not the closest-point branch
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
@@ -257,8 +207,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
     
-    //Computation of the tangent modulus — continuum elastic-plastic operator
-    //assembled via the shared leading-mechanism helper (doc §7.4).
+    // tangent via the shared leading-mechanism helper (doc §7.4)
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
@@ -267,10 +216,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     HessianProvider dLambda_dsigma = nullptr;
     if (Ds_j(0) > simcoon::iota) {
         dLambda_dsigma = [&]() -> std::vector<mat> {
-            // Simo-Hughes algorithmic (consistent) tangent. J2 associated flow
-            // Lambda_eps = eta_stress(sigma), so dLambda_eps/dsigma = d2Phi/dsigma2 = deta_stress(sigma).
-            // Isotropic hardening: the direction has no internal-variable coupling, so this single
-            // dLambda/dsigma term is the complete consistent correction (Q-quadratic).
+            // J2 associated flow: dLambda/dsigma = deta_stress, complete (no internal-variable coupling)
             const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress) };
             return dLambda_dsigma_l;
         };

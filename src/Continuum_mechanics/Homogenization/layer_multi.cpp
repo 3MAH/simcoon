@@ -35,9 +35,6 @@ namespace simcoon{
 
 //=====Public methods for layer_multi====================================
 
-/*!
-  \brief default constructor
-*/
 
 //-------------------------------------------------------------
 layer_multi::layer_multi() : phase_multi(), Dnn(3,3), Dnt(3,3), dXn(3,3), dXt(3,3), sigma_hat(3), dzdx1(3)
@@ -46,9 +43,6 @@ layer_multi::layer_multi() : phase_multi(), Dnn(3,3), Dnt(3,3), dXn(3,3), dXt(3,
 
 }
 
-/*!
-  \brief Constructor with parameters
-*/
 
 //-------------------------------------------------------------
 layer_multi::layer_multi(const mat &mA, const mat &mA_start, const mat &mB, const mat &mB_start, const vec &mA_in, const mat &mDnn, const mat &mDnt, const mat &mdXn, const mat &mdXt, const vec &msigma_hat, const vec &mdzdx1) : phase_multi(mA, mA_start, mB, mB_start, mA_in), Dnn(3,3), Dnt(3,3), dXn(3,3), dXt(3,3), sigma_hat(3), dzdx1(3)
@@ -62,10 +56,6 @@ layer_multi::layer_multi(const mat &mA, const mat &mA_start, const mat &mB, cons
     dzdx1 = mdzdx1;
 }
 
-/*!
-  \brief Copy constructor
-  \param s phase_multi object to duplicate
-*/
     
 //------------------------------------------------------
 layer_multi::layer_multi(const layer_multi& pc) : phase_multi(pc)
@@ -79,19 +69,11 @@ layer_multi::layer_multi(const layer_multi& pc) : phase_multi(pc)
     dzdx1 = pc.dzdx1;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes phase_multi (the arma::mat).
-*/
 
 //-------------------------------------
 layer_multi::~layer_multi() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for phase_multi
-*/
 
 //----------------------------------------------------------------------
 layer_multi& layer_multi::operator = (const layer_multi& pc)

@@ -128,14 +128,7 @@ mat Eshelby_penny(const double &nu) {
     
 	mat S = zeros(6,6);
     
-	// Limit values as ar -> 0 (penny-shaped crack / flat disc)
-	// S_1111 -> 1
-	// S_1122 = S_1133 -> nu/(1-nu)
-	// S_2211 = S_3311 -> 0
-	// S_2222 = S_3333 -> 0
-	// S_2233 = S_3322 -> 0
-	// S_2323 -> 0
-	// S_1212 = S_1313 -> 1/2
+	// ar -> 0 limits: S_1111 = 1, S_1122 = S_1133 = nu/(1-nu), S_1212 = S_1313 = 1/2, all others 0
 	 S(0,0) = 1.;
 	 S(0,1) = nu/(1.-nu);
 	 S(0,2) = nu/(1.-nu);
@@ -145,14 +138,13 @@ mat Eshelby_penny(const double &nu) {
 	 S(2,0) = 0.;
 	 S(2,1) = 0.;
 	 S(2,2) = 0.;
-	 S(3,3) = 0.;
-	 S(4,4) = 2.*(1./2.);  // S_1313 in Voigt: factor 2 for shear
-	 S(5,5) = 2.*(1./2.);  // S_1212 in Voigt: factor 2 for shear
+	 S(3,3) = 2.*(1./2.);  // S_1212 (Voigt index 3 = 12), factor 2 for the engineering shear
+	 S(4,4) = 2.*(1./2.);  // S_1313 (index 4 = 13)
+	 S(5,5) = 0.;          // S_2323 (index 5 = 23): in-plane shear of the crack, unconstrained
 	
 	return S;
 }
 
-//This methods is using the Voigt notations for the tensors.
 void calG(const double &pt, const double &a1, const double &a2, const double &a3, const double &x3, const Mat<int> &Id, const mat &Lt, mat &G)
 {
     

@@ -37,11 +37,10 @@ using namespace arma;
 
 namespace simcoon{
     
-//=====Private methods for ellipsoid_characteristics===================================
+//=====Private methods for step_thermomeca===================================
 
-//=====Public methods for ellipsoid_characteristics============================================
+//=====Public methods for step_thermomeca============================================
 
-//@brief default constructor
 //-------------------------------------------------------------
 step_thermomeca::step_thermomeca() : step()
 //-------------------------------------------------------------
@@ -66,14 +65,6 @@ step_thermomeca::step_thermomeca(const unsigned int &control_type) : step()
     BC_R = eye(3,3);
 }
 
-/*!
- \brief Constructor with parameters
- cBC_meca = mcBC_meca;  Type of mechanical boundary conditions
- BC_meca = mBC_meca;    Target values of the mechanical BC
- cBC_meca = mcBC_meca;  Type of thermal boundary conditions
- BC_T = mBC_T;          target values of the thermal BC
- */
-
 //-------------------------------------------------------------
 step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const mat &mBC_mecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const vec &mBC_Ts, const mat &mBC_w, const mat &mBC_R) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type)
 //-------------------------------------------------------------
@@ -89,31 +80,6 @@ step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, con
     BC_w = mBC_w;
     BC_R = mBC_R;
 }
-
-/*!
- \brief Copy constructor
- \param bl block object to duplicate
- */
-
-//------------------------------------------------------
-step_thermomeca::step_thermomeca(const step_thermomeca& stm) : step(stm)
-//------------------------------------------------------
-{
-    cBC_meca = stm.cBC_meca;
-    BC_meca = stm.BC_meca;
-    mecas = stm.mecas;
-    BC_mecas = stm.mecas;
-    BC_T = stm.BC_T;
-    cBC_T = stm.cBC_T;
-    Ts = stm.Ts;
-    BC_Ts = stm.BC_Ts;
-    BC_w = stm.BC_w;
-    BC_R = stm.BC_R;
-}
-
-/*!
- \brief destructor
- */
 
 step_thermomeca::~step_thermomeca() {}
 
@@ -214,10 +180,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
         //Read all the informations and fill the meca accordingly
         const mat tab_rows = mode3_rows(size_BC);
         if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
-            // Legacy mode-3 FILE convention: the time axis restarts at each step
-            // (first row = anchor at the current state). Shift the axis so it
-            // continues from the current time. In-memory tab_data keeps the strict
-            // absolute-time contract (see solver/blocks.py).
+            // Legacy mode-3 file: the time axis restarts at each step, shift it; in-memory tab_data stays absolute.
             BC_file_n(0) = tab_rows(0,0);
         }
 
@@ -276,9 +239,6 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
     
 }
     
-/*!
- \brief Standard operator = for block
- */
 
 //-------------------------------------------------------------
 void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const double &mT)
@@ -370,10 +330,7 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
         //Read all the informations and fill the meca accordingly
         const mat tab_rows = mode3_rows(size_BC);
         if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
-            // Legacy mode-3 FILE convention: the time axis restarts at each step
-            // (first row = anchor at the current state). Shift the axis so it
-            // continues from the current time. In-memory tab_data keeps the strict
-            // absolute-time contract (see solver/blocks.py).
+            // Legacy mode-3 file: the time axis restarts at each step, shift it; in-memory tab_data stays absolute.
             BC_file_n(0) = tab_rows(0,0);
         }
 
@@ -436,35 +393,7 @@ void step_thermomeca::assess_inc(const double &tnew_dt, double &tinc, const doub
         rve.set_start(corate_type);
     }
 }
-    
-//----------------------------------------------------------------------
-step_thermomeca& step_thermomeca::operator = (const step_thermomeca& stm)
-//----------------------------------------------------------------------
-{
-//	assert(stm.ninc>0);
-//	assert(stm.mode>0);
-    
-	number = stm.number;
-    Dn_init = stm.Dn_init;
-    Dn_mini = stm.Dn_mini;
-    Dn_inc = stm.Dn_inc;
-	ninc = stm.ninc;
-	mode = stm.mode;
-        
-    BC_Time = stm.BC_Time;
-    times = stm.times;
-    
-    cBC_meca = stm.cBC_meca;
-    BC_meca = stm.BC_meca;
-    mecas = stm.mecas;
-    BC_T = stm.BC_T;
-    cBC_T = stm.cBC_T;
-    Ts = stm.Ts;
-    BC_w = stm.BC_w;
-    BC_R = stm.BC_R;
 
-	return *this;
-}
     
 //--------------------------------------------------------------------------
 ostream& operator << (ostream& s, const step_thermomeca& stm)

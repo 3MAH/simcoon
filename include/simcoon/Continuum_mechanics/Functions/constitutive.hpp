@@ -199,6 +199,7 @@ arma::vec Ir05();
         double nu = 0.3;
         mat Liso = L_iso(E, nu, "Enu");
  * @endcode
+ * @throw std::invalid_argument for an unknown convention
  */
 arma::mat L_iso(const double &C1, const double &C2, const std::string &conv="Enu");
 
@@ -214,6 +215,7 @@ arma::mat L_iso(const double &C1, const double &C2, const std::string &conv="Enu
         double nu = 0.3;
         mat Miso = M_iso(E, nu, "Enu");
  * @endcode
+ * @throw std::invalid_argument for an unknown convention
 */
 arma::mat M_iso(const double &C1, const double &C2, const std::string& conv="Enu");
 
@@ -229,6 +231,7 @@ arma::mat M_iso(const double &C1, const double &C2, const std::string& conv="Enu
         double C44 = alead(10000., 100000.);
         mat Lcubic = L_cubic(C11, C12, C44, "Cii");
  * @endcode
+ * @throw std::invalid_argument for an unknown convention
 */
 arma::mat L_cubic(const double &C1, const double &C2, const double &C3, const std::string& conv="EnuG");
 
@@ -244,6 +247,7 @@ arma::mat L_cubic(const double &C1, const double &C2, const double &C3, const st
         double C44 = alead(10000., 100000.);
         mat Mcubic = M_cubic(C11,C12,C44);
  * @endcode 
+ * @throw std::invalid_argument for an unknown convention
 */
 arma::mat M_cubic(const double &C1, const double &C2, const double &C3, const std::string& conv = "EnuG");
 
@@ -297,14 +301,14 @@ arma::mat inv_cubic(const arma::mat &A);
  * @param C12 second stiffness coefficient (or Ey)
  * @param C13 third stiffness coefficient (or Ez)
  * @param C22 fourth stiffness coefficient (or nu_xy)
- * @param C23 fifth stiffness coefficient (or nu_yz)
- * @param C33 sixth stiffness coefficient (or nu_xz)
+ * @param C23 fifth stiffness coefficient (or nu_xz)
+ * @param C33 sixth stiffness coefficient (or nu_yz)
  * @param C44 seventh stiffness coefficient (or G_xy)
- * @param C55 eighth stiffness coefficient (or G_yz)
- * @param C66 ninth stiffness coefficient (or G_xz)
+ * @param C55 eighth stiffness coefficient (or G_xz)
+ * @param C66 ninth stiffness coefficient (or G_yz)
  * @param conv convention string: "Cii" for stiffness coefficients or "EnuG" for material parameters
  * @return The 6x6 stiffness matrix considering a Voigt notation (arma::mat)
- * @details Arguments could be all the stiffness coefficients (\f$ C_{ij} \f$) or the material parameter. In this last case for an orthotropic material the material parameters should be : \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{yz}, \nu_{xz}, G_{xy}, G_{yz}, G_{xz} \f$.
+ * @details Arguments could be all the stiffness coefficients (\f$ C_{ij} \f$) or the material parameter. In this last case for an orthotropic material the material parameters should be : \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{xz}, \nu_{yz}, G_{xy}, G_{xz}, G_{yz} \f$.
  * The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
  * @code 
         double C11 = alead(10000., 100000.);
@@ -318,6 +322,7 @@ arma::mat inv_cubic(const arma::mat &A);
         double C66 = alead(10000., 100000.);
         mat Lortho = L_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66,"Cii");
  * @endcode 
+ * @throw std::invalid_argument for an unknown convention
  */
 arma::mat L_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const std::string& conv="EnuG");
 
@@ -327,14 +332,14 @@ arma::mat L_ortho(const double &C11, const double &C12, const double &C13, const
  * @param C12 second stiffness coefficient (or Ey)
  * @param C13 third stiffness coefficient (or Ez)
  * @param C22 fourth stiffness coefficient (or nu_xy)
- * @param C23 fifth stiffness coefficient (or nu_yz)
- * @param C33 sixth stiffness coefficient (or nu_xz)
+ * @param C23 fifth stiffness coefficient (or nu_xz)
+ * @param C33 sixth stiffness coefficient (or nu_yz)
  * @param C44 seventh stiffness coefficient (or G_xy)
- * @param C55 eighth stiffness coefficient (or G_yz)
- * @param C66 ninth stiffness coefficient (or G_xz)
+ * @param C55 eighth stiffness coefficient (or G_xz)
+ * @param C66 ninth stiffness coefficient (or G_yz)
  * @param conv convention string: "Cii" for stiffness coefficients or "EnuG" for material parameters
  * @return The 6x6 compliance matrix considering a Voigt notation (arma::mat)
- * @details Arguments could be all the stiffness coefficients (\f$ C_{ij} \f$) or the material parameter. In this last case for an orthotropic material the material parameters should be : \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{yz}, \nu_{xz}, G_{xy}, G_{yz}, G_{xz} \f$.
+ * @details Arguments could be all the stiffness coefficients (\f$ C_{ij} \f$) or the material parameter. In this last case for an orthotropic material the material parameters should be : \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{xz}, \nu_{yz}, G_{xy}, G_{xz}, G_{yz} \f$.
  * The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
  * @code 
        double C11 = alead(10000., 100000.);
@@ -348,6 +353,7 @@ arma::mat L_ortho(const double &C11, const double &C12, const double &C13, const
        double C66 = alead(10000., 100000.);
        mat Mortho = M_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66,"Cii");
  * @endcode 
+ * @throw std::invalid_argument for an unknown convention
  */
 arma::mat M_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const std::string& conv="EnuG");
 
@@ -365,6 +371,7 @@ arma::mat M_ortho(const double &C11, const double &C12, const double &C13, const
         double axis = 1;
         mat Lisotrans = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
  * @endcode 
+ * @throw std::invalid_argument for an axis other than 1, 2 or 3
  */
 arma::mat L_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis);
 
@@ -382,6 +389,7 @@ arma::mat L_isotrans(const double &EL, const double &ET, const double &nuTL, con
         double axis = 1;
         mat Misotrans = M_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
  * @endcode 
+ * @throw std::invalid_argument for an axis other than 1, 2 or 3
  */
 arma::mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis);
 

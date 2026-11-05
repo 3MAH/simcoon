@@ -162,15 +162,17 @@ arma::mat Eshelby_oblate(const double &, const double &);
  * as a function of the Poisson ratio \f$ \nu \f$. This corresponds to the limit case of an oblate spheroid when the aspect ratio
  * \f$ a_r = \frac{a1}{a2} = \frac{a1}{a3} \rightarrow 0 \f$.
  * The penny-shaped inclusion is oriented such as the normal to the crack plane is the axis \f$ 1 \f$.
- * Returns the Eshelby tensor as a mat, according to the conventions of a localisation tensor.
+ * Returns the Eshelby tensor as a mat, according to the conventions of a localisation tensor
+ * (Voigt order [11, 22, 33, 12, 13, 23]): \f$ S_{1212} = S_{1313} = 1/2 \f$ (1 with the engineering
+ * shear), the in-plane shear \f$ S_{2323} = 0 \f$.
 \f[
-    \mathbf{S}= \begin{array}{cccccc}
+    \mathbf{S}= \left( \begin{array}{cccccc}
         1 & \frac{\nu}{1-\nu} & \frac{\nu}{1-\nu} & 0 & 0 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0 \\
-        0 & 0 & 0 & 0 & 0 & 0 \\
-        0 & 0 & 0 & 0 & 0 & 0 \\
-        0 & 0 & 0 & 0 & 0 & 1 \end{array} \right)
+        0 & 0 & 0 & 1 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 1 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \end{array} \right)
 \f]
  * @details Example: 
  * @code 
@@ -179,7 +181,7 @@ arma::mat Eshelby_oblate(const double &, const double &);
 */
 arma::mat Eshelby_penny(const double &);
 
-//This methods is using the Voigt notations for the tensors.
+/// Uses the Voigt notation for the tensors.
 void calG(const double &, const double &, const double &, const double &, const double &, const arma::Mat<int> &, const arma::mat &, arma::mat &);
 
 //Weighted Gauss integration over a sphere to represent the integration over the ellipsoid

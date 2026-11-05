@@ -837,6 +837,17 @@ arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F,
  * corate_type_material_tangent (a tangent form, not a rate): both are the identity.
 */
 arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);
+
+/**
+ * @brief Box tangent of rate @p corate_type to material tangent: the exact inverse of
+ * DSDE_2_DtauDe_corate() (same per-corate transports, see there).
+ *
+ * @param[in] Lt (6x6 arma::mat) box tangent \f$ \partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$ (Kirchhoff measure, no \f$ 1/J \f$)
+ * @param[in] corate_type (int) objective rate of the box (0-5, corate_type_total, corate_type_material_tangent)
+ * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
+ * @param[in] tau (3x3 arma::mat) Kirchhoff stress \f$ \boldsymbol\tau \f$
+ * @return (6x6 arma::mat) \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$
+ */
 arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 
 /**

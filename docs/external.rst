@@ -10,6 +10,10 @@ You can develop such an external plugin using the Simcoon API. Three plugin form
 
 Examples are provided in the ``external/`` folder.
 
+The plugins serve the small-strain route of the solver: under finite strain (control ``green_lagrange``,
+``logarithmic``, ``biot``, ``F`` or ``gradU``) the solver refuses them, since the plugin
+API has no finite-strain entry.
+
 UMEXT Plugin Format
 -------------------
 
@@ -370,6 +374,12 @@ The test structure is identical to TUMEXT with the ``UMABA`` name; its reference
 
     The TUMABA test is located in ``test_extern/`` because it requires linking against an external 
     Fortran UMAT library, which is compiled separately from the main simcoon library.
+
+**TUMANS Test**
+
+Located in ``test_extern/Umats/UMANS/``, this test validates the Ansys USERMAT compatibility layer
+on the TUMABA reference case (the same elastic law, ``external/USERMAT_ANSYS_ELASTIC.for``); its
+reference is in ``testBin/Umats/UMANS/comparison/``. Like TUMABA it needs a Fortran compiler.
 
 Running the Tests
 -----------------

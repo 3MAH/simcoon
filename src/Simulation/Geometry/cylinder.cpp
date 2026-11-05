@@ -15,7 +15,7 @@
  
  */
 
-///@file ellipsoid_characteristics.cpp
+///@file cylinder.cpp
 ///@brief Characteristics of an cylinder thermomechanical phase, which hereditates from:
 ///- phase_characteristics
 ///@version 1.0
@@ -37,10 +37,6 @@ namespace simcoon{
 
 //=====Public methods for cylinder============================================
 
-/*!
-  \brief default constructor
-*/
-
 //-------------------------------------------------------------
 cylinder::cylinder() : geometry()
 //-------------------------------------------------------------
@@ -55,10 +51,6 @@ cylinder::cylinder() : geometry()
     theta_geom = 0.;
     phi_geom = 0.;
 }
-
-/*!
-  \brief Constructor with parameters
-*/
 
 //-------------------------------------------------------------
     cylinder::cylinder(const double &mconcentration, const int &mcoatingof, const int &mcoatedby, const double &mL, const double &mR, const double &mpsi_geom, const double &mtheta_geom, const double &mphi_geom) : geometry(mconcentration)
@@ -75,11 +67,6 @@ cylinder::cylinder() : geometry()
     phi_geom = mphi_geom;
 }
 
-/*!
-  \brief Copy constructor
-  \param s cylinder_characteristics object to duplicate
-*/
-
 //------------------------------------------------------
 cylinder::cylinder(const cylinder& sv) : geometry(sv)
 //------------------------------------------------------
@@ -95,21 +82,10 @@ cylinder::cylinder(const cylinder& sv) : geometry(sv)
     phi_geom = sv.phi_geom;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
-
 //-------------------------------------
 cylinder::~cylinder() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for cylinder_characteristics
-*/
-    
-    
 //----------------------------------------------------------------------
 cylinder& cylinder::operator = (const cylinder& sv)
 //----------------------------------------------------------------------

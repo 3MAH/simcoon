@@ -41,15 +41,11 @@ using namespace arma;
 
 namespace simcoon {
 
-//=============================================================================
-// ABAQUS UMAT TRANSFER FUNCTIONS
-//=============================================================================
+// ==== ABAQUS UMAT TRANSFER FUNCTIONS ====
 
 namespace {
 
-// FE arrays hold the element's ntens components: entry i is the simcoon component K(i). The
-// others have zero strain (ndi = 3) or are stress-free, solved by the material point (ndi < 3,
-// condensed_state.hpp)
+// FE entry i = simcoon component K(i); the others: zero strain (ndi = 3) or stress-free (ndi < 3)
 struct fea_components {
     int ntens;
     int K[6];
@@ -97,10 +93,8 @@ void mat2fe(const mat &M, const fea_components &K, double *a) {
         for (int i = 0; i < K.ntens; i++) a[j*K.ntens + i] = M(K(i), K(j));
 }
 
-// STATEV after the bridge's nheader entries: the stress-free strain (ndi < 3, condensed_state.hpp)
-// in simcoon order, then the law. The free strain is read at the start of the increment, rotated
-// with it (DR) as the FE code rotates the strain: the material point then solves its change, not
-// the whole value
+// STATEV after nheader: the stress-free strain (simcoon order), then the law; it is rotated with DR
+// like the FE strain, so the material point solves its change, not its whole value
 void unpack_statev(const double *statev, const int &nstatev, const int &nheader, const uvec &C, const mat &DR, vec &Etot, vec &statev_smart) {
     if (!C.is_empty()) {
         vec E_C = zeros(6);
@@ -225,9 +219,7 @@ mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
 }
 
 int abaqus_kinematic_form(const char *cmname) {
-    // CMNAME is a space-padded CHARACTER*80 (no terminator); a C caller's string stops at '\0'
-    // and is read up to it only. `_R` must be the whole suffix: any other tail (EPICP_REF, ...)
-    // is ignored, as before the suffix existed
+    // CMNAME: space-padded CHARACTER*80 (a C string stops at '\0'); '_R' must be the whole suffix
     if (std::find(cmname, cmname + 7, '\0') != cmname + 7)
         return corate_type_total;
     return (cmname[5] == '_' && (cmname[6] == 'R' || cmname[6] == 'r') && (cmname[7] == ' ' || cmname[7] == '\0'))
@@ -403,9 +395,7 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
     pack_statev(Etot_end, statev_smart, 7, cs.C, statev);
 }
 
-//=============================================================================
-// ANSYS USERMAT TRANSFER FUNCTIONS
-//=============================================================================
+// ==== ANSYS USERMAT TRANSFER FUNCTIONS ====
 
 void ansys2smart_M(const double *stress, const double *dsdePl, const double *strain, const double *dstrain,
     const double &Time, const double &Temp, const double &dTemp,

@@ -37,11 +37,10 @@ using namespace arma;
 
 namespace simcoon{
     
-//=====Private methods for ellipsoid_characteristics===================================
+//=====Private methods for step_meca===================================
 
-//=====Public methods for ellipsoid_characteristics============================================
+//=====Public methods for step_meca============================================
 
-//@brief default constructor
 //-------------------------------------------------------------
 step_meca::step_meca() : step()
 //-------------------------------------------------------------
@@ -52,7 +51,7 @@ step_meca::step_meca() : step()
 
 step_meca::step_meca(const unsigned int &control_type) : step()
 {
-    if (control_type == 5 || control_type == 6) { //Control with F (4) or gradU (5)
+    if (control_type == 5 || control_type == 6) { // control by F (5) or grad u (6): 9 components
         cBC_meca = zeros<Col<int> >(9);
         BC_meca = zeros(9);
     }
@@ -66,16 +65,6 @@ step_meca::step_meca(const unsigned int &control_type) : step()
     BC_R = eye(3,3);
 }
     
-    
-/*!
- \brief Constructor with parameters
- cBC_meca = mcBC_meca;  Type of boundary conditions
- BC_meca = mBC_meca;    Target values of the BC
- BC_T = mBC_T;          target temperature
- Etot = mEtot;          current strain
- sigma = msigma;        current stress
- T = mT;                current temperature
- */    
     
 //-------------------------------------------------------------
 step_meca::step_meca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const mat &mBC_mecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const vec &mBC_Ts, const mat &mBC_w, const mat &mBC_R) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type)
@@ -92,31 +81,6 @@ step_meca::step_meca(const int &mnumber, const double &mDn_init, const double &m
     BC_w = mBC_w;
     BC_R = mBC_R;
 }
-
-/*!
- \brief Copy constructor
- \param bl block object to duplicate
- */
-
-//------------------------------------------------------
-step_meca::step_meca(const step_meca& stm) : step(stm)
-//------------------------------------------------------
-{
-    cBC_meca = stm.cBC_meca;
-    BC_meca = stm.BC_meca;
-    mecas = stm.mecas;
-    BC_mecas = stm.mecas;
-    BC_T = stm.BC_T;
-    cBC_T = stm.cBC_T;
-    Ts = stm.Ts;
-    BC_Ts = stm.BC_Ts;
-    BC_w = stm.BC_w;
-    BC_R = stm.BC_R;
-}
-
-/*!
- \brief destructor
- */
 
 step_meca::~step_meca() {}
 
@@ -203,10 +167,7 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
         //Read all the informations and fill the meca accordingly
         const mat tab_rows = mode3_rows(size_BC);
         if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
-            // Legacy mode-3 FILE convention: the time axis restarts at each step
-            // (first row = anchor at the current state). Shift the axis so it
-            // continues from the current time. In-memory tab_data keeps the strict
-            // absolute-time contract (see solver/blocks.py).
+            // Legacy mode-3 file: the time axis restarts at each step, shift it; in-memory tab_data stays absolute.
             BC_file_n(0) = tab_rows(0,0);
         }
 
@@ -259,22 +220,13 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
 
 namespace {
 
-// Real 3x3 matrix logarithm via inverse scaling-and-squaring with
-// Denman-Beavers square roots — real arithmetic + inv() only. Avoids
-// arma::logmat's complex Schur (zgees) LAPACK path, which crashes (access
-// violation) inside netlib reference LAPACK on Windows. Valid for matrices
-// with no eigenvalue on the closed negative real axis — true for the relative
-// deformation gradient of a physically meaningful step (det F > 0, rotation
-// per step < 180 deg). Returns false when the iteration does not converge;
-// the caller falls back to arma::logmat.
+// Real log (inverse scaling-and-squaring, Denman-Beavers): avoids arma::logmat's zgees, which crashes in
+// netlib LAPACK on Windows. Needs no eigenvalue on the closed negative real axis; false if not converged.
 bool real_logmat_3x3(const arma::mat &A_in, arma::mat &logA) {
     const arma::mat I = arma::eye(3, 3);
     arma::mat A = A_in;
     int k = 0;
-    // Square-root until A is close to I (log converges fast there).
-    // Frobenius, not the spectral norm: norm(X,2) is a full SVD (LAPACK
-    // dgesdd) used here only as a proximity test, and ||.||_2 <= ||.||_F
-    // always, so the 0.25 cutoff stays at least as conservative.
+    // Square-root until A is near I; Frobenius norm avoids an SVD and ||.||_2 <= ||.||_F keeps the cutoff conservative.
     while (arma::norm(A - I, "fro") > 0.25) {
         if (++k > 40) return false;
         arma::mat Y = A, Z = I;   // Denman-Beavers: Y -> sqrt(A)
@@ -327,9 +279,7 @@ void geodesic_F_increments(const arma::mat &F_prev, const arma::vec &BC_meca, co
     }
     arma::mat F_tilde = F_target * F_prev_inv;
 
-    // Logarithm of the total transformation: real-arithmetic path first
-    // (portable — see real_logmat_3x3), arma::logmat (complex Schur) only
-    // as a fallback for pathological steps.
+    // arma::logmat only as a fallback of real_logmat_3x3.
     arma::mat logF;
     if (!real_logmat_3x3(F_tilde, logF)) {
         logF = arma::real(arma::logmat(F_tilde));
@@ -472,10 +422,7 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
         //Read all the informations and fill the meca accordingly
         const mat tab_rows = mode3_rows(size_BC);
         if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
-            // Legacy mode-3 FILE convention: the time axis restarts at each step
-            // (first row = anchor at the current state). Shift the axis so it
-            // continues from the current time. In-memory tab_data keeps the strict
-            // absolute-time contract (see solver/blocks.py).
+            // Legacy mode-3 file: the time axis restarts at each step, shift it; in-memory tab_data stays absolute.
             BC_file_n(0) = tab_rows(0,0);
         }
 
@@ -521,10 +468,6 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     
 }
     
-    /*!
-     \brief Standard operator = for block
-     */
-    
     //----------------------------------------------------------------------
 void step_meca::assess_inc(const double &tnew_dt, double &tinc, const double &Dtinc, phase_characteristics &rve, double &Time, const double &DTime, const mat &DR, const int &corate_type) {
     
@@ -538,35 +481,7 @@ void step_meca::assess_inc(const double &tnew_dt, double &tinc, const double &Dt
         rve.set_start(corate_type);
     }
 }
-    
-//----------------------------------------------------------------------
-step_meca& step_meca::operator = (const step_meca& stm)
-//----------------------------------------------------------------------
-{
-//	assert(stm.ninc>0);
-//	assert(stm.mode>0);
-    
-	number = stm.number;
-    Dn_init = stm.Dn_init;
-    Dn_mini = stm.Dn_mini;
-    Dn_inc = stm.Dn_inc;
-	ninc = stm.ninc;
-	mode = stm.mode;
-    
-    BC_Time = stm.BC_Time;
-    times = stm.times;
 
-    cBC_meca = stm.cBC_meca;
-    BC_meca = stm.BC_meca;
-    mecas = stm.mecas;
-    BC_T = stm.BC_T;
-    cBC_T = stm.cBC_T;
-    Ts = stm.Ts;
-    BC_w = stm.BC_w;
-    BC_R = stm.BC_R;
-    
-	return *this;
-}
     
 //--------------------------------------------------------------------------
 ostream& operator << (ostream& s, const step_meca& stm)

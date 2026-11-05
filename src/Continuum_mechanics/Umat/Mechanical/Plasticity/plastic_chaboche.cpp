@@ -39,33 +39,6 @@ using namespace arma;
 
 namespace simcoon {
     
-///@brief The mechanical elastic-plastic UMAT with kinematic + isotropic hardening requires 7 constants:
-
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
-///@brief props[3] : J2 equivalent yield stress limit : sigmaY
-///@brief props[4] : hardening parameter k
-///@brief props[5] : exponent m
-///@brief props[6] : linear kinematical hardening h
-
-///@brief The elastic-plastic UMAT with kinematic + isotropic hardening requires 14 statev:
-///@brief statev[0] : T_init : Initial temperature
-///@brief statev[1] : Accumulative plastic parameter: p
-///@brief statev[2] : Plastic strain 11: EP(0,0)
-///@brief statev[3] : Plastic strain 22: EP(1,1)
-///@brief statev[4] : Plastic strain 33: EP(2,2)
-///@brief statev[5] : Plastic strain 12: EP(0,1) (*2)
-///@brief statev[6] : Plastic strain 13: EP(0,2) (*2)
-///@brief statev[7] : Plastic strain 23: EP(1,2) (*2)
-///@brief statev[8] : Backstress 11: X(0,0)
-///@brief statev[9] : Backstress 11: X(1,1)
-///@brief statev[10] : Backstress 11: X(2,2)
-///@brief statev[11] : Backstress 11: X(0,1)
-///@brief statev[12] : Backstress 11: X(0,2)
-///@brief statev[13] : Backstress 11: X(1,2)
-
-
 void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
@@ -86,8 +59,6 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     double D_1 = props(7);
     double C_2 = props(8);
     double D_2 = props(9);
-    //double X_0 = props(10);
-    //double ep_eq0 = props(11);
     
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
@@ -137,15 +108,12 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     X_2(4) = statev(30);
     X_2(5) = statev(31);
     
-    // Isotropic Voce term Hp = R(p) = Q (1 - exp(-b p)) through the modular block: the isotropic
-    // state is p, statev(32) is its output (the loop used to accumulate Hp by explicit Euler of
-    // dHp = b (Q - Hp) dp, a step-size dependent approximation of the same law).
+    // Voce R(p) in closed form from p; statev(32) is an output only
     VoceHardening hardening;
     { int off = 0; hardening.configure(vec{Q, b}, off); }
     double Hp = hardening.R(p);
 
-    //Rotation of internal variables (tensors): the back-strains are strain-like, the
-    //back-stresses stress-like
+    // back-strains rotate strain-like, back-stresses stress-like
     EP = rotate_strain(EP, DR);
     a_1 = rotate_strain(a_1, DR);
     a_2 = rotate_strain(a_2, DR);
@@ -226,10 +194,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     int compteur = 0;
     double error = 1.;
 
-    // Closest-point projection (tangent_closest_point): the modular von Mises + Voce + Chaboche
-    // row on this kernel's props and state (backward-Euler state and total derivatives in
-    // PlasticityMechanism::refresh_state). Condensed states keep the loop. Bhat / K of the tail
-    // only feed the cutting-plane tangent.
+    // Bhat / K below only feed the cutting-plane tangent, not the closest-point branch
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
@@ -270,10 +235,8 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         dHpdp = hardening.dR_dp(p);
         dPhidsigma = eta_stress(stress-X);
         dPhidp = -1.*dHpdp;
-//        dPhidp = -1.*dHpdp;
         dPhida_1 = -1.*(2./3.)*C_1*(eta_stress(stress-X)%Ir05());
         dPhida_2 = -1.*(2./3.)*C_2*(eta_stress(stress-X)%Ir05());
-//        dPhida = 0.*(eta_stress(stress - X)%Ir05());
         
         //compute Phi and the derivatives
         Phi(0) = Mises_stress(stress-X) - Hp - sigmaY;
@@ -313,8 +276,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     vec Da_1 = a_1 - a_1start;
     vec Da_2 = a_2 - a_2start;
         
-    //Computation of the tangent modulus — continuum elastic-plastic operator
-    //assembled via the shared leading-mechanism helper (doc §7.4).
+    // tangent via the shared leading-mechanism helper (doc §7.4)
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
@@ -322,9 +284,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
         tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // Simo-Hughes algorithmic tangent on the cutting-plane state. J2 flow on the effective
-            // stress (sigma-X): dLambda_eps/dsigma = deta_stress(stress-X); the backstress state
-            // coupling is only in the closest-point branch (tangent_closest_point).
+            // J2 flow on sigma-X; the backstress coupling is only in the closest-point branch
             const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress - X) };
             return dLambda_dsigma_l;
         });

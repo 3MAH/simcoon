@@ -43,9 +43,7 @@ namespace {
 // d22 at transverse failure (Y_t > Y_22_u): held there, d12 keeps its own law
 constexpr double d_broken = 0.99;
 
-// The fibre frame (fibres along 1), damaged: the compliance of the 22-33 block and of G23 scaled
-// by 1/(1 - d22), of G12 and G13 by 1/(1 - d12); nuTL is the minor Poisson ratio, as in L_isotrans.
-// The stiffness is the inverse of the 11-22-33 block plus the reciprocal shears.
+// fibre frame (fibres along 1); nuTL is the minor Poisson ratio, as in L_isotrans
 struct damaged_elasticity {
     double EL, ET, nuTL, nuTT, GLT;
 
@@ -268,9 +266,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     d_12 = d(1);
 
     // ---- 3. Tangent of the two-stage update (plasticity, then damage) ----
-    // dEel/deps = I - Lambda_p (x) L0 Lambda_p / h_p when plasticity is active (the direction held
-    // fixed: continuum); the active damage mechanisms then solve dPhi_l = 0 with
-    // dsigma = L~ dEel - L~ Lambda_j dd_j
+    // plastic flow direction held fixed (continuum), then the active damage set linearized exactly
     mat A = eye(6, 6);
     if (Dp(0) > simcoon::iota) {
         const double h_p = sum(Lambda_p % (L0*Lambda_p)) + dhardening(p_ts);

@@ -80,9 +80,8 @@ void check_sub_phases(const phase_characteristics &phase) {
         throw std::invalid_argument(name + " needs its sub-phases: pass them (phases=) to the solver or to L_eff.");
     }
 
-    //The props are the scheme's settings only, [mp, np, n_matrix, ...] then the options of
-    //mean_field_options. The length and the option values turn the pre-2.0 layout
-    //[nphases, file number, mp, np, n_matrix] into an error instead of a misread n_matrix.
+    //props = the scheme's settings [mp, np, n_matrix, ...] + mean_field_options; the length check
+    //turns the pre-2.0 layout [nphases, file number, mp, np, n_matrix] into an error
     const bool self_consistent = (name == "MISCN");
     const uword n_min = (name == "MIPLN") ? 0 : ((name == "MIHEN") ? 2 : 3);
     const uword n_max = self_consistent ? 8 : ((name == "MIMTN") ? 5 : n_min);
@@ -149,12 +148,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
 	if (start) {
 
         for (int i=0; i<nphases; i++) {
-            // The localization schemes (Hill interaction tensors, concentration
-            // A, Lt_eff assembly) are built on the CONTINUUM phase tangents —
-            // the incremental Mori-Tanaka / self-consistent / periodic-layer
-            // formulations. Pin the sub-phase mode so the caller's tangent_mode
-            // (algorithmic by default since 2.0) never leaks into the
-            // localization. Persistent member: set once at start.
+            // localization is built on the CONTINUUM phase tangents: pin the sub-phase tangent_mode
             phase.sub_phases[i].sptr_sv_global->tangent_mode = simcoon::tangent_continuum;
             //Run the appropriate constitutive model
             select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
@@ -209,13 +203,9 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
         for (unsigned int i=0; i<phase.sub_phases.size(); i++) {
             phase.sub_phases[i].sptr_sv_global->to_start();
             
-            //Theta method for the tangent modulus
             //mat Lt_start = umat_sub_phases_M->Lt
             select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
 
-            //Theta method for the tangent modulus
-            //umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-            //Lt* = (1 - (2./3.))*Lt_start + 2./3.*Lt;
         }
         
         error = 0.;

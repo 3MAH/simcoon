@@ -208,6 +208,19 @@ TEST(Teshelby, closed_form_applies_to_isotropic_spheroids_only)
     EXPECT_EQ(norm(S - S0, "fro"), 0.);
 }
 
+// The penny-shaped crack (normal 1) is the ar -> 0 limit of the oblate tensor and of the integral.
+TEST(Teshelby, penny_is_the_flat_oblate_limit)
+{
+    const eshelby_quadrature &q = eshelby_quadrature_points(200, 200);
+    for (double nu : {0., 0.25, 0.3, 0.45}) {
+        const mat S = Eshelby_penny(nu);
+        EXPECT_LT(norm(S - Eshelby_oblate(nu, 1.E-6), "fro"), 1.E-4) << "nu " << nu;
+        const mat L = L_iso(70000., nu, "Enu");
+        const mat S_num = Eshelby(L, 1.E-5, 1., 1., q.x, q.wx, q.y, q.wy, q.mp, q.np);
+        EXPECT_LT(norm(S - S_num, "fro"), 1.E-3) << "nu " << nu;
+    }
+}
+
 // Rule 1 (half sphere, trapezoidal rule in phi): its own tables, the same integral.
 TEST(Teshelby, half_sphere_rule)
 {

@@ -10,7 +10,7 @@
  */
 
 ///@file num_solve.hpp
-///@brief random number generators
+///@brief Newton and Fischer-Burmeister solvers of the local return-mapping systems
 ///@author Chemisky
 
 #pragma once
@@ -29,11 +29,53 @@ namespace simcoon{
  */
 
     
-void Newton_Raphon(const arma::vec &, const arma::vec &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief One plain Newton step on the constraints: \f$ \delta p = -B^{-1}\,\Phi \f$, no complementarity.
+ *
+ * The solvers of this file target the Kuhn-Tucker conditions \f$ \Phi_i \le 0,\ \Delta p_i \ge 0,\
+ * \Phi_i\,\Delta p_i = 0 \f$, with \f$ \Delta p = \dot{p}\,\Delta t \f$. A singular \f$ B \f$ gives a zero step.
+ * @param[in] Phi constraints \f$ \Phi_i \f$ (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\Phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Newton_Raphon(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, arma::vec &Dp, arma::vec &dp, double &error);
 
-void Fischer_Burmeister(const arma::vec &, const arma::vec &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief One Newton step of the non-normalised Fischer-Burmeister reformulation of the Kuhn-Tucker conditions.
+ *
+ * As Fischer_Burmeister_m with \f$ \Delta p_i \f$ in place of the normalised \f$ \Delta p_i^* \f$:
+ * \f$ \phi_i = \sqrt{\Phi_i^2 + \Delta p_i^2} + \Phi_i - \Delta p_i \f$. A singular Jacobian gives a zero step.
+ * @param[in] Phi constraints \f$ \Phi_i \f$ (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Fischer_Burmeister(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, arma::vec &Dp, arma::vec &dp, double &error);
 
-void Fischer_Burmeister_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief Fischer_Burmeister with an upper limit on each multiplier, \f$ \Phi^l_i \le 0 \f$ (e.g. \f$ \Phi^l = p - 1 \f$).
+ *
+ * On a row where \f$ \Phi^l_i \neq 0 \f$ the equation is \f$ \phi_{1,i}^2 + \phi_{2,i}^2 = 0 \f$, with
+ * \f$ \phi_1 \f$ the Fischer-Burmeister function of \f$ (\Phi^p_i, \Delta p_i) \f$ and
+ * \f$ \phi_2 = |\Phi^l_i| + \Phi^l_i \f$; other rows are those of Fischer_Burmeister.
+ * @param[in] Phi_p constraints of the mechanisms (N)
+ * @param[in] Phi_l limit constraints (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom Jacobian \f$ \partial \Phi^p / \partial \Delta p \f$ (N x N)
+ * @param[in] denom_l Jacobian \f$ \partial \Phi^l / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Fischer_Burmeister_limits(const arma::vec &Phi_p, const arma::vec &Phi_l, const arma::vec &Y_crit, const arma::mat &denom, const arma::mat &denom_l, arma::vec &Dp, arma::vec &dp, double &error);
 
 /**
  * @brief One Newton step of the normalised Fischer-Burmeister reformulation of the local
@@ -91,7 +133,19 @@ void Fischer_Burmeister_m(const arma::vec &, const arma::vec &, const arma::mat 
  */
 double Fischer_Burmeister_residual(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, const arma::vec &Dp);
 
-void Fischer_Burmeister_m_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief Fischer_Burmeister_limits with the normalised multipliers \f$ \Delta p_i^* = \Delta p_i\,|B_{ii}| \f$ of Fischer_Burmeister_m.
+ * @param[in] Phi_p constraints of the mechanisms (N)
+ * @param[in] Phi_l limit constraints (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom Jacobian \f$ B = \partial \Phi^p / \partial \Delta p \f$ (N x N)
+ * @param[in] denom_l Jacobian \f$ \partial \Phi^l / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Fischer_Burmeister_m_limits(const arma::vec &Phi_p, const arma::vec &Phi_l, const arma::vec &Y_crit, const arma::mat &denom, const arma::mat &denom_l, arma::vec &Dp, arma::vec &dp, double &error);
 
 /**
  * @brief Complementarity function of a local return-mapping Newton (the loops on Fischer_Burmeister_m).
@@ -148,7 +202,14 @@ private:
     double prev_error_ = -1.;
 };
     
-arma::mat denom_FB_m(const arma::vec &, const arma::mat &, const arma::vec &);
+/**
+ * @brief Jacobian \f$ J \f$ of the normalised Fischer-Burmeister system of Fischer_Burmeister_m, without the step.
+ * @param[in] Phi constraints (N)
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in] Dp multipliers (N)
+ * @return \f$ J \f$ (N x N); a row with \f$ \Phi_i = \Delta p_i^* = 0 \f$ is frozen (\f$ J_{ii} = 10^{12} \f$)
+ */
+arma::mat denom_FB_m(const arma::vec &Phi, const arma::mat &denom, const arma::vec &Dp);
     
 
 /** @} */ // end of maths group

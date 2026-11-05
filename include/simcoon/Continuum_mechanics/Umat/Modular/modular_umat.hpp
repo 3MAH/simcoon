@@ -295,6 +295,22 @@ public:
      * 6. Compute work quantities
      * 7. Pack state variables
      *
+     * Rejection policy: an unusable committed state asks for a step cut
+     * (\f$ \Delta t_{new}/\Delta t = 0.5 \f$) instead of being packed. Rejected
+     * are a non-finite stress, a non-converged closest-point solve, a runaway
+     * COMMITTED multiplier (multiplier_cap, checked on the state, not on the raw
+     * FB row, which can be smaller after clipped excursions), and a state that
+     * drifted from the flow rule (state_drift: a spurious converged root of an
+     * oscillating FB Newton, invisible to every residual check; armed per
+     * drift_guard_armed_). Thresholds are per mechanism, infinity opts out.
+     * Negative multipliers need no check: PlasticityMechanism projects onto
+     * \f$ p \ge p_{start} \f$ and PowerLawHardening is regularized at onset. The
+     * closest-point branch satisfies the flow rule by construction (no drift guard).
+     * On rejection statev is left untouched, sigma is reset to its start value and
+     * Lt to the elastic tangent of the start state, so the output stays a
+     * self-consistent triple: the solver's inforce-at-Dn_mini branch commits it
+     * without re-running the UMAT.
+     *
      * @param umat_name UMAT identifier
      * @param Etot Total strain at end of increment
      * @param DEtot Strain increment

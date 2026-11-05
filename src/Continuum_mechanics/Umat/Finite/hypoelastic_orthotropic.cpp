@@ -15,7 +15,7 @@
  
  */
 
-///@file Elastic_orthotropic.cpp
+///@file hypoelastic_orthotropic.cpp
 ///@brief User subroutine for ortothropic elastic materials in 3D case
 
 #include <iostream>
@@ -88,8 +88,6 @@ void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const v
     vec DEel = DEtot - alpha*DT;
     sigma = el_pred(sigma_start, L, DEel);
     
-    // Kirchhoff rate: sigma here is tau, so L is already the box d(tau_hat)/dDe, and in-rate
-    // whatever corate_type is (the increment arrives corotated).
     UNUSED(F0);
     UNUSED(F1);
     UNUSED(corate_type);

@@ -439,3 +439,15 @@ TEST(Tconstitutive, cubic_coefficients_and_is_isotropic)
     EXPECT_FALSE(is_isotropic(N, Tensor4Type::stiffness));
     EXPECT_FALSE(cubic_coefficients(mat(3, 3, fill::eye), a, b, c));
 }
+
+TEST(Tconstitutive, invalid_conventions_throw)
+{
+    EXPECT_THROW(L_iso(70000., 0.3, "Emu"), std::invalid_argument);
+    EXPECT_THROW(M_iso(70000., 0.3, "Emu"), std::invalid_argument);
+    EXPECT_THROW(L_cubic(30000., 0.3, 9000., "Enu"), std::invalid_argument);
+    EXPECT_THROW(M_cubic(30000., 0.3, 9000., "Enu"), std::invalid_argument);
+    EXPECT_THROW(L_ortho(1., 1., 1., 0.3, 0.3, 0.3, 1., 1., 1., "Enu"), std::invalid_argument);
+    EXPECT_THROW(M_ortho(1., 1., 1., 0.3, 0.3, 0.3, 1., 1., 1., "Enu"), std::invalid_argument);
+    EXPECT_THROW(L_isotrans(100., 10., 0.3, 0.4, 5., 4), std::invalid_argument);
+    EXPECT_THROW(M_isotrans(100., 10., 0.3, 0.4, 5., 0), std::invalid_argument);
+}

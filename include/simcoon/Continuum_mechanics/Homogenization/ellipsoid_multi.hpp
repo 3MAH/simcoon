@@ -251,7 +251,9 @@ protected:
      * @brief Compute the interaction tensor for isotropic matrix
      *
      * @details Optimized computation when the matrix is isotropic, using
-     * analytical expressions for the Eshelby tensor.
+     * analytical expressions for the Eshelby tensor. Isotropization method: the
+     * matrix tangent is first isotropized (Isotropize) and both the Eshelby tensor
+     * and the interaction tensor are formed with that isotropic medium.
      *
      * @param L0 Isotropic matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)

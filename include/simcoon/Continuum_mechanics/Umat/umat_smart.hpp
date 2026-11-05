@@ -146,6 +146,19 @@ void size_statev(phase_characteristics &rve, unsigned int &size);
     
 /**
  * @brief From mechanical variables stored in a statev vector, parse a rve object that contains all information about the phases. 
+ *
+ * Layout, per sub-phase and recursively (depth first), \f$ 57 + n_{statev} \f$ slots from @p pos:
+ * | Slots | Content |
+ * |-------|---------|
+ * | 0-5 | Etot |
+ * | 6-11 | DEtot |
+ * | 12-17 | sigma |
+ * | 18 | unused |
+ * | 19 | T |
+ * | 20 | DT |
+ * | 21-56 | Lt (6x6, column by column) |
+ * | 57 ... | the statev of the phase, then its own sub-phases |
+ * phases_2_statev writes the same layout; size_statev counts it.
  * @param rve Reference to the phase characteristics object.
  * @param pos Reference to the position in the statev vector that contain subphase information
  * @param statev Reference to the statev vector that hold the information.
@@ -736,8 +749,22 @@ void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global
 void select_umat_M(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
+/**
+ * @brief Solver entry point of a thermomechanical phase: resets @p tnew_dt to 1, clears @p start once
+ * \f$ t > \f$ simcoon::limit, then dispatches on @p control_type.
+ * @param control_type 1: small strain (select_umat_T); 2-6: finite strain (select_umat_T_finite, with @p corate_type).
+ *        Any other value throws simcoon::exception_solver.
+ * @details The other arguments are those of select_umat_T / select_umat_T_finite.
+ */
 void run_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt);
 
+/**
+ * @brief Solver entry point of a mechanical phase: resets @p tnew_dt to 1, clears @p start once
+ * \f$ t > \f$ simcoon::limit, then dispatches on the control type.
+ * @details Arguments in order: rve, DR, Time, DTime, ndi, nshr, start, solver_type, control_type
+ * (1: select_umat_M; 2-6: select_umat_M_finite with corate_type and material_tangent; any other
+ * value throws simcoon::exception_solver), corate_type, tnew_dt, material_tangent.
+ */
 void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, const int &, double &, const bool &material_tangent = false);
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */    
     

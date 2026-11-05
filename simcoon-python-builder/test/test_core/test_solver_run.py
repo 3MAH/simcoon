@@ -589,6 +589,15 @@ def test_closest_point_refused_for_laws_without_one():
                    np.array([290.0]), np.array([0.0]), integrator="closest_point")
 
 
+
+@pytest.mark.parametrize("name", ["UMEXT", "UMABA", "UMANS"])
+def test_external_plugins_refused_under_finite_strain(name):
+    """The plugin API has no finite-strain entry: the finite route refuses the plugins instead of
+    returning an unchanged (zero) stress."""
+    step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
+    with pytest.raises(ValueError, match="small-strain route only"):
+        solve(Block(steps=[step], control_type="logarithmic"), name, np.array([70000., 0.3]), 1, T_init=290.0)
+
 # ---------------------------------------------------------------------------
 # error paths
 # ---------------------------------------------------------------------------

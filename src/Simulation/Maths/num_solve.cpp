@@ -10,7 +10,7 @@
  */
 
 ///@file num_solve.cpp
-///@brief random number generators
+///@brief Newton and Fischer-Burmeister solvers of the local return-mapping systems
 ///@author Chemisky & Anagnostou
 ///@version 1.0
 ///@date 10/23/2014
@@ -26,10 +26,6 @@
 
 using namespace std;
 using namespace arma;
-
-/* Notice*/
-// Recall that these methods are intended to solve an problem by means of the Kuhn-Tucker conditions
-//This means : Phi <= 0 ; Dp >= 0; Phi*Dp = 0, with Dp = pdot * Dt, a non-zero time state
 
 namespace simcoon{
 
@@ -69,7 +65,7 @@ void Fischer_Burmeister(const vec &Phi, const vec &Y_crit, const mat &denom, vec
     int n=Phi.n_elem;
     
     for (int i=0; i<n; i++) {
-        assert(fabs(Y_crit(n)) > 0);
+        assert(fabs(Y_crit(i)) > 0);
     }
     
     vec FB = zeros(n);
@@ -135,7 +131,7 @@ void Fischer_Burmeister_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_
     int n=Phi_p.n_elem;
     
     for (int i=0; i<n; i++) {
-        assert(fabs(Y_crit(n)) > 0);
+        assert(fabs(Y_crit(i)) > 0);
     }
     
     vec Phi_1 = zeros(n);
@@ -289,7 +285,7 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     mat denomFB = zeros(n,n);
     mat delta = eye(n,n);
     
-    //Determine the eigenvalues of denom
+    // row scaling: |diagonal of denom|
     vec factor_denom = zeros(n);
     for (int i=0; i<n; i++) {
         factor_denom(i) = fabs(denom(i,i));
@@ -334,8 +330,7 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
         
     }
     
-    // One or two mechanisms (the common cases): closed forms, no LAPACK call. A det + solve pair
-    // on a 1x1 or 2x2 costs ~0.3 us, the bulk of a local iteration.
+    // One or two mechanisms (the common cases): closed forms, no LAPACK call.
     if (n == 1) {
         const double a = denomFB(0,0);
         if (fabs(a) > simcoon::limit) {
@@ -445,7 +440,7 @@ void Fischer_Burmeister_m_limits(const vec &Phi_p, const vec &Phi_l, const vec &
     mat denomFB = zeros(n,n);
     mat delta = eye(n,n);
     
-    //Determine the eigenvalues of denom
+    // row scaling: |diagonal of denom|
     vec factor_denom = zeros(n);
     for (int i=0; i<n; i++) {
         factor_denom(i) = fabs(denom(i,i));
@@ -575,7 +570,7 @@ mat denom_FB_m(const vec &Phi, const mat &denom, const vec &Dp)
     mat denomFB = zeros(n,n);
     mat delta = eye(n,n);
     
-    //Determine the eigenvalues of denom
+    // row scaling: |diagonal of denom|
     vec factor_denom = zeros(n);
     for (int i=0; i<n; i++) {
         factor_denom(i) = fabs(denom(i,i));

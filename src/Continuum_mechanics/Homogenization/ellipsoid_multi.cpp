@@ -43,9 +43,6 @@ namespace simcoon{
 
 //=====Public methods for ellipsoid_multi====================================
 
-/*!
-  \brief default constructor
-*/
     
 //-------------------------------------------------------------
 ellipsoid_multi::ellipsoid_multi() : phase_multi(), S_loc(6,6), P_loc(6,6), T_loc(6,6), T(6,6), T_in_loc(6,6), T_in(6,6)
@@ -55,9 +52,6 @@ ellipsoid_multi::ellipsoid_multi() : phase_multi(), S_loc(6,6), P_loc(6,6), T_lo
     
 }
 
-/*!
-  \brief Constructor with parameters
-*/
 
 //-------------------------------------------------------------
 ellipsoid_multi::ellipsoid_multi(const mat &mA, const mat &mA_start, const mat &mB, const mat &mB_start, const vec &mA_in, const mat &mS_loc, const mat &mP_loc, const mat &mT_loc, const mat &mT, const mat &mT_in_loc, const mat &mT_in) : phase_multi(mA, mA_start, mB, mB_start, mA_in), S_loc(6,6), P_loc(6,6), T_loc(6,6), T(6,6), T_in_loc(6,6), T_in(6,6)
@@ -71,10 +65,6 @@ ellipsoid_multi::ellipsoid_multi(const mat &mA, const mat &mA_start, const mat &
     T_in = mT_in;
 }
 
-/*!
-  \brief Copy constructor
-  \param s ellipsoid_multi object to duplicate
-*/
     
 //------------------------------------------------------
 ellipsoid_multi::ellipsoid_multi(const ellipsoid_multi& pc) : phase_multi(pc), S_loc(6,6), P_loc(6,6), T_loc(6,6), T(6,6), T_in_loc(6,6), T_in(6,6)
@@ -88,19 +78,11 @@ ellipsoid_multi::ellipsoid_multi(const ellipsoid_multi& pc) : phase_multi(pc), S
     T_in = pc.T_in;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes phase_multi (the arma::mat).
-*/
 
 //-------------------------------------
 ellipsoid_multi::~ellipsoid_multi() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for phase_multi
-*/
 
 //-------------------------------------
 const mat* eshelby_memo::find(const mat &Lt_local, const double &a1, const double &a2, const double &a3) const
@@ -212,8 +194,6 @@ void ellipsoid_multi::fillP_loc(const mat& Lt_m, const ellipsoid &ell, const esh
 
 //-------------------------------------
 void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell, const eshelby_quadrature &quad, eshelby_memo *memo)
-//This method correspond to the classical Eshelby method
-//-------------------------------------
 {
     const double geometry[6] = {ell.a1, ell.a2, ell.a3, ell.psi_geom, ell.theta_geom, ell.phi_geom};
     if (T_memo.valid && T_memo.quad == &quad
@@ -255,8 +235,6 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
 
 //-------------------------------------
 void ellipsoid_multi::fillT_iso(const mat& Lt_m, const mat& Lt, const ellipsoid &ell, const eshelby_quadrature &quad, eshelby_memo *memo)
-//This method corresponf to the isotropization method
-//-------------------------------------
 {
     Rotation rot = Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
     mat Lt_m_iso = Isotropize(Lt_m);
@@ -275,9 +253,6 @@ void ellipsoid_multi::fillT_iso(const mat& Lt_m, const mat& Lt, const ellipsoid 
 
 //-------------------------------------
 void ellipsoid_multi::fillT_mec_in(const mat& L_m, const mat& L, const ellipsoid &ell, const eshelby_quadrature &quad, eshelby_memo *memo)
-//This method corresponds to the Eshelby inhomogeneous inhomogeneity - inelasticity problem. It calculates
-//the interaction tensors T for the elastic and the inelastic part.
-//-------------------------------------
 {
     Rotation rot = Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
     mat L_m_local_geom = rot.apply_stiffness(L_m, false);

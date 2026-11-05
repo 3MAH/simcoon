@@ -40,10 +40,12 @@ namespace simcoon {
  *
  * @details Extends umat_sma_unified_T with a third leading mechanism: martensite
  * reorientation. The macroscopic state is the martensitic volume fraction
- * \f$ \xi \f$, the transformation strain \f$ \boldsymbol{\varepsilon}^{tr} \f$, the
- * reorientation strain accumulator \f$ \mathbf{E}^{Reo} \f$, and three
- * back-strain channels \f$ \mathbf{a}_F, \mathbf{a}_R, \mathbf{a}_{reo} \f$ that
- * grow with the forward / reverse / reorientation increments respectively.
+ * \f$ \xi = \xi^F - \xi^R \f$, where the cumulated forward and reverse transformations
+ * \f$ \xi^F, \xi^R \f$ (non-decreasing: their increments are the non-negative multipliers of the
+ * two mechanisms) are kept apart so that both can be active in the same increment, the
+ * transformation strain \f$ \boldsymbol{\varepsilon}^{tr} \f$, the reorientation strain
+ * accumulator \f$ \mathbf{E}^{Reo} \f$ and its cumulative multiplier \f$ p^{TR} \f$, and a
+ * single back-strain \f$ \mathbf{v}^{re} \f$, which grows with the reorientation increments only.
  *
  * **Variants:**
  *
@@ -57,8 +59,7 @@ namespace simcoon {
  * **Effective back-stress and saturation-coupled reorientation surface (Form B):**
  *
  * \f[
- * \mathbf{X} = H^{Reo} \, (\mathbf{a} \odot \mathbf{I}_{r05}), \qquad
- * \mathbf{a} = \mathbf{a}_F + \mathbf{a}_R + \mathbf{a}_{reo}
+ * \mathbf{X} = H^{Reo} \, (\mathbf{v}^{re} \odot \mathbf{I}_{r05})
  * \f]
  * \f[
  * \Phi^{Reo} = \mathrm{Prager}\!\bigl( \boldsymbol{\sigma} - (1+\lambda_{1}^{Reo}) \, \mathbf{X} \bigr) - Y^{Reo}
@@ -103,7 +104,12 @@ namespace simcoon {
  *
  * | Index | Description |
  * |-------|-------------|
- * | 0..16 | Identical to umat_sma_unified_T (T_init, xi, ET(6), xiF, xiR, calibrated rho-Ds0, rho-DE0, D, a1, a2, a3, Y0t) |
+ * | 0 | \f$ T_{init} \f$ : initial temperature |
+ * | 1 | \f$ \xi \f$ : martensitic volume fraction |
+ * | 2..7 | \f$ \boldsymbol{\varepsilon}^{tr} \f$ : transformation strain |
+ * | 8 | \f$ \xi^F \f$ : cumulated forward transformation, non-decreasing (\f$ \xi = \xi^F - \xi^R \f$) |
+ * | 9 | \f$ \xi^R \f$ : cumulated reverse transformation, non-decreasing, kept apart from \f$ \xi^F \f$ so that both can be active in the same increment |
+ * | 10..16 | calibrated constants, as in umat_sma_unified_T: \f$ \rho\Delta s_0, \rho\Delta E_0, D, a_1, a_2, a_3, Y_0^t \f$ |
  * | 17 | \f$ p^{TR} \f$ : cumulative reorientation multiplier \f$ \sum \Delta s^{Reo} \f$ |
  * | 18..23 | \f$ \mathbf{v}^{re} \f$ : reorientation back-strain (Voigt, strain convention with engineering shears) |
  * | 24..29 | \f$ \mathbf{E}^{Reo} \f$ : macroscopic reorientation strain accumulator |
@@ -128,6 +134,51 @@ namespace simcoon {
  * @ref umat_sma_unified_T (see its note); \f$ Y^{crit}_{Reo} = Y^{Reo} \f$.
  * @note When \f$ \Delta s^{Reo} = 0 \f$, the result is bit-identical to
  * @ref umat_sma_unified_T (same elastic mixing, same forward/reverse equations).
+ * @note **Reorientation flows** (thesis §4, eq. 503). Reorientation only re-orients the
+ * martensite present at the start of the increment, \f$ \xi_{start} \f$ (new martensite forms
+ * already aligned with \f$ \boldsymbol{\sigma} \f$), so with
+ * \f$ \bar{\boldsymbol{\Lambda}}^{re} = \partial\,\mathrm{Prager}/\partial\boldsymbol{\sigma}\,(\boldsymbol{\sigma}_{eff}) \f$:
+ * \f[
+ * \boldsymbol{\Lambda}_{\varepsilon}^{re} = \xi_{start}\,\bar{\boldsymbol{\Lambda}}^{re}, \qquad
+ * \dot{\mathbf{v}}^{re} = \dot{p}^{re}\,\bar{\boldsymbol{\Lambda}}^{re}, \qquad
+ * \frac{\partial \Phi^{Reo}}{\partial \boldsymbol{\sigma}} = \bar{\boldsymbol{\Lambda}}^{re}.
+ * \f]
+ * The criterion and the back-strain flow are per unit martensite (not \f$ \xi \f$-scaled), which
+ * keeps \f$ B_{22} \f$ finite at \f$ \xi = 0 \f$ through the back-strain term of \f$ K_{22} \f$.
+ * The saturation argument is the intrinsic ratio \f$ \|\mathbf{v}^{re}\| / E_T^{Reo,max} \f$:
+ * dividing by \f$ \xi \f$ would blow the penalty up as \f$ \xi \to 0 \f$. Hence
+ * \f$ K_{2F} = K_{2R} = 0 \f$ and
+ * \f[
+ * K_{22} = \frac{\partial \Phi^{Reo}}{\partial \mathbf{v}^{re}} : \bar{\boldsymbol{\Lambda}}^{re}, \qquad
+ * \frac{\partial \Phi^{Reo}}{\partial \mathbf{v}^{re}} = -(1+\lambda_1^{Reo})\,H^{Reo}\,(\boldsymbol{\eta}^{Reo}\odot\mathbf{I}_{r05})
+ * - (\boldsymbol{\eta}^{Reo}:\mathbf{X})\,\frac{\partial \lambda_1^{Reo}}{\partial \mathbf{v}^{re}}.
+ * \f]
+ * The reverse row uses the same ETMean chain rule as @ref umat_sma_unified_T, with
+ * \f$ \boldsymbol{\Lambda}_{\bar{\varepsilon}}^{re} = \bar{\boldsymbol{\Lambda}}^{re} \f$
+ * (\f$ \xi \f$ unchanged by reorientation).
+ * @note **Closest-point mode** (`tangent_closest_point`): same frozen-mixture construction as
+ * @ref umat_sma_unified_T, with \f$ \boldsymbol{\Lambda}^{re} = \xi_{start}\,\mathbf{r} \f$,
+ * \f$ \mathbf{r} = \bar{\boldsymbol{\Lambda}}^{re}(\boldsymbol{\sigma}_{eff}) \f$. The back-strain is
+ * solved by Newton on its backward-Euler equation
+ * \f$ \mathbf{R}(\mathbf{v}) = \mathbf{v} - \mathbf{v}_n - \Delta s^{re}\,\mathbf{r}(\boldsymbol{\sigma}_{eff}(\mathbf{v})) = \mathbf{0} \f$,
+ * Jacobian \f$ \mathbf{J} = \mathbf{I} - \Delta s^{re}\,\mathbf{G}\,\mathbf{A} \f$ with
+ * \f$ \mathbf{G} = \partial\mathbf{r}/\partial\boldsymbol{\sigma}_{eff} \f$ and
+ * \f$ \mathbf{A} = \partial\boldsymbol{\sigma}_{eff}/\partial\mathbf{v} \f$ (a fixed-point sweep only
+ * contracts while \f$ \Delta s^{re} H^{Reo}(1+\lambda_1^{Reo})/\bar{\sigma}_{eff} < 1 \f$); no root
+ * within the budget rejects the trial. Then
+ * \f[
+ * \frac{\partial\mathbf{v}}{\partial\boldsymbol{\sigma}} = \mathbf{J}^{-1}\Delta s^{re}\,\mathbf{G}, \quad
+ * \frac{\partial\mathbf{v}}{\partial\Delta s^{re}} = \mathbf{J}^{-1}\mathbf{r}, \quad
+ * \frac{\partial\boldsymbol{\sigma}_{eff}}{\partial\boldsymbol{\sigma}} = \mathbf{I} + \mathbf{A}\,\frac{\partial\mathbf{v}}{\partial\boldsymbol{\sigma}}, \quad
+ * \frac{\partial\boldsymbol{\sigma}_{eff}}{\partial\Delta s^{re}} = \mathbf{A}\,\frac{\partial\mathbf{v}}{\partial\Delta s^{re}},
+ * \f]
+ * and \f$ \bar{\boldsymbol{\varepsilon}}^{T}(\xi_n + \Delta\xi_F) = \mathrm{dev}(\boldsymbol{\varepsilon}^{T}_n)
+ * + \Delta\xi_F\,\mathrm{dev}(\boldsymbol{\Lambda}^F) + \Delta s^{re}\,\mathrm{dev}(\boldsymbol{\Lambda}^{re}) \f$.
+ * @note **Energy.** \f$ W_m^{ir} = 0 \f$: the back-strain is a kinematic history variable that
+ * shifts the reorientation criterion and stores no free energy (no \f$ \mathbf{X}:\Delta\mathbf{v} \f$
+ * term); the reorientation strain increment enters \f$ W_m^{r} \f$ and \f$ W_m^{d} \f$ like the
+ * transformation strain.
+ * @note `tangent_algorithmic` is clamped to the continuum tangent (see @ref umat_sma_unified_T).
  *
  * @see umat_sma_unified_T for the transformation-only base model.
  * @see assemble_continuum_tangent for the shared 3-mechanism tangent operator.

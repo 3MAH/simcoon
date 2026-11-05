@@ -379,6 +379,14 @@ if(SIMCOON_BUILD_TESTS)
       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
     )
     target_link_libraries(umat_plugin_aba PRIVATE simcoon ${ARMADILLO_LIBRARIES})
+
+    # Ansys USERMAT plugin test (same elastic reference case as UMABA)
+    set_source_files_properties(testBin/Umats/UMANS/external/USERMAT_ANSYS_ELASTIC.for PROPERTIES Fortran_PREPROCESS OFF)
+    add_library(umat_plugin_ans SHARED testBin/Umats/UMANS/external/USERMAT_ANSYS_ELASTIC.for testBin/Umats/UMANS/external/umat_plugin_ans.cpp)
+    set_target_properties(umat_plugin_ans PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMANS/external
+    )
+    target_link_libraries(umat_plugin_ans PRIVATE simcoon ${ARMADILLO_LIBRARIES})
   endif()
 
   add_library(umat_plugin_ext SHARED

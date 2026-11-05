@@ -30,12 +30,8 @@
 namespace simcoon {
 
 namespace {
-// Shared N-mechanism assembly. Lt_dPhi is the operator that takes dPhi to the strain
-// sensitivity, L^T: the multipliers follow Delta s = invBhat (dPhi . L Delta eps) =
-// invBhat ((L^T dPhi) . Delta eps). The continuum form passes its symmetric L itself; the
-// algorithmic form passes the transpose of L~ = M^-1 L, which is not symmetric when
-// dLambda/dsigma is not (a flow whose magnitude depends on the stress along another direction
-// than its own, e.g. the SMA transformation flow Hcur(sigma_eq) dDrucker(sigma)).
+// Lt_dPhi = L^T maps dPhi to the strain sensitivity: Delta s = invBhat ((L^T dPhi) . Delta eps);
+// the algorithmic form passes (M^-1 L)^T, not symmetric when dLambda/dsigma is not
 ContinuumTangent assemble_tangent(
     const arma::mat& Bhat,
     const std::vector<arma::vec>& kappa_j,
@@ -55,17 +51,12 @@ ContinuumTangent assemble_tangent(
         if (Ds_j(i) > simcoon::iota) op(i) = 1.;
     }
 
-    // Bbar = active block of Bhat with identity on the inactive diagonal,
-    // so the matrix is invertible even when some mechanisms are inactive.
-    // mask(i,j) = op(i)*op(j); Bbar = mask \circ Bhat + diag(1-op).
+    // Bbar = mask % Bhat + diag(1 - op): identity on the inactive rows keeps it invertible
     const arma::mat mask    = op * op.t();
     const arma::mat Bbar    = mask % Bhat + arma::diagmat(1.0 - op);
     arma::mat       invBbar;
     if (!arma::inv(invBbar, Bbar) || !invBbar.is_finite()) {
-        // Degenerate hardening system (e.g. SMA transformation plateau,
-        // Bhat -> 0): fall back to the elastic operator for this increment
-        // instead of poisoning Lt/P with inf (the solver's own K inversion
-        // would then throw and abort the whole solve).
+        // degenerate Bhat (e.g. SMA plateau): elastic operator rather than inf in Lt/P, which would abort the solve
         ContinuumTangent out;
         out.Lt = L;
         out.P_epsilon.assign(Nmech, arma::zeros(6));
@@ -74,10 +65,7 @@ ContinuumTangent assemble_tangent(
     }
     arma::mat invBhat = mask % invBbar;   // zero out inactive rows/cols
 
-    // Stack \partial \Phi^m gradients into a 6\times Nmech matrix so the double sum over
-    // (l, m) becomes one GEMM. Bhat(l, j) has the criterion on the row and the mechanism
-    // on the column, so \Delta s = invBhat \cdot (\partial \Phi : L : \Delta \varepsilon ) and
-    // P^l = \sum_m invBhat(l, m) L \partial \Phi^m, i.e. P = (L \cdot \partial \Phi ) \cdot invBhat^T.
+    // P = (L dPhi) invBhat^T: Bhat rows = criteria, columns = mechanisms
     arma::mat DP(6, Nmech);
     for (arma::uword m = 0; m < Nmech; ++m) DP.col(m) = dPhidsigma_l[m];
     const arma::mat P = (Lt_dPhi * DP) * invBhat.t();   // 6 \times Nmech
@@ -120,9 +108,7 @@ ContinuumTangent assemble_continuum_tangent(
 
     if (Ds <= simcoon::iota || std::abs(Bhat_scalar) < simcoon::iota ||
         !std::isfinite(Bhat_scalar)) {
-        // Mechanism inactive, or degenerate hardening (Bhat -> 0, e.g. SMA
-        // transformation plateau): invBhat masked to 0, P_eps = 0, Lt = L —
-        // 1/Bhat would poison Lt with inf and abort the solve downstream.
+        // inactive or degenerate (Bhat -> 0): Lt = L, 1/Bhat would put inf in Lt
         out.Lt = L;
         return out;
     }
@@ -157,19 +143,12 @@ ContinuumTangent assemble_algorithmic_tangent(
         }
     }
 
-    // Fast path: when no mechanism contributes a \partial \Lambda /\partial \sigma correction (typical
-    // for every UMAT that has not yet been extended), M = I and the
-    // algorithmic tangent reduces exactly to the continuum tangent — return
-    // it without paying the 6\times 6 inverse + GEMM cost.
+    // no dLambda/dsigma correction: M = I, the algorithmic tangent is the continuum one
     if (arma::approx_equal(sumDsLambdaSigma, arma::zeros(6, 6), "absdiff", simcoon::iota)) {
         return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
     }
 
-    // The \partial \Lambda /\partial \sigma blocks may come from finite differences (SMA
-    // transformation flow) and can be ill-conditioned near activation
-    // boundaries; whether inv() flags such a matrix as singular is
-    // LAPACK-backend dependent. Fall back to the (always well-posed)
-    // continuum operator rather than aborting the whole solve.
+    // singular M (FD dLambda/dsigma near activation, LAPACK-dependent): continuum fallback
     arma::mat Minv;
     if (!arma::inv(Minv, I6 + L * sumDsLambdaSigma)) {
         return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
@@ -190,10 +169,7 @@ ContinuumTangent assemble_algorithmic_tangent(
         }
     }
 
-    // With the algorithmic operators in hand, the assembly is structurally
-    // identical to the continuum case — one shared assembly keeps the active-set
-    // masking, Bbar regularisation, P_eps accumulation, and Lt update in
-    // exactly one place. L~ is not symmetric in general: its transpose acts on dPhi.
+    // L~ = M^-1 L is not symmetric: its transpose acts on dPhi
     return assemble_tangent(Bhat_tilde, kappa_tilde, dPhidsigma_l, Ds_j, L_tilde, L_tilde.t());
 }
 
@@ -259,9 +235,7 @@ ContinuumTangent compute_tangent_operator(
         return assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
     }
     if (tangent_mode == simcoon::tangent_algorithmic || tangent_mode == simcoon::tangent_closest_point) {
-        // Closest-point: a kernel that integrates with closest_point_return_mapping() takes its
-        // exact operator from cpp_consistent_tangent() and does not come here; for the others
-        // mode 3 IS the algorithmic operator (documented degradation).
+        // closest-point kernels use cpp_consistent_tangent() and never come here; for the others mode 3 = algorithmic
         if (!dLambda_dsigma) {
             // Flow independent of stress: the algorithmic operator IS the
             // continuum one.

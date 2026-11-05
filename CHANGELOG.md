@@ -24,6 +24,9 @@ Known gaps and planned work, not yet in a release. An item moves to
   rule, Anderson, tolerance) are still props slots: they are per phase (nested
   schemes), so they need a named builder rather than a run option.
 - fedoo does not pass `ncp` and `integrator` through yet.
+- The external plugins (UMEXT, UMABA, UMANS) serve the small-strain route only: a finite-strain
+  entry in the plugin API (law fed the logarithmic strain, returning tau, as the internal
+  kernels) would let them run under NLGEOM.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
@@ -37,13 +40,16 @@ Known gaps and planned work, not yet in a release. An item moves to
 
 ## Planned for 3.0
 
-Removals scheduled for the next major version: the transition code of 2.x.
+Removals and renames scheduled for the next major version (breaking, kept in 2.x).
 
 - The migration message for `tangent_mode=3` / `"closest_point"`: the check
   `tangent_mode in ("closest_point", 3)` of `solve` (`simcoon/solver/core.py`)
   and its C++ counterpart in `kernel_tangent_mode` (`umat_smart.cpp`). The
   value then gets the generic error of an unknown tangent mode; the internal
   kernel code 3 of the closest point is unchanged.
+- Possibly rename `ZENER` / `ZENNK` after their rheology: they are the Poynting-Thomson
+  (Kelvin) form of the standard linear solid and its generalized Kelvin chain, not the Zener
+  (Maxwell) form; the 2.x names stay for compatibility.
 
 ## [Unreleased]
 
@@ -53,6 +59,10 @@ Removals scheduled for the next major version: the transition code of 2.x.
   are removed. `KeyTemplate(src, params, consts).write(dst)` copies the
   templates and substitutes the keys in one call, about 5 times faster
   (templates read once, each working file written once).
+- The C++ kernel `umat_damage_weibull` is removed: no UMAT name dispatched to it. The
+  Weibull damage function `damage_weibull` (Functions/damage.hpp, `sim.damage_weibull`) stays.
+- The C++ kernel `umat_prony_Nfast_plastic` (no header, no UMAT name) is removed: Prony
+  viscoelasticity with J2 plasticity is a `ModularMaterial` (MODUL).
 - `tangent_mode=3` / `"closest_point"` is refused with a `ValueError`: the local
   integrator is now chosen apart, with `integrator="closest_point"`, and
   `tangent_mode` only takes `"none"`, `"continuum"` or `"algorithmic"`.
@@ -72,6 +82,9 @@ Removals scheduled for the next major version: the transition code of 2.x.
 
 ### Added
 
+- The Ansys USERMAT plugin (`UMANS`, `umat_plugin_ans_api`) is dispatched on the small-strain
+  route, as UMABA; test `TUMANS` (the Fortran example `USERMAT_ANSYS_ELASTIC.for`, which did not
+  compile in fixed form, is fixed).
 - `KeyTemplate.write(dst, test=i)`: a constant holds one value per test
   (`input_values`, e.g. the fibre angle of each specimen) and the value of test
   `i` is substituted. A constant with a single value warns: it belongs in the
@@ -109,6 +122,9 @@ Removals scheduled for the next major version: the transition code of 2.x.
 
 ### Changed
 
+- EPKCP thermomechanical: the cutting plane evaluates the power-law hardening through
+  `PowerLawHardening` (C1 blend below p = 1e-6), as EPICP and its own closest point; for
+  m < 1 the first plastic increment no longer meets an infinite slope.
 - Faster kernels, results bitwise unchanged unless stated: reuse of the
   ModularUMAT instances, fixed-size 3x3 spectral solves and small dense LU,
   Eshelby integration and cached homogenization, closed-form
@@ -119,6 +135,28 @@ Removals scheduled for the next major version: the transition code of 2.x.
 
 ### Fixed
 
+- An invalid elastic convention ended the process with `exit(0)` (`M_iso`, `L_cubic`, `M_cubic`,
+  `L_ortho`, `M_ortho`, `L_isotrans`, `M_isotrans`; from Python the interpreter quit with a success
+  code) or, in `L_iso`, returned a zero stiffness: they now throw `std::invalid_argument`
+  (`ValueError` in Python).
+- Small code defects without effect on results: `assert(Y_crit(n))` out of bounds in
+  `Fischer_Burmeister(_limits)` (a Debug build aborted), `variant::build` did not store `g`,
+  the `state_variables_T` default constructor left `Wm`/`Wm_start` to the Armadillo default,
+  an unreachable `HfR = 0.5*a2* -a3` branch of the thermomechanical unified_T closest point.
+- Copies of `step_meca` / `step_thermomeca` lost their loading: the copy constructor set
+  `BC_mecas` from `mecas`, the assignment skipped `BC_mecas`, `BC_Ts`, `control_type` and
+  `tab_data`. The copy operations of `step`, `step_meca` and `step_thermomeca` are now the
+  memberwise defaults (test `Tstep`). Nothing in simcoon copied a step.
+- Under finite strain the solver ran UMEXT as a no-op (unchanged, zero stress) and failed on
+  UMABA with "Unknown umat name": the plugins are now refused with an explicit error.
+- `Eshelby_penny` set the in-plane shear S_2323 (Voigt 23) to 1 and S_1212 to 0: now
+  S_1212 = S_1313 = 1/2 (1 in engineering Voigt) and S_2323 = 0, the flat oblate limit.
+  No homogenization scheme called it.
+- `d2lagrange_pow_1` placed `p0` wrongly (exact only for p0 = 1); its test now checks it
+  against a finite difference of `dlagrange_pow_1`. No law called it.
+- Documentation: .cpp comments cut to short implementation notes, contracts (props,
+  statev, theory) moved to the header Doxygen, dead code and wrong `@file` banners removed;
+  the EPCHA header example read the back-strains as the backstresses (statev 20-31).
 - `isochoric_pstretch` ignored `J` on a single point (it recomputed it from the
   tensor), unlike its batch form.
 - Race on the Eshelby quadrature tables between concurrent solves.

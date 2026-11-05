@@ -112,10 +112,13 @@ TEST(Tlagrange, lagrange_pow_1_second_derivative)
     double n = 2.;
     double alpha = 100.;
 
-    // Second derivative should be finite and computable
-    double x = 0.5;
-    double d2 = d2lagrange_pow_1(x, c, p0, n, alpha);
-    EXPECT_TRUE(std::isfinite(d2));
+    // the derivative of dlagrange_pow_1, below and above the junction x = 1 - c (p0 != 1)
+    const double h = 1.E-6;
+    for (double x : {0.2, 0.5, 0.85, 0.95}) {
+        const double fd = (dlagrange_pow_1(x + h, c, p0, n, alpha) - dlagrange_pow_1(x - h, c, p0, n, alpha))/(2.*h);
+        const double d2 = d2lagrange_pow_1(x, c, p0, n, alpha);
+        EXPECT_NEAR(d2, fd, 1.E-6*std::max(1., fabs(fd))) << "x = " << x;
+    }
 }
 
 TEST(Tlagrange, lagrange_pow_1_boundary)

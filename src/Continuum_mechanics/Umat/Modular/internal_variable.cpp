@@ -232,17 +232,13 @@ void InternalVariable::rotate(const Rotation& R) {
         case IVarType::SCALAR:
             break;
         case IVarType::VECTOR_6: {
-            // Route through tensor2 so the rotation kernel (apply_strain vs
-            // apply_stress, and the future generic path) is chosen once, inside
-            // tensor2::rotate, from the variable's authoritative Tensor2Type.
+            // kernel (strain vs stress) chosen inside tensor2::rotate from the Tensor2Type
             const tensor2 t = tensor2::from_voigt(vec_value_, vtype_).rotate(R);
             vec_value_ = t.to_arma_voigt();
             break;
         }
         case IVarType::MATRIX_6x6:
-            // Typed congruence: correct for stiffness- AND compliance-like
-            // storage (the Mandel rotation is one orthogonal congruence; the
-            // Tensor4Type carries the engineering factors).
+            // typed Mandel congruence: correct for stiffness- and compliance-like storage
             mat_value_ = tensor4(mat_value_, t4type_).rotate(R).mat();
             break;
     }

@@ -120,7 +120,7 @@ Small-strain mechanical models
        identical or inactive second surfaces); the modular engine handles
        multiple surfaces correctly, so N >= 2 is now functional.
    * - ZENER
-     - Generalized KELVIN chain, 1 branch (standard solid)
+     - Standard linear solid, Poynting-Thomson (Kelvin) form: spring in series with one Kelvin-Voigt unit
      - legacy (kept)
      - E0, nu0, alpha, E1, nu1, etaB1, etaS1
      - No modular equivalent (Kelvin branches in series; the modular

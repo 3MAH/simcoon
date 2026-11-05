@@ -56,16 +56,10 @@ using namespace arma;
 
 namespace {
 
-// Single definition of the step-cut decision: bisect the increment unless it
-// is already at its minimal fraction. Returns whether the cut was applied —
-// call sites decide what a refusal means (throw a typed error, rethrow, ...).
-// How many increments in a row the inforce path may close before the prescribed state is
-// declared unreachable. A legitimate correction is isolated - one increment that did not quite
-// converge, whose residual the next one absorbs. A response saturated below the target stalls on
-// every increment instead. Deliberately generous, and it only bites when the error is *not*
-// decreasing, so a hard but converging problem is never interrupted.
+// Consecutive inforced increments with a non-decreasing error before the target is declared unreachable.
 constexpr int inforce_stall_max = 5;
 
+// Bisect unless already at Dn_mini; returns whether the cut was applied (callers decide what a refusal means).
 inline bool try_step_cut(const double &Dtinc_cur, const double &Dn_mini,
                          const double &div_tnew_dt, double &tnew_dt) {
     if (fabs(Dtinc_cur - Dn_mini) > simcoon::iota) {
@@ -75,9 +69,7 @@ inline bool try_step_cut(const double &Dtinc_cur, const double &Dn_mini,
     return false;
 }
 
-// A step cut requested by the material (tnew_dt < 1) cannot be honoured at the minimal
-// increment: compute_inc clamps back to Dn_mini and the same trial would be replayed forever.
-// Inforce the increment instead, or report the failure when inforce is off.
+// A material cut at Dn_mini would replay the same trial forever: inforce it, or report failure when inforce is off.
 inline bool refuse_cut_at_Dn_mini(const double &Dtinc_cur, const double &Dn_mini,
                                   const int &inforce_solver, const int &step_number,
                                   const int &inc, const double &tinc, double &tnew_dt) {
@@ -92,8 +84,7 @@ inline bool refuse_cut_at_Dn_mini(const double &Dtinc_cur, const double &Dn_mini
     return true;
 }
 
-// Step-cut-or-rethrow policy shared by every recoverable-failure catch in the
-// solver Newton loops. Must only be called from inside a catch block.
+// Must only be called from inside a catch block (bare rethrow).
 inline void step_cut_or_rethrow(const double &Dtinc_cur, const double &Dn_mini,
                                 const double &div_tnew_dt, double &tnew_dt,
                                 int &compteur) {
@@ -104,9 +95,8 @@ inline void step_cut_or_rethrow(const double &Dtinc_cur, const double &Dn_mini,
     }
 }
 
-// Control type 3 controls ln V and rebuilds F = exp(ln V) R. The stored etot is ln V for every
-// corate but 4 (Truesdell), whose lower-convected strain is exactly the Almansi strain
-// e_A = 1/2 (I - b^-1), hence ln V = -1/2 ln(I - 2 e_A).
+// ln V of control type 3: etot itself, except corate 4 (Truesdell) where etot is the Almansi strain,
+// ln V = -1/2 ln(I - 2 e_A).
 inline mat ct3_lnV(const vec &etot, const int &corate_type) {
     if (corate_type != 4)
         return simcoon::v2t_strain(etot);
@@ -198,10 +188,8 @@ mat hughes_winget(const mat &BC_w, const double &DTime) {
     return HW_inv*(eye(3,3) + 0.5*BC_w*DTime);
 }
 
-// Kinematics of a trial increment under the finite control types, once the driven strain is set
-// (DEtot for 2, Detot for 3, U1 for 4, F1 for 5/6): DR the rotation increment of the step spin
-// (2-4), F0 and F1, the corate's increment sv.DR and the strains the control does not drive.
-// Shared by the mechanical and thermomechanical blocks.
+// Once the driven strain is set (DEtot 2, Detot 3, U1 4, F1 5/6): DR of the step spin (2-4), F0, F1,
+// sv.DR and the strains the control does not drive.
 void finite_kinematics(state_variables &sv, const unsigned int &control_type, const mat &BC_w, const mat &BC_R,
                        const double &DTime, const int &corate_type, mat &DR) {
     mat D = zeros(3,3);
@@ -244,10 +232,8 @@ void finite_kinematics(state_variables &sv, const unsigned int &control_type, co
     }
 }
 
-// The strain a finite control type drives, from the increment's targets: DEtot (2), Detot (3),
-// U1 (4), F1 (5/6). Under 5/6 Dtarget is the fraction of the increment's generator (Dtinc mecas,
-// geodesic_F_increments): a cut increment advances F1 = exp(Dtinc dL) F0 along the increment's
-// geodesic, and the sub-increment that closes it lands on the tabulated F exactly
+// Under 5/6 a cut increment advances F1 = exp(Dtinc dL) F0 along the increment's geodesic; the
+// closing sub-increment lands on the tabulated F exactly.
 void set_driven_strain(state_variables &sv, const unsigned int &control_type, const rowvec &Dtarget, const rowvec &BC_target,
                        const bool &increment_end) {
     if (control_type == 2)
@@ -272,9 +258,8 @@ void add_driven_strain(state_variables &sv, const unsigned int &control_type, co
         sv.U1 += v2t_strain(Delta);
 }
 
-// Mechanical rows of the residual: on the static components, the stress measure of the control
-// type against its target Dtinc mecas(inc) (1 Kirchhoff, 2 PKII, 3 Kirchhoff from the start stress
-// in the polar frame F = V R rebuilds, 4 Biot); on the kinematic ones, its strain
+// Static rows: the control type's stress measure (1 Kirchhoff, 2 PKII, 3 Kirchhoff in the rebuilt
+// polar frame, 4 Biot) against Dtinc mecas(inc); kinematic rows: its strain.
 void mechanical_residual(state_variables &sv, const unsigned int &control_type, const Col<int> &cBC_meca, const mat &mecas,
                          const int &inc, const double &Dtinc, const mat &BC_R, const mat &DR, const double &lambda, vec &residual) {
     const vec *stress = &sv.tau, *stress_start = &sv.tau_start, *strain = &sv.DEtot;
@@ -308,10 +293,8 @@ void mechanical_residual(state_variables &sv, const unsigned int &control_type, 
     }
 }
 
-// Jacobian of the control type's stress measure with respect to its strain, from the box tangent
-// Lt = dtau/de: Lt itself (1, 3), dS/dE (2, corate-matched pull-back, no J), dBiot/dU (4)
-// (written to C for 2 and 4, Lt returned as is otherwise). With mt, Lt may hold the native dS/dE
-// of a law built on F (material_tangent_state), used as is instead of the box pull-back.
+// From Lt = dtau/de: Lt (1, 3), dS/dE in C (2, corate-matched pull-back, no J), dBiot/dU in C (4);
+// with mt, a native dS/dE of a law built on F is used as is.
 const mat &control_tangent(state_variables &sv, const mat &Lt, const unsigned int &control_type, const int &corate_type, mat &C,
                            const material_tangent_state *mt = nullptr) {
     if (control_type == 2) {
@@ -329,11 +312,8 @@ const mat &control_tangent(state_variables &sv, const mat &Lt, const unsigned in
     return Lt;
 }
 
-// Thermal columns of the thermomechanical Jacobian in the control type's variables, from the box
-// derivatives dtau/dtheta and dr/de (at fixed F): dstress/dtheta at fixed control strain and
-// dr/d(control strain). 2: dS/dtheta = F^-1 dtau/dtheta F^-T, dr/dE = P^T dr/de with P = de/dE
-// (dH/dE, rotated by R under the rate form); 4: dBiot/dtheta = sym(U dS/dtheta), dr/dU through
-// dE = 1/2 (dU U + U dU).
+// 2: dS/dtheta = F^-1 dtau/dtheta F^-T, dr/dE = P^T dr/de, P = de/dE (rotated by R under the rate form);
+// 4: dBiot/dtheta = sym(U dS/dtheta), dr/dU through dE = 1/2 (dU U + U dU).
 void control_thermal(const state_variables &sv, const vec &dSdT_box, const vec &drdE_box, const unsigned int &control_type,
                      const int &corate_type, vec &dSdT, vec &drdE) {
     if (control_type != 2 && control_type != 4) {
@@ -381,9 +361,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
         throw std::invalid_argument("solver: corate_type must be an objective rate (0..5) or the total-formulation code ("
                                     + std::to_string(corate_type_total) + "); got " + std::to_string(corate_type));
     }
-    // Total formulation: the kernel strain is the material ln U, re-read from F at every commit,
-    // and the box is dT/dH. Logarithmic control reads the strain as ln V and takes the box as
-    // its Jacobian; a small-strain block accumulates a strain that F does not carry.
+    // Total formulation: kernel strain = material ln U re-read from F, box = dT/dH; incompatible with
+    // logarithmic control (reads ln V) and with small-strain blocks (strain not carried by F).
     if (corate_type == corate_type_total) {
         for (const auto &bl : blocks) {
             if (bl.control_type == 1 || bl.control_type == 3) {
@@ -433,8 +412,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
     mat DR = eye(3,3);
     mat R = eye(3,3);
 
-//    mat dSdE = zeros(6,6);
-//    mat dSdT = zeros(1,6);
     mat dQdE = zeros(6,1);
     mat dQdT = zeros(1,1);
 
@@ -484,10 +461,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 else {
                     size_meca = 9;
                 }
-//                if((blocks[i].control_type == 1)||(blocks[i].control_type == 2))
-//                    size_meca = 6;
-//                else if(blocks[i].control_type == 3)
-//                    size_meca = 9;
                 
                 shared_ptr<state_variables_M> sv_M;
                 
@@ -515,9 +488,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
                 run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                 if (tnew_dt < 1.) {
-                    // Nothing to subdivide here (the increment is zero): the law refused the
-                    // priming call and Lt is still the zeros set a few lines above, which would
-                    // surface later as a singular Jacobian. Report the real cause.
+                    // Zero increment, nothing to subdivide: report now rather than as a later singular Jacobian.
                     throw simcoon::exception_solver(
                         "block " + std::to_string(i + 1) + ": the constitutive law requested a step "
                         "cut on the zero-increment call that primes the tangent operator; no "
@@ -648,21 +619,14 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
 
                                         if(solver_type != 1){
-                                            // classic
-                                            ///Prediction of the strain increment using the tangent modulus given from the umat_ function
-                                            //we use the ddsdde (Lt) from the previous increment
+                                            // classic: Newton prediction with the tangent of the previous increment
                                             Lt_2_K(control_tangent(*sv_M, sv_M->Lt, blocks[i].control_type, corate_type, C, &native_Lt), K, sptr_meca->cBC_meca, lambda_solver);
 
                                             ///Newton correction (prediction of the component of the strain tensor)
                                             bool inv_success = newton_correction(K, residual, Delta);
                                             if (!inv_success) {
-                                                // Degenerate tangent at the trial state (e.g. a
-                                                // branch-flip excursion under stress control): bisect
-                                                // the increment; at the minimal fraction fall through
-                                                // to the existing inforce path rather than throwing
-                                                // (a hard throw here overrides the inforce contract and
-                                                // is platform-fragile — LAPACK-backend-dependent
-                                                // singularity detection).
+                                                // Degenerate tangent: bisect; at Dn_mini fall through to the inforce
+                                                // path (singularity detection is LAPACK-backend dependent).
                                                 try_step_cut(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt);
                                                 compteur = maxiter_solver;
                                                 break;
@@ -725,9 +689,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         }
                                         if(inforce_solver == 1) {
                                             
-                                            // Give up when the carried residual is not being absorbed:
-                                            // the prescribed state is out of reach, not merely hard.
-                                            // Status protocol, never a throw (see solver_sink.hpp).
+                                            // Give up (status, never a throw) when the carried residual is not absorbed.
                                             if (n_inforced == 0) {
                                                 error_inforced = error;
                                             }
@@ -738,8 +700,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             }
                                             
                                             cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
-//                                            cout << "The next increment has integrated the error to avoid propagation\n";
-                                            //The solver has been inforced!
                                             tnew_dt = 1.;
                                             
                                             if (inc+1<sptr_meca->ninc) {
@@ -783,10 +743,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 }
                                 compteur = 0;
                                 }
-                                // Recoverable failures of the trial state — F-reconstruction
-                                // (sqrtmat/expmat), singular inverse in the kinematics or the
-                                // tangent assembly, singular return-map Jacobian (FB det) —
-                                // are bisected away; anything else propagates.
+                                // Recoverable trial-state failures are bisected away; anything else propagates.
                                 catch (const simcoon::exception_sqrtmat_sympd &) {
                                     step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
@@ -800,10 +757,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
-                                // Every branch above assigns this same expression, but only when it
-                                // runs: the inforce path skips them while Dtinc has shrunk to Dn_mini,
-                                // and assess_inc would then add a stale full-increment DTime once per
-                                // forced sub-iteration. Recompute from the fraction actually accepted.
+                                // The inforce path skips the branches above: recompute DTime from the accepted fraction.
                                 DTime = Dtinc*sptr_meca->times(inc);
                                 if (blocks[i].control_type == 1) {
                                     // small strain: the logarithmic strain is the infinitesimal one
@@ -1082,9 +1036,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         
                                         if(solver_type != 1){
-                                            // classic
-                                            ///Prediction of the strain increment using the tangent modulus given from the umat_ function
-                                            //we use the ddsdde (Lt) from the previous increment
+                                            // classic: Newton prediction with the tangent of the previous increment
                                             if (finite_ct)
                                                 Lth_2_K(control_tangent(*sv_T, sv_T->dSdE, blocks[i].control_type, corate_type, C), dSdT_c, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
                                             else
@@ -1174,13 +1126,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 
 /*                                if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) < simcoon::iota)&&(tnew_dt < 1.)) {
                                     cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
                                     return;
                                 }
                                 
                                 if((error > 1000.*precision_solver)&&(Dtinc_cur == sptr_thermomeca->Dn_mini)) {
                                     cout << "The error has exceeded 1000 times the precision, the simulation has stopped at " << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
                                     return;
                                 }
                                 */
@@ -1195,7 +1145,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         
                                             cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
                                             cout << "The next increment has integrated the error to avoid propagation\n";
-                                            //The solver has been inforced!
                                             tnew_dt = 1.;
                                         
                                             if (inc+1<sptr_thermomeca->ninc) {

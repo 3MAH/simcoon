@@ -184,10 +184,7 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     mat L = zeros(3,3);   // DTime <= iota: D = W = 0, DR = I (rate undefined, see finite_rotation)
     if(DTime > simcoon::iota) {
         try {
-            // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and F at
-            // the MID configuration (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1 (the end-config form
-            // (F1-F0)F1^-1 is only 1st order). The SAME estimate is used by every rate function so
-            // that D=sym(L) is identical across them (enforced by Tobjective_rates.all_rates_same_D).
+            // 2nd-order midpoint L = (2/dt)(F1-F0)(F0+F1)^-1, shared by every rate so D = sym(L) agrees
             L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
@@ -218,9 +215,7 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    // Exact relative polar rotation DR = R1 R0^T and its inverse-Cayley
-    // midpoint spin in one polar pass (Hughes_Winget(Omega) == DR exactly,
-    // so no reconstruction round trip is needed).
+    // DR = R1 R0^T exactly; Hughes_Winget(Omega) == DR, no reconstruction needed
     finite_rotation(F0, F1, DTime, DR, Omega);
 }
 
@@ -390,11 +385,7 @@ mat A_R(const mat &F) {
     return AR;
 }
 
-// A^F: log_F-frame (convected) strain-concentration tensor (full doc in objective_rates.hpp).
-// Kernel t*coth(t), t = 1/2 ln(b_i/b_j) -> diagonal = 1, so A^F:D recovers ln V (like A^R:D) in
-// the convected F-frame. The cosh(t) factor vs A_R's t/sinh(t) compensates the convected (inv DF)
-// transport. (An earlier "-1/2 ln(b_i b_j)" term made it deliberately indefinite past lambda=sqrt(e);
-// that corrupted the diagonal to 1-2 lnλ and was the bug -- A^F MUST integrate to ln V, as A^R does.)
+// kernel t*coth(t): unit diagonal, so A^F:D integrates to ln V like A^R:D
 mat A_F(const mat &F) {
     vec::fixed<3> bi;
     mat::fixed<3,3> Bi;
@@ -453,9 +444,7 @@ mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
 }
 
 mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
-    // Naive log_F midpoint increment: same form as Delta_log_strain, but the frame
-    // increment DF = Hughes_Winget(L, dt) is non-orthogonal, so the rotated term is
-    // the push-forward DF*D*inv(DF) -- inverse, NOT transpose.
+    // DF is non-orthogonal: the rotated term is DF*D*inv(DF), not DF*D*DF^T
     const mat DF = Hughes_Winget(L, DTime);
     return 0.5*(D+(DF*D*inv(DF)))*DTime;
 }
@@ -520,13 +509,8 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
         const mat::fixed<3,3> lnV1 = half_logmat(F1_*F1_.t(), "Delta_log_strain_corate");
         return lnV1 - DR*lnV0*DR.t();                          // orthogonal (DR^T) transport
     }
-    // corate 3 (log_R): A^R:D = the R-corotational (Green-Naghdi) rate of ln V, integrated in the
-    // natural frame -> recovers ln V (~2e-4) and is frame-indifferent under rigid rotation. The
-    // log_R spin is carried by sv_M->DR (logarithmic_R); the solver must NOT also apply the DR_N
-    // natural-basis rotation -- stacking both double-counts the log_R correction (undershoots ln V
-    // by ~11% under large open shear). A^R:D alone is the correct, self-consistent formulation.
-    // A^R:D by congruence on the eigenbasis of B1; the frame increment is DR itself (the inverse
-    // Cayley of Omega, so Hughes_Winget(Omega) would only rebuild it).
+    // log_R spin is carried by sv_M->DR: the solver must not also apply DR_N (double count)
+    // frame increment is DR itself (inverse Cayley of Omega)
     if (corate_type == 3) {   // log_R: A^R:D
         vec::fixed<3> b1;
         mat::fixed<3,3> Nb;
@@ -554,29 +538,11 @@ double Delta_work_conjugacy(const vec &tau_start, const vec &tau_start_tr, const
          - 0.5*dot(tau_start_tr + tau, Detot);
 }
 
-// ---------------------------------------------------------------------------
-// EXACT log-box <-> material tangent maps (contract and derivation: see the
-// DtauDe_2_DSDE / DSDE_2_DtauDe Doxygen in objective_rates.hpp). Both
-// directions differentiate S(E) = U^-1 R^T tau(ln V) R U^-1 with
-// Daleckii-Krein spectral derivatives and are mutual algebraic inverses by
-// construction — which keeps the hyperelastic bake-transport round trip
-// exact with no coordinated re-derivation.
-// The kernel box Lt lives in the SPATIAL frame (argument ln V = R ln U R^T),
-// while the spectral machinery differentiates the material-frame ln U: the
-// box must therefore be applied as R^T (Lt : R dh R^T) R. Skipping that
-// conjugation is exact only for isotropic Lt or R = I — with a plastified
-// (anisotropic) box tangent under accumulated rotation it leaves an
-// O(||Lt_dev|| * theta_R) tangent error that grows with rotation and
-// degrades Newton (the "history transport" finding: ~5e-3 at gamma = 0.3
-// simple shear on EPICP, conjugated map ~1e-9).
-// ---------------------------------------------------------------------------
+// Exact log-box <-> material tangent maps (contract: DtauDe_2_DSDE / DSDE_2_DtauDe)
 
 namespace {
 
-// Spectral machinery on C = F^T F shared by the two exact maps above. The
-// Daleckii-Krein derivative is applied in congruence form,
-// dY = N (G % N^T dX N) N^T (N = eigenvector matrix), which is the same map
-// as the sum over eigenprojector sandwiches at a fraction of the products.
+// Daleckii-Krein in congruence form: dY = N (G % N^T dX N) N^T
 struct dk_spectral {
     arma::vec::fixed<3> lam;      // eigenvalues of C (SPD)
     arma::mat::fixed<3,3> N;      // eigenvectors of C (columns)
@@ -594,11 +560,7 @@ struct dk_spectral {
             throw simcoon::exception_eig_sym(
                 "Error in eig_sym function inside the exact DtauDe<->DSDE map.");
         }
-        // Near-singular F: lam(min) -> 0 would push log/1/sqrt to NaN/Inf
-        // tangents with NO exception. Throw the exception the solver's
-        // step-cut catch ladder already handles (exception_inv: F is not
-        // usably invertible), preserving the recoverable failure mode of
-        // the previous inv(F)-based implementation.
+        // near-singular F: throw exception_inv, the solver step-cut signal, rather than NaN tangents
         if (!lam.is_finite() || lam.min() <= simcoon::iota) {
             throw simcoon::exception_inv(
                 "Near-singular F inside the exact DtauDe<->DSDE map (eigenvalue of C <= iota).");
@@ -613,9 +575,7 @@ struct dk_spectral {
         tau_hat = R.t() * arma::mat::fixed<3,3>(tau) * R;
     }
 
-    // Divided-difference coefficient matrix for f, symmetric; f' at the
-    // midpoint on the coincidence guard (2nd-order limit; same conservative
-    // 1e-4 relative threshold as get_BBBB / A_R in this file).
+    // f' at the midpoint under the 1e-4 relative coincidence guard (as get_BBBB / A_R)
     template <typename Ff, typename Fdf>
     arma::mat gmat(Ff f, Fdf df) const {
         const arma::vec fl = {f(lam(0)), f(lam(1)), f(lam(2))};
@@ -679,12 +639,8 @@ inline void set_stress_col(arma::mat &M, const int j, const m33 &S) {
 
 namespace {
 
-// Total formulation (strain space). The box is posed on H = f(C), f = 1/2 ln, in reference
-// components and returns the dual stress T; with That = N^T T N in the eigenbasis of C:
-//   S    = 2 Df(C)[T]          = 2 N (G % That) N^T,        G_ab    = f[c_a, c_b]
-//   tau  = F S F^T             = R N (kappa % That) N^T R^T, kappa   = 2 lam_a lam_b G_ab
-//   dS   = 2 Df(C)[dT] + 2 D2f(C)[T, dC],  D2f(C)[T, dC]_ab = sum_k Gam_akb (That_ak dC_kb + dC_ak That_kb)
-// with Gam_abc = f[c_a, c_b, c_c]. kappa(t) = t/sinh(t), t = ln(lam_a/lam_b), is A_R's kernel.
+// S = 2 N (G % That) N^T, tau = R N (kappa % That) N^T R^T, That = N^T T N, G_ab = f[c_a, c_b],
+// f = 1/2 ln, kappa = 2 lam_a lam_b G_ab = t/sinh(t) (A_R kernel)
 struct logU_spectral {
     arma::vec::fixed<3> c;              // eigenvalues of C (SPD)
     arma::mat::fixed<3,3> N;            // eigenvectors of C (columns)
@@ -701,10 +657,7 @@ struct logU_spectral {
     static double dd1(const double &x, const double &y) {
         return kappa_of(x, y)/(2.*std::sqrt(x*y));
     }
-    // f[x, y, z]. Separated: difference of the two first differences over the WIDEST gap, so two
-    // coalescing arguments cost nothing. Clustered (spread below 1e-4): Taylor about the mean m,
-    // f[..] = sum_k f^(k+2)(m)/(k+2)! h_k(d), h_k the complete homogeneous polynomials of the
-    // offsets d (h_1 = 0 about the mean); truncated after h_4, exact limit -1/(4 m^2).
+    // f[x,y,z]: separated -> difference over the widest gap; clustered (< 1e-4) -> Taylor about the mean to h_4
     static double dd2(double x, double y, double z) {
         if (x > y) std::swap(x, y);
         if (y > z) std::swap(y, z);
@@ -912,13 +865,6 @@ mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
 
 mat DtauDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 
-    // The PLAIN Green-Naghdi corotational strain (corate 1, integral of
-    // R^T D R) is a PATH integral — not a state function of C — so the exact
-    // spectral map above does not apply: this conversion stays the rate
-    // identity (GN box -> Lie via the GN spin correction, then pull-back),
-    // the exact inverse of DSDE_2_Dtau_GreenNaghdiDD. NB log_R (corate 3) is
-    // NOT in this family: A^R:D accumulates exactly ln U, so the corate
-    // dispatchers route it to the exact map.
     mat invF;
     try {
         invF = inv(F);
@@ -961,10 +907,6 @@ mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
 
 mat DSDE_2_DtauDe(const mat &DSDE, const mat &F, const mat &tau) {
 
-    // Exact algebraic inverse of DtauDe_2_DSDE (see the block comment there):
-    // every step of the composition is inverted — the Daleckii-Krein map is
-    // diagonal in the eigenprojector basis, so its inverse is the entrywise
-    // reciprocal of the coefficient matrix.
     dk_spectral sp;
     sp.build(F, tau);
     const m33 G_h_inv = 1.0 / sp.G_h;      // elementwise; G_h > 0 (1/2 ln strictly increasing)
@@ -974,11 +916,7 @@ mat DSDE_2_DtauDe(const mat &DSDE, const mat &F, const mat &tau) {
     mat Lt(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
-        // The box argument is the SPATIAL log strain: pull the basis
-        // perturbation d(ln V) back to the material frame (d ln U at fixed R)
-        // before inverting the spectral steps, and push the corotational
-        // stress response forward again — the exact inverse of the forward
-        // map's R conjugation.
+        // box argument is ln V: pull dh back by R (inverse of the forward R conjugation)
         const m33 dh = sp.R.t() * unit_strain_tensor(j) * sp.R;
         const m33 dhp = sp.N.t() * dh * sp.N;               // eigenframe
         const m33 dC = sp.N * (G_h_inv % dhp) * sp.N.t();   // inverse of d(1/2 ln C)
@@ -1097,11 +1035,7 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
         case corate_type_total:  return DSDE_2_logU_box(DSDE, F, tau);            // strain space: dT/dH in reference components
         case corate_type_material_tangent:  return DSDE;            // the material tangent itself
         case 2:                                                     // XBM (logarithmic)
-        case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
-                                                                    // R frame (Hoger/Miehe d(ln U)/dC in rate form),
-                                                                    // a state function of C -> exact map applies; the
-                                                                    // R transport even cancels without the isotropy
-                                                                    // argument XBM needs (no residual rotation).
+        case 3:                                                     // log_R: A^R:D accumulates exactly ln U (a function of C) -> exact map
         default: return DSDE_2_DtauDe(DSDE, F, tau);
     }
 }
@@ -1150,9 +1084,6 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
 }
 
 mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, const mat &F, const mat &tau) {
-    // Mirrors DSDE_2_DtauDe_corate above, one step earlier in the chain: from the SPATIAL
-    // (Lie/Oldroyd) tangent, which is what a hyperelastic potential closes on, straight to the
-    // box of the requested rate.
     switch (corate_type) {
         case 0:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau);
         case 1:  return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
@@ -1220,11 +1151,7 @@ mat Dtau_LieDD_Dtau_GreenNaghdiDD(const mat &Dtau_LieDD, const mat &F, const mat
 
 mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
 
-    // For the XBM logarithmic rate the tangent in-rate IS the box tangent
-    // d(tau_hat)/dDe: route through the exact spectral pair so the whole
-    // corate-2 family shares one core and composes as mutual inverses
-    // (the former frozen-spin correction left this leg first-order while
-    // the box<->DSDE legs were exact).
+    // XBM in-rate tangent = box tangent: route through the exact spectral pair
     return DSDE_2_DtauDe(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);
 }
 

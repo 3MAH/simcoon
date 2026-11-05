@@ -29,7 +29,6 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
 mat ER_to_F(const mat &E, const mat &R) {
 
     assert(E.n_cols == 3);
@@ -37,9 +36,7 @@ mat ER_to_F(const mat &E, const mat &R) {
     assert(R.n_cols == 3);
     assert(R.n_rows == 3);
 
-    //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
-    //symmatu() removes any numerical asymmetry so a mathematically-SPD C is not
-    //rejected by sqrtmat_sympd's symmetry check (the input E is symmetric by construction).
+    //C = 2E + I; symmatu() so the symmetry check of sqrtmat_sympd accepts it
     mat C = symmatu(2.*E+eye(3,3));
 
     mat::fixed<3,3> U;
@@ -64,12 +61,10 @@ mat eR_to_F(const mat &e, const mat &R) {
     return (V*R);
 }
     
-//This function computes the gradient of displacement (Lagrangian) from the deformation gradient tensor
 mat G_UdX(const mat &F) {
     return F - eye(3,3);
 }
 
-//This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor
 mat G_Udx(const mat &F) {
 
     try {
@@ -80,12 +75,10 @@ mat G_Udx(const mat &F) {
     }        
 }
     
-//This function computes the Right Cauchy-Green C
 mat R_Cauchy_Green(const mat &F) {
     return F.t()*F;
 }
     
-//This function computes the Left Cauchy-Green B
 mat L_Cauchy_Green(const mat &F) {
     return F*F.t();
 }
@@ -106,7 +99,6 @@ void RU_spectral(mat::fixed<3,3> &R, vec::fixed<3> &c, mat::fixed<3,3> &N, const
     R = F_*spectral_compose_3x3(N, inv_s);
 }
 
-//Provides the RU decomposition of the transformation gradient F
 void RU_decomposition(mat &R, mat &U, const mat &F) {
     mat::fixed<3,3> R_, N;
     vec::fixed<3> c;
@@ -115,7 +107,6 @@ void RU_decomposition(mat &R, mat &U, const mat &F) {
     U = spectral_compose_3x3(N, sqrt(c));
 }
 
-//Provides the VR decomposition of the transformation gradient F
 void VR_decomposition(mat &V, mat &R, const mat &F) {
     const mat::fixed<3,3> F_(F);
     vec::fixed<3> b;
@@ -132,7 +123,6 @@ void VR_decomposition(mat &V, mat &R, const mat &F) {
     R = spectral_compose_3x3(N, inv_s)*F_;
 }
     
-//This function computes the common Right (or Left) Cauchy-Green invariants
 vec Inv_X(const mat &X) {
     
     vec I = zeros(3);
@@ -142,7 +132,6 @@ vec Inv_X(const mat &X) {
     return I;
 }
 
-//This function computes the Cauchy deformation tensor b
 mat Cauchy(const mat &F) {
     try {
         return inv(L_Cauchy_Green(F));
@@ -152,17 +141,14 @@ mat Cauchy(const mat &F) {
     }     
 }
     
-//This function computes the Green-Lagrange finite strain tensor E
 mat Green_Lagrange(const mat &F) {
     return 0.5*(R_Cauchy_Green(F) - eye(3,3));
 }
 
-//This function computes the Euler-Almansi finite strain tensor e
 mat Euler_Almansi(const mat &F) {
     return 0.5*(eye(3,3) - Cauchy(F));
 }
 
-//This function computes the Euler-Almansi finite strain tensor h
 mat Log_strain(const mat &F) {
     const mat::fixed<3,3> F_(F);
     vec::fixed<3> b;
@@ -174,7 +160,6 @@ mat Log_strain(const mat &F) {
     return spectral_compose_3x3(N, b);
 }
 
-//This function computes the velocity difference
 mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
     if (DTime <= simcoon::iota) {
         return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_rotation)
@@ -189,13 +174,11 @@ mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
     }   
 }
 
-//This function computes the deformation rate D
 mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
     const mat L = finite_L(F0, F1, DTime);
     return 0.5*(L+L.t());
 }
 
-//This function computes the spin tensor W (correspond to Jaumann rate)
 mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 
     const mat L = finite_L(F0, F1, DTime);
@@ -203,8 +186,6 @@ mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 
 }
     
-//This function computes the exact relative polar rotation and its midpoint spin
-// Note : here R is the rigid body rotation in the polar decomposition of the deformation gradient F
 void finite_rotation(const mat &F0, const mat &F1, const double &DTime, mat &DR, mat &Omega) {
     mat::fixed<3,3> R0, R1, N;
     vec::fixed<3> c;
@@ -219,10 +200,7 @@ void finite_rotation(const mat &F0, const mat &F1, const double &DTime, mat &DR,
         return;
     }
     try {
-        // Inverse Cayley: exactly skew for an orthogonal DR, and its
-        // Hughes-Winget (Cayley) update recovers DR exactly. Singular at a
-        // 180-degree increment (Cayley chart limit) and for improper inputs
-        // (det F < 0) -> exception_inv, the solver's step-cut signal.
+        // singular at a 180-degree increment or det F < 0 -> exception_inv (solver step-cut signal)
         Omega = (2./DTime)*(DR-eye(3,3))*inv(DR+eye(3,3));
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
@@ -230,16 +208,12 @@ void finite_rotation(const mat &F0, const mat &F1, const double &DTime, mat &DR,
     }
 }
 
-//This function computes the spin tensor Omega (correspond to Green-Naghdi rate)
 mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
     mat DR, Omega;
     finite_rotation(F0, F1, DTime, DR, Omega);
     return Omega;
 }
 
-//This function computes the increment of finite rotation
-// (generalized two-spin midpoint; with Omega0 == Omega1 the two Cayley factors
-// commute and finite_DQ(W, W, dt) == Hughes_Winget(W, dt) exactly)
 mat finite_DQ(const mat &Omega0, const mat &Omega1, const double &DTime) {
     
     try {

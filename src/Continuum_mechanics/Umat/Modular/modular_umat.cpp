@@ -164,15 +164,11 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
         }
     }
 
-    // An anisotropic elastic potential composed with an inelastic mechanism is accepted on
-    // purpose; the fibre-convection approximation that entails is documented on
-    // structure_tensors_push_forward (hyperelastic.hpp).
+    // anisotropic potential + inelastic mechanism accepted: fibre convection approximate (structure_tensors_push_forward)
 }
 
 void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
-    // Each mechanism registers its variables into its OWN collection, then
-    // receives a base offset into the shared statev layout:
-    //   statev = [T_init | mech 0 | mech 1 | ...]  (composition order)
+    // statev = [T_init | mech 0 | mech 1 | ...] (composition order)
     for (auto& mech : mechanisms_) {
         mech->register_variables();
     }
@@ -189,11 +185,7 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
                                 ") < required (" + std::to_string(required) + ")");
     }
 
-    // required_nstatev() is a hand-counted pre-initialize estimate (callers
-    // size their statev array with it). Guard it against silent drift from the
-    // authoritative count that register_variables() just produced — any
-    // mechanism that gains/loses a variable without updating required_nstatev()
-    // fails here on the first initialize, not with a corrupted statev later.
+    // required_nstatev() is hand-counted: catch its drift from register_variables() here, not as corrupted statev
     if (required_nstatev() != required) {
         throw std::logic_error(
             "ModularUMAT: required_nstatev() (" + std::to_string(required_nstatev()) +
@@ -207,9 +199,7 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
         mech->unpack(statev);
     }
 
-    // Cache the composition invariants (constant for the rest of the
-    // object's lifetime): per-mechanism constraint-row offsets and the
-    // drift-guard arming decision (see the member doc).
+    // composition invariants: per-mechanism row offsets and the drift-guard arming
     mech_offset_.assign(mechanisms_.size(), 0);
     int acc = 0;
     int n_guarded_rows = 0;
@@ -217,9 +207,7 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
         mech_offset_[m] = acc;
         acc += mechanisms_[m]->num_constraints();
         if (mechanisms_[m]->guarded_constraints()) {
-            // Count ROWS, not mechanisms: a single future mechanism carrying
-            // several coupled surfaces (SMA forward/reverse transformation)
-            // is already the multi-surface configuration the guard watches.
+            // count rows, not mechanisms: one mechanism with coupled surfaces is already multi-surface
             n_guarded_rows += mechanisms_[m]->num_constraints();
         }
     }
@@ -309,9 +297,7 @@ void ModularUMAT::run(
         T_init_ = statev(0);
         if (start) {
             T_init_ = T;
-            // Legacy contract: the cumulative work accumulators are RESET on
-            // the start increment (every legacy kernel zeroes them in its
-            // if(start) block); stale caller-supplied values must not leak in.
+            // legacy contract: the cumulative work accumulators are reset on the start increment
             Wm = 0.0;
             Wm_r = 0.0;
             Wm_ir = 0.0;
@@ -353,18 +339,7 @@ void ModularUMAT::run(
     arma::vec Ds_total = arma::zeros(n_total);
     const bool converged = return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, nshr, Ds_total, tangent_mode);
 
-    // Reject unusable committed states with a step cut: non-finite stress
-    // (true divergence), a runaway COMMITTED multiplier (multiplier_cap —
-    // checked on the state, not the raw FB row, which can be smaller after
-    // clipped excursions), or a state that drifted from the flow rule
-    // (state_drift) — a spurious CONVERGED root of an oscillating FB Newton,
-    // invisible to every residual check (arming policy: see
-    // drift_guard_armed_). Thresholds are per-mechanism, infinity = opt out.
-    // (Negative multipliers are handled at the source: PlasticityMechanism
-    // projects the state update onto p >= p_start, and PowerLawHardening is
-    // C1-regularized at onset, so no negative-Ds check is needed here.)
-    // The closest-point branch reports its own non-convergence (no commit-at-maxiter
-    // semantics there) and satisfies the flow rule by construction (drift guard moot).
+    // rejection policy: see run() in modular_umat.hpp
     bool reject = !converged || !sigma.is_finite();
     for (size_t m = 0; !reject && m < mechanisms_.size(); ++m) {
         const double drift_tol = mechanisms_[m]->drift_tolerance();
@@ -374,20 +349,10 @@ void ModularUMAT::run(
                   mechanisms_[m]->state_drift(sigma_eff_) > drift_tol);
     }
     if (reject) {
-        // Ask the global solver to halve the increment and retry. statev is
-        // left at its incoming values (pack_all is skipped) so the retry
-        // restarts from the correct state; sigma is reset to its incoming
-        // value and Lt to elastic so the rejected-step output stays a
-        // self-consistent triple — the solver's inforce-at-Dn_mini branch
-        // commits this output WITHOUT re-running the UMAT, and a rejected
-        // stress paired with the un-updated statev would silently corrupt
-        // the rest of the history.
+        // statev untouched (no pack_all), sigma and Lt back to the start state: a self-consistent triple
         sigma = sigma_start_;
         tnew_dt = 0.5;
-        // Lt is the START state's elastic tangent too: restore the mechanisms
-        // from the untouched statev (with the same rotation as above) and
-        // evaluate the elastic block there, so neither the rejected iterate's
-        // damage nor its elastic strain leaks into the committed tangent.
+        // elastic tangent of the start state: neither the rejected damage nor its elastic strain leaks in
         for (auto& mech : mechanisms_) {
             mech->unpack(statev);
             if (rotate) mech->rotate(DR);
@@ -401,15 +366,10 @@ void ModularUMAT::run(
     // Compute consistent tangent (it seeds Lt itself)
     compute_tangent(sigma, Ds_total, Lt, tangent_mode);
 
-    // Work quantities — CUMULATIVE in/out, the legacy UMAT contract
-    // (Wm += increment each call; the solver reports the path integral).
-    // Total mechanical work increment: trapezoidal sigma:dE on the total
-    // strain increment, exactly as the legacy kernels.
+    // cumulative work (legacy contract): trapezoidal sigma:dE on the total strain increment
     const double Wm_inc = 0.5 * arma::dot(sigma_start_ + sigma, DEtot);
 
-    // Stored/dissipated increments from the mechanisms; the recoverable part
-    // closes the energy balance (guarantees Wm = Wm_r + Wm_ir + Wm_d and
-    // reduces to the legacy elastic trapezoid when no mechanism is present).
+    // Wm_r closes the balance Wm = Wm_r + Wm_ir + Wm_d
     double Wm_ir_inc = 0.0, Wm_d_inc = 0.0;
     for (const auto& mech : mechanisms_) {
         double Wm_r_m = 0.0, Wm_ir_m = 0.0, Wm_d_m = 0.0;
@@ -463,9 +423,7 @@ bool ModularUMAT::return_mapping(
         n_total += mech->num_constraints();
     }
 
-    // Elastic prediction. With no constraints there is no inelastic strain and
-    // no damage, so this same call IS the whole elastic response — only the
-    // constraint machinery below is skipped.
+    // with no constraints this elastic call is the whole response
     const arma::vec Etot_end = Etot + DEtot;
     for (auto& mech : mechanisms_) {
         mech->predict(Etot_end, DTime);   // closed-form parts first (viscoelastic branches)
@@ -482,11 +440,8 @@ bool ModularUMAT::return_mapping(
     evaluate_constraints(Etot_end, DTime, Phi, Y_crit);
     Ds_total.zeros(n_total);
 
-    // Admissible trial state: the whole answer for every integrator. The FB solve would return
-    // ds = 0 and error = 0 exactly (phi(Phi, 0) = |Phi| + Phi = 0 for Phi <= 0) and the zero
-    // update is the identity for a multiplier row; only the rows without multipliers (damage)
-    // commit their fixed point here, after which the stress is refreshed. With no closest-point
-    // solve, cpp_consistent_tangent() returns the elastic operator.
+    // admissible trial: the answer for every integrator (FB would return ds = 0); only the rows without
+    // multipliers (damage) commit their fixed point here
     bool elastic_pass = false;   // the admissible-trial pass counted as the loop's first iterate
     if (Phi.max() <= 0.0) {
         bool inert_rows = false;
@@ -700,15 +655,8 @@ void ModularUMAT::assemble_jacobian(
     double DT,
     arma::mat& B
 ) {
-    // Phase 2: cross-mechanism off-diagonal Jacobian entries per theory eq
-    //          B_{lj} = -dPhi^l/dsigma · kappa^j + K^{lj}.
-    //          Mechanisms whose Phi is strain-form (viscoelastic) return
-    //          empty dPhi_dsigma → no rows contributed here, matching the
-    //          decoupled-from-stress structure.
-    //          The dot is taken on engineering Voigt components — the
-    //          work-conjugate pairing for strain-typed dPhi with
-    //          stress-typed kappa (and the established numerics for the
-    //          damage strain-typed kappa; see DamageMechanism::kappa).
+    // Phase 2: B_lj = -dPhi^l/dsigma . kappa^j + K^lj (engineering Voigt dot); strain-form Phi
+    // (viscoelastic) returns an empty dPhi_dsigma and contributes no row
     B.zeros();
     // Fetch each mechanism's kappa list once — the const-refs stay valid
     // for the whole phase (no compute_constraints call in between).
@@ -778,9 +726,7 @@ void ModularUMAT::compute_tangent(
     // mechanisms see sigma_eff_; damage enters last through its stress_map().
     const arma::vec& sigma_eff = sigma_eff_;
 
-    // Mechanisms opting into the algorithmic assembly: stress-dependent Phi
-    // AND an analytic flow Hessian. Others (viscoelastic, damage, Hessian-less
-    // criteria) keep their continuum tangent_contribution in every mode.
+    // algorithmic assembly only for stress-dependent Phi with an analytic flow Hessian
     std::vector<size_t> algo;
     if (tangent_mode == tangent_closest_point) {
         // Exact operator of the closest-point solve; every multiplier-carrying row is inside it.
@@ -789,10 +735,7 @@ void ModularUMAT::compute_tangent(
         }
         Lt = cpp_consistent_tangent(cpp_result_, L_cur_).Lt;
     } else if (tangent_mode == tangent_algorithmic && arma::any(Ds_total > simcoon::iota)) {
-        // With no active multiplier the assembly masks every mechanism (same Ds > iota
-        // threshold, tangent_assembly.cpp) and returns L: skip the Hessians, which the
-        // opt-in predicate below would evaluate before the assembly could; the continuum
-        // contributions are no-ops at Ds <= iota.
+        // no active multiplier: the assembly masks everything and returns L, skip the Hessians
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             if (mechanisms_[m]->dLambda_dsigma(sigma_eff) != nullptr &&
                 !mechanisms_[m]->dPhi_dsigma(sigma_eff).empty()) {
@@ -802,11 +745,7 @@ void ModularUMAT::compute_tangent(
     }
 
     if (tangent_mode == tangent_algorithmic && !algo.empty()) {
-        // Rebuild the local Jacobian at the converged state (the mechanism
-        // caches were refreshed by the last compute_constraints call) and
-        // hand the opted-in sub-block to the Simo-Hughes assembly.
-        // Sign: modular B = -dPhi·kappa + K, tangent_assembly Bhat = dPhi·kappa - K,
-        // hence Bhat = -B.
+        // sign: modular B = -dPhi.kappa + K, tangent_assembly Bhat = dPhi.kappa - K, hence Bhat = -B
         int n_total = 0;
         for (const auto& mech : mechanisms_) {
             n_total += mech->num_constraints();

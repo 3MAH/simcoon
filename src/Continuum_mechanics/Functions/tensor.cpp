@@ -57,11 +57,7 @@ static Tensor4Type parse_tensor4_type(const std::string &s) {
         "Expected: stiffness, compliance, strain_concentration, stress_concentration, generic");
 }
 
-// Helper: validate that a secondary operand in a batch op is either broadcast
-// (n_slices == 1) or matches the primary batch size. Without this check, a
-// mismatched count silently reads past the owned cube buffer in release builds
-// (ARMA_NO_DEBUG), producing garbage output and, under OpenMP, non-deterministic
-// crashes.
+// secondary operand: broadcast (1) or matched (N); a mismatch reads past the cube buffer under ARMA_NO_DEBUG
 static void check_batch_broadcast(arma::uword n_secondary,
                                   arma::uword N_primary,
                                   const char *fn,
@@ -86,10 +82,7 @@ static arma::mat::fixed<3,3> inv33(const arma::mat::fixed<3,3> &F) {
     return result;
 }
 
-// Helper: select the 3x3 contraction kernel for tensor4 push/pull on all 4 indices.
-//   forward=true  (push):  stiffness/generic → F,       compliance → F^{-T}
-//   forward=false (pull):  stiffness/generic → F^{-1},  compliance → F^T
-// Concentration types mix covariant and contravariant indices — not implemented.
+// push: stiffness/generic -> F, compliance -> F^-T; pull: F^-1, F^T (concentration: not implemented)
 static arma::mat::fixed<3,3> tensor4_kernel(const arma::mat::fixed<3,3> &F,
                                             Tensor4Type type, bool forward) {
     switch (type) {
@@ -108,20 +101,12 @@ static arma::mat::fixed<3,3> tensor4_kernel(const arma::mat::fixed<3,3> &F,
     return F; // unreachable
 }
 
-// ============================================================================
-// Kelvin-Mandel convention
-// ============================================================================
-//
-// tensor4 stores its 6x6 in Mandel. Boundaries: engineering <-> Mandel per-type
-// congruence eng_to_mandel/mandel_to_eng (tensor.hpp); Mandel <-> full-index via the
-// type-free mandel_to_fastor4/fastor4_to_mandel (fastor_bridge.hpp).
+// ==== Kelvin-Mandel: tensor4 stores Mandel (eng<->Mandel: tensor.hpp; Mandel<->full-index: fastor_bridge.hpp) ====
 
 static const double SQ2 = std::sqrt(2.0);
 
-// Mandel rotation operator: sigma_hat' = R6 * sigma_hat reproduces Q*sigma*Q^T for symmetric
-// tensors. R6 is orthogonal, so one congruence R6 * X * R6^T rotates every Tensor4Type exactly
-// (~3x cheaper than the full-index einsum route, no _fastor cache build).
-// Entry: R6(I,J) = (c_I/c_J) * (Q_ik Q_jl + (1-delta_kl) Q_il Q_jk), c = (1,1,1,sqrt2,sqrt2,sqrt2).
+// R6 is orthogonal: R6 X R6^T rotates every Tensor4Type exactly
+// R6(I,J) = (c_I/c_J)(Q_ik Q_jl + (1-delta_kl) Q_il Q_jk), c = (1,1,1,sqrt2,sqrt2,sqrt2)
 static arma::mat::fixed<6,6> mandel_rotation(const arma::mat::fixed<3,3> &Q) {
     static const int pi[6] = {0,1,2,0,0,1};   // Voigt order [11,22,33,12,13,23]
     static const int pj[6] = {0,1,2,1,2,2};
@@ -139,9 +124,7 @@ static arma::mat::fixed<6,6> mandel_rotation(const arma::mat::fixed<3,3> &Q) {
     return R6;
 }
 
-// Scalar 6x6 products for the Mandel congruences: arma Mat*Mat dispatches to BLAS dgemm,
-// which at this size costs more than the flops and contends (Accelerate) when the batch
-// loops run one call per item across threads.
+// scalar 6x6 products: dgemm at this size costs more than the flops and contends across threads
 static arma::mat::fixed<6,6> mul66(const arma::mat::fixed<6,6> &A, const arma::mat::fixed<6,6> &B) {
     arma::mat::fixed<6,6> C;
     for (int j = 0; j < 6; ++j)
@@ -174,9 +157,7 @@ static arma::mat::fixed<6,6> base_volumetric() {
     return m;
 }
 
-// ============================================================================
-// tensor2 implementation
-// ============================================================================
+// ==== tensor2 implementation ====
 
 tensor2::tensor2() : _mat(arma::fill::zeros), _vtype(Tensor2Type::stress) {}
 
@@ -534,9 +515,7 @@ tensor2 dev(const tensor2 &t) {
 double Mises(const tensor2 &t) {
     if (t.vtype() == Tensor2Type::none)
         throw std::runtime_error("Mises not defined for Tensor2Type::none");
-    // From the 3x3 deviator (convention-free): stress -> sqrt(3/2 dev:dev),
-    // strain -> sqrt(2/3 dev:dev). accu(dev % dev) is the double contraction (off-diagonals
-    // counted twice via symmetry), so no engineering shear factors are needed.
+    // on the 3x3 deviator: accu(dev % dev) is the full contraction, no engineering shear factors
     arma::mat::fixed<3,3> d = t.mat();
     double tr = (d(0,0) + d(1,1) + d(2,2)) / 3.0;
     d(0,0) -= tr; d(1,1) -= tr; d(2,2) -= tr;
@@ -546,9 +525,7 @@ double Mises(const tensor2 &t) {
     return std::sqrt(1.5 * dd);
 }
 
-// Gradient of a Drucker-Prager-type surface  s_eq + coeff*tr(sigma):  (3/2) dev(sigma)/s_eq + coeff*I.
-// Deviator and s_eq are formed inline (no Voigt round-trip). s_eq <= iota is the cone vertex:
-// the deviatoric normal is undefined there, so it is dropped and only the volumetric part remains.
+// grad(s_eq + coeff tr sigma); at s_eq <= iota (cone vertex) only the volumetric part is kept
 static tensor2 dp_surface_normal(const tensor2 &sigma, double coeff) {
     arma::mat::fixed<3,3> n = sigma.mat();
     double tr3 = (n(0,0) + n(1,1) + n(2,2)) / 3.0;
@@ -596,9 +573,7 @@ tensor2 trans(const tensor2 &t) {
     return tensor2(arma::mat::fixed<3,3>(t.mat().t()), t.vtype());
 }
 
-// ============================================================================
-// tensor4 implementation
-// ============================================================================
+// ==== tensor4 implementation ====
 
 tensor4::tensor4() : _mandel(arma::fill::zeros), _type(Tensor4Type::stiffness) {}
 
@@ -746,18 +721,14 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
     if (rate == CoRate::lie)
         return push_forward(F, metric);
 
-    // The B-correction recipe is defined on a Truesdell-rate Kirchhoff tangent
-    // (stress-stress, contravariant on all four indices). It does not apply to
-    // compliance or concentration tangents.
+    // the B-correction is defined on a Truesdell-rate stiffness tangent only
     if (_type != Tensor4Type::stiffness && _type != Tensor4Type::generic) {
         throw std::runtime_error(
             "tensor4::push_forward(F, CoRate, tau): corotational-rate "
             "correction is only defined for stiffness/generic tangents");
     }
 
-    // Step 1: Truesdell push-forward (F-transport) WITHOUT metric, giving the
-    // Lie-rate Kirchhoff tangent. B-correction is applied at the Kirchhoff
-    // level before metric scaling.
+    // Truesdell push-forward without metric (Lie-rate Kirchhoff); B-correction before metric scaling
     auto F_fastor = arma_to_fastor2(F, false);
     _ensure_fastor();
     Fastor::Tensor<double,3,3,3,3> lie_full = push_forward_4(*_fastor, F_fastor);
@@ -765,9 +736,7 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
     arma::mat Lt_v = fastor4_to_voigt(lie_full, _type);
     const arma::mat::fixed<3,3> tau_mat = tau.mat();
 
-    // Step 2: Apply the corotational rate correction through the solver's own per-corate
-    // dispatch (Dtau_LieDD_2_DtauDe_corate), so a tangent built through this API is exactly the
-    // box tangent the solver integrates the stress against -- one kernel, no duplicated switch.
+    // corate correction through the solver's own Dtau_LieDD_2_DtauDe_corate: one kernel
     int corate_type = 2;
     switch (rate) {
         case CoRate::jaumann:       corate_type = 0; break;
@@ -797,9 +766,7 @@ tensor4 tensor4::push_forward(const arma::mat &F, CoRate rate,
 }
 
 tensor4 tensor4::rotate(const Rotation &R, bool active) const {
-    // One orthogonal rotation applied to all four indices, valid for every type: exact Mandel
-    // congruence R6 * X * R6^T (see mandel_rotation) -- no per-type Voigt kernel, no full-index
-    // einsum, no _fastor cache build.
+    // one Mandel congruence R6 X R6^T, valid for every type
     arma::mat::fixed<3,3> Q = R.as_matrix();
     if (!active) Q = arma::mat::fixed<3,3>(Q.t());
     const arma::mat::fixed<6,6> R6 = mandel_rotation(Q);
@@ -807,10 +774,7 @@ tensor4 tensor4::rotate(const Rotation &R, bool active) const {
 }
 
 tensor4 tensor4::inverse() const {
-    // In Mandel the tensor inverse is a plain matrix inverse (no convention bookkeeping).
-    // Hand-rolled Gauss-Jordan with partial pivoting on the fixed 6x6: arma::inv on a
-    // dynamic mat goes through heap + LAPACK per call, which serializes the parallel
-    // batch loops (and costs more than the ~400 flops even in serial).
+    // Gauss-Jordan on the fixed 6x6: arma::inv (heap + LAPACK) serializes the parallel batch loops
     arma::mat::fixed<6,6> A = _mandel;
     arma::mat::fixed<6,6> Inv(arma::fill::eye);
     for (int col = 0; col < 6; ++col) {
@@ -929,9 +893,7 @@ tensor4 auto_dyadic(const tensor2 &a) {
     return dyadic(a, a);
 }
 
-// ============================================================================
-// Batch operations
-// ============================================================================
+// ==== Batch operations ====
 
 Tensor2Type infer_contraction_vtype(Tensor4Type t4type) {
     switch (t4type) {
@@ -952,11 +914,8 @@ Tensor4Type infer_inverse_type(Tensor4Type t4type) {
     return t4type;
 }
 
-// Batch loops below use simcoon_parallel_for_safe (parallel.hpp): exception-safe GCD/OpenMP,
-// so a singular slice raises a catchable error instead of terminating the process.
-//
-// IMPORTANT: never call Cube::slice(i) inside these loops (see slice_view.hpp): these helpers
-// copy through slice_memptr() into fixed-size matrices instead.
+// simcoon_parallel_for_safe: a singular slice raises a catchable error
+// never call Cube::slice(i) in these loops (slice_view.hpp): copy through slice_memptr()
 
 template<arma::uword R, arma::uword C>
 static arma::mat::fixed<R,C> slice_fixed(const arma::cube &c, arma::uword s) {
@@ -1047,9 +1006,6 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
     int N4 = t4.n_slices;
     int N2 = t2.n_cols;
     int N = std::max(N4, N2);
-    // Both operands must be 1 (broadcast) or N (matched). Without these guards
-    // the general-path loop reads past the owned buffer when the two non-
-    // broadcast sizes disagree.
     check_batch_broadcast(N4, N, "batch_contract", "t4", "max(t4.n_slices,t2.n_cols)");
     check_batch_broadcast(N2, N, "batch_contract", "t2", "max(t4.n_slices,t2.n_cols)");
     bool bc4 = (N4 == 1);
@@ -1091,9 +1047,7 @@ arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
     return result;
 }
 
-// Concentration tensors mix covariant/contravariant indices, so push_forward/pull_back are
-// undefined for them (also rejected per-element in tensor4_kernel). The batch loops must reject
-// BEFORE their OpenMP parallel region: an exception escaping an active parallel region is UB.
+// concentration tensors have no push/pull; reject BEFORE the OpenMP region (an escaping exception is UB)
 static void reject_concentration_transport(Tensor4Type type, const char *op) {
     if (type == Tensor4Type::strain_concentration || type == Tensor4Type::stress_concentration)
         throw std::runtime_error(std::string("tensor4::") + op + " not implemented for "

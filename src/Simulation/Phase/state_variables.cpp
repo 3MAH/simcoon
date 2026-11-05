@@ -40,9 +40,6 @@ namespace simcoon{
 
 //=====Public methods for state_variables============================================
 
-/*!
-  \brief default constructor
-*/
 
 //-------------------------------------------------------------
 state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
@@ -69,11 +66,6 @@ state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(
 	nstatev=0;
 }
 
-/*!
-  \brief Constructor with parameters
-  \n\n
-  \f$ \textbf{Examples :} \f$ \n
-*/
 
 //-------------------------------------------------------------
 state_variables::state_variables(const int &m, const bool &init, const double &value) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
@@ -158,10 +150,6 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
     
 }
 
-/*!
-  \brief Copy constructor
-  \param s state_variables object to duplicate
-*/
 
 //------------------------------------------------------
 state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
@@ -192,11 +180,6 @@ state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6),
     
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
 
 //-------------------------------------
 state_variables::~state_variables()
@@ -204,10 +187,6 @@ state_variables::~state_variables()
 {
 
 }
-
-/*!
-  \brief Standard operator = for state_variables
-*/
 
 //----------------------------------------------------------------------
 state_variables& state_variables::operator = (const state_variables& sv)
@@ -483,10 +462,7 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const fr
 state_variables& state_variables::rotate_g2l(const state_variables& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
-	// Configuration travels with the g->l transfer: the solver sets
-	// tangent_mode on the GLOBAL sv, the kernels read the LOCAL one — without
-	// this copy the solver's tangent_mode (and ncp) parameter is dead (kernels always
-	// run the compile-time default).
+	// The solver sets tangent_mode and ncp on the global sv, the kernels read the local one.
 	tangent_mode = sv.tangent_mode;
 	ncp = sv.ncp;
 	Etot = sv.Etot;

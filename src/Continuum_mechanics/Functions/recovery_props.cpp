@@ -35,12 +35,7 @@ namespace simcoon{
 
 void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props, int &maj_sym, const double &tol) {
  
-    // Frobenius, not the spectral norm: norm(X,2) on a matrix is a full SVD
-    // (LAPACK dgesdd), which reads out of bounds in the CLAPACK build shipped
-    // in the Windows wheel. These are deviation measures compared against a
-    // tolerance, and the deviations are either rounding-level or of the order
-    // of the stiffness itself, so the (bounded) change of scale between the
-    // two norms does not move any classification. See real_logmat_3x3.
+    //Frobenius, not norm(X,2): its SVD (dgesdd) reads out of bounds in the Windows-wheel CLAPACK
     double max_tol_sim = simcoon::limit;
     if(tol > simcoon::limit) {
         max_tol_sim = tol;
@@ -60,9 +55,7 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     Mat<int> type_sym(3,3);
     type_sym.zeros();
         
-    //Everything is checked based on a "symmtrized" matrix
-    //Check reflexions
-    //reflexion around the z axis - symmetry plane xy
+    //checks on the symmetrized matrix; reflexion about z (symmetry plane xy)
     Q = { {1,0,0}, {0,1,0}, {0,0,-1} };
     L_test = rotate_stiffness(L_sym, Q);
     check_sym(2,0) = norm(L_sym - L_test,"fro");
@@ -130,25 +123,17 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
         }
     }
     
-    //Check  orthotropic
-    //Orthotropic: three mutually orthogonal planes of reflection. Symmetry. a!=b=c, alpha=beta=gamma=90 Number of independent coefficients: 9
-    //Symmetry transformations: reflections about all three orthogonal planes
+    //orthotropic: reflections about the three orthogonal planes (9 constants)
     if(type_sym(0,0) + type_sym(1,0) + type_sym(2,0) == 3) {
         umat_type = "ELORT";
     }
     
-    //Check  cubic
-    //three mutually orthogonal planes of reflection symmetry
-    //Plus 90deg rotation symmetry with respect to those planes. a=b=c, alpha=beta=gamma=90 Number of independent coefficients: 3
-    //Symmetry transformations: reflections and 90 rotations about all three orthogonal planes
+    //cubic: orthotropic + 90deg rotations about the three axes (3 constants)
     if((type_sym(0,0) + type_sym(1,0) + type_sym(2,0) == 3) && (type_sym(0,1) + type_sym(1,1) + type_sym(2,1) == 3)) {
         umat_type = "ELCUB";
     }
 
-    //Check Transversely isotropic
-    //Transversely isotropic: The physical properties are symmetric about an axis that is normal to a plane of isotropy (xy-plane in the figure).
-    //Three mutually orthogonal planes of reflection symmetry and axial symmetry with respect to z-axis. Number of independent coefficients: 5
-    //Symmetry transformations: reflections about all three orthogonal planes plus all rotations about z- axis, x- axis or y - axis
+    //transversely isotropic: orthotropic + every rotation about one axis (5 constants)
     if((type_sym(0,0) + type_sym(1,0) + type_sym(2,0) == 3) && (type_sym(0,1) + type_sym(1,1) + type_sym(2,1) == 1) && (type_sym(0,2) + type_sym(1,2) + type_sym(2,2) == 1)) {
         if(type_sym(0,1) + type_sym(0,2) == 2) {
             umat_type = "ELIST";
@@ -168,25 +153,11 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
         }
     }
 
-    //Check Isotropic
-    //Isotropic: The physical properties are symmetric about all axis
-    //Three mutually orthogonal planes of reflection symmetry and axial symmetry with respect to z-axis. Number of independent coefficients: 3
-    //Symmetry transformations: reflections about all three orthogonal planes plus all rotations about z- axis, x- axis and y - axis
+    //isotropic: orthotropic + every rotation about the three axes (2 constants)
     if((type_sym(0,0) + type_sym(1,0) + type_sym(2,0) == 3) && (type_sym(0,1) + type_sym(1,1) + type_sym(2,1) == 3) && (type_sym(0,2) + type_sym(1,2) + type_sym(2,2) == 3)) {
         umat_type = "ELISO";
     }
         
-    //Here is the full list of possibilities
-    //Triclinic -- fully anisotropic - 21 independant parameters
-    //Monoclinic - xy                - 15 independant parameters
-    //Monoclinic - xz                - 15 independant parameters
-    //Monoclinic - yz                - 15 independant parameters
-    //Orthotropic                    - 9 independant parameters
-    //Cubic                          - 3 independant parameters
-    //Transversely isotropic x       - 5 independant parameters
-    //Transversely isotropic y       - 5 independant parameters
-    //Transversely isotropic z       - 5 independant parameters
-    //Isotropic                      - 2 independant parameters
     
     if (umat_type == "ELISO") {
         props = L_iso_props(L_sym);

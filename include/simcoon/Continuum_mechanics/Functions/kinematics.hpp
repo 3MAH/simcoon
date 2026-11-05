@@ -452,7 +452,8 @@ void finite_rotation(const arma::mat &F0, const arma::mat &F1, const double &DTi
  *      \mathbf{\Delta Q} = \left( \mathbf{I} + \frac{1}{2} \Delta t \, \mathbf{\Omega}_0 \right) \cdot \left( \mathbf{I} - \frac{1}{2} \Delta t \, \mathbf{\Omega}_1 \right)^{-1}
  * \f]
  * 
- * where \f$\mathbf{I}\f$ is the 3x3 identity matrix.
+ * where \f$\mathbf{I}\f$ is the 3x3 identity matrix. With \f$\mathbf{\Omega}_0 = \mathbf{\Omega}_1\f$
+ * the two Cayley factors commute and finite_DQ(W, W, dt) equals Hughes_Winget(W, dt) exactly.
  *
  * @param Omega0 spin/velocity at time \f$t_0\f$
  * @param Omega1 spin/velocity at time \f$t_1\f$

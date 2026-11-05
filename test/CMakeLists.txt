@@ -23,6 +23,9 @@ set(TEST_SRCS
   # Libraries - Phase
   test/Libraries/Phase/Tmaterial_characteristics.cpp
 
+  # Libraries - Solver
+  test/Libraries/Solver/Tstep.cpp
+
   # Libraries - Maths
   test/Libraries/Maths/Tlagrange.cpp
   test/Libraries/Maths/Tnum_solve.cpp
@@ -61,6 +64,7 @@ set(TEST_SRCS
 # External test files (non-MSVC only)
 set(TEST_EXTERN
   test_extern/Umats/UMABA/TUMABA.cpp
+  test_extern/Umats/UMANS/TUMANS.cpp
 )
 
 # Add test executables

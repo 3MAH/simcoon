@@ -80,10 +80,7 @@ ReturnMappingResult closest_point_return_mapping(
     // Elastic block: Lc is its tangent at the iterate (the given L for a linear block).
     mat Lc = L;
     const bool nonlinear_block = static_cast<bool>(hooks.elastic_response);
-    // Constraints, flows and the stress residual (every trial point); the criterion gradients
-    // are evaluated at the Newton top only (eval_gradients) — with finite-difference callbacks
-    // each gradient is a full set of state re-solves, which the elastic guard and the rejected
-    // line-search trials do not need.
+    // criterion gradients only at the Newton top (eval_gradients): with FD callbacks each is a full state re-solve
     auto eval_basic = [&](const vec &sig, const vec &Dl) {
         for (int j = 0; j < N; j++) {
             Phi(j) = mechanisms[j].Phi(sig);
@@ -127,9 +124,7 @@ ReturnMappingResult closest_point_return_mapping(
         }
     };
 
-    // Elastic guard: admissible trial state -> return it (bit-identical elasticity across
-    // modes). With Dlambda = 0 the tangent assembly masks every mechanism, so the state
-    // callbacks are not needed.
+    // admissible trial: return it; Dlambda = 0 masks every mechanism, so no state callbacks
     if (Phi.max() <= 0.) {
         n_l.assign(N, zeros(6));   // masked by Dlambda = 0 in the assembly: the gradients are not evaluated
         fill_tangent_pieces(zeros(N, N), std::vector<mat>(N, zeros(6, 6)), std::vector<vec>(N, zeros(6)));
@@ -193,10 +188,7 @@ ReturnMappingResult closest_point_return_mapping(
             return r;
         }
 
-        // Semi-smooth Newton step on the reduced multiplier system, over the active set: a row
-        // with Phi < 0, no multiplier and a vanishing diagonal (a reorientation surface at zero
-        // effective stress) has an identically zero FB row and would make the solve singular;
-        // its step is zero anyway.
+        // active set excludes rows with Phi < 0, no multiplier and a vanishing diagonal (zero FB row, singular solve)
         const uvec active = find((Phi >= 0.) + (r.Dlambda > 0.) + (abs(B_red.diag()) >= simcoon::iota));
         vec dDl = zeros(N);
         if (active.n_elem > 0) {
@@ -236,9 +228,7 @@ ReturnMappingResult closest_point_return_mapping(
                     }
                 }
             }
-            // A trial point whose inner state solve fails, or that is not finite, is a rejected
-            // step like a merit blow-up: halve it (the inner Newton of a backstress row has no
-            // solution past a dp where the relaxed backstress overtakes the stress).
+            // failed inner state solve or non-finite trial = rejected step: halve it
             bool trial_ok = refresh(r.sigma, r.Dlambda);
             if (trial_ok) {
                 eval_basic(r.sigma, r.Dlambda);

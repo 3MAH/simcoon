@@ -111,7 +111,8 @@ c     First increment: initialize
 c
 c     Compute elastic strain (total strain minus thermal strain)
       do i = 1, 3
-         Eel(i) = Strain(i) + dStrain(i) - alpha * (Temp + dTemp - T_init)
+         Eel(i) = Strain(i) + dStrain(i)
+     &          - alpha * (Temp + dTemp - T_init)
       enddo
       do i = 4, ncomp
          Eel(i) = Strain(i) + dStrain(i)

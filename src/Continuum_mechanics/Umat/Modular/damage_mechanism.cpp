@@ -49,14 +49,6 @@ DamageMechanism::DamageMechanism(DamageType type)
 // ========== Configuration ==========
 
 void DamageMechanism::configure(const arma::vec& props, int& offset) {
-    // Props layout for damage:
-    // props[offset]: damage_type (if not set in constructor)
-    // props[offset+1]: Y_0 (damage threshold)
-    // props[offset+2]: Y_c (critical damage driving force)
-    // props[offset+3]: D_c (critical damage value, optional, default 0.99)
-    // props[offset+4]: A or n (damage parameter, depending on type)
-
-    // Read parameters
     Y_0_ = props(offset);
     Y_c_ = props(offset + 1);
     offset += 2;
@@ -102,9 +94,7 @@ void DamageMechanism::register_variables() {
 // ========== Constitutive Computations ==========
 
 double DamageMechanism::compute_driving_force(const arma::vec& sigma_eff, const arma::mat& /*S*/) const {
-    // Y = -dpsi/dD = psi_0, the UNDAMAGED energy, on the effective stress: exact for a linear
-    // block (M = the tangent compliance of the undamaged block, an approximation of psi_0 for a
-    // hyperelastic one).
+    // Y = psi_0 on the effective stress: exact for a linear block, tangent-compliance approximation if hyperelastic
     return 0.5 * arma::dot(sigma_eff, (M_cached_t_ * stress(sigma_eff)).to_arma_voigt());
 }
 
@@ -157,10 +147,7 @@ void DamageMechanism::compute_constraints(
     D_current_ = ivc_.get("D").scalar();
     double Y_max = ivc_.get("Y_max").scalar();
 
-    // Cache the compliance (raw + typed), keyed on the stiffness it inverts: L
-    // is the tangent of the current elastic state, which a state-dependent
-    // (hyperelastic) block moves at every refresh, while a linear block keeps
-    // it fixed and pays a single inversion.
+    // compliance cache keyed on L: a hyperelastic block moves L at every refresh, a linear one inverts once
     if (!M_cached_valid_ || !arma::approx_equal(L, L_cached_, "absdiff", 0.0)) {
         L_cached_ = L;
         M_cached_ = arma::inv(L);
@@ -212,12 +199,7 @@ void DamageMechanism::compute_jacobian_contribution(
     arma::mat& B,
     int row_offset
 ) const {
-    // Unit diagonal for the history-type damage row. Phi = Y - Y_max is
-    // integrated explicitly (see compute_constraints / update), so the damage
-    // multiplier is not solved implicitly; a unit slope keeps the FB system
-    // well-conditioned without steering the (self-satisfying) damage row.
-    // Cross-mechanism coupling (plasticity <-> damage) still flows through the
-    // off-diagonal dPhi_dsigma . kappa terms assembled by the orchestrator.
+    // unit diagonal: the damage row is explicit; coupling flows through the off-diagonal dPhi . kappa terms
     B(row_offset, row_offset) = 1.0;
 }
 
@@ -267,10 +249,7 @@ void DamageMechanism::update(
     const arma::vec& /*ds*/,
     int /*offset*/
 ) {
-    // Fixed point on D (the FB multiplier increment is unused): D = f(max(Y_max at step
-    // start, Y of this iterate)). The history is the one of the START of the step, never the
-    // running maximum over iterates, whose overshooting first iterate would freeze too much
-    // damage; the orchestrator iterates until consistency_residual() vanishes.
+    // history from the step START, never the running max over iterates (an overshooting iterate freezes damage)
     double& Y_max = ivc_.get("Y_max").scalar();
     Y_max = std::max(ivc_.get("Y_max").scalar_start(), Y_current_);
     double& D = ivc_.get("D").scalar();

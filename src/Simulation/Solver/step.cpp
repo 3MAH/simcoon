@@ -36,11 +36,10 @@ using namespace arma;
 
 namespace simcoon{
 
-//=====Private methods for ellipsoid_characteristics===================================
+//=====Private methods for step===================================
 
-//=====Public methods for ellipsoid_characteristics============================================
+//=====Public methods for step============================================
 
-//@brief default constructor
 //-------------------------------------------------------------
 step::step()
 //-------------------------------------------------------------
@@ -57,12 +56,6 @@ step::step()
     
 }
 
-/*!
- \brief Constructor with parameters
- \param mnumber : number of the step
- \param mninc : number of increments
- \param mmode : mode : type of loading
- */
 
 //-------------------------------------------------------------
 step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type)
@@ -87,33 +80,6 @@ step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, c
     BC_Time = 0.;
     
 }
-
-/*!
- \brief Copy constructor
- \param st step object to duplicate
- */
-
-//------------------------------------------------------
-step::step(const step& st)
-//------------------------------------------------------
-{    
-	number = st.number;
-    Dn_init = st.Dn_init;
-    Dn_mini = st.Dn_mini;
-    Dn_inc = st.Dn_inc;
-	ninc = st.ninc;
-	mode = st.mode;
-    control_type = st.control_type;
-    
-    times = st.times;
-    BC_Time = st.BC_Time;
-
-    tab_data = st.tab_data;
-}
-
-/*!
- \brief destructor
- */
 
 step::~step() {}
 
@@ -171,14 +137,10 @@ bool step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dt
     
     if (Dtinc_cur < Dn_mini) {
         if (inforce_solver == 1) {
-//            cout << "Warning : The solver has been forced to continue with the minial increment at step:" << number << " inc: " << inc << " and fraction:" << tinc << "\n";
-            //tnew_dt = 1.;
             Dtinc_cur = Dn_mini;
         }
         else {
-            // inforce_solver == 0: the caller asked NOT to force the minimal increment.
-            // Report it (not exit(0), which used to kill the host process silently): the
-            // solver aborts with status 1, like a non-converged Newton loop.
+            // inforce off: the solver aborts with status 1, as for a non-converged Newton loop.
             return false;
         }
         
@@ -194,33 +156,6 @@ bool step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dt
         Dtinc = 1.-tinc;
     }
     return true;
-}
-    
-/*!
- \brief Standard operator = for block
- */
-
-//----------------------------------------------------------------------
-step& step::operator = (const step& st)
-//----------------------------------------------------------------------
-{
-//	assert(st.ninc>0);
-//	assert(st.mode>0);
-    
-	number = st.number;
-    Dn_init = st.Dn_init;
-    Dn_mini = st.Dn_mini;
-    Dn_inc = st.Dn_inc;
-    ninc = st.ninc;
-	mode = st.mode;
-    control_type = st.control_type;
-    
-    times = st.times;
-    BC_Time = st.BC_Time;
-
-    tab_data = st.tab_data;
-
-	return *this;
 }
 
 //--------------------------------------------------------------------------

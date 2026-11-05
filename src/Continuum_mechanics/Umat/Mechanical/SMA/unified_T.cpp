@@ -17,16 +17,6 @@
 
 ///@file unified_T.cpp
 ///@brief Unified SMA model supporting multiple elastic symmetries and transformation criteria
-///@brief Based on constitutive model of D. Chatziathanasiou Ph.D Thesis
-///@brief Implemented by Y. Chemisky and D. Chatziathanasiou
-///@brief
-///@brief The elastic symmetry and criteria type is determined by umat_name:
-///@brief   SMADI (isotropic elasticity, Drucker criteria): props(0)=flagT, props(1)=EA, props(2)=EM, props(3)=nuA, props(4)=nuM, then common params
-///@brief   SMADC (cubic elasticity, Drucker criteria): props(0)=flagT, props(1-3)=C11A,C12A,C44A, props(4-6)=C11M,C12M,C44M, then common params
-///@brief   SMAAI (isotropic elasticity, anisotropic Drucker criteria): same as SMADI + DFA params at end
-///@brief   SMAAC (cubic elasticity, anisotropic Drucker criteria): same as SMADC + DFA params at end
-///@brief
-///@brief Implemented in 1D-2D-3D
 
 #include <iostream>
 #include <stdexcept>
@@ -380,11 +370,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     double dPhiFdxiF = 0.;
     double dPhiFdxiR = 0.;
 
-    //Relative to reverse transformation. The K(1,\cdot ) chain rule (built below
-    //through ETMean as the natural intermediate variable) does not need
-    //dPhihatRdET, dYtRdET, dPhihatRdxi or dPhiRdxi / dPhiRdET — those would
-    //carry \sigma /\xi -divergent terms that cancel analytically but lose ~12 digits
-    //in floating point. Only the finite \sigma -gradients survive here.
+    //Relative to reverse transformation: only the finite sigma-gradients (K(1,.) goes through ETMean, see header)
     vec dPhihatRdsigma = zeros(6);
     vec dA_xiRdsigma = zeros(6);
     double dA_xiRdxiF = 0.;
@@ -403,13 +389,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     int compteur = 0;
     double error = 1.;
 
-    // tangent_closest_point: the closest-point projection replaces the CCP loop.
-    // L(xi) and alpha(xi) are FROZEN at xi_n: since the Reuss mixture M(xi) and alpha(xi) are
-    // LINEAR in xi, the effective flows Lambda_eff^F = lambdaTF + DM*sigma + Dalpha*(T+DT-T_init)
-    // and Lambda_eff^R = -ETMean - DM*sigma - Dalpha*(T+DT-T_init) make the frozen-L residual the
-    // EXACT discrete system (M(xi)sigma = M(xi_n)sigma + Dxi*DM*sigma is an identity). The state
-    // is rebuilt from the start values at every iterate (ETMean in closed form) and the callbacks
-    // return the analytic TOTAL derivatives of that composed map (linearise below).
+    // closest point: L(xi), alpha(xi) frozen at xi_n, exact since both are linear in xi (see header)
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
@@ -427,10 +407,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             xi = xi_n + Dl(0) - Dl(1);
             Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*std::max(Mises_stress(sig) - sigmacrit, 0.)));
             lambdaTF = sma_transformation_flow(sig, sigmacrit, Hmin, Hmax, k1, aniso_criteria, DFA_params, prager_b, prager_n);
-            // ETMean = dev(ET)/xi with ET = ET_n + Dl_F lambdaTF - Dl_R ETMean has the closed form
-            // ETMean (xi + Dl_R) = dev(ET_n) + Dl_F dev(lambdaTF) (the martensite present before
-            // the reversal); the sweep form of this fixed point diverges when Dl_R > xi. The loop's
-            // guard (no martensite, no transformation strain -> lambdaTF) is kept.
+            // closed form ETMean (xi + Dl_R) = dev(ET_n) + Dl_F dev(lambdaTF): the sweep diverges when Dl_R > xi
             const double xi_before = xi + Dl(1);
             ETMean_is_flow = !(xi_before > simcoon::precision_umat);
             ETMean = ETMean_is_flow ? lambdaTF : vec((dev(ET_start) + Dl(0)*dev(lambdaTF))/xi_before);
@@ -440,10 +417,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
                 ETMean = lambdaTF;
                 ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
             }
-            // Smooth hardening functions at xi clamped to [0,1]: an iterate can leave the bounds,
-            // where pow(xi, n) is NaN for the fractional exponents; the slope of Hf is infinite
-            // there (the loop uses 1e12), so a C1 continuation is a model change, not a numerical
-            // one. The Lagrange penalties are already C1-continued outside [0,1].
+            // Hf at xi clamped to [0,1]: pow(xi, n) is NaN outside for fractional n
             const double xi_h = std::min(std::max(xi, 0.), 1.);
             if ((n1 == 1.) && (n2 == 1.)) { HfF = a1*xi_h + a3; }
             else { HfF = 0.5*a1*(1. + pow(xi_h, n1) - pow(1. - xi_h, n2)) + a3; }
@@ -466,18 +440,10 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             const double AxR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(sig%DMsig) - sum(sig%Dalpha)*thp + HfR;
             return -1.*sum(sig%ETMean) + AxR + lambda0 - (Y0t + D*sum(sig%ETMean));
         };
-        // Effective flows (stiffness/CTE mixture variation folded in, see header comment).
+        // effective flows: stiffness/CTE mixture variation folded in
         auto LamF_val = [&](const vec &sig) { return vec(lambdaTF + DM*sig + Dalpha*thp); };
         auto LamR_val = [&](const vec &sig) { return vec(-1.*ETMean - DM*sig - Dalpha*thp); };
-        // Analytic total derivatives at the refreshed state (sig, Dl_cur), built once per iterate.
-        //   lambdaTF = Hcur g, g = dDrucker:   dlambdaTF/dsigma = g (x) dHcur + Hcur ddDrucker
-        //   ETMean (xi_n + Dl_F) = dev(ET_n) + Dl_F dev(lambdaTF) (independent of Dl_R):
-        //     dETMean/dsigma = Dl_F/(xi_n + Dl_F) dev(dlambdaTF/dsigma),  dETMean/dDl_F = (dev(lambdaTF) - ETMean)/(xi_n + Dl_F)
-        //   (guard branch ETMean = lambdaTF: dETMean/dsigma = dlambdaTF/dsigma, no multiplier dependence)
-        //   Phi_F = Hcur Drucker + A_xiF(sigma, xi) - lambda1(xi) - Y0t - D Hcur sigma_eq
-        //   Phi_R = -(1 + D) sigma:ETMean + A_xiR(sigma, xi) + lambda0(xi) - Y0t
-        // K_lj = dPhi_l/dDl_j; the flux chain c_j = sum_k Dl_k dLambda_k/dDl_j is -Dl_R dETMean/dDl_F for
-        // the forward row and zero for the reverse one.
+        // analytic total derivatives at (sig, Dl_cur), once per iterate (derivation in header)
         mat dev_op = eye(6, 6);   // dev() of a Voigt vector
         dev_op.submat(0, 0, 2, 2) -= ones(3, 3)/3.;
         vec dPhiF_ds = zeros(6), dPhiR_ds = zeros(6), c_F = zeros(6);
@@ -539,11 +505,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         hooks.K = [&](const vec &sig, const vec &) { linearise(sig); return K_cpp; };
         hooks.flow_state_coupling = [&](const vec &sig, const vec &) { linearise(sig); return std::vector<vec>{c_F, zeros(6)}; };
         vec Ycrit_cpp(2);
-        // FB normalisation scales. Both YtF = Y0t + D*Hcur*Mises and YtR = Y0t + D*sigma:ETMean
-        // degenerate to ~0 at low-stress/virgin states (Y0t may be 0, Hcur -> Hmin): a vanishing
-        // normaliser blows the relative FB error up for physically negligible residuals
-        // (~1e-10 MPa) and defeats the deactivation snap. Floor both to an ABSOLUTE material
-        // scale built from the calibration point.
+        // FB scales floored at an absolute material scale: both thresholds vanish in virgin states
         const double Yfloor = 0.1*std::max(Y0t + D*Hmax*sigmacaliber, 1.e-2);
         Ycrit_cpp(0) = std::max(std::fabs(Y0t) + std::fabs(D*Hcur*Mises_stress(stress)), Yfloor);
         Ycrit_cpp(1) = std::max(std::fabs(Y0t) + std::fabs(D*sum(stress%ETMean)), Yfloor);
@@ -555,20 +517,16 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             s_j += Ds_j;
             xiF = s_j(0);
             xiR = s_j(1);
-            // xi, ET, ETMean, lambdaTF, HfF/R, lambda0/1, Hcur are inner-consistent already.
             DETF = Ds_j(0)*lambdaTF;
             DETR = Ds_j(1)*ETMean;
-            // Refresh the mixture stiffness at the converged xi for the OUTPUT L (the tangent
-            // uses the frozen L_cpp consistently through cpp_consistent_tangent below).
+            // output L at the converged xi; the tangent keeps the frozen L_cpp
             M_eff = xi*M_M + (1. - xi)*M_A;
             L = inv_cubic(M_eff);
-            // Thermodynamic forces at the converged state (feed the work quantities below).
             A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%(DM*stress)) + sum(stress%Dalpha)*thp - HfF;
             A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%(DM*stress)) - sum(stress%Dalpha)*thp + HfR;
         }
         else {
-            // step cut, never a silent cutting-plane fallback; the start state back (Ds_j, DETF,
-            // DETR are still zero, xiF / xiR / s_j untouched)
+            // step cut, never a silent cutting-plane fallback
             tnew_dt = 0.5;
             stress = stress_start;
             refresh_state(stress, zeros(2));
@@ -727,21 +685,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         dYtRdsigma = D*ETMean;
         dPhiRdsigma = -1.*dPhihatRdsigma + dA_xiRdsigma + dlambda0dsigma - dYtRdsigma;
 
-        // K(1,\cdot ) via \Lambda_ETMean^j chain rule — avoids the floating-point cancellation
-        // between dPhiRdxiF (\propto +(1+D)\cdot \sigma :ETMean/\xi ) and sum(dPhiRdET\cdot lambdaTF)
-        // (\propto -(1+D)\cdot \sigma :lambdaTF/\xi ) which are analytically equal-and-opposite at
-        // small \xi when ETMean fallback is lambdaTF, but lose ~12 significant
-        // digits in IEEE 754 when \xi \approx 1e-12. Reformulation through the natural
-        // intermediate variable ETMean = dev(\varepsilon^T)/\xi :
-        //   K(1, j) = \partial \Phi^R/\partial ETMean \cdot \Lambda_ETMean^j  +  \partial \Phi^R/\partial \xi |finite \cdot d\xi /d\xi_j
-        //   \partial \Phi^R/\partial ETMean = -(1+D)\cdot \sigma (finite)
-        //   \Lambda_ETMean^F  = (lambdaTF - ETMean)/\xi (finite — zero
-        //                  when ETMean fallback = lambdaTF)
-        //   \Lambda_ETMean^R  = 0                                        (reverse removes
-        //                  martensite proportionally; mean unchanged)
-        //   \partial \Phi^R/\partial \xi |finite = dHfR + d\lambda_0/d\xi (hardening only;
-        //                     the \sigma :ETMean/\xi part of dPhihatRdxi is absorbed
-        //                     into the \Lambda_ETMean chain-rule contribution)
+        // K(1,.) through ETMean: avoids a ~12-digit cancellation at small xi (derivation in header)
         const vec dPhiRdETMean = -(1. + D) * stress;
         vec Lambda_ETMean_F = zeros(6);
         if (Mises_strain(lambdaTF - ETMean) > simcoon::iota) {
@@ -800,10 +744,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     double DxiF = Ds_j[0];
     double DxiR = Ds_j[1];
 
-    //Computation of the tangent modulus — continuum SMA operator
-    //assembled via the shared 2-mechanism leading-mechanism helper (doc §7.4);
-    //closest-point branch: the exact operator of the converged solve, with the frozen L_cpp it
-    //was solved with (elastic placeholder on a step cut).
+    // closest point: exact operator of the converged solve with the frozen L_cpp (elastic on a step cut)
     ContinuumTangent ct;
     if (use_cpp) {
         ct = cpp_consistent_tangent(rm, L_cpp);
@@ -816,25 +757,13 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
-    // tangent_algorithmic is clamped to continuum for the SMA kernels: the
-    // finite-difference transformation-flow Hessian makes the local system
-    // near-singular on the transformation plateau (rcond ~ 1e-17; whether the
-    // backend flags it is LAPACK-dependent — see the thermomechanical twin,
-    // which crashed CI through this path). Re-enable together with the exact
-    // CPP Hessian rework.
+    // algorithmic clamped to continuum: the FD flow Hessian is near-singular on the plateau
     const int tangent_mode_eff = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point)
         ? tangent_continuum : tangent_mode;
     ct = compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // Simo-Hughes algorithmic tangent (closest-point). The forward transformation strain-flow
-            // Lambda_eps^F = Hcur(sigma)*dDrucker(sigma) + DM*sigma + Dalpha_T couples to stress through
-            // Hcur and the (non-quadratic) Drucker direction. We form d(Hcur*dDrucker)/dsigma by central
-            // finite difference of that flow (robust; avoids the Drucker J2/J3 Hessian), add the analytic
-            // linear stiffness-difference term DM, and hold ETMean (transformation state) fixed.
-            // Lambda_eps^R = -ETMean - DM*sigma - Dalpha_T  ->  dLambda^R/dsigma = -DM.
-            // The transformation-state coupling (dLambda/dETMean . dETMean/dsigma, dxi/dsigma) is the
-            // deferred state-coupling term (closest-point/CPP rework, future release).
+            // Simo-Hughes: dLambda^F/dsigma by central FD + DM, dLambda^R/dsigma = -DM, ETMean held fixed
             auto lambdaTF_at = [&](const vec &s) -> vec {
                 return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
                                                aniso_criteria, DFA_params,

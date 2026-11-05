@@ -32,11 +32,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 namespace simcoon {
 
 namespace {
-// Absolute strain floor of the state_drift denominator (see state_drift).
-// 1e-4: at near-zero committed Dp, rejection then requires a flow-rule
-// error above tolerance * floor = 5e-5 strain (~10 MPa) — two orders below
-// the measured pathology (~1e-2) and comfortably above the EP residue a
-// benign overshoot/walk-back leaves behind (~1e-5).
+// state_drift denominator floor: rejection at near-zero Dp needs a flow-rule error > tol * 1e-4 strain
 constexpr double drift_scale_floor = 1.0e-4;
 }  // namespace
 
@@ -90,18 +86,10 @@ PlasticityMechanism::PlasticityMechanism(
 // ========== Configuration ==========
 
 void PlasticityMechanism::configure(const arma::vec& props, int& offset) {
-    // Props layout:
-    // 1. sigma_Y (initial yield stress)
-    // 2. Yield criterion parameters (if needed)
-    // 3. Isotropic hardening parameters
-    // 4. Kinematic hardening parameters
 
     sigma_Y_ = props(offset);
     offset += 1;
 
-    // Configure yield criterion from props if not already done
-    // (von Mises and Tresca are configured in the constructor since they
-    // need no parameters; others read their parameters from props here)
     if (!yield_->is_configured()) {
         yield_->configure(yield_type_, props, offset);
     }
@@ -166,10 +154,7 @@ void PlasticityMechanism::compute_constraints(
     // Get internal variables
     double p = ivc_.at(p_index_).scalar();
 
-    // Shifted stress (sigma - X); skip the subtraction under pure isotropic
-    // hardening. The branch backstresses X_i are built ONCE here and reused
-    // for hardening_modulus below — they are only valid within this FB
-    // iteration (the back-strains move in update()).
+    // X_i built once here and reused by hardening_modulus: valid within this FB iteration only
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {
@@ -319,11 +304,7 @@ double PlasticityMechanism::state_drift(const arma::vec& sigma) const {
         // possibly-zero stress
         return 0.0;
     }
-    // norm_strain (tensorial norm of an engineering-Voigt strain): arma::norm
-    // would weight the shear entries sqrt(2) too heavy against the cap.
-    // The absolute denominator floor keeps the relative measure from
-    // amplifying a numerically negligible EP residue at near-zero Dp (see
-    // the constant above for its calibration).
+    // norm_strain, not arma::norm (sqrt2-heavy shears); the floor keeps a negligible EP residue at Dp ~ 0 inert
     const arma::vec n = flow_direction(sigma);
     return norm_strain(dEP - dp * n)
          / std::max(dp * norm_strain(n), drift_scale_floor);
@@ -349,9 +330,7 @@ void PlasticityMechanism::compute_jacobian_contribution(
     arma::mat& B,
     int row_offset
 ) const {
-    // B = -dPhi/dsigma : kappa + K with K = dPhi/dp = -H_total (hardening
-    // REDUCES Phi as Dp grows) — the plastic_isotropic convention, so the
-    // mode-1 assembly's Bhat = -B = n:kappa + H_total holds exactly.
+    // K = dPhi/dp = -H_total, so the mode-1 assembly Bhat = -B = n:kappa + H_total holds exactly
 
     // dPhi/dsigma * L * dPhi/dsigma (engineering Voigt dot = n : L : n)
     double dPhi_L_dPhi = arma::dot(flow_dir_, kappa_);
@@ -367,15 +346,7 @@ void PlasticityMechanism::update(
     const arma::vec& ds,
     int offset
 ) {
-    // Apply the FB correction PROJECTED onto Dp >= 0: negative per-iteration
-    // corrections walk back an overshoot (gating on dp > iota froze the state
-    // after any overshoot — maxiter spins with a ~1 MPa yield violation and a
-    // 12x slowdown), but the multiplier never drops below its start-of-
-    // increment value. Without the projection a tiny negative Dp is a SPURIOUS
-    // Fischer-Burmeister root whenever Phi > 0 is large (phi(Phi, Dp) ~ Dp for
-    // |Dp| << Phi) — reached in practice for near-singular hardening slopes,
-    // e.g. power-law R = k p^m with m < 1 at first yield (p < 0, Phi -> +100
-    // MPa, mechanism inert).
+    // projected onto Dp >= 0 (see update() in the header)
     double dp = ds(offset);
     if (dp == 0.0) {
         return;   // the update below is exactly the identity for dp = 0
@@ -407,9 +378,7 @@ void PlasticityMechanism::tangent_contribution(
     double Dp = Ds(offset);
 
     if (Dp > simcoon::iota) {
-        // Consistent tangent for plasticity:
-        // Lt = L - (L * n) ⊗ (L * n) / H_eff
-        // where H_eff = n : L : n + H_total
+        // Lt = L - (L n) x (L n) / H_eff, H_eff = n:L:n + H_total
 
         double n_L_n = arma::dot(flow_dir_, kappa_);
         double H_eff = n_L_n + H_total_;

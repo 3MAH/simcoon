@@ -29,7 +29,6 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function returns a random in number between 0 and a
 int alea(const int &n)
 { 
 	assert (0 < n && n <= RAND_MAX); 
@@ -44,14 +43,12 @@ int alea(const int &n)
 	return draw/partSize; 
 }
 
-//This function returns a random in number between a and b
 int aleab(const int &a, const int &b)
 { 
 	int n=b-a;
 	return alea(n) + a; 
 }
 
-//This function returns a random double number between a and b
 double alead(const double &a, const double &b){
   
     return ((double)rand()/((double)RAND_MAX)) * (b-a) + a;

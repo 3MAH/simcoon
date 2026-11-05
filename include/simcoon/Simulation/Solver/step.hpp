@@ -64,7 +64,7 @@ protected:
     double Dn_inc; ///< Maximum fraction of the step (maximum time increment ratio)
     int ninc; ///< Number of milestones/increments in the step
     int mode; ///< Loading mode identifier
-    unsigned int control_type; ///< Control type (0: strain, 1: stress, 2: mixed)
+    unsigned int control_type; ///< Control type: 1 small strain, 2 Green-Lagrange, 3 logarithmic, 4 Biot, 5 F, 6 grad u (CONTROL_TYPES)
     
     arma::vec times; ///< Vector of time values for the step
     double BC_Time; ///< Boundary condition application time
@@ -100,7 +100,7 @@ protected:
      * @brief Copy constructor.
      * @param s Step to copy
      */
-    step(const step &s);
+    step(const step &s) = default;
     
     /**
      * @brief Virtual destructor.
@@ -144,7 +144,7 @@ protected:
      * @param s Step to assign
      * @return Reference to this object
      */
-    virtual step& operator = (const step& s);
+    virtual step& operator = (const step& s) = default;
     
     /**
      * @brief Stream output operator.

@@ -14,8 +14,8 @@
  along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-///@file solve.hpp
-///@brief random number generators
+///@file solve.cpp
+///@brief Roots of quadratic equations (real and complex)
 ///@version 1.0
 
 #include <iostream>

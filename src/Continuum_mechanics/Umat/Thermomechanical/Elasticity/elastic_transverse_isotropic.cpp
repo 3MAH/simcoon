@@ -15,7 +15,7 @@
  
  */
 
-///@file elastic_transversely_isotropic.cpp
+///@file elastic_transverse_isotropic.cpp
 ///@brief User subroutine for transversely isotropic elastic materials in 3D case
 ///@version 1.0
 
@@ -31,20 +31,6 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
-///@brief The thermomechanical elastic istropic transverse UMAT requires 10 constants:
-///@brief props[0] : density
-///@brief props[1] : specific heat capacity
-///@brief props[2] : Axe of the longitudinal direction
-///@brief props[3] : Longitudinal Young modulus
-///@brief props[4] : Transverse Young modulus
-///@brief props[5] : Longitudinal-Transverse Poisson ratio
-///@brief props[6] : Transverse-Transverse Poisson ratio
-///@brief props[7] : Shear Modulus
-///@brief props[8] : Longitudinal thermal expansion coeficient
-///@brief props[9] : Transverse thermal expansion coeficient
-
-///@brief No statev is required for thermoelastic constitutive law
 
 void umat_elasticity_trans_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {  	

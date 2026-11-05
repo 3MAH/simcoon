@@ -39,35 +39,6 @@ using namespace arma;
 
 namespace simcoon{
     
-///@brief The thermomechanical elastic-plastic UMAT with kinematic + isotropic hardening requires 9 constants:
-
-///@brief props[0] : density
-///@brief props[1] : specific heat capacity
-///@brief props[2] : Young modulus
-///@brief props[3] : Poisson ratio
-///@brief props[4] : CTE
-///@brief props[5] : J2 equivalent yield stress limit : sigmaY
-///@brief props[6] : hardening parameter k
-///@brief props[7] : exponent m
-///@brief props[8] : linear kinematical hardening h
-
-///@brief The elastic-plastic UMAT with kinematic + isotropic hardening requires 14 statev:
-///@brief statev[0] : T_init : Initial temperature
-///@brief statev[1] : Accumulative plastic parameter: p
-///@brief statev[2] : Plastic strain 11: EP(0,0)
-///@brief statev[3] : Plastic strain 22: EP(1,1)
-///@brief statev[4] : Plastic strain 33: EP(2,2)
-///@brief statev[5] : Plastic strain 12: EP(0,1) (*2)
-///@brief statev[6] : Plastic strain 13: EP(0,2) (*2)
-///@brief statev[7] : Plastic strain 23: EP(1,2) (*2)
-///@brief statev[8] : Backstress 11: X(0,0)
-///@brief statev[9] : Backstress 11: X(1,1)
-///@brief statev[10] : Backstress 11: X(2,2)
-///@brief statev[11] : Backstress 11: X(0,1)
-///@brief statev[12] : Backstress 11: X(0,2)
-///@brief statev[13] : Backstress 11: X(1,2)
-
-
 void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
     
@@ -142,17 +113,12 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     double c_0 = rho*c_p;
     vec X = kX*(a%Ir05());
     
-    double Hp=0.;
-    double dHpdp=0.;
-    
-    if (p > simcoon::iota)	{
-        dHpdp = m*k*pow(p, m-1);
-        Hp = k*pow(p, m);
-    }
-    else {
-        dHpdp = 0.;
-        Hp = 0.;
-    }
+    // PowerLawHardening: C1 blend below p = 1e-6 (slope of k p^m infinite at onset for m < 1)
+    PowerLawHardening hardening;
+    int hardening_offset = 0;
+    hardening.configure(vec{k, m}, hardening_offset);
+    double Hp = hardening.R(p);
+    double dHpdp = hardening.dR_dp(p);
     
     //Variables values at the start of the increment
     vec sigma_start = sigma;
@@ -194,10 +160,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     int compteur = 0;
     double error = 1.;
 
-    // Closest-point projection (tangent_closest_point): the modular von Mises + power-law +
-    // Prager row on this kernel's props and state; X = kX T a = (2/3) C a with C = 3 kX / 2.
-    // Condensed states keep the loop; the thermal tail reads dPhidsigma / Lambdap / Lambdaa /
-    // kappa_j / dHpdp.
+    // Prager C = 3 kX / 2 so that X = kX T a = (2/3) C a
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
@@ -234,14 +197,8 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > simcoon::iota)	{
-            dHpdp = m*k*pow(p, m-1);
-            Hp = k*pow(p, m);
-        }
-        else {
-            dHpdp = 0.;
-            Hp = 0.;
-        }
+        Hp = hardening.R(p);
+        dHpdp = hardening.dR_dp(p);
         dPhidsigma = eta_stress(sigma-X);
         dPhidp = -1.*dHpdp;
         dPhida = -1.*kX*(eta_stress(sigma - X)%Ir05());
@@ -276,25 +233,18 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     double Dp = Ds_j[0];
     vec Da = a - a_start;
     
-    //Computation of the tangent modulus — continuum operator via shared helper (doc §7.4).
+    // tangent via the shared leading-mechanism helper (doc §7.4)
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    // tangent_none must NOT zero P_epsilon/invBhat here: these sensitivities
-    // feed the PHYSICAL heat source r and its linearization (drdE/drdT), not
-    // just the Newton operator. Explicit-integration callers get the continuum
-    // operator in the thermomechanical kernels (the mechanical-only kernels
-    // honor tangent_none).
+    // tangent_none -> continuum: P_epsilon / invBhat feed the physical heat source r
     const int tangent_mode_eff = (tangent_mode == tangent_none)
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // Simo-Hughes algorithmic tangent on the cutting-plane state, J2 flow on (sigma-X);
-            // the backstress state coupling is only in the closest-point branch.
-            // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
-            // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L).
+            // J2 flow on sigma-X; only dSdE is corrected, thermal blocks stay continuum
             const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma - X) };
             return dLambda_dsigma_l;
         });
@@ -302,10 +252,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
-    // Consistency relation: P_theta = invBhat * (dPhi/dtheta - dPhi/dsigma:L:alpha)
-    // (units 1/K; cf. the SMA thermomechanical kernel). invBhat is active-set
-    // masked, so elastic steps correctly give P_theta = 0 — the previous form
-    // omitted invBhat (units 1/MPa missing) and polluted elastic steps.
+    // P_theta = invBhat (dPhi/dtheta - dPhi/dsigma:L:alpha), 1/K; invBhat masked so elastic gives 0
     P_theta[0] = ct.invBhat(0, 0) * (dPhidtheta - sum(dPhidsigma%(L*alpha)));
 
     dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0]);

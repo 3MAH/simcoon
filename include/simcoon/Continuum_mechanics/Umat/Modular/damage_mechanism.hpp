@@ -115,7 +115,15 @@ public:
      */
     explicit DamageMechanism(DamageType type = DamageType::LINEAR);
 
-    // StrainMechanism interface
+    /**
+     * @brief Reads the damage parameters from @p props at @p offset (advanced past them).
+     *
+     * Layout: props[offset] = \f$ Y_0 \f$ (damage threshold), props[offset+1] = \f$ Y_c \f$
+     * (critical driving force, \f$ Y_c > Y_0 \f$), then the parameters of the law: none (LINEAR),
+     * \f$ A \f$ (EXPONENTIAL), \f$ n \f$ (POWER_LAW), \f$ A, n \f$ (WEIBULL). The law itself comes
+     * from the mechanism header, not from these props; \f$ D_c \f$ is fixed at 0.99.
+     * @throw std::invalid_argument when \f$ Y_c \le Y_0 \f$
+     */
     void configure(const arma::vec& props, int& offset) override;
     void register_variables() override;
 
