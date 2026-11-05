@@ -568,6 +568,27 @@ def test_integrator_and_tangent_choices_are_checked():
         call(integrator="radial")
 
 
+def test_closest_point_refused_for_laws_without_one():
+    """integrator='closest_point' is refused, never ignored, for a law without a closest-point
+    update; the kernel code 3 never reaches it (a Python law reads 0, 1 or 2 only)."""
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    eye = np.asfortranarray(np.eye(3)[:, :, None])
+    zener = [3000., 0.35, 0., 1500., 0.35, 3000., 1200.]
+    step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
+    with pytest.raises(ValueError, match="'ZENER' has none"):
+        solve(step, "ZENER", zener, 8, T_init=290.0, integrator="closest_point")
+    for name in ("ZENER", "PYEXT"):
+        with pytest.raises(ValueError, match=f"'{name}' has none"):
+            sim.umat(name, col(np.zeros(6)), col([1e-3, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0),
+                     col(np.zeros(6)), eye, col(zener), col(np.zeros(8)), 0.0, 1.0, col(np.zeros(4)),
+                     temp=np.full(1, 290.0), n_threads=1, integrator="closest_point")
+    # thermomechanical: EPICP and EPKCP only (the SMA kernel keeps its cutting plane)
+    with pytest.raises(ValueError, match=r"'SMADI' \(thermomechanical\) has none"):
+        sim.umat_T("SMADI", col(np.zeros(6)), col(np.zeros(6)), col(np.zeros(6)), eye, col(np.zeros(30)),
+                   col(np.zeros(30)), 0.0, 1.0, np.zeros((4, 1), order="F"), np.zeros((3, 1), order="F"),
+                   np.array([290.0]), np.array([0.0]), integrator="closest_point")
+
+
 # ---------------------------------------------------------------------------
 # error paths
 # ---------------------------------------------------------------------------

@@ -111,9 +111,10 @@ def solve(
         (the default) or 'closest_point', the backward-Euler closest-point
         projection, a different discrete update (EPCHA: 1 to 2 % apart on
         coarse increments) with its exact operator. It takes
-        ``tangent_mode='algorithmic'``. A law or a row without a closest-point
-        update (Tresca or Drucker rows, the thermomechanical SMA kernel,
-        SMA_mono) keeps the cutting plane.
+        ``tangent_mode='algorithmic'``. Served by EPICP, EPCHA, EPJCK, MODUL
+        and its adapters and the SMA kernels (mechanical), EPICP and EPKCP
+        (thermomechanical): any other law raises ValueError. Inside MODUL, a
+        Tresca or Drucker row keeps the cutting plane.
     **params
         Numeric solver controls forwarded to the C++ loop: div_tnew_dt,
         mul_tnew_dt, miniter, maxiter, inforce, precision, precision_rel,
@@ -160,6 +161,7 @@ def solve(
 
     corate_type = kinematic_code(kinematic_form, corate)
     run_params = dict(params)
+    # Migration message of 2.x, removed in 3.0 (CHANGELOG.md, "Planned for 3.0")
     if isinstance(tangent_mode, (str, int)) and tangent_mode in ("closest_point", 3):
         raise ValueError("tangent_mode 'closest_point' (3) is no longer a tangent choice: give "
                          "integrator='closest_point' with tangent_mode='algorithmic'")

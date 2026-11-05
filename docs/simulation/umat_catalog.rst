@@ -639,7 +639,9 @@ to ask for the closest point, is no longer accepted: it raises ``ValueError``, p
 ``integrator="closest_point"``. Inside, the kernels still read one code (``kernel_tangent_mode``,
 ``parameter.hpp``): 0 = none (Lt = elastic L, explicit integration), 1 = continuum,
 2 = algorithmic/Simo-Hughes (**default**), 3 = the closest-point integrator with its exact
-operator; a Python law (``PYEXT``) receives that code. Pre-2.0 numbering was 0 = continuum,
+operator. Code 3 reaches only the laws that implement it (``check_integrator_serves``; closest-point
+coverage below), so a
+Python law (``PYEXT``) receives 0, 1 or 2. Pre-2.0 numbering was 0 = continuum,
 1 = algorithmic — see :doc:`solver` for the migration note. The
 finite-strain hyperelastic models ignore the mode (their tangent is always
 the exact one of the hyperelastic law). So do the linear viscoelastic models (``ZENER``,
@@ -662,8 +664,10 @@ up to 5x on a non-proportional path, for an operator exact to :math:`10^{-8}`). 
 ``EPJCK`` (and the adapter-served von Mises + isotropic names) mode 3 is **identical to mode
 2 by construction**: with a radial flow the cutting-plane update already is the closest-point
 projection and the algorithmic operator is the exact Jacobian of the discrete map, including
-the rate term. The closest point falls back to the cutting plane and its mode-2 operator for a
-Tresca or Drucker row, the thermomechanical SMA kernel and ``SMA_mono``. A condensed stress state (plane stress, beam,
+the rate term. Any other law, the thermomechanical SMA kernel and ``SMA_mono`` included, refuses
+``integrator="closest_point"`` with ``ValueError`` rather than running its cutting plane
+silently; inside ``MODUL``, a Tresca or Drucker row keeps the cutting plane and its mode-2
+operator. A condensed stress state (plane stress, beam,
 truss) keeps mode 3: the law runs 3D and the state is solved around it.
 
 Numerical options of the local Newton

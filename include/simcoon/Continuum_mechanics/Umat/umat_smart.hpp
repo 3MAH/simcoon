@@ -567,6 +567,22 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
                       const int &tangent_mode = tangent_default);
 
 /**
+ * @brief Checks the closest-point integrator (kernel code tangent_closest_point) against the law it
+ *        drives, so that it is never ignored silently and the code 3 never reaches a law that does
+ *        not read it (a Python law, PYEXT, receives 0, 1 or 2 only).
+ *
+ * Accepted: the mechanical EPICP, EPCHA, MODUL and the names routed to its adapters (code 201),
+ * the SMA kernels SMADI/SMADC/SMAAI/SMAAC and SMRDI/SMRDC/SMRAI/SMRAC, and EPJCK, whose radial
+ * cutting plane is the closest-point projection by construction; the thermomechanical EPICP and
+ * EPKCP. Every other code passes.
+ * @param umat_name the law of the run
+ * @param tangent_mode the kernel code (kernel_tangent_mode)
+ * @param thermomechanical a thermomechanical run or block
+ * @throw std::invalid_argument for the closest point on a law without one
+ */
+void check_integrator_serves(const std::string &umat_name, const int &tangent_mode, const bool &thermomechanical);
+
+/**
  * @brief The tangent code the kernels read for a choice of local integrator and tangent operator.
  *
  * The run chooses three things apart: the local integrator (@p integrator, integrator_* constants),
@@ -578,8 +594,9 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
  * - integrator_closest_point: tangent_closest_point, for the algorithmic tangent only (its
  *   continuum operator and the explicit form are not provided).
  * @p tangent_mode = tangent_closest_point is refused: the closest point is chosen by @p integrator.
- * A law or a row without a closest-point update falls back to the cutting plane, as under
- * tangent_closest_point (see the UMAT catalogue).
+ * Which laws accept the result is check_integrator_serves; inside one of them, a row without a
+ * closest-point update (a Tresca or Drucker row of MODUL) keeps the cutting plane (see the UMAT
+ * catalogue).
  * @throw std::invalid_argument for an unknown code or a combination outside the above
  */
 int kernel_tangent_mode(const int &integrator, const int &tangent_mode);

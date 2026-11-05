@@ -94,9 +94,8 @@ class PythonUMAT(ABC):
       out-of-plane strain), 2 = plane stress, 1 = uniaxial. ``nshr`` = number of shear
       components.
     * ``tangent_mode``: 0 = return the elastic operator as ``Lt``, 1 = continuum
-      tangent, 2 = algorithmic (consistent) tangent, 3 = the run asked for the
-      closest-point integrator (``integrator="closest_point"``) with its exact operator;
-      a law without one treats 3 as 2.
+      tangent, 2 = algorithmic (consistent) tangent. ``integrator="closest_point"``
+      is refused for a Python law.
     * ``Wm`` is the accumulated ``(Wm, Wm_r, Wm_ir, Wm_d)`` at the beginning of the
       increment and must be returned accumulated.
     * returns ``(sigma (6,), Lt (6,6), statev (nstatev,), Wm (4,)[, L (6,6)])`` as

@@ -269,6 +269,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			throw std::invalid_argument("umat: ncp must be 'fischer_burmeister' or 'min'; got '" + ncp_name + "'");
 		const int ncp = (ncp_name == "min") ? 1 : 0;
 		simcoon::check_ncp_serves(umat_name_py, ncp, false, tangent_mode);
+		simcoon::check_integrator_serves(umat_name_py, tangent_mode, false);
 		// kinematic_form and corate (its former name) are one value; the dispatch carries the
 		// total formulation in the corate slot
 		const int form = kinematic_code(kinematic_form_py), former = kinematic_code(corate_py);
@@ -793,6 +794,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
 		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
+		simcoon::check_integrator_serves(umat_name_py, tangent_mode, true);
 		static const std::map<string, int> list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10} };
 		auto it_umat = list_umat.find(umat_name_py);
 		if (it_umat == list_umat.end()) {

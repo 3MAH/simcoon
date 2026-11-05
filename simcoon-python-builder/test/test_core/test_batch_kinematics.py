@@ -43,6 +43,31 @@ def test_isochoric_pstretch_batch(tensor):
     np.testing.assert_array_equal(sim.isochoric_pstretch(Xv, tensor), lam)
 
 
+def test_isochoric_invariants_batch():
+    F = _F()
+    b = np.asfortranarray(np.einsum("ijn,kjn->ikn", F, F))
+    inv = sim.isochoric_invariants(b)
+    assert inv.shape == (3, N)
+    for i in range(N):
+        np.testing.assert_array_equal(inv[:, i], np.ravel(sim.isochoric_invariants(_slice(b, i))))
+    bv = np.asfortranarray(np.stack([np.ravel(sim.t2v_strain(_slice(b, i))) for i in range(N)], axis=1))
+    np.testing.assert_array_equal(sim.isochoric_invariants(bv), inv)
+    # the same J for one point and for a batch
+    np.testing.assert_array_equal(sim.isochoric_invariants(b, 1.3)[:, 0],
+                                  np.ravel(sim.isochoric_invariants(_slice(b, 0), 1.3)))
+
+
+def test_isochoric_pstretch_single_point_reads_J():
+    """A single point honours J as the batch does (it used to recompute it from the tensor)."""
+    b = np.asfortranarray(np.einsum("ijn,kjn->ikn", _F(n=2), _F(n=2)))
+    for X in (_slice(b, 0), np.ravel(sim.t2v_strain(_slice(b, 0)))):
+        single = np.ravel(sim.isochoric_pstretch(X, "b", 1.3))
+        np.testing.assert_array_equal(single, sim.isochoric_pstretch(b, "b", 1.3)[:, 0])
+        assert not np.array_equal(single, np.ravel(sim.isochoric_pstretch(X, "b")))
+    with pytest.raises(ValueError, match="input string"):
+        sim.isochoric_pstretch(_slice(b, 0), "C")
+
+
 @pytest.mark.parametrize("key", ["Cauchy2PKI", "Cauchy2PKII", "PKII2Cauchy", "Kirchoff2LogStressU"])
 def test_stress_convert_tensor_batch(key):
     F = _F()

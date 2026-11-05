@@ -323,8 +323,33 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
     }
 }
 
+void check_integrator_serves(const std::string &umat_name, const int &tangent_mode, const bool &thermomechanical)
+{
+    if (tangent_mode != tangent_closest_point) return;
+    // the laws with a closest-point update, or whose cutting plane is one by construction (EPJCK)
+    static const std::set<std::string> mechanical = {"EPICP", "EPCHA", "EPJCK", "MODUL",
+                                                     "SMADI", "SMADC", "SMAAI", "SMAAC",
+                                                     "SMRDI", "SMRDC", "SMRAI", "SMRAC"};
+    static const std::set<std::string> thermo = {"EPICP", "EPKCP"};
+    bool serves;
+    if (thermomechanical) {
+        serves = thermo.count(umat_name) > 0;
+    } else {
+        const auto &names = finite_umat_names();
+        const auto it = names.find(umat_name);
+        serves = mechanical.count(umat_name) > 0 || (it != names.end() && it->second == 201);   // modular adapters
+    }
+    if (!serves) {
+        throw std::invalid_argument("integrator='closest_point' serves the laws with a closest-point update only "
+                                    "(mechanical: EPICP, EPCHA, EPJCK, MODUL and its adapters, the SMA kernels; "
+                                    "thermomechanical: EPICP, EPKCP); '" + umat_name + "'"
+                                    + (thermomechanical ? " (thermomechanical)" : "") + " has none");
+    }
+}
+
 int kernel_tangent_mode(const int &integrator, const int &tangent_mode)
 {
+    // Migration message of 2.x, removed in 3.0 (CHANGELOG.md, "Planned for 3.0"): 3 then falls in the range check
     if (tangent_mode == tangent_closest_point) {
         throw std::invalid_argument("tangent_mode 3 (closest point) is no longer a tangent choice: give "
                                     "integrator='closest_point' with tangent_mode='algorithmic'");

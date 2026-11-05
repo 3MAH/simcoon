@@ -8,16 +8,20 @@ constexpr auto isochoric_invariants = R"pbdoc(
     Parameters
     ----------
     input : pybind11::array_t<double>
-        A 3x3 matrix representing the left Cauchy-Green deformation tensor \( \mathbf{b} \).
+        A 3x3 matrix representing the left Cauchy-Green deformation tensor \( \mathbf{b} \), its
+        Voigt vector (6), or the three principal stretches (3). A batch: a 3x3xN array of
+        tensors, or a 6xN array of Voigt columns.
     J : double, optional
-        The determinant of the transformation gradient \( \mathbf{F} \). Default is 0.
+        The determinant of the transformation gradient \( \mathbf{F} \). Default is 0, to compute
+        it from each tensor; a batch shares the J given.
     copy : bool, optional
         Whether to copy the input data. Default is true.
 
     Returns
     -------
     pybind11::array_t<double>
-        A column vector of dimension 3 containing the three isochoric invariants.
+        A column vector of dimension 3 containing the three isochoric invariants; for a batch, a
+        3xN array (one column per point, computed in parallel, the GIL released).
 
     Notes
     -----
@@ -62,7 +66,8 @@ constexpr auto isochoric_pstretch = R"pbdoc(
     pybind11::array_t<double>
         A column vector of dimension 3 containing the three isochoric principal stretches; for a
         batch, a 3xN array (one column per point, computed in parallel, the GIL released; J is
-        shared by every point, 0 to compute it from each tensor).
+        shared by every point, 0 to compute it from each tensor, for a single point as for a
+        batch).
 
     Notes
     -----

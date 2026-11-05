@@ -35,6 +35,16 @@ Known gaps and planned work, not yet in a release. An item moves to
   - the thermomechanical dispatch (`umat_T`) has no adapter: every `_T` law
     runs its legacy kernel.
 
+## Planned for 3.0
+
+Removals scheduled for the next major version: the transition code of 2.x.
+
+- The migration message for `tangent_mode=3` / `"closest_point"`: the check
+  `tangent_mode in ("closest_point", 3)` of `solve` (`simcoon/solver/core.py`)
+  and its C++ counterpart in `kernel_tangent_mode` (`umat_smart.cpp`). The
+  value then gets the generic error of an unknown tangent mode; the internal
+  kernel code 3 of the closest point is unchanged.
+
 ## [Unreleased]
 
 ### Breaking changes
@@ -46,6 +56,11 @@ Known gaps and planned work, not yet in a release. An item moves to
 - `tangent_mode=3` / `"closest_point"` is refused with a `ValueError`: the local
   integrator is now chosen apart, with `integrator="closest_point"`, and
   `tangent_mode` only takes `"none"`, `"continuum"` or `"algorithmic"`.
+- `integrator="closest_point"` is refused with a `ValueError` for a law without a
+  closest-point update instead of running its cutting plane silently: it serves
+  EPICP, EPCHA, EPJCK, MODUL and its adapters and the SMA kernels (mechanical),
+  EPICP and EPKCP (thermomechanical). A Python law (PYEXT) receives
+  `tangent_mode` 0, 1 or 2 only.
 - The numerical option slots of the props are removed: EPICP `props[6]`
   (min-NCP) and `props[7]` (closed-form tangent), EPKCP `props[7]`, and
   `ModularMaterial(ncp=...)`. The complementarity function is the run option
@@ -75,6 +90,8 @@ Known gaps and planned work, not yet in a release. An item moves to
   stiffness or concentration tensors by one rotation matrix per point, without
   the GIL.
 - Native dS/dE of the finite-strain laws built on F, on demand.
+- `isochoric_invariants` takes a batch, (3,3,N) tensors or (6,N) Voigt columns, as
+  `isochoric_pstretch` does; both share one implementation (parallel, without the GIL).
 - Condensed stress states (`nshr`, plane stress, shells, beams, trusses) in
   `sim.umat`, the solver and the Abaqus bridges, with `condensation_serves`
   (#139, #141, #145).
@@ -99,6 +116,8 @@ Known gaps and planned work, not yet in a release. An item moves to
 
 ### Fixed
 
+- `isochoric_pstretch` ignored `J` on a single point (it recomputed it from the
+  tensor), unlike its batch form.
 - Race on the Eshelby quadrature tables between concurrent solves.
 - MIHEN crash (null pointer) and MISCN failure on the second block of a
   loading path.

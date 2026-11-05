@@ -385,8 +385,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
         throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
                                     + std::to_string(ctrl.tangent_mode));
     }
-    check_ncp_serves(umat_name, ctrl.ncp, std::any_of(blocks.begin(), blocks.end(), [](const block &b) { return b.type == 2; }),
-                     ctrl.tangent_mode);
+    const bool thermomechanical = std::any_of(blocks.begin(), blocks.end(), [](const block &b) { return b.type == 2; });
+    check_ncp_serves(umat_name, ctrl.ncp, thermomechanical, ctrl.tangent_mode);
+    // the thermomechanical laws accepted are mechanical ones too, so one check covers a mixed run
+    check_integrator_serves(umat_name, ctrl.tangent_mode, thermomechanical);
     if (corate_type < 0 || corate_type > corate_type_total) {
         throw std::invalid_argument("solver: corate_type must be an objective rate (0..5) or the total-formulation code ("
                                     + std::to_string(corate_type_total) + "); got " + std::to_string(corate_type));
