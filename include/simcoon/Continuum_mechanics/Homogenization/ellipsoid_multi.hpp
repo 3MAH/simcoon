@@ -273,9 +273,10 @@ protected:
      */
     virtual void fillT_mec_in(const arma::mat&, const arma::mat&, const ellipsoid &, const eshelby_quadrature &, eshelby_memo * = nullptr);
 
-    /// Eshelby tensor of @p ell in the medium @p Lt_local (inclusion frame): reused from this
-    /// inclusion's last integration when the medium is unchanged, else from the pass memo,
-    /// else integrated (and recorded in both).
+    /// Eshelby tensor of @p ell in the medium @p Lt_local (inclusion frame), the first that applies
+    /// of: this inclusion's last tensor when the medium is unchanged, the pass memo when given, the
+    /// closed form when the settings allow it, the tensors this thread integrated lately (exact
+    /// key), else integrated (and recorded).
     arma::mat eshelby_memoized(eshelby_memo *memo, const arma::mat &Lt_local, const ellipsoid &ell, const eshelby_quadrature &quad);
 
     /**

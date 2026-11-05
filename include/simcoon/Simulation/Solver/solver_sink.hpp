@@ -47,7 +47,7 @@ struct solver_params {
     int maxiter = 100;          ///< maximum Newton-Raphson iterations per increment
     int inforce = 1;            ///< 0: stop at Dn_mini, 1: enforce & carry residual, 2: enforce silently
     double precision = 1.E-6;   ///< convergence tolerance on the residual norm (absolute)
-    double precision_rel = 0.;  ///< > 0: tolerance max(precision, precision_rel |tau|), |tau| the Euclidean norm of the Kirchhoff stress (Voigt); 0: precision alone (default)
+    double precision_rel = 0.;  ///< > 0: tolerance max(precision, precision_rel |tau|), |tau| the Euclidean norm of the Kirchhoff stress (Voigt), so that stiff or highly loaded cases are not asked for more digits than soft ones (de Souza Neto et al. 2008, sec. 4.2); 0: precision alone (default)
     double lambda = 10000.;     ///< penalty stiffness for strain-controlled components
     int tangent_mode = tangent_default; ///< tangent_* constants (parameter.hpp)
     int ncp = 0;                ///< complementarity function of the local cutting plane (NCPMethod code), see state_variables::ncp

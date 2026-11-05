@@ -142,9 +142,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local); //shared_ptr on state variables of the rve
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
-    //The self-consistent scheme takes the effective tangent of the previous increment as its
-    //reference medium. The solver clears that tangent (Lt = 0) before the priming call of each
-    //block: a cleared tangent is seeded again, as at start, instead of being inverted.
+    // Lt cleared by the solver before a block's priming call: reseed it, do not invert it
     const bool sc_seed = start || umat_phase_M->Lt.is_zero();
 
 	//Initialization

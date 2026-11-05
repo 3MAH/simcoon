@@ -204,8 +204,7 @@ const std::map<string, int> &finite_umat_names()
 
 namespace {
 
-// The single convention table, plain types only: a function-local static of an armadillo type 
-// registers a destructor that runs at DLL unload, and on Windows that order is undefined.
+// plain types only: no arma static (destructor at DLL unload, Windows)
 const std::map<string, umat_convention> &umat_conventions()
 {
     using SM = StressMeasure;
@@ -243,9 +242,7 @@ const std::map<string, umat_convention> &umat_conventions()
         // HYPOO: the rate counterpart of ELORT, tau_{n+1} = tau_n + L : DEel
         {"HYPOO", {SM::kirchhoff, true, true, {}}},
 
-        // --- finite kernels: build the tangent from F, then convert it to corate_type; their
-        // native tangent is dS/dE (material_tangent: returned as is under
-        // corate_type_material_tangent) ---
+        // --- finite kernels: tangent built from F (native dS/dE), converted to corate_type ---
         {"SNTVE", {SM::kirchhoff, false, false, {}, true}},
         {"NEOHI", {SM::kirchhoff, false, false, {}, true}},
         {"NEOHC", {SM::kirchhoff, false, false, {}, true}},

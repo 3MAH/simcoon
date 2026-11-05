@@ -235,10 +235,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         Y_crit(0) = sigmaY;
 
         if (compteur == 0 && Phi(0) < 0. && sqrt(pow(Phi(0),2.)) + Phi(0) == 0.) {
-            // Admissible trial (Ds_j = 0): the Fischer-Burmeister residual |Phi| + Phi is
-            // exactly zero, so Fischer_Burmeister_m would return ds = +0 and a zero error,
-            // ending the loop; skip its det/solve. The test is its own residual expression,
-            // so a Phi whose square under- or overflows still goes through the solve.
+            // admissible trial: FB residual exactly 0, skip the solve
             ds_j.zeros();
             error = 0.;
         }
@@ -266,9 +263,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    // Lazy: evaluated only in algorithmic mode, and only with an active multiplier — at
-    // Ds <= iota assemble_algorithmic_tangent drops the Hessian and returns the continuum
-    // operator, which compute_tangent_operator also returns without a provider.
+    // lazy: needed in algorithmic mode with an active multiplier only
     HessianProvider dLambda_dsigma = nullptr;
     if (Ds_j(0) > simcoon::iota) {
         dLambda_dsigma = [&]() -> std::vector<mat> {
@@ -281,12 +276,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         };
     }
     if (!use_cpp && tangent_mode == simcoon::tangent_algorithmic && Ds_j(0) > simcoon::iota) {
-        // Consistent tangent of the radial return in closed form (Simo and Taylor 1985; de Souza Neto
-        // et al. 2008, box 7.4), L = 3K Ivol + 2G Idev:
-        //   Lt = 3K Ivol + 2G theta Idev - 2G theta_bar N N^T,  N = s/|s|,
-        //   theta = 1 - 3G Dp / q_tr,  theta_bar = 1/(1 + H/(3G)) - (1 - theta),
-        // q_tr = q + 3G Dp the trial von Mises stress and H = dR/dp at the converged p. Exact at the
-        // converged return; the generic route inverts a 6x6.
+        // closed-form radial-return tangent (formula in the header)
         const double G = E/(2.*(1.+nu));
         const double K_b = E/(3.*(1.-2.*nu));
         const double q_tr = Mises_stress(stress) + 3.*G*Dp;

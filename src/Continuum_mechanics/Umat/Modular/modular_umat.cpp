@@ -876,28 +876,13 @@ void ModularUMAT::apply_total_strain_maps(arma::mat& Lt) const {
 
 namespace {
 
-/**
- * Configured ModularUMAT instances of one thread, most recently used first.
- *
- * The key is everything configure_from_props() and initialize() read: the props
- * stream (compared bit for bit), nstatev and the kinematic form. The state never
- * lives here: run() unpacks every mechanism from statev at each call, start
- * included, and the per-call caches of the instance and of its mechanisms are
- * rewritten before they are read within a call (flow direction, kappa, hardening
- * modulus, viscoelastic dEV/dE, damage driving force and slope); the damage
- * compliance M_cached_ is keyed on the exact stiffness it inverts. A reused
- * instance therefore returns what a fresh one would, bit for bit.
- *
- * Several entries so that the phases of a multiphase material, whose props
- * alternate from one call to the next, each keep their instance.
- */
+// configured instances of this thread, most recent first, keyed on (props bitwise, nstatev, kinematic form);
+// the state is unpacked from statev at every call, so a reused instance returns a fresh one's result
 class modular_umat_cache {
 public:
     static constexpr std::size_t capacity = 8;
 
-    /// The instance configured for (props, nstatev, kinematic_form), created on a
-    /// miss (it configures itself from props on its first run()); it becomes the
-    /// most recently used entry, the least recently used one is evicted when full.
+    /// the instance of (props, nstatev, kinematic_form), created on a miss; least recently used evicted
     ModularUMAT& acquire(const arma::vec& props, int nstatev, KinematicForm kinematic_form) {
         for (auto it = entries_.begin(); it != entries_.end(); ++it) {
             if (it->matches(props, nstatev, kinematic_form)) {
@@ -970,10 +955,6 @@ void umat_modular(
     const KinematicForm& kinematic_form,
     const int& ncp
 ) {
-    // One configured instance per configuration and thread (see modular_umat_cache):
-    // parsing the props (stiffness, its positive-definiteness check, typed tensors)
-    // costs several times an elastic increment. The state is restored from statev
-    // at every call, so the result is the one of a fresh instance.
     thread_local modular_umat_cache cache;
     ModularUMAT& mumat = cache.acquire(props, nstatev, kinematic_form);
     try {

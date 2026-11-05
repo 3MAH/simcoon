@@ -60,6 +60,27 @@ bool eig_sym_3x3(arma::vec::fixed<3> &lam, arma::mat::fixed<3,3> &Q, const arma:
 arma::mat::fixed<3,3> spectral_compose_3x3(const arma::mat::fixed<3,3> &Q, const arma::vec::fixed<3> &f);
 
 /**
+ * @brief Spectral congruence of a 3x3 matrix on an eigenbasis,
+ * \f$ \sum_{a,b} K_{ab}\,\mathbf{P}_a \mathbf{X} \mathbf{P}_b
+ *     = \mathbf{N}\left(\mathbf{K} \circ \mathbf{N}^T \mathbf{X} \mathbf{N}\right)\mathbf{N}^T \f$.
+ *
+ * \f$ \mathbf{P}_a = \mathbf{n}_a \otimes \mathbf{n}_a \f$ are the eigenprojectors of the
+ * orthonormal columns of @p N and \f$ \circ \f$ the entrywise product: the form of the
+ * Daleckii-Krein derivatives of isotropic matrix functions, with \f$ K_{ab} \f$ their divided
+ * differences.
+ *
+ * @param N eigenvectors (orthonormal columns), e.g. from eig_sym_3x3
+ * @param K coefficients \f$ K_{ab} \f$
+ * @param X the 3x3 matrix
+ * @return \f$ \mathbf{N}(\mathbf{K} \circ \mathbf{N}^T \mathbf{X} \mathbf{N})\mathbf{N}^T \f$
+ */
+inline arma::mat::fixed<3,3> spectral_congruence(const arma::mat::fixed<3,3> &N, const arma::mat::fixed<3,3> &K,
+                                                 const arma::mat::fixed<3,3> &X) {
+    const arma::mat::fixed<3,3> Xp = N.t()*X*N;
+    return N*(K % Xp)*N.t();
+}
+
+/**
  * @brief Square root of a symmetric positive semi-definite 3x3 matrix (as arma::sqrtmat_sympd).
  * @param[out] out the square root
  * @param[in] A symmetric matrix

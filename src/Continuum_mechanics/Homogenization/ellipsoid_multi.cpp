@@ -28,6 +28,7 @@
 #include <armadillo>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
@@ -131,10 +132,7 @@ void eshelby_memo::clear()
 
 namespace {
 
-// Eshelby tensors integrated by this thread, kept across calls: the pass memo and the
-// inclusion's own memo live only as long as a pass or a phase object, which every L_eff and
-// every solve rebuilds. Exact key (bitwise medium, semi-axes, quadrature tables), so a hit is
-// the tensor a fresh integration gives; a ring of 32 entries.
+// per-thread ring of 32 integrated tensors, exact key: outlives the phase objects
 struct eshelby_cache_entry {
     arma::mat::fixed<6,6> Lt;
     double a1, a2, a3;
@@ -166,34 +164,8 @@ void eshelby_cache_store(const mat &Lt_local, const ellipsoid &ell, const eshelb
     }
 }
 
-// True when L is isotropic up to round-off: every entry within 1e-14 (relative to the largest)
-// of the isotropic tensor of lambda = L(0,1), mu = L(3,3). A rotation would give it back but
-// for round-off.
-bool isotropic_up_to_roundoff(const mat &L)
-{
-    const double lambda = L(0,1);
-    const double mu = L(3,3);
-    const double tol = 1.E-14*abs(L).max();
-    for (int j=0; j<6; j++) {
-        for (int i=0; i<6; i++) {
-            double L_iso_ij = 0.;
-            if (i < 3 && j < 3)
-                L_iso_ij = (i == j) ? lambda + 2.*mu : lambda;
-            else if (i == j)
-                L_iso_ij = mu;
-            if (fabs(L(i,j) - L_iso_ij) > tol)
-                return false;
-        }
-    }
-    return true;
-}
-
 }  // namespace
 
-// Eshelby tensor of ell in the medium Lt_local (inclusion frame): the inclusion's own last
-// tensor when the medium has not changed, else the pass memo when given, else the closed form
-// when the settings allow it and one applies, else the tensors this thread integrated lately,
-// else integrated.
 mat ellipsoid_multi::eshelby_memoized(eshelby_memo *memo, const mat &Lt_local, const ellipsoid &ell, const eshelby_quadrature &quad)
 {
     if (const mat *own = S_loc_memo.find(Lt_local, ell.a1, ell.a2, ell.a3))
@@ -259,7 +231,7 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
     Rotation rot = global_frame ? Rotation::identity() : Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
     //An isotropic medium is not rotated either: the rotation would only add round-off, and the
     //same medium in every frame shares one Eshelby tensor between orientations (memo, cache)
-    mat Lt_m_local_geom = (global_frame || isotropic_up_to_roundoff(Lt_m)) ? Lt_m : rot.apply_stiffness(Lt_m, false);
+    mat Lt_m_local_geom = (global_frame || is_isotropic(Lt_m, Tensor4Type::stiffness)) ? Lt_m : rot.apply_stiffness(Lt_m, false);
     S_loc = eshelby_memoized(memo, Lt_m_local_geom, ell, quad);
     mat Lt_local_geom = global_frame ? Lt : rot.apply_stiffness(Lt, false);
 

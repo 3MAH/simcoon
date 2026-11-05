@@ -19,9 +19,7 @@ namespace simpy {
 
 namespace {
 
-// The points of a tensor input: a batch of (3,3,N) tensors or (6,N) Voigt columns (N > 1) gives a
-// (3,N) array, computed per point in parallel with the GIL released; one point, (6,), (3,3) or
-// (6,1), gives a (3,) vector. f maps one 3x3 tensor to a 3-vector.
+// (3,3,N) or (6,N>1): (3,N) per point in parallel, GIL released; one point: (3,)
 template <typename F>
 py::array_t<double> per_tensor_point(const py::array_t<double> &input, const bool &copy, const F &f)
 {

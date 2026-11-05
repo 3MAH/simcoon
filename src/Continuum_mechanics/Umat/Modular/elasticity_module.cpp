@@ -340,10 +340,7 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
     // tau = dpsi/deps_el per reference volume (isotropic psi); corate 3, never the solver's.
     const bool total = (kinematic_form_ == KinematicForm::total);
     if (!total && A.empty()) {
-        // Isotropic potential: the box d(tau)/d(eps_el) in closed form from the Lie tangent on the
-        // eigenbasis of eps_el (Dtau_LieDD_2_DtauDe_stretch), instead of the pull-back to dS/dE
-        // and the spectral map of corate 3 (a second decomposition, of V_el^2). The Truesdell box
-        // (corate 4) is the Lie tangent itself.
+        // isotropic: closed-form box from the Lie tangent (one decomposition); Truesdell box = Lie tangent
         arma::mat Lt_Lie;
         hyper_invariants_response(dW, b_el, J_el, V_el, 4, sigma, Lt_Lie, A);
         Lt = Dtau_LieDD_2_DtauDe_stretch(Lt_Lie, e, N, v2t_stress(sigma));

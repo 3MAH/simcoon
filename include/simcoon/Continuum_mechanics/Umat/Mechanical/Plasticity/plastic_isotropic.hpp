@@ -150,7 +150,17 @@ namespace simcoon{
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
  * @param tangent_mode tangent_* constant (parameter.hpp); under tangent_mode 2 the consistent tangent
- *        of the radial return is taken in closed form (Simo and Taylor 1985)
+ *        of the radial return is taken in closed form (Simo and Taylor 1985; de Souza Neto et al.
+ *        2008, box 7.4), exact at the converged return:
+ *        \f[
+ *        \mathbf{L}_t = 3K\,\mathbf{I}_{vol} + 2G\,\theta\,\mathbf{I}_{dev}
+ *        - 2G\,\bar{\theta}\,\mathbf{N}\otimes\mathbf{N},\quad
+ *        \mathbf{N} = \frac{\mathbf{s}}{\|\mathbf{s}\|},\quad
+ *        \theta = 1 - \frac{3G\,\Delta p}{q^{tr}},\quad
+ *        \bar{\theta} = \frac{1}{1 + H/(3G)} - (1 - \theta)
+ *        \f]
+ *        with \f$ q^{tr} = q + 3G\,\Delta p \f$ the trial von Mises stress and
+ *        \f$ H = \mathrm{d}H_p/\mathrm{d}p \f$ at the converged \f$ p \f$
  * @param ncp complementarity function of the cutting plane (NCPMethod code, state_variables::ncp):
  *        0 Fischer-Burmeister (default), 1 min-NCP with a Fischer-Burmeister fallback
  *

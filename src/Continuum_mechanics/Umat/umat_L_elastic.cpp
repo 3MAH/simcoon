@@ -141,9 +141,7 @@ void get_L_elastic(phase_characteristics &rve)
                     tol = opt.rtol*norm(umat_M->Lt, "fro");
                 nbiter++;
 
-                //Anderson acceleration (type II, depth m): the next medium is the combination of
-                //the last iterates that minimizes the linearized residual (least squares on the
-                //residual differences, slightly regularized); kept as is when that fails
+                // Anderson acceleration (type II, depth m); kept as is when the least squares fails
                 if (opt.anderson > 0 && error > tol) {
                     const vec g = vectorise(umat_M->Lt);
                     const vec f = g - vectorise(Lt_n);

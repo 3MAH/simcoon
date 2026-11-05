@@ -116,9 +116,7 @@ inline mat ct3_lnV(const vec &etot, const int &corate_type) {
     return -0.5*log_b_inv;
 }
 
-// Capacity hint for a memory sink: the records of the blocks written every o_nfreq increments
-// (one increment per step milestone, as step::generate() counts them; +1 per block for the
-// counter carried over). Blocks written on a time period are not counted: the sink grows.
+// capacity hint: records of the o_nfreq blocks; time-period blocks grow the sink
 std::size_t expected_records(const std::vector<simcoon::block> &blocks, const simcoon::solver_output &so) {
     std::size_t n_records = 0;
     for (std::size_t i = 0; i < blocks.size(); ++i) {
@@ -147,10 +145,7 @@ void reserve_memory_sink(simcoon::solver_results_sink &sink, const std::vector<s
     }
 }
 
-// Newton correction Delta = -K^-1 r of the global Jacobian (6x6 mechanical, 7x7 thermomechanical):
-// LU with partial pivoting on the stack. A LAPACK inv (getrf + getri) and a gemv cost ~0.65 us on a
-// 6x6, about the price of an elastic increment; arma::solve is no cheaper. A numerically singular
-// (or non-finite) K reports false, as inv() did.
+// Delta = -K^-1 r by stack LU; false on a singular or non-finite K
 bool newton_correction(const mat &K, const vec &r, vec &Delta) {
     simcoon::small_lu<7> lu;
     if (!lu.factor(K) || r.n_elem != K.n_rows) return false;
@@ -158,21 +153,14 @@ bool newton_correction(const mat &K, const vec &r, vec &Delta) {
     return Delta.is_finite();
 }
 
-// Tolerance of the global residual: the absolute precision, or, with a relative tolerance set,
-// max(precision, precision_rel |tau|) (de Souza Neto et al. 2008, section 4.2): the residual mixes
-// stresses and penalised strains, and a fixed absolute threshold asks the stiff or highly loaded
-// cases for more digits than the softer ones.
+// tolerance: see solver_params::precision_rel
 double residual_tolerance(const simcoon::solver_params &ctrl, const vec &tau) {
     if (ctrl.precision_rel > 0.)
         return std::max(ctrl.precision, ctrl.precision_rel*norm(tau, 2));
     return ctrl.precision;
 }
 
-// Material tangent of a law built on F (corate_type_material_tangent) for the Green-Lagrange and
-// Biot residuals: such a law closes on dS/dE, so the Newton asks for it instead of having the box
-// built and pulled back again (two spectral maps per iteration). Between that kernel call and the
-// next Jacobian, sv_M->Lt holds dS/dE at the F1 and tau recorded here; the box tangent, the
-// contract of sv_M->Lt everywhere else, is restored once the Newton loop is over.
+// Newton on dS/dE of a law built on F; sv_M->Lt holds it until the loop ends, then the box
 struct material_tangent_state {
     bool held = false;
     mat F1;

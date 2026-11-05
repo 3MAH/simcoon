@@ -393,10 +393,7 @@ NCPMethod ncp_method_of(const int &code, const string &where)
 void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp, vec &dp, double &error)
 {
     const uword n = Phi.n_elem;
-    // Coupled rows stay on Fischer-Burmeister: the active set of coupled surfaces makes the
-    // plain semi-smooth Newton cycle (SMA with three surfaces). Uncoupled rows (denom diagonal:
-    // one surface, or one next to the always-satisfied viscoelastic / damage rows of MODUL)
-    // are independent scalar problems.
+    // coupled rows: Fischer-Burmeister (a plain semi-smooth Newton cycles); uncoupled rows: scalar min steps
     bool uncoupled = (method_ != NCPMethod::fischer_burmeister) && !fallback_;
     for (uword i = 0; uncoupled && i < n; i++)
         for (uword j = 0; j < n; j++)

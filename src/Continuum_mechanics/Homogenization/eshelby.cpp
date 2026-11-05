@@ -210,12 +210,7 @@ void calG(const double &pt, const double &a1, const double &a2, const double &a3
 //Voigt index of the pair (i,j): the table that Eshelby and T_II hand to Gauss as Id
 static const int Voigt_index[3][3] = {{0,3,4},{3,1,5},{4,5,2}};
 
-//Sum of calG over the quadrature points, weighted by wy then wx. The per-point expressions are
-//those of calG, and each entry of G receives its point contributions in the same order and
-//through the same operations, so the result is identical to the point-by-point loop. The
-//work is laid out for speed: plain arrays (no bounds checks, no Mat<int> lookups), the
-//azimuthal sin/cos once per call instead of once per point, and for each polar ring a first
-//pass over its np points (independent, vectorisable) before the accumulation pass.
+// sum of calG in the per-entry operation order of the point loop (bitwise); sin/cos hoisted
 void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
     (void)Id;   //always the Voigt table (Voigt_index)
@@ -554,9 +549,7 @@ const eshelby_quadrature &eshelby_quadrature_points(const int &mp, const int &np
     if (last != nullptr && last->mp_asked == mp && last->np == np && last->rule == rule && last->closed_form == closed_form)
         return *last;
 
-    // Never destroyed on purpose (as the former ellipsoid_multi statics): a static armadillo
-    // object's destructor would run at DLL unload, which is unsafe on Windows. The tables stay
-    // valid until exit, whatever thread asked for them first.
+    // never destroyed: no arma destructor at DLL unload (Windows)
     typedef std::tuple<int, int, int, bool> key_type;
     static std::mutex &tables_mutex = *new std::mutex();
     static std::map<key_type, const eshelby_quadrature *> &tables = *new std::map<key_type, const eshelby_quadrature *>();

@@ -546,16 +546,10 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
     vec I_bar = isochoric_invariants(b,J);
     mat Id = eye(3,3);
 
-    // Plain locals on purpose: a function-local static of an armadillo type registers a
-    // destructor that runs at DLL unload, and on Windows the unload order of the extension
-    // module, the BLAS/LAPACK DLLs and the CRT is not defined — freeing the matrix after its
-    // allocator is gone aborts the process once the tests are over. These are 6x6 identities,
-    // negligible next to the dyadic products this function builds per call.
+    // no static arma object: its destructor runs at DLL unload (Windows)
     mat I_dev = Idev();
 
-    // Only the terms of a non-zero potential derivative are built, summed in the order of the
-    // full expression (a skipped term adds an exact zero): a Neo-Hookean potential needs gamma_1
-    // alone, and the I_2 terms cost b_bar^2 and five more dyadic products.
+    // terms of a zero potential derivative skipped (exact zeros)
     mat Lt = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id)*dWdI_1_bar;
     if ((dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.)) {
         mat b_bar2;

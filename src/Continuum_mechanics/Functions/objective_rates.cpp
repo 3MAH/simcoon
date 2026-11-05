@@ -138,27 +138,6 @@ static inline void eig_B(vec::fixed<3> &bi, mat::fixed<3,3> &Bi, const mat &F, c
     }
 }
 
-// Spectral congruence sum_{a,b} K_ab P_a X P_b = N (K % N^T X N) N^T, P_a = n_a n_a^T the
-// eigenprojectors of the columns of N: the eigenprojector sandwiches at a fraction of the products.
-static inline mat::fixed<3,3> spectral_congruence(const mat::fixed<3,3> &N, const mat::fixed<3,3> &K, const mat &X) {
-    const mat::fixed<3,3> Xp = N.t()*mat::fixed<3,3>(X)*N;
-    return N*(K % Xp)*N.t();
-}
-
-// acc += c * linearop_eigsym(Bi.col(a), Bi.col(b)), in place on a fixed 6x6 (no 6x6 temporary)
-static inline void add_linearop_eigsym(mat::fixed<6,6> &acc, const double c, const mat::fixed<3,3> &Bi, const int a, const int b) {
-    static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
-    double Bij[3][3];
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            Bij[i][j] = Bi(i, a)*Bi(j, b);
-    for (int i = 0; i < 3; i++)
-        for (int j = i; j < 3; j++)
-            for (int k = 0; k < 3; k++)
-                for (int l = k; l < 3; l++)
-                    acc(Id[i][j], Id[k][l]) += c*(0.5*(Bij[i][j]*Bij[k][l] + Bij[i][j]*Bij[l][k]));
-}
-
 // Spin coefficients of the logarithmic rate (Xiao-Bruhns-Meyers), f(r) of r = b_i/b_j
 static inline double log_spin_f(const double &bi, const double &bj) {
     const double s = bi/bj - 1.;
@@ -247,9 +226,7 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
 
 namespace {
 
-// log_R kinematics: D = sym(L), the exact relative polar rotation DR = R1 R0^T and its
-// inverse-Cayley spin (as finite_rotation), and the spectral decomposition of B1 = F1 F1^T:
-// eigenvalues b1 (those of C1) and eigenvectors Nb = R1 N1. One eigen-solve of C0 and one of C1.
+// one eigen-solve of C0 and one of C1
 void logarithmic_R_kinematics(mat &DR, mat &D, mat &Omega, vec::fixed<3> &b1, mat::fixed<3,3> &Nb, const double &DTime, const mat &F0, const mat &F1) {
     mat L = zeros(3,3);
     if(DTime > simcoon::iota) {    
@@ -374,7 +351,7 @@ mat get_BBBB(const mat &F1) {
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if (i!=j) {
-                add_linearop_eigsym(BBBB, log_spin_f(bi(i), bi(j)), Bi, i, j);
+                add_linearop_eigsym(BBBB, log_spin_f(bi(i), bi(j)), Bi.col(i), Bi.col(j));
             }
         }
     }
@@ -390,7 +367,7 @@ mat get_BBBB_GN(const mat &F1) {
         for (unsigned int j=0; j<3; j++) {
             if (i!=j) {
                 const double f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
-                add_linearop_eigsym(BBBB, f_z, Bi, i, j);
+                add_linearop_eigsym(BBBB, f_z, Bi.col(i), Bi.col(j));
             }
         }
     }
@@ -406,7 +383,7 @@ mat A_R(const mat &F) {
     mat::fixed<6,6> AR(fill::zeros);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            add_linearop_eigsym(AR, kappa_R(bi(i), bi(j)), Bi, i, j);
+            add_linearop_eigsym(AR, kappa_R(bi(i), bi(j)), Bi.col(i), Bi.col(j));
         }
     }
     AR.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^R(I)=I, read De with v2t_strain
@@ -433,7 +410,7 @@ mat A_F(const mat &F) {
                 tcoth = 1. + t*t/3. - t*t*t*t/45.;       // Taylor of t*coth(t)
             }
             double c = tcoth;     // t*coth(t): F-frame strain-concentration kernel (diagonal -> 1, recovers ln V)
-            add_linearop_eigsym(AF, c, Bi, i, j);
+            add_linearop_eigsym(AF, c, Bi.col(i), Bi.col(j));
         }
     }
     AF.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^F(I)=I, read De with v2t_strain
@@ -1142,7 +1119,7 @@ mat dH_dE(const mat &C) {
     for (int j = 0; j < 6; j++) {
         vec e = zeros(6);
         e(j) = 1.;
-        P.col(j) = t2v_strain(N*(2.*(g % (N.t()*v2t_strain(e)*N)))*N.t());
+        P.col(j) = t2v_strain(spectral_congruence(N, 2.*g, v2t_strain(e)));
     }
     return P;
 }
@@ -1189,9 +1166,6 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
     }
 }
 
-// Box tangent d(tau)/d(e) at a pure stretch V = exp(e) of an isotropic response, from its Lie
-// tangent (full doc in objective_rates.hpp): Lt : de = Jc : dt + dt tau + tau dt with
-// dt = N (H % N^T de N) N^T, H_ab = tanh(e_a - e_b)/(e_a - e_b).
 mat Dtau_LieDD_2_DtauDe_stretch(const mat &Dtau_LieDD, const vec::fixed<3> &e, const mat::fixed<3,3> &N, const mat &tau) {
     m33 H;
     for (int a = 0; a < 3; ++a) {
@@ -1205,7 +1179,7 @@ mat Dtau_LieDD_2_DtauDe_stretch(const mat &Dtau_LieDD, const vec::fixed<3> &e, c
     mat Lt(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
-        const m33 dt = N * (H % (N.t() * unit_strain_tensor(j) * N)) * N.t();
+        const m33 dt = spectral_congruence(N, H, unit_strain_tensor(j));
         box_apply(Jc, dt, y);
         const m33 dtau = v2t_stress_arr(y) + dt * tau_ + tau_ * dt;
         set_stress_col(Lt, j, dtau);

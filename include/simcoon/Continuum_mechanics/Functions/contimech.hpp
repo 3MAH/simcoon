@@ -629,6 +629,19 @@ arma::mat sym_dyadic_operator(const arma::mat &a, const arma::mat &b);
 */
 arma::mat linearop_eigsym(const arma::vec &b_i, const arma::vec &b_j);
 
+/**
+ * @brief Accumulates \f$ c\,\mathbb{G}^{ij} \f$ (see linearop_eigsym) into a 6x6 Voigt matrix, in place.
+ *
+ * The form of the spectral sums \f$ \sum_{i,j} c_{ij}\,\mathbb{G}^{ij} \f$ of the logarithmic rates
+ * and of the concentration tensors, built without a 6x6 temporary per term;
+ * linearop_eigsym(b_i, b_j) is this with \f$ c = 1 \f$ on a zero matrix.
+ * @param[in,out] acc the 6x6 accumulator
+ * @param[in] c the coefficient of the term
+ * @param[in] b_i the first eigenvector
+ * @param[in] b_j the second eigenvector
+ */
+void add_linearop_eigsym(arma::mat::fixed<6,6> &acc, const double &c, const arma::vec::fixed<3> &b_i, const arma::vec::fixed<3> &b_j);
+
 /** @} */ // end of contimech group
 
 } //namespace simcoon

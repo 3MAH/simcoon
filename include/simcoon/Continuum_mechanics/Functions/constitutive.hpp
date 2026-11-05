@@ -21,6 +21,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon{
 
+enum class Tensor4Type;   // tensor.hpp
+
 /**
  * @file constitutive.hpp
  * @author Yves Chemisky 
@@ -246,12 +248,42 @@ arma::mat L_cubic(const double &C1, const double &C2, const double &C3, const st
 arma::mat M_cubic(const double &C1, const double &C2, const double &C3, const std::string& conv = "EnuG");
 
 /**
+ * @brief Tests whether a 6x6 Voigt matrix has cubic symmetry in its own axes and returns its coefficients.
+ *
+ * Cubic structure: normal block \f$ a\,\mathbf{I} + b\,(\mathbf{1}-\mathbf{I}) \f$, shear diagonal
+ * \f$ c\,\mathbf{I} \f$, zero coupling between the two, with \f$ a = A_{11} \f$, \f$ b = A_{12} \f$,
+ * \f$ c = A_{44} \f$. Every entry is compared with that structure to \f$ \mathrm{tol}\,\max|A_{ij}| \f$;
+ * the default tol = 0 asks for the exact structure. A matrix with a NaN is never cubic.
+ * @param[in] A the 6x6 matrix
+ * @param[out] a, b, c its cubic coefficients (meaningful when true is returned)
+ * @param[in] tol relative tolerance (0: exact)
+ * @return true when @p A has that structure
+ */
+bool cubic_coefficients(const arma::mat &A, double &a, double &b, double &c, const double &tol = 0.);
+
+/**
+ * @brief Tests whether a 6x6 engineering-Voigt tensor of the given type is isotropic.
+ *
+ * Isotropy is the cubic structure (cubic_coefficients) whose Kelvin-Mandel shear coefficient equals
+ * the deviatoric eigenvalue of the normal block, \f$ c\,r_s c_s = a - b \f$, with \f$ r_s, c_s \f$ the
+ * engineering-to-Mandel shear factors of @p type (mandel_factors): \f$ c = (a-b)/2 \f$ for a stiffness
+ * (\f$ a = \lambda + 2\mu \f$, \f$ b = \lambda \f$, \f$ c = \mu \f$), \f$ c = 2(a-b) \f$ for a compliance,
+ * \f$ c = a-b \f$ for a strain or stress concentration. Each relation holds to
+ * \f$ \mathrm{tol}\,\max|L_{ij}| \f$.
+ * @param L the 6x6 tensor (engineering Voigt)
+ * @param type its Tensor4Type (generic is read as a stiffness, as in mandel_factors)
+ * @param tol relative tolerance, round-off by default
+ * @return true when @p L is isotropic
+ */
+bool is_isotropic(const arma::mat &L, const Tensor4Type &type, const double &tol = 1.E-14);
+
+/**
  * @brief Inverse of a 6x6 stiffness or compliance (Voigt) with cubic symmetry in its own axes.
  *
  * The normal block \f$ a\,\mathbf{I} + b\,(\mathbf{1}-\mathbf{I}) \f$ has the eigenvalues \f$ a+2b \f$
  * (volumetric) and \f$ a-b \f$ (deviatoric) and the shear diagonal \f$ c \f$ inverts entrywise, so the
- * inverse is in closed form; isotropy is the case \f$ c = a-b \f$ (stiffness) or \f$ c = 2(a-b) \f$
- * (compliance). Typically the stiffness of a Reuss mixture of isotropic or cubic phases (the SMA laws),
+ * inverse is in closed form (cubic_coefficients, exact); isotropy is the case \f$ c = (a-b)/2 \f$
+ * (stiffness) or \f$ c = 2(a-b) \f$ (compliance). Typically the stiffness of a Reuss mixture of isotropic or cubic phases (the SMA laws),
  * without a LAPACK call. A matrix without that exact structure goes through the general inverse.
  * @param A the 6x6 matrix
  * @return its inverse

@@ -47,9 +47,7 @@ using namespace arma;
 
 namespace simcoon{
 
-//Eshelby evaluation settings of an ellipsoidal scheme, whose props are [mp, np, ...] plus the
-//options of mean_field_options: read from the phase at each pass, so that nested schemes and
-//concurrent solves each use their own
+// read from the phase at each pass: nested schemes and concurrent solves keep their own
 static const eshelby_quadrature &scheme_quadrature(const phase_characteristics &phase) {
     const mean_field_options opt = mean_field_options_of(phase);
     return eshelby_quadrature_points(static_cast<int>(phase.sptr_matprops->props(0)), static_cast<int>(phase.sptr_matprops->props(1)),

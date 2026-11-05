@@ -90,6 +90,9 @@ Removals scheduled for the next major version: the transition code of 2.x.
   stiffness or concentration tensors by one rotation matrix per point, without
   the GIL.
 - Native dS/dE of the finite-strain laws built on F, on demand.
+- C++: `cubic_coefficients` and `is_isotropic(L, Tensor4Type)` (constitutive.hpp; the isotropy
+  relation follows the Voigt convention of the type), `spectral_congruence` (eig_sym3.hpp),
+  `add_linearop_eigsym` (contimech.hpp), replacing private copies.
 - `isochoric_invariants` takes a batch, (3,3,N) tensors or (6,N) Voigt columns, as
   `isochoric_pstretch` does; both share one implementation (parallel, without the GIL).
 - Condensed stress states (`nshr`, plane stress, shells, beams, trusses) in

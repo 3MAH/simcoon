@@ -204,11 +204,7 @@ void write_back_free_strain(const py::array_t<double> &Detot_py, const arma::uve
 		}
 }
 
-// An input array the law updates and the batch returns (sigma, statev, Wm): a copy, so that the
-// caller's array is untouched. On an F-contiguous NumPy buffer (a strict alias) the copy is taken
-// column by column in the parallel region, by the point that owns the column (copy_col): copying
-// and first-touching the whole output in serial was a large part of a cheap (elastic) batch.
-// Otherwise the conversion is already a private copy, which becomes the output as is.
+// private copy of an updated input; an F-contiguous buffer is copied per column in the parallel region
 struct batch_output {
 	arma::mat in;
 	arma::mat out;
@@ -558,9 +554,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// log-corate work correction (finite-strain calls only): decided once, not per point
 		const bool work_correction = work_correction_on && kirchhoff_normalize
 		                             && simcoon::work_correction_applies(corate_type);
-		// tangent_output 'material' or 'spatial' from a law built on F: the law is asked for its native
-		// tangent dS/dE (corate_type_material_tangent) instead of the box of corate_type, mapped back
-		// below otherwise; its stress and work do not depend on the corate
+		// a law built on F returns its native dS/dE for tangent_output 'material' or 'spatial'
 		const bool native_dSdE = tangent_out != tangent_out_box && !cs.active() && arguments_type == 2
 		                         && simcoon::material_tangent_serves(umat_name_py);
 		const int corate_law = native_dSdE ? simcoon::corate_type_material_tangent : corate_type;

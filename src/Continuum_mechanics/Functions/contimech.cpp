@@ -494,25 +494,22 @@ mat sym_dyadic_operator(const mat &A, const mat &B) {
 	return C;
 }
 
-mat linearop_eigsym(const vec &b_i, const vec &b_j) {
-
-	// fixed-size outer product and accumulator, static Voigt index table: one allocation (the
-	// returned 6x6) instead of four
+void add_linearop_eigsym(mat::fixed<6,6> &acc, const double &c, const vec::fixed<3> &b_i, const vec::fixed<3> &b_j) {
 	static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
-	const mat::fixed<3,3> Bij = vec::fixed<3>(b_i)*vec::fixed<3>(b_j).t();
+	double Bij[3][3];
+	for (int i=0; i<3; i++)
+		for (int j=0; j<3; j++)
+			Bij[i][j] = b_i(i)*b_j(j);
+	for (int i=0; i<3; i++)
+		for (int j=i; j<3; j++)
+			for (int k=0; k<3; k++)
+				for (int l=k; l<3; l++)
+					acc(Id[i][j], Id[k][l]) += c*(0.5*(Bij[i][j]*Bij[k][l] + Bij[i][j]*Bij[l][k]));
+}
+
+mat linearop_eigsym(const vec &b_i, const vec &b_j) {
 	mat::fixed<6,6> BBBB(fill::zeros);
-	
-	for (int i=0; i<3; i++) {
-		for (int j=i; j<3; j++) {
-			const int ij = Id[i][j];
-			for (int k=0; k<3; k++) {
-				for (int l=k; l<3; l++) {
-					BBBB(ij,Id[k][l]) = 0.5*(Bij(i,j)*Bij(k,l) + Bij(i,j)*Bij(l,k));
-				}
-			}
-		}
-	}
-	
+	add_linearop_eigsym(BBBB, 1., b_i, b_j);
 	return BBBB;
 }
 

@@ -27,6 +27,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 
 using namespace std;
@@ -405,4 +406,36 @@ TEST(Tconstitutive, inv_cubic)
     mat S = L_A;
     S(3, 3) = S(4, 4) = S(5, 5) = 0.;
     EXPECT_THROW(inv_cubic(S), simcoon::exception_inv);
+}
+
+TEST(Tconstitutive, cubic_coefficients_and_is_isotropic)
+{
+    const mat L_A = L_iso(70000., 0.33, "Enu"), L_C = L_cubic(30000., 0.3, 9000., "EnuG");
+    double a, b, c;
+    EXPECT_TRUE(cubic_coefficients(L_C, a, b, c));
+    EXPECT_EQ(a, L_C(0,0));
+    EXPECT_EQ(b, L_C(0,1));
+    EXPECT_EQ(c, L_C(3,3));
+    // the isotropy relation depends on the Voigt convention of the tensor
+    const mat M_A = M_iso(70000., 0.33, "Enu");
+    EXPECT_TRUE(is_isotropic(L_A, Tensor4Type::stiffness));
+    EXPECT_TRUE(is_isotropic(M_A, Tensor4Type::compliance));
+    EXPECT_TRUE(is_isotropic(mat(0.3*eye(6, 6)), Tensor4Type::strain_concentration));
+    EXPECT_TRUE(is_isotropic(mat(0.3*eye(6, 6)), Tensor4Type::stress_concentration));
+    EXPECT_FALSE(is_isotropic(M_A, Tensor4Type::stiffness));
+    EXPECT_FALSE(is_isotropic(L_A, Tensor4Type::strain_concentration));
+    EXPECT_FALSE(is_isotropic(L_C, Tensor4Type::stiffness));   // cubic, not isotropic
+    // round-off: exact structure refused, 1e-14 accepted; a real perturbation refused
+    mat P = L_A;
+    P(1, 1) *= 1. + 1.E-15;
+    EXPECT_FALSE(cubic_coefficients(P, a, b, c));
+    EXPECT_TRUE(is_isotropic(P, Tensor4Type::stiffness));
+    P(0, 4) = 1.E-6*L_A(0, 0);
+    EXPECT_FALSE(is_isotropic(P, Tensor4Type::stiffness));
+    // never cubic with a NaN, nor for a non-6x6 matrix
+    mat N = L_A;
+    N(2, 5) = datum::nan;
+    EXPECT_FALSE(cubic_coefficients(N, a, b, c, 1.E-14));
+    EXPECT_FALSE(is_isotropic(N, Tensor4Type::stiffness));
+    EXPECT_FALSE(cubic_coefficients(mat(3, 3, fill::eye), a, b, c));
 }

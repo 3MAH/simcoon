@@ -139,9 +139,7 @@ ReturnMappingResult closest_point_return_mapping(
 
     const int snap_niter = 20;   // plain Newton gets this many iterations before the snap may act
 
-    // Newton buffers, sized once: the iteration below allocates nothing of its own. M is
-    // factorized on the stack (small_lu) instead of inverted by LAPACK, and every M^-1 x
-    // product is a solve with that factorization.
+    // buffers sized once; M factorized on the stack (small_lu)
     std::vector<vec> c(N, zeros(6));
     std::vector<vec> Minv_kc(N, zeros(6));   // M^-1 (kappa_j + c_j), for B_red and the stress step
     mat::fixed<6,6> M;

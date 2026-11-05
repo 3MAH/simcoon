@@ -29,6 +29,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <armadillo>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
 using namespace std;
 using namespace arma;
@@ -57,9 +58,7 @@ mat Ivol(){
 	return Ivol;
 }
 
-// a*Ivol + b*X, X = Ireal - Ivol (shear diagonal 1/2) or Ireal2 - Ivol (shear diagonal 2), built
-// entry by entry: one 6x6 allocation instead of one per operand and operation. Each product is
-// rounded, then summed, as in the expression a*Ivol() + b*X: the same values to the bit.
+// a*Ivol + b*X entry by entry: one allocation, same rounding as the expression
 static mat iso_combination(const double &a, const double &b, const double &X_shear) {
 	const double v = a*(1./3.);             // a Ivol_ij on the normal block
 	const double d_ii = b*(1.-1./3.);       // b X_ii, normal block
@@ -329,22 +328,36 @@ mat M_cubic(const double &C1, const double &C2, const double &C4, const string &
 	return M;
 }
 
-//Inverse of a 6x6 Voigt tensor with cubic symmetry in its own axes (isotropy included), in closed
-//form: the normal block a I + b (1 - I) has the eigenvalues a + 2b (volumetric) and a - b
-//(deviatoric), the shear diagonal c inverts entrywise. Any other matrix: the general inverse.
-mat inv_cubic(const mat &A) {
-
-    bool cubic = (A.n_rows == 6) && (A.n_cols == 6);
-    const double a = cubic ? A(0,0) : 0.;
-    const double b = cubic ? A(0,1) : 0.;
-    const double c = cubic ? A(3,3) : 0.;
-    for (int i=0; i<6 && cubic; i++) {
-        for (int j=0; j<6 && cubic; j++) {
+bool cubic_coefficients(const mat &A, double &a, double &b, double &c, const double &tol) {
+    if (A.n_rows != 6 || A.n_cols != 6) {
+        return false;
+    }
+    a = A(0,0);
+    b = A(0,1);
+    c = A(3,3);
+    const double thr = (tol > 0.) ? tol*abs(A).max() : 0.;
+    for (int j=0; j<6; j++) {
+        for (int i=0; i<6; i++) {
             const double expected = (i < 3 && j < 3) ? ((i == j) ? a : b) : ((i == j) ? c : 0.);
-            cubic = (A(i,j) == expected);
+            if (!(std::fabs(A(i,j) - expected) <= thr)) {   // a NaN fails too
+                return false;
+            }
         }
     }
-    if (!cubic) {
+    return true;
+}
+
+bool is_isotropic(const mat &L, const Tensor4Type &type, const double &tol) {
+    double a, b, c, row, col;
+    mandel_factors(type, row, col);   // isotropic: Mandel shear c row col = a - b
+    return cubic_coefficients(L, a, b, c, tol) && std::fabs(c*row*col - (a - b)) <= tol*abs(L).max();
+}
+
+// closed form: eigenvalues a+2b, a-b of the normal block, shear 1/c
+mat inv_cubic(const mat &A) {
+
+    double a = 0., b = 0., c = 0.;
+    if (!cubic_coefficients(A, a, b, c)) {
         mat A_inv;
         if (!inv(A_inv, A)) {
             throw simcoon::exception_inv("Error in inv function inside inv_cubic.");
