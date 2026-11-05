@@ -529,7 +529,9 @@ def test_material_face_frees_the_material_faces(name, ndi, nshr):
     P = F1 @ sim.v2t_stress(S)
     faces = {(1, 0): [1, 2], (1, 1): [2], (2, 1): [2]}.get((ndi, nshr), [])
     for f in faces:
-        assert np.abs(P[:, f]).max() < 1e-10 * np.abs(P).max()
+        # same margin as S_C above: P e_f is F S e_f, so the Newton's 1e-10 |S| leaves no room at 1e-10 |P|
+        # (MOORI on Windows: 1.08e-10)
+        assert np.abs(P[:, f]).max() < 1e-9 * np.abs(P).max()
     Fc = R_ @ expm(sim.v2t_strain(H))
     E_of = lambda F: sim.t2v_strain(0.5 * (F.T @ F - np.eye(3))).ravel()
     np.testing.assert_allclose(E_of(F1)[K], E_of(Fc)[K], atol=1e-14)
