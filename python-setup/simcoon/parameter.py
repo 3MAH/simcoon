@@ -1,7 +1,10 @@
 import functools
 import os
 import re
+import warnings
 from typing import List, Optional, Sequence, Tuple, Union
+
+import numpy as np
 
 
 class Parameter:
@@ -143,7 +146,9 @@ class KeyTemplate:
 
     :param src_path: directory holding the template files (e.g. ``keys``)
     :param params: Parameter objects whose ``sim_input_files`` name the templates
-    :param consts: Constant objects, substituted after the parameters
+    :param consts: Constant objects, substituted after the parameters. A
+                   constant holds one value per test (``input_values``):
+                   ``write(dst, test=i)`` substitutes the value of test *i*.
 
     Example::
 
@@ -151,7 +156,8 @@ class KeyTemplate:
         def cost(x):
             for p, v in zip(params, x):
                 p.value = v
-            template.write("data")
+            for i in range(n_tests):          # e.g. one fibre angle per specimen
+                template.write(f"data/test_{i}", test=i)
             ...
     """
 
@@ -167,22 +173,66 @@ class KeyTemplate:
             )
         self.params = list(params)
         self.consts = list(consts)
+        self._single_value_warned = set()
         self.templates = {}
         for ifiles in _input_files(self.params + self.consts):
             with open(os.path.join(src_path, ifiles), "r", encoding="utf-8") as f:
                 self.templates[ifiles] = f.read()
 
-    def render(self, fname: str) -> str:
-        """Text of the template *fname* with the current values substituted."""
-        content = substitute_keys(self.templates[fname], self.params, fname)
-        return substitute_keys(content, self.consts, fname)
+    def _consts_of_test(self, test: Optional[int]) -> list:
+        """Constants with the value of test *test* (``input_values[test]``);
+        their own ``value`` when *test* is None."""
+        if test is None:
+            return self.consts
+        consts = []
+        for c in self.consts:
+            values = np.atleast_1d(c.input_values)
+            if values.size == 1:
+                if c.key not in self._single_value_warned:
+                    self._single_value_warned.add(c.key)
+                    warnings.warn(
+                        f"constant {c.key} has a single value for several tests: "
+                        "it is not a constant of the identification but a fixed "
+                        "parameter of the simulation, write it in the template "
+                        "instead of a key",
+                        stacklevel=3,
+                    )
+                consts.append(c._replace(value=values[0]))
+            elif not -values.size <= test < values.size:
+                raise IndexError(
+                    f"test {test} out of range for constant {c.key}, which has "
+                    f"{values.size} values"
+                )
+            else:
+                consts.append(c._replace(value=values[test]))
+        return consts
 
-    def write(self, dst_path: Union[str, os.PathLike]) -> None:
-        """Write every template, substituted with the current values, to *dst_path*."""
+    def render(self, fname: str, test: Optional[int] = None) -> str:
+        """Text of the template *fname* with the current values substituted.
+
+        :param test: index of the test: each constant takes its value
+                     ``input_values[test]``; by default, its ``value``
+        """
+        return self._render(fname, self._consts_of_test(test))
+
+    def _render(self, fname: str, consts: list) -> str:
+        content = substitute_keys(self.templates[fname], self.params, fname)
+        return substitute_keys(content, consts, fname)
+
+    def write(self, dst_path: Union[str, os.PathLike], test: Optional[int] = None) -> None:
+        """Write every template, substituted with the current values, to *dst_path*.
+
+        :param test: index of the test: each constant takes its value
+                     ``input_values[test]`` (e.g. the fibre angle of that
+                     specimen); by default, its ``value``. A constant with a
+                     single value raises a warning: it is the same in every
+                     test, so it belongs in the template, not in a key.
+        """
         if not isinstance(dst_path, (str, os.PathLike)):
             raise TypeError(
                 f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
             )
+        consts = self._consts_of_test(test)
         for fname in self.templates:
             with open(os.path.join(dst_path, fname), "w", encoding="utf-8") as f:
-                f.write(self.render(fname))
+                f.write(self._render(fname, consts))

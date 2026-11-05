@@ -93,6 +93,21 @@ Constants are fixed values (not optimized) that also use the key system:
 The ``Constant`` class is a ``NamedTuple`` with fields: ``number``, ``key``,
 ``input_values``, ``value``, ``sim_input_files``.
 
+A constant holds **one value per test** in ``input_values``, e.g. the fibre
+angle of each specimen of a composite identification. ``read_constants(n, ...)``
+reads ``n`` values per constant from ``constants.inp``:
+
+.. code-block:: none
+
+   #Number  #key     #test_0  #test_1  #test_2  #number_of_files  #files
+   0        @theta   0        45       90       1                 ply.json
+
+``value`` is the first one; ``KeyTemplate.write(dst, test=i)`` (below)
+substitutes the value of test ``i``. A constant with a single value is the same
+in every test: it is not a constant of the identification but a fixed parameter
+of the simulation, to write in the template rather than as a key, and
+``write(..., test=i)`` warns about it.
+
 Writing the working files
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -111,6 +126,14 @@ constants, by their current values and writes every working file once:
            p.value = v
        template.write("data")
        ...
+
+With several tests, each one is written in its own directory with the
+constants of that test:
+
+.. code-block:: python
+
+   for i in range(3):                       # one fibre angle per specimen
+       template.write(f"data/test_{i}", test=i)
 
 This works with **any** file format — simcoon input files, FE meshes, JSON
 configs, etc. The key system is deliberately simple: it performs string

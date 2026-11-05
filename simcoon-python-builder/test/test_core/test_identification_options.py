@@ -306,3 +306,45 @@ class TestKeyTemplate:
             KeyTemplate(123, params)
         with pytest.raises(TypeError):
             KeyTemplate(keys, params).write(123)
+
+
+class TestKeyTemplatePerTest:
+    """Constants with one value per test: ``write(dst, test=i)``."""
+
+    @staticmethod
+    def setup(tmp_path):
+        keys = tmp_path / "keys"
+        keys.mkdir()
+        (keys / "ply.json").write_text('{"props": [@E, @theta]}')
+        params = [Parameter(0, bounds=(0, 1), key="@E", sim_input_files=["ply.json"])]
+        params[0].value = 70000.0
+        theta = Constant(0, "@theta", np.array([0.0, 45.0, 90.0]), 0.0, ["ply.json"])
+        return keys, params, theta
+
+    def test_fibre_angle_of_each_test(self, tmp_path):
+        keys, params, theta = self.setup(tmp_path)
+        template = KeyTemplate(keys, params, [theta])
+        for i, angle in enumerate((0.0, 45.0, 90.0)):
+            out = tmp_path / f"test_{i}"
+            out.mkdir()
+            template.write(out, test=i)
+            assert (out / "ply.json").read_text() == f'{{"props": [70000.0, {angle}]}}'
+        # without test, the constant keeps its own value
+        assert template.render("ply.json") == '{"props": [70000.0, 0.0]}'
+
+    def test_test_out_of_range(self, tmp_path):
+        keys, params, theta = self.setup(tmp_path)
+        with pytest.raises(IndexError, match="@theta"):
+            KeyTemplate(keys, params, [theta]).render("ply.json", test=3)
+
+    def test_single_value_constant_warns_once(self, tmp_path):
+        keys, params, _theta = self.setup(tmp_path)
+        single = Constant(0, "@theta", np.array([30.0]), 30.0, ["ply.json"])
+        template = KeyTemplate(keys, params, [single])
+        with pytest.warns(UserWarning, match="single value"):
+            assert template.render("ply.json", test=0) == '{"props": [70000.0, 30.0]}'
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert template.render("ply.json", test=1) == '{"props": [70000.0, 30.0]}'
+            template.render("ply.json")   # no test: no warning either
