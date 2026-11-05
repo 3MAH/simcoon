@@ -5,6 +5,26 @@ All notable changes to simcoon are listed here. The format follows
 [semantic versioning](https://semver.org/). Each pull request adds its entry
 under **Unreleased**; the section takes the version number at the release.
 
+## In progress
+
+Known gaps and planned work, not yet in a release. An item moves to
+**Unreleased** with the pull request that closes it.
+
+- `ncp="min"` serves the mechanical EPICP, EPKCP and MODUL only: every
+  thermomechanical law (`_T`, `sim.umat_T`, thermomechanical blocks) is refused
+  by `check_ncp_serves` and keeps Fischer-Burmeister.
+- `ncp="min"` is refused with Armstrong-Frederick back stresses under the
+  cutting plane (path dependent); whether the closest point, which restarts
+  from the start of the step, lifts this is not verified.
+- `integrator="closest_point"` is provided with its algorithmic tangent only
+  (`tangent_mode="algorithmic"`): its continuum operator is not implemented.
+- Other complementarity functions to measure against Fischer-Burmeister and
+  `min`, under both integrators: active set, scaled Fischer-Burmeister.
+- The numerical options of the mean-field schemes (MIMTN/MISCN closed form,
+  rule, Anderson, tolerance) are still props slots: they are per phase (nested
+  schemes), so they need a named builder rather than a run option.
+- fedoo does not pass `ncp` and `integrator` through yet.
+
 ## [Unreleased]
 
 ### Breaking changes
