@@ -24,6 +24,16 @@ Known gaps and planned work, not yet in a release. An item moves to
   rule, Anderson, tolerance) are still props slots: they are per phase (nested
   schemes), so they need a named builder rather than a run option.
 - fedoo does not pass `ncp` and `integrator` through yet.
+- Migration of the laws to the modular engine (MODUL), state in
+  `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
+  ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
+  - adapters for the hyperelastic laws whose MODUL equivalent exists (NEOHC,
+    MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA; NEOHI to confirm);
+  - EPICP, EPCHA and PRONK keep their legacy kernel while it is faster;
+  - no MODUL equivalent yet: OGDEN, SNTVE, HYPOO, EPJCK, LLDM0, ZENER, ZENNK,
+    the SMA family, the micromechanics schemes;
+  - the thermomechanical dispatch (`umat_T`) has no adapter: every `_T` law
+    runs its legacy kernel.
 
 ## [Unreleased]
 
