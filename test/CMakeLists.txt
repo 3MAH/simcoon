@@ -98,4 +98,6 @@ if(NOT MSVC)
   foreach(testSrc ${TEST_EXTERN})
     add_simcoon_test(${testSrc})
   endforeach()
+  # TUMANS loads the plugin itself: libsimcoon links dylib PRIVATE, so its headers are not inherited
+  target_link_libraries(TUMANS PRIVATE dylib)
 endif()
