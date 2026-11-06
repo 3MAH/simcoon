@@ -25,6 +25,7 @@
 #include <limits>
 #include <armadillo>
 #include <Fastor/Fastor.h>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/parallel.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
@@ -122,30 +123,6 @@ static arma::mat::fixed<6,6> mandel_rotation(const arma::mat::fixed<3,3> &Q) {
         }
     }
     return R6;
-}
-
-// scalar 6x6 products: dgemm at this size costs more than the flops and contends across threads
-static arma::mat::fixed<6,6> mul66(const arma::mat::fixed<6,6> &A, const arma::mat::fixed<6,6> &B) {
-    arma::mat::fixed<6,6> C;
-    for (int j = 0; j < 6; ++j)
-        for (int i = 0; i < 6; ++i) {
-            double s = 0.0;
-            for (int k = 0; k < 6; ++k) s += A(i,k) * B(k,j);
-            C(i,j) = s;
-        }
-    return C;
-}
-
-// A * B^T without forming the transpose.
-static arma::mat::fixed<6,6> mul66_ABt(const arma::mat::fixed<6,6> &A, const arma::mat::fixed<6,6> &B) {
-    arma::mat::fixed<6,6> C;
-    for (int j = 0; j < 6; ++j)
-        for (int i = 0; i < 6; ++i) {
-            double s = 0.0;
-            for (int k = 0; k < 6; ++k) s += A(i,k) * B(j,k);
-            C(i,j) = s;
-        }
-    return C;
 }
 
 // Volumetric projector (Mandel == engineering here: it has no shear entries).

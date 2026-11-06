@@ -20,6 +20,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * @brief Implementation of PlasticityMechanism class
  */
 
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -207,7 +208,11 @@ void PlasticityMechanism::compute_constraints(
     Y_crit.set_size(1);
     Y_crit(0) = std::max(sigma_Y_, 1.0);
 
-    kappa_ = L * flow_dir_;
+    if (L.n_rows == 6 && L.n_cols == 6 && flow_dir_.n_elem == 6) {
+        mul6(L, flow_dir_, kappa_);
+    } else {
+        kappa_ = L * flow_dir_;
+    }
     H_total_ = dR_dp + (has_kin
         ? kin_hard_->hardening_modulus(strain(flow_dir_), X_branches_)
         : 0.0);

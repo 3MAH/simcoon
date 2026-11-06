@@ -25,6 +25,8 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <stdexcept>
 
 namespace simcoon {
@@ -82,20 +84,27 @@ ContinuumTangent assemble_tangent(
         }
     }
 
-    // P = (L dPhi) invBhat^T: Bhat rows = criteria, columns = mechanisms
-    arma::mat DP(6, Nmech);
-    for (arma::uword m = 0; m < Nmech; ++m) DP.col(m) = dPhidsigma_l[m];
-    const arma::mat P = (Lt_dPhi * DP) * invBhat.t();   // 6 \times Nmech
-
-    // Stack \kappa^l into a 6\times Nmech matrix for the rank-Nmech update Lt = L - \kappa P^T.
-    arma::mat K6(6, Nmech);
-    for (arma::uword l = 0; l < Nmech; ++l) K6.col(l) = kappa_j[l];
-
-    const arma::mat::fixed<6,6> KP = K6 * P.t();
+    // P^l = sum_m invBhat(l,m) Lt_dPhi dPhi^m (Bhat rows = criteria, columns = mechanisms), then Lt = L - sum_l kappa^l P^l^T
+    assert(L.n_rows == 6 && L.n_cols == 6 && Lt_dPhi.n_rows == 6 && Lt_dPhi.n_cols == 6);
+    arma::mat LD(6, Nmech);
+    for (arma::uword m = 0; m < Nmech; ++m) mul6(Lt_dPhi.memptr(), dPhidsigma_l[m].memptr(), LD.colptr(m));
     ContinuumTangent out;
-    out.Lt = L - KP;
-    out.P_epsilon.resize(Nmech);
-    for (arma::uword l = 0; l < Nmech; ++l) out.P_epsilon[l] = P.col(l);
+    out.P_epsilon.assign(Nmech, arma::vec(6, arma::fill::zeros));
+    for (arma::uword l = 0; l < Nmech; ++l) {
+        double* p = out.P_epsilon[l].memptr();
+        for (arma::uword m = 0; m < Nmech; ++m) {
+            const double b = invBhat(l, m);
+            const double* d = LD.colptr(m);
+            for (int i = 0; i < 6; ++i) p[i] += d[i]*b;
+        }
+    }
+    out.Lt = L;
+    for (arma::uword j = 0; j < 6; ++j)
+        for (arma::uword i = 0; i < 6; ++i) {
+            double s = 0.;
+            for (arma::uword l = 0; l < Nmech; ++l) s += kappa_j[l](i)*out.P_epsilon[l](j);
+            out.Lt(i, j) -= s;
+        }
     out.invBhat = std::move(invBhat);
     return out;
 }
@@ -167,24 +176,25 @@ ContinuumTangent assemble_algorithmic_tangent(
     }
 
     // singular M (FD dLambda/dsigma near activation, LAPACK-dependent): continuum fallback
-    arma::mat::fixed<6,6> M = L * sumDsLambdaSigma;
+    arma::mat::fixed<6,6> M = mul66(L, sumDsLambdaSigma);
     M += I6;
-    arma::mat::fixed<6,6> Minv;
-    if (!arma::inv(Minv, M)) {
+    small_lu<6> lu;
+    if (!lu.factor(M)) {
         return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
     }
 
     // Algorithmic operators:  \tilde{L} = M^{-1} L,  \tilde{\kappa}^j = M^{-1} \kappa^j,
     // \tilde{B}^{lj} = Bhat_continuum^{lj} + \partial \Phi^l \cdot (M^{-1} - I) \cdot \kappa^j  (Bhat_continuum = \partial \Phi \cdot \kappa - K).
-    const arma::mat::fixed<6,6> L_tilde = Minv * L;
+    arma::mat::fixed<6,6> L_tilde = L;
+    for (int c = 0; c < 6; ++c) lu.solve_in_place(L_tilde.colptr(c));
     std::vector<arma::vec> kappa_tilde(Nmech);
     for (arma::uword j = 0; j < Nmech; ++j) {
-        kappa_tilde[j] = Minv * kappa_j[j];
+        kappa_tilde[j] = kappa_j[j];
+        lu.solve_in_place(kappa_tilde[j].memptr());
     }
     arma::mat Bhat_tilde = Bhat_continuum;
-    const arma::mat::fixed<6,6> Minv_minus_I = Minv - I6;
     for (arma::uword j = 0; j < Nmech; ++j) {
-        const arma::vec::fixed<6> dkappa_j = Minv_minus_I * kappa_j[j];   // shared by every row l
+        const arma::vec::fixed<6> dkappa_j = kappa_tilde[j] - kappa_j[j];   // (M^-1 - I) kappa_j, shared by every row l
         for (arma::uword l = 0; l < Nmech; ++l) {
             Bhat_tilde(l, j) += arma::dot(dPhidsigma_l[l], dkappa_j);
         }

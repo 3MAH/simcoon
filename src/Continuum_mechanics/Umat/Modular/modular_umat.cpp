@@ -767,6 +767,7 @@ void ModularUMAT::compute_tangent(
 
     // algorithmic assembly only for stress-dependent Phi with an analytic flow Hessian (the Hessians are kept)
     std::vector<std::pair<size_t, const std::vector<tensor4>*>> algo;
+    algo.reserve(mechanisms_.size());
     if (tangent_mode == tangent_closest_point) {
         // Exact operator of the closest-point solve; every multiplier-carrying row is inside it.
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
@@ -796,6 +797,10 @@ void ModularUMAT::compute_tangent(
         std::vector<arma::vec> kappa_j;
         std::vector<arma::vec> dPhi_l;
         std::vector<arma::mat> dLambda_l;
+        rows.reserve(n_total);
+        kappa_j.reserve(n_total);
+        dPhi_l.reserve(n_total);
+        dLambda_l.reserve(n_total);
         for (const auto& [m, hess] : algo) {
             const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma_eff);
             const auto& kappa_all = mechanisms_[m]->kappa(sigma_eff, 0.0, L_cur_);
