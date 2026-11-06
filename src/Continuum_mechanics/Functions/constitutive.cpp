@@ -30,6 +30,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 
 using namespace std;
 using namespace arma;
@@ -615,15 +616,28 @@ static vec condensed_pred(const mat &L, const vec &E, const int &ndi, const int 
 
 vec el_pred(const vec &sigma_start, const mat &L, const vec &DE_el, const int &ndi, const int &nshr) {
 
-    if (ndi == 3)
+    if (ndi == 3) {
+        if (L.n_rows == 6 && L.n_cols == 6 && DE_el.n_elem == 6 && sigma_start.n_elem == 6) {
+            vec sigma(6);
+            mul6(L.memptr(), DE_el.memptr(), sigma.memptr());
+            sigma += sigma_start;
+            return sigma;
+        }
         return sigma_start + L*DE_el;
+    }
     return sigma_start + condensed_pred(L, DE_el, ndi, nshr);
 }
 
 vec el_pred(const mat &L, const vec &E_el, const int &ndi, const int &nshr) {
 
-    if (ndi == 3)
+    if (ndi == 3) {
+        if (L.n_rows == 6 && L.n_cols == 6 && E_el.n_elem == 6) {
+            vec sigma(6);
+            mul6(L.memptr(), E_el.memptr(), sigma.memptr());
+            return sigma;
+        }
         return L*E_el;
+    }
     return condensed_pred(L, E_el, ndi, nshr);
 }
     

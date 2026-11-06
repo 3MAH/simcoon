@@ -790,6 +790,17 @@ inline m33 unit_strain_tensor(const int j) {
     return e;
 }
 
+// Q^T e_j Q for the unit strain e_j of unit_strain_tensor, from two rows of Q (e_j has one or two entries)
+inline m33 congruence_unit_strain(const m33 &Q, const int j) {
+    static const int ia[6] = {0, 1, 2, 0, 0, 1}, ib[6] = {0, 1, 2, 1, 2, 2};
+    const int a = ia[j], b = ib[j];
+    m33 D;
+    for (int l = 0; l < 3; ++l)
+        for (int k = 0; k < 3; ++k)
+            D(k, l) = (j < 3) ? Q(a, k)*Q(a, l) : 0.5*(Q(a, k)*Q(b, l) + Q(b, k)*Q(a, l));
+    return D;
+}
+
 // y = Lt t2v_strain(e)
 inline void box_apply(const arma::mat::fixed<6,6> &Lt, const m33 &e, double y[6]) {
     const double x[6] = {e(0,0), e(1,1), e(2,2), e(0,1) + e(1,0), e(0,2) + e(2,0), e(1,2) + e(2,1)};
@@ -969,20 +980,20 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     sp.build(F, tau, false);
     const arma::mat::fixed<6,6> Lt_(Lt);
     const m33 invU_tau_hat = mm(sp.invU, sp.tau_hat);   // column-independent factor of dS
+    // column-independent products: Q = R N (spatial frame of the eigenbasis), W = R U^-1, T2 = N^T tau_hat U^-1
+    const m33 Q = mm(sp.R, sp.N);
+    const m33 W = mm(sp.R, sp.invU);
+    const m33 T2 = mm(mtm(sp.N, sp.tau_hat), sp.invU);
 
     mat DSDE(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
-        const m33 dC = 2. * unit_strain_tensor(j);     // engineering Voigt basis
-        const m33 dCp = mm(mtm(sp.N, dC), sp.N);       // shared eigenbasis transform
-        const m33 dh = mmt(mm(sp.N, m33(sp.G_h % dCp)), sp.N);   // d(1/2 ln C) = d(ln U)
-        // The box acts in the spatial frame (d ln V = R d(ln U) R^T at fixed R):
-        // conjugate in, apply Lt, conjugate back to the corotational frame.
-        box_apply(Lt_, mmt(mm(sp.R, dh), sp.R), y);
-        const m33 dtau_hat = mm(mtm(sp.R, v2t_stress_arr(y)), sp.R);
-        const m33 dinvU = mmt(mm(sp.N, m33(sp.G_iU % dCp)), sp.N);   // d(C^{-1/2})
-        const m33 dS = mm(mm(sp.invU, dtau_hat), sp.invU)
-                     + mm(mm(dinvU, sp.tau_hat), sp.invU) + mm(invU_tau_hat, dinvU);
+        const m33 dCp = 2. * congruence_unit_strain(sp.N, j);   // N^T dC N, dC = 2 e_j (engineering Voigt)
+        // the box acts in the spatial frame: d ln V = R d(ln U) R^T = Q (G_h % dCp) Q^T
+        box_apply(Lt_, mmt(mm(Q, m33(sp.G_h % dCp)), Q), y);
+        const m33 A = mm(sp.N, m33(sp.G_iU % dCp));             // d(C^{-1/2}) = A N^T
+        // dS = U^-1 dtau_hat U^-1 + d(U^-1) tau_hat U^-1 + U^-1 tau_hat d(U^-1), dtau_hat = R^T dtau R
+        const m33 dS = mm(mtm(W, v2t_stress_arr(y)), W) + mm(A, T2) + mm(invU_tau_hat, mmt(A, sp.N));
         set_stress_col(DSDE, j, dS);
     }
     return DSDE;
@@ -1137,20 +1148,21 @@ mat DSDE_2_DtauDe(const mat &DSDE, const mat &F, const mat &tau) {
     const m33 G_comp = sp.G_iU % G_h_inv;  // composed d(C^{-1/2}) o [d(1/2 ln C)]^{-1}
     const arma::mat::fixed<6,6> DSDE_(0.5 * DSDE);
     const m33 invU_tau_hat = mm(sp.invU, sp.tau_hat);   // column-independent factor
+    // column-independent products: Q = R N, RU = R U, T2 = N^T tau_hat U^-1
+    const m33 Q = mm(sp.R, sp.N);
+    const m33 RU = mm(sp.R, sp.U);
+    const m33 T2 = mm(mtm(sp.N, sp.tau_hat), sp.invU);
 
     mat Lt(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
-        // box argument is ln V: pull dh back by R (inverse of the forward R conjugation)
-        const m33 dh = mm(mtm(sp.R, unit_strain_tensor(j)), sp.R);
-        const m33 dhp = mm(mtm(sp.N, dh), sp.N);                     // eigenframe
+        // box argument is ln V: its eigenframe image N^T R^T e_j R N = Q^T e_j Q
+        const m33 dhp = congruence_unit_strain(Q, j);
         const m33 dC = mmt(mm(sp.N, m33(G_h_inv % dhp)), sp.N);      // inverse of d(1/2 ln C)
         box_apply(DSDE_, dC, y);
-        const m33 dS = v2t_stress_arr(y);
-        const m33 dinvU = mmt(mm(sp.N, m33(G_comp % dhp)), sp.N);
-        const m33 inner = dS - mm(mm(dinvU, sp.tau_hat), sp.invU) - mm(invU_tau_hat, dinvU);
-        const m33 dtau_hat = mm(mm(sp.U, inner), sp.U);
-        set_stress_col(Lt, j, mmt(mm(sp.R, dtau_hat), sp.R));
+        const m33 A = mm(sp.N, m33(G_comp % dhp));                   // d(C^{-1/2}) = A N^T
+        const m33 inner = v2t_stress_arr(y) - mm(A, T2) - mm(invU_tau_hat, mmt(A, sp.N));
+        set_stress_col(Lt, j, mmt(mm(RU, inner), RU));               // R U inner U R^T
     }
     return Lt;
 }

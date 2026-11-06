@@ -25,6 +25,7 @@
 #include <fstream>
 #include <string>
 #include <armadillo>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -133,7 +134,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     //Compute the explicit flow direction
     vec Lambdap = eta_stress(stress);
     std::vector<vec> kappa_j(1);
-    kappa_j[0] = L*Lambdap;
+    mul6(L, Lambdap, kappa_j[0]);
     mat K = zeros(1,1);
     
     //Loop parameters
@@ -178,7 +179,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         Phi(0) = Mises_stress(stress) - Hp - sigmaY;
         
         Lambdap = eta_stress(stress);
-        kappa_j[0] = L*Lambdap;
+        mul6(L, Lambdap, kappa_j[0]);
         
         K(0,0) = dPhidp;
         B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
@@ -241,7 +242,9 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     }
 
     std::vector<double> P_theta(1);
-    P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
+    vec L_alpha;
+    mul6(L, alpha, L_alpha);
+    P_theta[0] = dPhidtheta - sum(dPhidsigma%L_alpha);
 
     double A_p = -Hp;        
     double Dgamma_loc = 0.5*sum((stress_start+stress)%DEP) + 0.5*(A_p_start + A_p)*Dp;
