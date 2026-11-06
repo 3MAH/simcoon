@@ -16,7 +16,7 @@
  */
 
 ///@file solve.hpp
-///@brief random number generators
+///@brief Roots of quadratic equations (real and complex)
 ///@version 1.0
 #pragma once
 
@@ -34,11 +34,32 @@ namespace simcoon{
  */
 
 
-arma::vec quadratic(const double &, const double &, const double &);
+/**
+ * @brief Real roots of \f$ a t^2 + b t + c = 0 \f$.
+ * @param a quadratic coefficient (if 0, the linear root \f$ -c/b \f$ is returned)
+ * @param b linear coefficient
+ * @param c constant coefficient
+ * @return the two roots \f$ (-b \pm \sqrt{\Delta})/(2a) \f$, \f$ \Delta = b^2 - 4ac \f$ (asserted \f$ > 0 \f$), or one root when \f$ a = 0 \f$
+ */
+arma::vec quadratic(const double &a, const double &b, const double &c);
 
-arma::cx_vec cx_quadratic(const double &, const double &, const double &);
+/**
+ * @brief Complex roots of \f$ a t^2 + b t + c = 0 \f$ with real coefficients.
+ * @param a quadratic coefficient (if 0, the linear root \f$ -c/b \f$ is returned)
+ * @param b linear coefficient
+ * @param c constant coefficient
+ * @return the two roots \f$ (-b \pm \sqrt{\Delta})/(2a) \f$, or a single root when \f$ a = 0 \f$ or \f$ \Delta = 0 \f$
+ */
+arma::cx_vec cx_quadratic(const double &a, const double &b, const double &c);
 
-arma::cx_vec cx_quadratic(const arma::cx_double &, const arma::cx_double &, const arma::cx_double &);
+/**
+ * @brief Complex roots of \f$ a t^2 + b t + c = 0 \f$ with complex coefficients.
+ * @param a quadratic coefficient (if 0, the linear root \f$ -c/b \f$ is returned)
+ * @param b linear coefficient
+ * @param c constant coefficient
+ * @return the two roots \f$ (-b \pm \sqrt{\Delta})/(2a) \f$, or a single root when \f$ a = 0 \f$ or \f$ \Delta = 0 \f$
+ */
+arma::cx_vec cx_quadratic(const arma::cx_double &a, const arma::cx_double &b, const arma::cx_double &c);
 
 
 /** @} */ // end of maths group

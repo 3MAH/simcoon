@@ -65,7 +65,7 @@ namespace simcoon{
  * | 0 | \f$ \rho \f$ | Density | kg/m^3 |
  * | 1 | \f$ c_{pA} \f$ | Specific heat capacity of Austenite | J/(kg.K) |
  * | 2 | \f$ c_{pM} \f$ | Specific heat capacity of Martensite | J/(kg.K) |
- * | 3 | flagT | Temperature extrapolation (0=linear, 1=smooth) | - |
+ * | 3 | flagT | 0: the given transformation temperatures are those of the measured curve, converted to the model's with n1..n4; 1: used as given | - |
  * | 4 | \f$ E_A \f$ | Young's modulus of Austenite | MPa |
  * | 5 | \f$ E_M \f$ | Young's modulus of Martensite | MPa |
  * | 6 | \f$ \nu_A \f$ | Poisson's ratio of Austenite | - |
@@ -74,8 +74,8 @@ namespace simcoon{
  * | 9 | \f$ \alpha_M \f$ | CTE of Martensite | 1/K |
  * | 10 | \f$ H_{min} \f$ | Minimal transformation strain magnitude | - |
  * | 11 | \f$ H_{max} \f$ | Maximal transformation strain magnitude | - |
- * | 12 | \f$ k_1 \f$ | Exponential evolution parameter for \f$ H^{cur} \f$ | - |
- * | 13 | \f$ \sigma_{crit} \f$ | Critical stress for \f$ H^{cur} \f$ evolution | MPa |
+ * | 12 | \f$ k_1 \f$ | Exponential evolution parameter for \f$ H^{cur} \f$ | 1/MPa |
+ * | 13 | \f$ \sigma_{crit} \f$ | Von Mises stress below which \f$ H^{cur} = H_{min} \f$ | MPa |
  * | 14 | \f$ C_A \f$ | Clausius-Clapeyron slope (M \f$ \rightarrow \f$ A) | MPa/K |
  * | 15 | \f$ C_M \f$ | Clausius-Clapeyron slope (A \f$ \rightarrow \f$ M) | MPa/K |
  * | 16 | \f$ M_{s0} \f$ | Martensite start temperature at zero stress | K |
@@ -101,7 +101,7 @@ namespace simcoon{
  * | 0 | \f$ \rho \f$ | Density | kg/m^3 |
  * | 1 | \f$ c_{pA} \f$ | Specific heat capacity of Austenite | J/(kg.K) |
  * | 2 | \f$ c_{pM} \f$ | Specific heat capacity of Martensite | J/(kg.K) |
- * | 3 | flagT | Temperature extrapolation (0=linear, 1=smooth) | - |
+ * | 3 | flagT | 0: the given transformation temperatures are those of the measured curve, converted to the model's with n1..n4; 1: used as given | - |
  * | 4 | \f$ E_A \f$ | Young's modulus of Austenite ([100] direction) | MPa |
  * | 5 | \f$ E_M \f$ | Young's modulus of Martensite ([100] direction) | MPa |
  * | 6 | \f$ \nu_A \f$ | Poisson's ratio of Austenite | - |
@@ -140,8 +140,8 @@ namespace simcoon{
  * | 5 | \f$ \gamma^{tr}_{12} \f$ | Transformation strain component 12 (engineering) | - |
  * | 6 | \f$ \gamma^{tr}_{13} \f$ | Transformation strain component 13 (engineering) | - |
  * | 7 | \f$ \gamma^{tr}_{23} \f$ | Transformation strain component 23 (engineering) | - |
- * | 8 | \f$ \xi_F \f$ | Forward martensitic volume fraction | - |
- * | 9 | \f$ \xi_R \f$ | Reverse martensitic volume fraction | - |
+ * | 8 | \f$ \xi_F \f$ | Cumulated forward transformation, non-decreasing (\f$ \xi = \xi_F - \xi_R \f$) | - |
+ * | 9 | \f$ \xi_R \f$ | Cumulated reverse transformation, non-decreasing | - |
  * | 10 | \f$ \rho \Delta s_0 \f$ | Entropy difference between phases (M - A) | MPa/K |
  * | 11 | \f$ \rho \Delta E_0 \f$ | Internal energy difference between phases (M - A) | MPa |
  * | 12 | \f$ D \f$ | Stress dependence parameter for transformation limits | - |
@@ -181,10 +181,28 @@ namespace simcoon{
  * @param tnew_dt Suggested new time step ratio for adaptive time stepping [output]
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
- * @note The flagT parameter controls temperature extrapolation: 0 for linear, 1 for smooth
+ * @note flagT = 0 converts the given Ms, Mf, As, Af (read on the measured curve) into the model's
+ *       temperatures through the smoothing exponents n1..n4; flagT = 1 uses them as given
  * @note The pre-2.0 aliases SMAUT and SMANI were removed in 2.0: use SMADI and SMAAI.
  * @note Convergence measure: same magnitude scales \f$ Y^{crit}_j \f$ as the mechanical
  * @ref umat_sma_unified_T (see its note).
+ * @note The reverse row of the local Jacobian uses the ETMean chain rule of
+ * @ref umat_sma_unified_T (see its note).
+ * @note **Tangent modes.** `tangent_none`, `tangent_algorithmic` and `tangent_closest_point` are
+ * all clamped to the continuum tangent: the sensitivities \f$ \mathbf{P}_\varepsilon \f$ and
+ * \f$ \hat{\mathbf{B}}^{-1} \f$ also feed the physical heat source \f$ r \f$ and its
+ * linearisation, the finite-difference flow Hessian of the algorithmic mode is near-singular
+ * on the plateau, and this kernel has no closest-point branch. The thermal cross-tangents are
+ * \f[
+ * \mathbf{P}_\theta = \hat{\mathbf{B}}^{-1}\left(\frac{\partial \Phi_l}{\partial \theta}
+ * - \frac{\partial \Phi_l}{\partial \boldsymbol{\sigma}} : \mathbf{L}\,\boldsymbol{\alpha}\right)_l, \qquad
+ * \frac{\partial \boldsymbol{\sigma}}{\partial T} = -\mathbf{L}\,\boldsymbol{\alpha} - \sum_j \boldsymbol{\kappa}_j\,P_{\theta,j},
+ * \f]
+ * with \f$ \hat{B}_{lj} \f$ row = criterion \f$ l \f$, column = mechanism \f$ j \f$. The
+ * dissipation derivatives hold the transformation directions fixed over the increment
+ * (\f$ \mathrm{d}\Delta\boldsymbol{\varepsilon}^{T} = \boldsymbol{\Lambda}^F P_F + \boldsymbol{\Lambda}^R P_R \f$),
+ * and the entropy is
+ * \f$ \eta = c_0(\xi)\ln(T/T_{init}) + \boldsymbol{\alpha}(\xi):\boldsymbol{\sigma} + \rho\Delta s_0\,\xi \f$.
  *
  * @see umat_sma_unified_T() for the mechanical-only version (no thermal coupling)
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)

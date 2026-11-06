@@ -164,12 +164,13 @@ constexpr auto RU_decomposition = R"pbdoc(
     Parameters
     ----------
     F : pybind11::array_t<double>
-        Transformation gradient (3x3 matrix).
+        Transformation gradient (3x3 matrix), or a batch of them (3x3xN array).
 
     Returns
     -------
     tuple
-        Rotation matrix (3x3) and right stretch tensor (3x3).
+        Rotation matrix (3x3) and right stretch tensor (3x3); for a batch, two 3x3xN arrays
+        (computed per point in parallel, the GIL released).
 
     Examples
     --------
@@ -189,12 +190,13 @@ constexpr auto VR_decomposition = R"pbdoc(
     Parameters
     ----------
     F : pybind11::array_t<double>
-        Transformation gradient (3x3 matrix).
+        Transformation gradient (3x3 matrix), or a batch of them (3x3xN array).
 
     Returns
     -------
     tuple
-        Left stretch tensor (3x3) and rotation matrix (3x3).
+        Left stretch tensor (3x3) and rotation matrix (3x3); for a batch, two 3x3xN arrays
+        (computed per point in parallel, the GIL released).
 
     Examples
     --------

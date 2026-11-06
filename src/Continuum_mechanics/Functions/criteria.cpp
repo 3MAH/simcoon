@@ -38,7 +38,6 @@ using namespace arma;
 namespace simcoon
 {
 
-    // This function returns the Drucker equivalent stress.
     double Drucker_stress(const vec &v, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -69,7 +68,6 @@ namespace simcoon
         return temp;
     }
 
-    // This function returns the derivative of the Drucker equivalent stress.
     vec dDrucker_stress(const vec &v, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -116,7 +114,6 @@ namespace simcoon
         return temp;
     }
 
-    // This function returns the Drucker equivalent stress.
     double Tresca_stress(const vec &v)
     {
         mat sigma = v2t_stress(v);
@@ -126,16 +123,13 @@ namespace simcoon
         return lambda(2) - lambda(0);
     }
 
-    // This function returns the Tresca equivalent stress.
     vec dTresca_stress(const vec &v)
     {
         return eta_stress(v);
     }
 
     namespace {
-    // Hessian of f(sigma) (1 + b J3/J2^1.5)^(1/n) for a base equivalent stress f with gradient
-    // df and Hessian ddf (von Mises or DFA). Rows strain-typed, columns per stress component
-    // (the convention of deta_stress / ddEq_stress_P).
+    // rows strain-typed, columns per stress component (as deta_stress / ddEq_stress_P)
     mat drucker_hessian(const vec &v, const double &f, const vec &df, const mat &ddf, const double &b, const double &n)
     {
         if (f <= simcoon::iota) return zeros(6, 6);   // same floor as the value and the gradient
@@ -194,7 +188,6 @@ namespace simcoon
         return drucker_hessian(v, DFA_stress(v, params), dDFA_stress(v, params), ddDFA_stress(v, params), b, n);
     }
 
-    // This function returns the combination of the Drucker equivalent stress by replacing VM by DFA
     double Drucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -227,7 +220,6 @@ namespace simcoon
         return temp;
     }
 
-    // This function returns the derivative of the Drucker equivalent stress.
     vec dDrucker_ani_stress(const vec &v,  const vec &params, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -299,12 +291,7 @@ namespace simcoon
     {
         assert(params.n_elem == 6); // F,G,H,L,M,N
         mat P = zeros(6, 6);
-        // param(0) = F
-        // param(1) = G
-        // param(2) = H
-        // param(3) = L
-        // param(4) = M
-        // param(5) = N
+        // params = (F, G, H, L, M, N)
         P(0, 0) = params(1) + params(2); // P_11 = G+H
         P(1, 1) = params(0) + params(2); // P_22 = F+H
         P(2, 2) = params(0) + params(1); // P_33 = F+G
@@ -325,13 +312,7 @@ namespace simcoon
     {                               // Deshpande–Fleck–Ashby
         assert(params.n_elem == 7); // F,G,H,L,M,N,K
         mat P = zeros(6, 6);
-        // param(0) = F
-        // param(1) = G
-        // param(2) = H
-        // param(3) = L
-        // param(4) = M
-        // param(5) = N
-        // param(6) = K
+        // params = (F, G, H, L, M, N, K)
         P(0, 0) = params(1) + params(2) + params(6) / 9.; // P_11 = G+H+K/9
         P(1, 1) = params(0) + params(2) + params(6) / 9.; // P_22 = F+H+K/9
         P(2, 2) = params(0) + params(1) + params(6) / 9.; // P_33 = F+G+K/9
@@ -468,9 +449,7 @@ namespace simcoon
         }
         else
         {
-            // throw, do NOT exit(0): an invalid criterion string must be
-            // reportable by the caller (an exit kills the host process,
-            // e.g. the Python interpreter).
+            // throw, not exit(0): an exit kills the host process (e.g. Python)
             throw std::invalid_argument("Eq_stress: unknown criterion '"
                                         + eq_type + "'");
         }

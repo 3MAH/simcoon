@@ -168,10 +168,10 @@ mat fillR_euler_internal(const double &psi, const double &theta, const double &p
 }
 
 // Internal: Generate 6x6 stress Voigt rotation matrix from angle/axis
-mat fill_voigt_stress(const double &alpha, const int &axis, const bool &active) {
+mat::fixed<6,6> fill_voigt_stress(const double &alpha, const int &axis, const bool &active) {
     double act = active ? 1. : -1.;
 
-    mat voigt_stress = zeros(6,6);
+    mat::fixed<6,6> voigt_stress(fill::zeros);
     double c = cos(alpha);
     double s = act*sin(alpha);
 
@@ -235,7 +235,7 @@ mat fill_voigt_stress(const double &alpha, const int &axis, const bool &active) 
 }
 
 // Internal: Generate 6x6 stress Voigt rotation matrix from rotation matrix
-mat fill_voigt_stress(const mat &DR, const bool &active) {
+mat::fixed<6,6> fill_voigt_stress(const mat &DR, const bool &active) {
     double a, b, c, d, e, f, g, h, i;
 
     if(active) {
@@ -248,7 +248,7 @@ mat fill_voigt_stress(const mat &DR, const bool &active) {
         c = DR(2,0); f = DR(2,1); i = DR(2,2);
     }
 
-    mat voigt_stress = zeros(6,6);
+    mat::fixed<6,6> voigt_stress(fill::zeros);
     voigt_stress(0,0) = a*a;    voigt_stress(0,1) = b*b;    voigt_stress(0,2) = c*c;
     voigt_stress(0,3) = 2.*a*b; voigt_stress(0,4) = 2.*a*c; voigt_stress(0,5) = 2.*b*c;
     voigt_stress(1,0) = d*d;    voigt_stress(1,1) = e*e;    voigt_stress(1,2) = f*f;
@@ -266,10 +266,10 @@ mat fill_voigt_stress(const mat &DR, const bool &active) {
 }
 
 // Internal: Generate 6x6 strain Voigt rotation matrix from angle/axis
-mat fill_voigt_strain(const double &alpha, const int &axis, const bool &active) {
+mat::fixed<6,6> fill_voigt_strain(const double &alpha, const int &axis, const bool &active) {
     double act = active ? 1. : -1.;
 
-    mat voigt_strain = zeros(6,6);
+    mat::fixed<6,6> voigt_strain(fill::zeros);
     double c = cos(alpha);
     double s = act*sin(alpha);
 
@@ -333,7 +333,7 @@ mat fill_voigt_strain(const double &alpha, const int &axis, const bool &active) 
 }
 
 // Internal: Generate 6x6 strain Voigt rotation matrix from rotation matrix
-mat fill_voigt_strain(const mat &DR, const bool &active) {
+mat::fixed<6,6> fill_voigt_strain(const mat &DR, const bool &active) {
     double a, b, c, d, e, f, g, h, i;
 
     if(active) {
@@ -346,7 +346,7 @@ mat fill_voigt_strain(const mat &DR, const bool &active) {
         c = DR(2,0); f = DR(2,1); i = DR(2,2);
     }
 
-    mat voigt_strain = zeros(6,6);
+    mat::fixed<6,6> voigt_strain(fill::zeros);
     voigt_strain(0,0) = a*a;      voigt_strain(0,1) = b*b;      voigt_strain(0,2) = c*c;
     voigt_strain(0,3) = a*b;      voigt_strain(0,4) = a*c;      voigt_strain(0,5) = b*c;
     voigt_strain(1,0) = d*d;      voigt_strain(1,1) = e*e;      voigt_strain(1,2) = f*f;
@@ -663,19 +663,11 @@ vec::fixed<3> Rotation::as_rotvec(bool degrees) const {
 }
 
 mat::fixed<6,6> Rotation::as_voigt_stress_rotation(bool active) const {
-    mat R = as_matrix();
-    mat vs_dyn = fill_voigt_stress(R, active);
-    mat::fixed<6,6> vs;
-    vs = vs_dyn;
-    return vs;
+    return fill_voigt_stress(as_matrix(), active);
 }
 
 mat::fixed<6,6> Rotation::as_voigt_strain_rotation(bool active) const {
-    mat R = as_matrix();
-    mat ve_dyn = fill_voigt_strain(R, active);
-    mat::fixed<6,6> ve;
-    ve = ve_dyn;
-    return ve;
+    return fill_voigt_strain(as_matrix(), active);
 }
 
 // =============================================================================
@@ -933,6 +925,8 @@ Rotation Rotation::slerp(const Rotation& other, double t) const {
 // =============================================================================
 // Convenience Free Functions
 // =============================================================================
+// Fixed-size Voigt operators and intermediate products: the right-associated product of the
+// dynamic matrices allocated two 6x6 temporaries on the heap per call.
 
 vec rotate_vec(const vec &v, const mat &DR) {
     return DR*v;
@@ -954,67 +948,75 @@ mat rotate_mat(const mat &m, const double &alpha, const int &axis) {
 }
 
 vec rotate_stress(const vec &V, const double &alpha, const int &axis, const bool &active) {
-    mat vs = fill_voigt_stress(alpha, axis, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(alpha, axis, active);
     return vs*V;
 }
 
 vec rotate_stress(const vec &V, const mat &DR, const bool &active) {
-    mat vs = fill_voigt_stress(DR, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(DR, active);
     return vs*V;
 }
 
 vec rotate_strain(const vec &V, const double &alpha, const int &axis, const bool &active) {
-    mat ve = fill_voigt_strain(alpha, axis, active);
+    const mat::fixed<6,6> ve = fill_voigt_strain(alpha, axis, active);
     return ve*V;
 }
 
 vec rotate_strain(const vec &V, const mat &DR, const bool &active) {
-    mat ve = fill_voigt_strain(DR, active);
+    const mat::fixed<6,6> ve = fill_voigt_strain(DR, active);
     return ve*V;
 }
 
 mat rotate_stiffness(const mat &L, const double &alpha, const int &axis, const bool &active) {
-    mat vs = fill_voigt_stress(alpha, axis, active);
-    return vs*(L*trans(vs));
+    const mat::fixed<6,6> vs = fill_voigt_stress(alpha, axis, active);
+    const mat::fixed<6,6> tmp = L*trans(vs);
+    return vs*tmp;
 }
 
 mat rotate_stiffness(const mat &L, const mat &DR, const bool &active) {
-    mat vs = fill_voigt_stress(DR, active);
-    return vs*(L*trans(vs));
+    const mat::fixed<6,6> vs = fill_voigt_stress(DR, active);
+    const mat::fixed<6,6> tmp = L*trans(vs);
+    return vs*tmp;
 }
 
 mat rotate_compliance(const mat &M, const double &alpha, const int &axis, const bool &active) {
-    mat ve = fill_voigt_strain(alpha, axis, active);
-    return ve*(M*trans(ve));
+    const mat::fixed<6,6> ve = fill_voigt_strain(alpha, axis, active);
+    const mat::fixed<6,6> tmp = M*trans(ve);
+    return ve*tmp;
 }
 
 mat rotate_compliance(const mat &M, const mat &DR, const bool &active) {
-    mat ve = fill_voigt_strain(DR, active);
-    return ve*(M*trans(ve));
+    const mat::fixed<6,6> ve = fill_voigt_strain(DR, active);
+    const mat::fixed<6,6> tmp = M*trans(ve);
+    return ve*tmp;
 }
 
 mat rotate_strain_concentration(const mat &A, const double &alpha, const int &axis, const bool &active) {
-    mat ve = fill_voigt_strain(alpha, axis, active);
-    mat vs = fill_voigt_stress(alpha, axis, active);
-    return ve*(A*trans(vs));
+    const mat::fixed<6,6> ve = fill_voigt_strain(alpha, axis, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(alpha, axis, active);
+    const mat::fixed<6,6> tmp = A*trans(vs);
+    return ve*tmp;
 }
 
 mat rotate_strain_concentration(const mat &A, const mat &DR, const bool &active) {
-    mat ve = fill_voigt_strain(DR, active);
-    mat vs = fill_voigt_stress(DR, active);
-    return ve*(A*trans(vs));
+    const mat::fixed<6,6> ve = fill_voigt_strain(DR, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(DR, active);
+    const mat::fixed<6,6> tmp = A*trans(vs);
+    return ve*tmp;
 }
 
 mat rotate_stress_concentration(const mat &B, const double &alpha, const int &axis, const bool &active) {
-    mat ve = fill_voigt_strain(alpha, axis, active);
-    mat vs = fill_voigt_stress(alpha, axis, active);
-    return vs*(B*trans(ve));
+    const mat::fixed<6,6> ve = fill_voigt_strain(alpha, axis, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(alpha, axis, active);
+    const mat::fixed<6,6> tmp = B*trans(ve);
+    return vs*tmp;
 }
 
 mat rotate_stress_concentration(const mat &B, const mat &DR, const bool &active) {
-    mat ve = fill_voigt_strain(DR, active);
-    mat vs = fill_voigt_stress(DR, active);
-    return vs*(B*trans(ve));
+    const mat::fixed<6,6> ve = fill_voigt_strain(DR, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(DR, active);
+    const mat::fixed<6,6> tmp = B*trans(ve);
+    return vs*tmp;
 }
 
 // =============================================================================

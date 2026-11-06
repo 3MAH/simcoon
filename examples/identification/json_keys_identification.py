@@ -12,11 +12,11 @@ it becomes valid once the numbers are in, which is the whole point of a template
 
 The chain at each evaluation:
 
-1. ``copy_parameters`` copies ``keys/material.json`` to the working directory,
-2. ``apply_parameters`` and ``apply_constants`` write the values in place of the keys,
-3. ``load_simulation_json`` reads the material back with the loading path,
-4. ``sim.solver.solve`` runs the tension test in memory,
-5. ``calc_cost`` compares the stress history with the experiment.
+1. a :class:`~simcoon.parameter.KeyTemplate`, which read ``keys/material.json``
+   once, writes the working copy with the keys replaced by the current values;
+2. ``load_simulation_json`` reads the material back with the loading path,
+3. ``sim.solver.solve`` runs the tension test in memory,
+4. ``calc_cost`` compares the stress history with the experiment.
 
 ``sim.identification`` wraps ``scipy.optimize.differential_evolution`` with the
 bounds of the :class:`~simcoon.parameter.Parameter` objects read from
@@ -39,9 +39,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import simcoon as sim
-from simcoon.constant import apply_constants, read_constants
+from simcoon.constant import read_constants
 from simcoon.identify import calc_cost, identification
-from simcoon.parameter import apply_parameters, copy_parameters, read_parameters
+from simcoon.parameter import KeyTemplate, read_parameters
 from simcoon.solver import Block, StepMeca, load_simulation_json, save_path_json
 
 UMAT_NAME = "EPICP"
@@ -57,11 +57,9 @@ def build_working_dir(script_dir):
     return work
 
 
-def run_from_files(params, consts, keys_dir, work):
+def run_from_files(template, work):
     """Substitute the keys, read the JSON pair back, run the test: sigma_11(t)."""
-    copy_parameters(params, src_path=keys_dir, dst_path=work)
-    apply_parameters(params, dst_path=work)
-    apply_constants(consts, dst_path=work)
+    template.write(work)
     kwargs = load_simulation_json(os.path.join(work, "material.json"),
                                   os.path.join(work, "path.json"))
     res = sim.solver.solve(**kwargs)
@@ -77,11 +75,12 @@ def main():
     params = read_parameters(os.path.join(script_dir, "data", "parameters.inp"))
     consts = read_constants(1, os.path.join(script_dir, "data", "constants.inp"))
     work = build_working_dir(script_dir)
+    template = KeyTemplate(keys_dir, params, consts)   # keys/material.json, read once
 
     # Synthetic experiment: the reference values, plus 0.5 % multiplicative noise
     for p in params:
         p.value = REFERENCE[p.key]
-    strain, sigma_ref = run_from_files(params, consts, keys_dir, work)
+    strain, sigma_ref = run_from_files(template, work)
     rng = np.random.default_rng(0)
     sigma_exp = sigma_ref * (1.0 + 0.005 * rng.standard_normal(sigma_ref.size))
     y_exp = [sigma_exp.reshape(-1, 1)]
@@ -90,7 +89,7 @@ def main():
         for p, value in zip(params, x):
             p.value = value
         try:
-            _, sigma = run_from_files(params, consts, keys_dir, work)
+            _, sigma = run_from_files(template, work)
         except Exception:
             return 1e12
         return calc_cost(y_exp, [sigma.reshape(-1, 1)], metric="nmse_per_response")
@@ -102,7 +101,7 @@ def main():
         print(f"  {p.key:8s} = {p.value:10.3f}   (reference {REFERENCE[p.key]:g})")
 
     # The material file the last evaluation left behind is the identified one
-    _, sigma_id = run_from_files(params, consts, keys_dir, work)
+    _, sigma_id = run_from_files(template, work)
     with open(os.path.join(work, "material.json")) as f:
         print("identified material.json:\n" + f.read())
     shutil.rmtree(work, ignore_errors=True)

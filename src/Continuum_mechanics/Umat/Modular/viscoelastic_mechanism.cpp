@@ -94,9 +94,7 @@ void ViscoelasticMechanism::compute_constraints(
     arma::vec& Phi,
     arma::vec& Y_crit
 ) const {
-    // The branches are not solved by the FB system: predict() took their backward-Euler step
-    // in closed form. Their rows stay in the system (uniform bookkeeping) but are always
-    // satisfied: Phi = -Y_crit gives Delta s = 0.
+    // branches solved in closed form by predict(): rows kept but always satisfied (Phi = -Y_crit, Delta s = 0)
     Phi.set_size(N_prony_);
     Y_crit.set_size(N_prony_);
     Y_crit.fill(1.0);
@@ -121,9 +119,7 @@ const std::vector<tensor2>& ViscoelasticMechanism::kappa(
 }
 
 arma::vec ViscoelasticMechanism::inelastic_strain() const {
-    // EV_tilde = sum_i (M_0 · L_i) · EV_i  (Prony_Nfast form).
-    // M0_L_i_ is pre-multiplied in set_reference_stiffness to avoid a 6x6·6x6
-    // matmul on every FB iteration.
+    // EV_tilde = sum_i (M_0 L_i) EV_i (Prony_Nfast form); M0_L_i_ precomputed in set_reference_stiffness
     arma::vec EV_tilde = arma::zeros(6);
     for (int i = 0; i < N_prony_; ++i) {
         EV_tilde += M0_L_i_[i] * ivc_.get(ev_key_[i]).raw_voigt();
@@ -139,9 +135,7 @@ void ViscoelasticMechanism::update(
 }
 
 void ViscoelasticMechanism::predict(const arma::vec& E_total_end, double DTime) {
-    // Closed-form backward-Euler step from the (rotated) start state: the branches see the
-    // total strain only, so it is final before the other mechanisms' return mapping starts.
-    // A zero time increment leaves them inactive (C_i = 0).
+    // closed-form backward Euler from the rotated start, final before the other mechanisms; DTime = 0 -> inactive
     std::vector<arma::vec> EV_start(N_prony_);
     for (int i = 0; i < N_prony_; ++i) {
         EV_start[i] = ivc_.get(ev_key_[i]).raw_voigt_start();
@@ -182,11 +176,8 @@ void ViscoelasticMechanism::compute_work(
     double& Wm_ir,
     double& Wm_d
 ) const {
-    // Dissipation of the dashpots (Prony_Nfast lines 274-288): trapezoidal
-    //   W_d = sum_i 0.5 (A_i_start + A_i_end) . DEV_i
-    // on the BRANCH stress A_i = L_i (eps - EV_i), the one the dashpot carries,
-    // not the total stress (that overcounts by L_0/L_i and made Wm_d exceed Wm).
-    // The recoverable part is closed by the orchestrator (Wm - Wm_ir - Wm_d).
+    // W_d = sum_i 1/2 (A_i_start + A_i_end) . DEV_i on the BRANCH stress A_i = L_i (eps - EV_i)
+    // (the total stress overcounts by L_0/L_i); Wm_r is closed by the orchestrator
     Wm_r  = 0.0;
     Wm_ir = 0.0;
     Wm_d  = 0.0;

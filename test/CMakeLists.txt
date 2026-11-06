@@ -23,9 +23,13 @@ set(TEST_SRCS
   # Libraries - Phase
   test/Libraries/Phase/Tmaterial_characteristics.cpp
 
+  # Libraries - Solver
+  test/Libraries/Solver/Tstep.cpp
+
   # Libraries - Maths
   test/Libraries/Maths/Tlagrange.cpp
   test/Libraries/Maths/Tnum_solve.cpp
+  test/Libraries/Maths/Tparallel.cpp
   test/Libraries/Maths/Trotation.cpp
   test/Libraries/Maths/Trotation_class.cpp
   test/Libraries/Maths/Tstats.cpp
@@ -49,6 +53,7 @@ set(TEST_SRCS
   test/Libraries/Umat/Tdamage_LLD_0.cpp
   test/Libraries/Umat/Tunified_TR.cpp
   test/Libraries/Umat/Modular/Tmodular_umat.cpp
+  test/Libraries/Umat/Modular/Tmodular_umat_cache.cpp
   test/Libraries/Umat/Treference_umats.cpp
   test/Libraries/Umat/Ttutorial_umat.cpp
 
@@ -59,6 +64,7 @@ set(TEST_SRCS
 # External test files (non-MSVC only)
 set(TEST_EXTERN
   test_extern/Umats/UMABA/TUMABA.cpp
+  test_extern/Umats/UMANS/TUMANS.cpp
 )
 
 # Add test executables
@@ -92,4 +98,6 @@ if(NOT MSVC)
   foreach(testSrc ${TEST_EXTERN})
     add_simcoon_test(${testSrc})
   endforeach()
+  # TUMANS loads the plugin itself: libsimcoon links dylib PRIVATE, so its headers are not inherited
+  target_link_libraries(TUMANS PRIVATE dylib)
 endif()

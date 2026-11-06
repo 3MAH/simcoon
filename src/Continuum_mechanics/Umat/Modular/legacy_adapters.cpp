@@ -31,11 +31,7 @@ namespace simcoon {
 
 namespace {
 
-// Modular props stream (configure_from_props):
-//   [el_type, conv, el params..., alphas..., n_mech, mech blocks...]
-// Plasticity block: [0, yield, iso, kin, N_iso, N_kin, sigma_Y,
-//                    yield params, iso params, kin params]
-// Viscoelastic block: [1, N, (E_i, nu_i, etaB_i, etaS_i) x N]
+// MODUL props stream: see ModularUMAT::configure_from_props (modular_umat.hpp)
 
 vec translate_ELISO(const vec& p) {
     // legacy: E nu alpha
@@ -115,11 +111,7 @@ vec translate_EPCHG(const vec& p) {
     const int n_crit = n_crit_map[crit_legacy];
     const uword legacy_crit_off = 8 + 2 * static_cast<uword>(N_iso + N_kin);
 
-    // The legacy N-term isotropic hardening couples every term through a
-    // SINGLE Hp (dHp/dp = sum_i b_i (Q_i - Hp)) — mathematically ONE
-    // effective Voce with b_eff = sum(b_i), Q_eff = sum(b_i Q_i)/sum(b_i),
-    // NOT the standard combined-Voce sum (proven by the Phase-1 equivalence
-    // test at 2.6e-4). Map accordingly.
+    // legacy N-term hardening shares ONE Hp: an effective Voce, b_eff = sum b_i, Q_eff = sum(b_i Q_i)/b_eff
     double b_eff = 0.0, bq = 0.0;
     for (int i = 0; i < N_iso; ++i) {
         const double Q_i = p(8 + 2 * static_cast<uword>(i));
@@ -206,7 +198,7 @@ void umat_legacy_modular(
     const double& T, const double& DT, const double& Time, const double& DTime,
     double& Wm, double& Wm_r, double& Wm_ir, double& Wm_d,
     const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
-    const int& tangent_mode) {
+    const int& tangent_mode, const int& ncp) {
 
     const auto it = registry().find(umat_name);
     if (it == registry().end()) {
@@ -219,7 +211,7 @@ void umat_legacy_modular(
                      static_cast<int>(props_mod.n_elem), props_mod,
                      nstatev, statev,
                      T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d,
-                     ndi, nshr, start, tnew_dt, tangent_mode);
+                     ndi, nshr, start, tnew_dt, tangent_mode, KinematicForm::rate, ncp);
     } catch (const std::logic_error& e) {
         // a configuration error, named after the legacy law; numerical failures pass through
         // with their own type (the step-cut policy)

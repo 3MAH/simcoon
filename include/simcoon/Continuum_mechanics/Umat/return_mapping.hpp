@@ -89,6 +89,7 @@
 #include <functional>
 #include <vector>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Simulation/Maths/num_solve.hpp>
 
 namespace simcoon {
 
@@ -154,6 +155,7 @@ struct ReturnMappingControl {
     int    maxiter = 0;             ///< 0 => simcoon::maxiter_umat
     double precision = 0.;          ///< 0 => simcoon::precision_umat
     int    max_backtrack = 5;       ///< halvings of the Newton step when the merit grows by more than x2
+    NCPMethod ncp = NCPMethod::fischer_burmeister;   ///< complementarity function of the cutting plane (see ncp_step)
 };
 
 /**

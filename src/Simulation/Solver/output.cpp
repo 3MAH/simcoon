@@ -32,11 +32,10 @@ using namespace arma;
 
 namespace simcoon{
 
-//=====Private methods for ellipsoid_characteristics===================================
+//=====Private methods for solver_output===================================
 
-//=====Public methods for ellipsoid_characteristics============================================
+//=====Public methods for solver_output============================================
 
-//@brief default constructor
 //-------------------------------------------------------------
 solver_output::solver_output()
 //-------------------------------------------------------------
@@ -51,11 +50,6 @@ solver_output::solver_output()
     o_rotation_type = 0;
     o_tangent_modulus = 0;
 }
-
-/*!
- \brief Constructor with parameters
- \param nblock : number of blocks
- */
 
 //-------------------------------------------------------------
 solver_output::solver_output(const int &nblock)
@@ -75,11 +69,6 @@ solver_output::solver_output(const int &nblock)
     o_nfreq.zeros(nblock);
     o_tfreq.zeros(nblock);
 }
-
-/*!
- \brief Copy constructor
- \param so solver_output object to duplicate
- */
 
 //------------------------------------------------------
 solver_output::solver_output(const solver_output& so)
@@ -102,15 +91,7 @@ solver_output::solver_output(const solver_output& so)
     o_tfreq = so.o_tfreq;
 }
 
-/*!
- \brief destructor
- */
-
 solver_output::~solver_output() {}
-
-/*!
- \brief Standard operator = for solver_output objects
- */
 
 //----------------------------------------------------------------------
 solver_output& solver_output::operator = (const solver_output& so)

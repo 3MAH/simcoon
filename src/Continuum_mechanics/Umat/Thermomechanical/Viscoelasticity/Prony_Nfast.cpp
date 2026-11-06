@@ -1,4 +1,21 @@
-///@file Prony.hpp
+/* This file is part of simcoon.
+ 
+ simcoon is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ simcoon is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ */
+
+///@file Prony_Nfast.cpp
 ///@brief User subroutine for Prony series viscoelastic model in 3D case
 ///@author Chemisky, Chatzigeorgiou
 ///@version 1.0
@@ -14,9 +31,6 @@
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 using namespace std;
 using namespace arma;
-
-// Model, props and statev layout: see the Doxygen block in
-// simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Prony_Nfast.hpp
 
 namespace simcoon {
     
@@ -125,8 +139,6 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         A_v_start[i] = L_i[i]*(eps_e_start - EV_i[i]);
     }
 
-    // Implicit (backward-Euler) step of the Maxwell branches in closed form: the exact solution of
-    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
     const LinearViscoStep st = maxwell_parallel_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
     EV_tilde = zeros(6);
@@ -190,7 +202,6 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     Wt_r += (T+DT)*Deta_r;
     Wt_ir += (T+DT)*Deta_ir;
     
-    //Return the statev;
     statev(0) = T_init;
     //From the statev to the internal variables
     statev(1) = EV_tilde(0);

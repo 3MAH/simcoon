@@ -15,7 +15,7 @@
  
  */
 
-///@file sma_mono.cpp
+///@file SMA_mono.cpp
 ///@brief User subroutine for monocrystalline SMA with multiple elastic symmetry options
 ///@author Chemisky
 
@@ -185,8 +185,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 	//Rotation of internal variables (tensors)
     ET = rotate_strain(ET, DR);
 
-    // Note: Elastic stiffness tensor L is already constructed based on umat_name
-
     ///@brief Initialization
     if(start)
     {
@@ -344,8 +342,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				if(fabs(det(dPhidxi)) > 0.)
                 dxin = -1.*inv(dPhidxi)*Phi;
             else {
-                //pnewdt = 0.1;
-//                Phi = zeros(nactive);
                 dxin = zeros(nactive);
             }
 			} catch (const std::runtime_error &e) {
@@ -359,7 +355,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				dxi += dxin(i);
 
                 xin(active[i]) += dxin(i);
-//				Amortissement(xin(active[i]), dxin(i), xin_start(active[i]));
                 
             }       
             
@@ -375,7 +370,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
                 xi += xin(i);
             }
 			
-//			Amortissement(xi, dxi, xi_start);            
             for(int i=0; i<nvariants; i++) {
                 ET += var[i].ETn*xin(i);
             }
@@ -414,8 +408,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 		else
 			Lt_eff = L;
 		
-        //Computation of the tangent modulus !
-        //Computation of the tangent modulus !
+        //Computation of the tangent modulus
 		try {
 			if(fabs(det(dPhidxi)) > 0.) {
 				Lt = L + ((L*lambda)*(inv(dPhidxi))*(dPhidsigma*L));

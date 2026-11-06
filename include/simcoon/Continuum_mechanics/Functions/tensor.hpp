@@ -608,8 +608,10 @@ tensor4 auto_sym_dyadic(const tensor2 &a);
 // rot/F with n_slices==1 are broadcast to all N points.
 
 /// Batch rotate N tensor2 objects. voigt:(6,N), rot:(3,3,N_r).
+/// @p n_threads caps the threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp).
 arma::mat batch_rotate(const arma::mat &voigt, Tensor2Type vtype,
-                       const arma::cube &rot_matrices, bool active = true);
+                       const arma::cube &rot_matrices, bool active = true,
+                       unsigned int n_threads = 0);
 
 /// Batch push-forward N tensor2. voigt:(6,N), F:(3,3,N_f).
 arma::mat batch_push_forward(const arma::mat &voigt, Tensor2Type vtype,
@@ -633,7 +635,8 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
 
 /// Batch rotate N tensor4 (overload of the tensor2 version). t4:(6,6,N), rot:(3,3,N_r).
 arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
-                        const arma::cube &rot_matrices, bool active = true);
+                        const arma::cube &rot_matrices, bool active = true,
+                        unsigned int n_threads = 0);
 
 /// Batch push-forward N tensor4 (overload of the tensor2 version). t4:(6,6,N), F:(3,3,N_f).
 arma::cube batch_push_forward(const arma::cube &t4, Tensor4Type t4type,

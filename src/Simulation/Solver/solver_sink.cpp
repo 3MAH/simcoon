@@ -50,6 +50,22 @@ void solver_memory_sink::init(phase_characteristics &rve) {
         sv_type = 1;
 }
 
+void solver_memory_sink::reserve(std::size_t n_records) {
+    auto grow = [n_records](auto &v) { v.reserve(v.size() + n_records); };
+    grow(blocks_i); grow(cycles_i); grow(steps_i); grow(incs_i); grow(time);
+    grow(Etot); grow(etot); grow(PKII); grow(tau); grow(sigma);
+    grow(F1); grow(R); grow(DR); grow(T); grow(statev); grow(Wm);
+    if (sv_type == 2) {
+        grow(Wt); grow(Q); grow(r);
+        if (record_tangent) {
+            grow(dSdE); grow(dSdT); grow(drdE); grow(drdT);
+        }
+    }
+    else if (sv_type == 1 && record_tangent) {
+        grow(Lt);
+    }
+}
+
 void solver_memory_sink::record(phase_characteristics &rve, const solver_output &so, const int &kblock, const int &kcycle, const int &kstep, const int &kinc, const double &Time) {
     (void)so;
     auto sv = rve.sptr_sv_global;

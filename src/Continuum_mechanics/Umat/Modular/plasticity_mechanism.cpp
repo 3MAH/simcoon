@@ -23,6 +23,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
 #include <simcoon/parameter.hpp>
 #include <algorithm>
 #include <limits>
@@ -31,11 +32,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 namespace simcoon {
 
 namespace {
-// Absolute strain floor of the state_drift denominator (see state_drift).
-// 1e-4: at near-zero committed Dp, rejection then requires a flow-rule
-// error above tolerance * floor = 5e-5 strain (~10 MPa) — two orders below
-// the measured pathology (~1e-2) and comfortably above the EP residue a
-// benign overshoot/walk-back leaves behind (~1e-5).
+// state_drift denominator floor: rejection at near-zero Dp needs a flow-rule error > tol * 1e-4 strain
 constexpr double drift_scale_floor = 1.0e-4;
 }  // namespace
 
@@ -89,18 +86,10 @@ PlasticityMechanism::PlasticityMechanism(
 // ========== Configuration ==========
 
 void PlasticityMechanism::configure(const arma::vec& props, int& offset) {
-    // Props layout:
-    // 1. sigma_Y (initial yield stress)
-    // 2. Yield criterion parameters (if needed)
-    // 3. Isotropic hardening parameters
-    // 4. Kinematic hardening parameters
 
     sigma_Y_ = props(offset);
     offset += 1;
 
-    // Configure yield criterion from props if not already done
-    // (von Mises and Tresca are configured in the constructor since they
-    // need no parameters; others read their parameters from props here)
     if (!yield_->is_configured()) {
         yield_->configure(yield_type_, props, offset);
     }
@@ -114,6 +103,9 @@ void PlasticityMechanism::register_variables() {
     ivc_.add_scalar("p", 0.0);
     ivc_.add_vec("EP", arma::zeros(6), true);
     kin_hard_->register_variables(ivc_);
+    // resolved once: the return-mapping loop reads them through ivc_.at()
+    p_index_ = ivc_.index_of("p");
+    EP_index_ = ivc_.index_of("EP");
 }
 
 // ========== Yield-side queries ==========
@@ -130,7 +122,7 @@ double PlasticityMechanism::equivalent_stress(const tensor2& sigma) const {
 }
 
 double PlasticityMechanism::yield_function(const arma::vec& sigma) const {
-    const double p = ivc_.get("p").scalar();
+    const double p = ivc_.at(p_index_).scalar();
     return equivalent_stress(sigma) - iso_hard_->R(p) - sigma_Y_;
 }
 
@@ -160,12 +152,9 @@ void PlasticityMechanism::compute_constraints(
     arma::vec& Y_crit
 ) const {
     // Get internal variables
-    double p = ivc_.get("p").scalar();
+    double p = ivc_.at(p_index_).scalar();
 
-    // Shifted stress (sigma - X); skip the subtraction under pure isotropic
-    // hardening. The branch backstresses X_i are built ONCE here and reused
-    // for hardening_modulus below — they are only valid within this FB
-    // iteration (the back-strains move in update()).
+    // X_i built once here and reused by hardening_modulus: valid within this FB iteration only
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {
@@ -237,7 +226,7 @@ bool PlasticityMechanism::refresh_state(
     const arma::vec T = Ir05();   // engineering -> tensorial shear
     const bool has_kin = kin_hard_->num_backstresses() > 0;
 
-    auto& p_var = ivc_.get("p");
+    auto& p_var = ivc_.at(p_index_);
     p_var.scalar() = p_var.scalar_start() + dp;
 
     // Newton on the n <-> X coupling (class note in the header).
@@ -264,11 +253,11 @@ bool PlasticityMechanism::refresh_state(
             kin_hard_->backward_euler_factors(dp, n, ivc_, gamma, beta);
             const arma::mat H = yield_->flow_hessian(xi);
             const arma::mat A = arma::eye(6, 6) + gamma * (H.each_row() % T.t());   // I + gamma H T
-            arma::vec dn;
-            if (!arma::solve(dn, A, -G, arma::solve_opts::fast)) {
+            small_lu<6> lu_A;   // on the stack: a LAPACK 6x6 solve per step otherwise
+            if (!lu_A.factor(A)) {
                 return false;
             }
-            n += dn;
+            n -= lu_A.solve(G);
         }
         if (!converged) {
             return false;
@@ -276,7 +265,7 @@ bool PlasticityMechanism::refresh_state(
         kin_hard_->backward_euler_factors(dp, n, ivc_, gamma, beta);
     }
 
-    auto& EP_var = ivc_.get("EP");
+    auto& EP_var = ivc_.at(EP_index_);
     EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
 
     // Total derivatives at this state (class note in the header).
@@ -293,33 +282,29 @@ bool PlasticityMechanism::refresh_state(
         return true;
     }
     const arma::mat HT = H.each_row() % T.t();
-    arma::mat Ainv;
-    if (!arma::inv(Ainv, arma::eye(6, 6) + gamma * HT)) {
+    small_lu<6> lu_A;   // A = I + gamma H T on the stack: solves instead of a LAPACK inverse
+    if (!lu_A.factor(arma::eye(6, 6) + gamma * HT)) {
         return false;
     }
     const arma::vec Tn = T % n;
-    out.dLambda_dsigma = Ainv * H;
+    out.dLambda_dsigma = lu_A.solve(H);
     out.dPhi_dsigma = n - gamma * (out.dLambda_dsigma.t() * Tn);
-    out.K = -arma::dot(Tn, Ainv * beta) - dR_dp;
-    out.dLambda_dDs = -(Ainv * (HT * beta));
+    out.K = -arma::dot(Tn, lu_A.solve(beta)) - dR_dp;
+    out.dLambda_dDs = -lu_A.solve(arma::vec(HT * beta));
     return true;
 }
 
 double PlasticityMechanism::state_drift(const arma::vec& sigma) const {
     // Committed Dp from the (projected) internal variable, not the raw FB
     // row — update() enforces p >= p_start, the state is the truth.
-    const double dp = ivc_.get("p").delta_scalar();
-    const arma::vec dEP = ivc_.get("EP").delta_vec();
+    const double dp = ivc_.at(p_index_).delta_scalar();
+    const arma::vec dEP = ivc_.at(EP_index_).delta_vec();
     if (dp < simcoon::iota && norm_strain(dEP) < simcoon::iota) {
         // inert increment: avoid evaluating the flow direction at a
         // possibly-zero stress
         return 0.0;
     }
-    // norm_strain (tensorial norm of an engineering-Voigt strain): arma::norm
-    // would weight the shear entries sqrt(2) too heavy against the cap.
-    // The absolute denominator floor keeps the relative measure from
-    // amplifying a numerically negligible EP residue at near-zero Dp (see
-    // the constant above for its calibration).
+    // norm_strain, not arma::norm (sqrt2-heavy shears); the floor keeps a negligible EP residue at Dp ~ 0 inert
     const arma::vec n = flow_direction(sigma);
     return norm_strain(dEP - dp * n)
          / std::max(dp * norm_strain(n), drift_scale_floor);
@@ -336,7 +321,7 @@ double PlasticityMechanism::multiplier_cap() const {
 }
 
 double PlasticityMechanism::committed_multiplier() const {
-    return ivc_.get("p").delta_scalar();
+    return ivc_.at(p_index_).delta_scalar();
 }
 
 void PlasticityMechanism::compute_jacobian_contribution(
@@ -345,9 +330,7 @@ void PlasticityMechanism::compute_jacobian_contribution(
     arma::mat& B,
     int row_offset
 ) const {
-    // B = -dPhi/dsigma : kappa + K with K = dPhi/dp = -H_total (hardening
-    // REDUCES Phi as Dp grows) — the plastic_isotropic convention, so the
-    // mode-1 assembly's Bhat = -B = n:kappa + H_total holds exactly.
+    // K = dPhi/dp = -H_total, so the mode-1 assembly Bhat = -B = n:kappa + H_total holds exactly
 
     // dPhi/dsigma * L * dPhi/dsigma (engineering Voigt dot = n : L : n)
     double dPhi_L_dPhi = arma::dot(flow_dir_, kappa_);
@@ -356,37 +339,29 @@ void PlasticityMechanism::compute_jacobian_contribution(
 }
 
 arma::vec PlasticityMechanism::inelastic_strain() const {
-    return ivc_.get("EP").raw_voigt();
+    return ivc_.at(EP_index_).raw_voigt();
 }
 
 void PlasticityMechanism::update(
     const arma::vec& ds,
     int offset
 ) {
-    // Apply the FB correction PROJECTED onto Dp >= 0: negative per-iteration
-    // corrections walk back an overshoot (gating on dp > iota froze the state
-    // after any overshoot — maxiter spins with a ~1 MPa yield violation and a
-    // 12x slowdown), but the multiplier never drops below its start-of-
-    // increment value. Without the projection a tiny negative Dp is a SPURIOUS
-    // Fischer-Burmeister root whenever Phi > 0 is large (phi(Phi, Dp) ~ Dp for
-    // |Dp| << Phi) — reached in practice for near-singular hardening slopes,
-    // e.g. power-law R = k p^m with m < 1 at first yield (p < 0, Phi -> +100
-    // MPa, mechanism inert).
+    // projected onto Dp >= 0 (see update() in the header)
     double dp = ds(offset);
     if (dp == 0.0) {
         return;   // the update below is exactly the identity for dp = 0
     }
 
     // Update accumulated plastic strain (projected: p never below p_start)
-    double& p = ivc_.get("p").scalar();
-    const double p_start = ivc_.get("p").scalar_start();
+    double& p = ivc_.at(p_index_).scalar();
+    const double p_start = ivc_.at(p_index_).scalar_start();
     if (p + dp < p_start) {
         dp = p_start - p;
     }
     p += dp;
 
     // Update plastic strain
-    arma::vec& EP = ivc_.get("EP").raw_voigt();
+    arma::vec& EP = ivc_.at(EP_index_).raw_voigt();
     EP += dp * flow_dir_;
 
     // Update kinematic hardening variables
@@ -403,9 +378,7 @@ void PlasticityMechanism::tangent_contribution(
     double Dp = Ds(offset);
 
     if (Dp > simcoon::iota) {
-        // Consistent tangent for plasticity:
-        // Lt = L - (L * n) ⊗ (L * n) / H_eff
-        // where H_eff = n : L : n + H_total
+        // Lt = L - (L n) x (L n) / H_eff, H_eff = n:L:n + H_total
 
         double n_L_n = arma::dot(flow_dir_, kappa_);
         double H_eff = n_L_n + H_total_;
@@ -428,8 +401,8 @@ void PlasticityMechanism::compute_work(
     double& Wm_d
 ) const {
     // Get increments
-    double Dp = ivc_.get("p").delta_scalar();
-    arma::vec DEP = ivc_.get("EP").delta_vec();
+    double Dp = ivc_.at(p_index_).delta_scalar();
+    arma::vec DEP = ivc_.at(EP_index_).delta_vec();
     if (Dp == 0.0 && DEP.is_zero()) {
         Wm_r = Wm_ir = Wm_d = 0.0;   // both dots below would be (signed) zeros
         return;

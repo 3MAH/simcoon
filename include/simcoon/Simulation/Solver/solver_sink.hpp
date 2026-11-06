@@ -46,9 +46,11 @@ struct solver_params {
     int miniter = 10;           ///< iteration count below which the step may grow
     int maxiter = 100;          ///< maximum Newton-Raphson iterations per increment
     int inforce = 1;            ///< 0: stop at Dn_mini, 1: enforce & carry residual, 2: enforce silently
-    double precision = 1.E-6;   ///< convergence tolerance on the residual norm
+    double precision = 1.E-6;   ///< convergence tolerance on the residual norm (absolute)
+    double precision_rel = 0.;  ///< > 0: tolerance max(precision, precision_rel |tau|), |tau| the Euclidean norm of the Kirchhoff stress (Voigt), so that stiff or highly loaded cases are not asked for more digits than soft ones (de Souza Neto et al. 2008, sec. 4.2); 0: precision alone (default)
     double lambda = 10000.;     ///< penalty stiffness for strain-controlled components
     int tangent_mode = tangent_default; ///< tangent_* constants (parameter.hpp)
+    int ncp = 0;                ///< complementarity function of the local cutting plane (NCPMethod code), see state_variables::ncp
 };
 
 /**
@@ -118,6 +120,10 @@ public:
     void record(phase_characteristics &rve, const solver_output &so,
                 const int &kblock, const int &kcycle, const int &kstep,
                 const int &kinc, const double &Time) override;
+    /// Capacity hint for @p n_records more records, for the fields of sv_type (call it
+    /// after init()); solver_run passes its expected count. The move constructor of the
+    /// arma objects is not noexcept, so each growth of these vectors would copy them all.
+    void reserve(std::size_t n_records);
     /// number of records captured so far
     unsigned int n_records() const { return static_cast<unsigned int>(time.size()); }
 };

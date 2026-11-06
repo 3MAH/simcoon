@@ -15,7 +15,7 @@
  
  */
 
-///@file elastic_isotropic.cpp
+///@file saint_venant.cpp
 ///@brief User subroutine for Isotropic elastic materials in 3D case
 ///@version 1.0
 
@@ -38,13 +38,6 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
-///@brief The elastic UMAT requires 2 constants:
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
-
-///@brief No statev is required for thermoelastic constitutive law
 
 void umat_saint_venant(const string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {
@@ -87,18 +80,10 @@ void umat_saint_venant(const string &umat_name, const vec &etot, const vec &Deto
     mat S = v2t_stress(el_pred(L, Eel));
     sigma = t2v_stress(PKII2Kirchoff(S, F1));
 
-    // Box tangent in the canonical convention Lt = d(tau_hat)/d(De), IN the solver's corate.
-    // For SVK the elastic stiffness L IS the material tangent dS/dE, so one map does it.
-    // NOT box_DtauDe_from_dSdE: that helper rebuilds tau as det(F)*its stress argument, i.e.
-    // it expects CAUCHY, and this kernel's stress is now tau -- feeding it here would square
-    // the J. (A wrong tangent does not move converged values, so the regression baseline
-    // cannot see this class of error; only the FD tangent tests can.)
+    // not box_DtauDe_from_dSdE: it expects Cauchy, and would square J on tau
     Lt = DSDE_2_DtauDe_corate(L, corate_type, F1, v2t_stress(sigma));
 
-    //Computation of the mechanical and thermal work quantities.
-    // Wm is the Kirchhoff work per REFERENCE volume: tau:d(lnV), conjugate to the log-strain
-    // increment Detot. Both ends are ALREADY tau -- the kernel is Kirchhoff-native and the
-    // stored state is tau_n -- so no J enters here any more.
+    // Kirchhoff work per reference volume, tau : d(lnV): no J
     Wm   += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;

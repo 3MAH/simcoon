@@ -25,7 +25,9 @@
 #include <stdexcept>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 
 using namespace std;
@@ -368,4 +370,84 @@ TEST(Tconstitutive, Isotropize)
     EXPECT_GT(props(0), 0.);
     EXPECT_GT(props(1), -1.);
     EXPECT_LT(props(1), 0.5);
+}
+
+TEST(Tconstitutive, isotropic_tensors_are_the_expressions_they_replace)
+{
+    // L_iso, M_iso, Idev, Idev2 and H_iso are built entry by entry: the same values, to the bit,
+    // as the operator expressions on Ivol / Ireal they used to evaluate
+    const double E = 70000., nu = 0.3;
+    const double K = E/(3.*(1.-2*nu)), mu = E/(2.*(1.+nu));
+    const mat Idev_ref = Ireal() - Ivol();
+    const mat Idev2_ref = Ireal2() - Ivol();
+    EXPECT_TRUE(approx_equal(Idev(), Idev_ref, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(Idev2(), Idev2_ref, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(L_iso(E, nu, "Enu"), mat(3.*K*Ivol() + 2.*mu*Idev_ref), "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(M_iso(E, nu, "Enu"), mat(1/(3.*K)*Ivol() + 1/(2.*mu)*Idev2_ref), "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(H_iso(3., 5.), mat(3.*3.*Ivol() + 2.*5.*Idev_ref), "absdiff", 0.));
+}
+
+TEST(Tconstitutive, inv_cubic)
+{
+    // closed-form inverse of isotropic and cubic tensors and of their Reuss mixtures
+    const mat L_A = L_iso(70000., 0.33, "Enu"), L_M = L_cubic(30000., 0.3, 9000., "EnuG");
+    const std::vector<mat> cases = {L_A, M_iso(70000., 0.33, "Enu"), L_M, M_cubic(30000., 0.3, 9000., "EnuG"),
+                                    0.3*M_cubic(30000., 0.3, 9000., "EnuG") + 0.7*M_cubic(70000., 0.33, 26000., "EnuG")};
+    for (const mat &A : cases) {
+        const mat Ai = inv_cubic(A);
+        EXPECT_LT(abs(Ai*A - eye(6, 6)).max(), 1.E-13);
+        EXPECT_LT(abs(Ai - inv(A)).max(), 1.E-13*abs(Ai).max());
+    }
+    // not cubic: the general inverse
+    mat B = L_A;
+    B(0, 5) = B(5, 0) = 1000.;
+    EXPECT_LT(abs(inv_cubic(B) - inv(B)).max(), 1.E-13*abs(inv(B)).max());
+    // singular
+    mat S = L_A;
+    S(3, 3) = S(4, 4) = S(5, 5) = 0.;
+    EXPECT_THROW(inv_cubic(S), simcoon::exception_inv);
+}
+
+TEST(Tconstitutive, cubic_coefficients_and_is_isotropic)
+{
+    const mat L_A = L_iso(70000., 0.33, "Enu"), L_C = L_cubic(30000., 0.3, 9000., "EnuG");
+    double a, b, c;
+    EXPECT_TRUE(cubic_coefficients(L_C, a, b, c));
+    EXPECT_EQ(a, L_C(0,0));
+    EXPECT_EQ(b, L_C(0,1));
+    EXPECT_EQ(c, L_C(3,3));
+    // the isotropy relation depends on the Voigt convention of the tensor
+    const mat M_A = M_iso(70000., 0.33, "Enu");
+    EXPECT_TRUE(is_isotropic(L_A, Tensor4Type::stiffness));
+    EXPECT_TRUE(is_isotropic(M_A, Tensor4Type::compliance));
+    EXPECT_TRUE(is_isotropic(mat(0.3*eye(6, 6)), Tensor4Type::strain_concentration));
+    EXPECT_TRUE(is_isotropic(mat(0.3*eye(6, 6)), Tensor4Type::stress_concentration));
+    EXPECT_FALSE(is_isotropic(M_A, Tensor4Type::stiffness));
+    EXPECT_FALSE(is_isotropic(L_A, Tensor4Type::strain_concentration));
+    EXPECT_FALSE(is_isotropic(L_C, Tensor4Type::stiffness));   // cubic, not isotropic
+    // round-off: exact structure refused, 1e-14 accepted; a real perturbation refused
+    mat P = L_A;
+    P(1, 1) *= 1. + 1.E-15;
+    EXPECT_FALSE(cubic_coefficients(P, a, b, c));
+    EXPECT_TRUE(is_isotropic(P, Tensor4Type::stiffness));
+    P(0, 4) = 1.E-6*L_A(0, 0);
+    EXPECT_FALSE(is_isotropic(P, Tensor4Type::stiffness));
+    // never cubic with a NaN, nor for a non-6x6 matrix
+    mat N = L_A;
+    N(2, 5) = datum::nan;
+    EXPECT_FALSE(cubic_coefficients(N, a, b, c, 1.E-14));
+    EXPECT_FALSE(is_isotropic(N, Tensor4Type::stiffness));
+    EXPECT_FALSE(cubic_coefficients(mat(3, 3, fill::eye), a, b, c));
+}
+
+TEST(Tconstitutive, invalid_conventions_throw)
+{
+    EXPECT_THROW(L_iso(70000., 0.3, "Emu"), std::invalid_argument);
+    EXPECT_THROW(M_iso(70000., 0.3, "Emu"), std::invalid_argument);
+    EXPECT_THROW(L_cubic(30000., 0.3, 9000., "Enu"), std::invalid_argument);
+    EXPECT_THROW(M_cubic(30000., 0.3, 9000., "Enu"), std::invalid_argument);
+    EXPECT_THROW(L_ortho(1., 1., 1., 0.3, 0.3, 0.3, 1., 1., 1., "Enu"), std::invalid_argument);
+    EXPECT_THROW(M_ortho(1., 1., 1., 0.3, 0.3, 0.3, 1., 1., 1., "Enu"), std::invalid_argument);
+    EXPECT_THROW(L_isotrans(100., 10., 0.3, 0.4, 5., 4), std::invalid_argument);
+    EXPECT_THROW(M_isotrans(100., 10., 0.3, 0.4, 5., 0), std::invalid_argument);
 }

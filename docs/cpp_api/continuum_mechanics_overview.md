@@ -73,14 +73,10 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 
 **Damage:**
 - `damage_LLD_0` - Ladevèze-Le Dantec damage of the unidirectional ply
-- `damage_weibull` - Weibull statistical damage model
 
 **Shape Memory Alloys (SMA):**
 - `SMA_mono` - Micromechanical monocrystal SMA model (supports SMAMO isotropic, SMAMC cubic symmetry)
 - `unified_T` - Unified thermomechanical SMA model
-
-**Combined:**
-- `Prony_Nfast_Plastic` - Viscoelastoplasticity
 
 **External:**
 - `external_umat` - Plugin API for custom material models

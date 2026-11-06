@@ -35,9 +35,6 @@ namespace simcoon{
 
 //=====Public methods for geometry============================================
 
-/*!
-  \brief default constructor
-*/
 
 //-------------------------------------------------------------
 geometry::geometry()
@@ -46,9 +43,6 @@ geometry::geometry()
     concentration = 0.;
 }
 
-/*!
-  \brief Constructor with parameters
-*/
 
 //-------------------------------------------------------------
 geometry::geometry(const double &mconcentration)
@@ -57,10 +51,6 @@ geometry::geometry(const double &mconcentration)
     concentration = mconcentration;
 }
 
-/*!
-  \brief Copy constructor
-  \param s geometry characteristics object to duplicate
-*/
 
 //------------------------------------------------------
 geometry::geometry(const geometry& sv)
@@ -69,21 +59,11 @@ geometry::geometry(const geometry& sv)
     concentration = sv.concentration;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
 
 //-------------------------------------
 geometry::~geometry() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for geometry
-*/
-    
-    
 //----------------------------------------------------------------------
 geometry& geometry::operator = (const geometry& sv)
 //----------------------------------------------------------------------

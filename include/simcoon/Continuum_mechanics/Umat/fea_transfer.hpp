@@ -437,6 +437,42 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
 //=============================================================================
 
 /**
+ * @brief Correspondence between the components of an FE code and simcoon's Voigt order.
+ * @details FE entry i is simcoon component K[i] (simcoon order [11, 22, 33, 12, 13, 23]); the
+ *          others are absent from the element (zero strain in 3D, stress-free in a condensed state).
+ */
+struct fea_components {
+    int ntens;   ///< number of components of the element
+    int K[6];    ///< simcoon index of each FE component
+    int operator()(const int &i) const { return K[i]; }
+};
+
+/**
+ * @brief The Ansys components: 11, 22, 33, 12, 23, 13 in 3D (13 and 23 swapped), 11, 22, 33, 12 in
+ *        plane strain and axisymmetry, 11, 22, 12 in plane stress, 11 in 1D.
+ * @throw std::invalid_argument for another (nDirect, nShear)
+ */
+fea_components ansys_components(const int &nDirect, const int &nShear);
+
+/** @brief FE vector (ntens) -> simcoon 6 entries, zero outside K. */
+template <class V> void fe2vec(const double *a, const fea_components &K, V &v) {
+    v.zeros();
+    for (int i = 0; i < K.ntens; i++) v(K(i)) = a[i];
+}
+
+/** @brief simcoon 6 entries -> FE vector (ntens). */
+template <class V> void vec2fe(const V &v, const fea_components &K, double *a) {
+    for (int i = 0; i < K.ntens; i++) a[i] = v(K(i));
+}
+
+/** @brief FE ntens x ntens matrix, column-major (Fortran) -> the K x K block of a 6x6 (zero elsewhere). */
+void fe2mat(const double *a, const fea_components &K, arma::mat &M);
+
+/** @brief The K x K block of a 6x6 -> FE ntens x ntens matrix, column-major (Fortran). */
+void mat2fe(const arma::mat &M, const fea_components &K, double *a);
+
+
+/**
  * @brief Ansys USERMAT -> simcoon (mechanical).
  * @details Ansys passes the element's ncomp components (11, 22, 33, 12, 23, 13 in 3D: 13 and 23
  *          swapped against simcoon; 11, 22, 33, 12 in plane strain and axisymmetry; 11, 22, 12 in

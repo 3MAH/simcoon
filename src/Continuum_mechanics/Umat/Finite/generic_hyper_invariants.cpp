@@ -38,11 +38,6 @@ using namespace arma;
 
 namespace simcoon{
 
-///@brief props: the parameters of the potential (see HyperPotential, hyperelastic.hpp), then an
-///@brief optional selector of the volumetric term U(J) (see VolumetricPotential)
-
-///@brief No statev is required for a hyperelastic constitutive law
-
 void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {  	
 
@@ -79,8 +74,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         throw std::invalid_argument("The choice of hyperelastic potential could not be found in the simcoon library: " + umat_name);
     }
 
-    // An anisotropic potential reads its fibre pseudo-invariants off the structure
-    // tensors (tr A_i); an isotropic one gets an empty A and ignores it.
+    // fibre pseudo-invariants from the structure tensors; empty A for an isotropic potential
     const hyper_anisotropy an = hyper_potential_anisotropy(it_potential->second, props);
     const std::vector<mat> A = structure_tensors_push_forward(F1, an.a0, an.kappa_d, J);
     const hyper_invariants_dW dW = hyper_potential_derivatives(it_potential->second, props, I_bar, J, A);
@@ -103,9 +97,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         L = Lt;
     }
 
-    //Computation of the mechanical and thermal work quantities.
-    // Kirchhoff work per reference volume: tau:d(lnV). Both ends are ALREADY tau -- the kernel
-    // is Kirchhoff-native and the stored state is tau_n -- so no J enters here any more.
+    // Kirchhoff work per reference volume, tau : d(lnV): no J
     Wm   += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;

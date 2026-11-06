@@ -116,6 +116,38 @@ class TestPhaseChecks:
             slv.solve(uniaxial_step(), "MIMTN", MIMTN_PROPS, NSTATEV, phases=phases)
 
 
+class TestOtherSchemesInTheSolver:
+
+    def test_homogeneous_strain_scheme_is_the_voigt_bound(self):
+        """MIHEN in the solver (it used to dereference a null sub-phase pointer): the apparent
+        modulus is the Voigt one that L_eff gives on the same phases."""
+        phases = two_phase_composite()
+        props = np.array([20.0, 20.0])
+        res = slv.solve(uniaxial_step(), "MIHEN", props, NSTATEV, phases=phases)
+        apparent = res["Stress"][0, -1] / res["Strain"][0, -1]
+        direct = sim.L_iso_props(sim.L_eff("MIHEN", props, NSTATEV, phases=phases)).flatten()[0]
+        assert apparent == pytest.approx(direct, rel=1e-9)
+
+    def test_self_consistent_runs_over_several_blocks(self):
+        """MISCN failed at the priming call of the second block (the solver clears the
+        effective tangent, the scheme then inverted a zero reference medium): a load split
+        into two blocks follows the one-block run, and unloading runs."""
+        props = np.array([50.0, 50.0, 0.0])
+        def plastic_composite():
+            matrix = Ellipsoid(number=0, umat_name="EPICP", save=1, nstatev=8, concentration=0.7,
+                               props=np.array([70000.0, 0.3, 1e-5, 200.0, 1000.0, 0.3]))
+            sphere = Ellipsoid(number=1, umat_name="ELISO", save=1, nstatev=1, concentration=0.3,
+                               props=np.array([400000.0, 0.2, 1e-6]))
+            return [matrix, sphere]
+        one = slv.solve([uniaxial_step(0.01, 40)], "MISCN", props, 1, phases=plastic_composite())
+        two = slv.solve([uniaxial_step(0.005, 20), uniaxial_step(0.01, 20)], "MISCN", props, 1,
+                        phases=plastic_composite())
+        np.testing.assert_allclose(two["Stress"][0], one["Stress"][0], rtol=1e-6)
+        back = slv.solve([uniaxial_step(0.01, 20), uniaxial_step(0.005, 20)], "MISCN", props, 1,
+                         phases=plastic_composite())
+        assert back["Stress"][0, -1] < back["Stress"][0, 19]
+
+
 class TestNestedComposite:
     """A sub-phase that is itself a mean-field model, as Nellipsoids0.dat -> Nellipsoids1.dat
     chained through props[1] in the file era."""

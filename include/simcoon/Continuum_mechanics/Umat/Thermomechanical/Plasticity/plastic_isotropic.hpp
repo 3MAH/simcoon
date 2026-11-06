@@ -43,27 +43,43 @@ namespace simcoon{
  */
 
 
-    ///@brief The elastic-plastic UMAT with isotropic hardening requires 8 constants for a full thermomechanical coupling:
-    
-    ///@brief props[0] : density
-    ///@brief props[1] : specific heat capacity
-    ///@brief props[2] : Young modulus
-    ///@brief props[3] : Poisson ratio
-    ///@brief props[4] : CTE
-    ///@brief props[5] : J2 equivalent yield stress limit : sigmaY
-    ///@brief props[6] : hardening parameter k
-    ///@brief props[7] : exponent m
-    
-    ///@brief The elastic-plastic UMAT with isotropic hardening requires 8 statev:
-    ///@brief statev[0] : T_init : Initial temperature
-    ///@brief statev[1] : Accumulative plastic parameter: p
-    ///@brief statev[2] : Plastic strain 11: EP(0,0)
-    ///@brief statev[3] : Plastic strain 22: EP(1,1)
-    ///@brief statev[4] : Plastic strain 33: EP(2,2)
-    ///@brief statev[5] : Plastic strain 12: EP(0,1) (*2)
-    ///@brief statev[6] : Plastic strain 13: EP(0,2) (*2)
-    ///@brief statev[7] : Plastic strain 23: EP(1,2) (*2)
-
+/**
+ * @brief Thermomechanical elastic-plastic model with isotropic hardening (J2, power-law hardening)
+ *
+ * @details Yield function \f$ \Phi = \sigma_{eq} - k\,p^m - \sigma_Y \leq 0 \f$ with associated
+ * J2 flow. The Gibbs free energy of the lead mechanism (internal variables \f$ p \f$ and
+ * \f$ \boldsymbol{\varepsilon}^p \f$) reads
+ * \f[
+ * G = -\frac{1}{2}\,\boldsymbol{\sigma} : \mathbf{S} : \boldsymbol{\sigma}
+ * - \boldsymbol{\sigma} : \boldsymbol{\varepsilon}^p
+ * - \boldsymbol{\sigma} : \boldsymbol{\alpha}\,(\theta - \theta_0)
+ * + c_0\left[(\theta - \theta_0) - \theta \ln\frac{\theta}{\theta_0}\right]
+ * - \eta_0\,\theta + E_0 + F(\theta, p), \qquad c_0 = \rho\, c_p .
+ * \f]
+ * Under tangent_none the kernel still assembles the continuum operator: the sensitivities
+ * \f$ P_{\varepsilon} \f$ and \f$ P_\theta \f$ feed the physical heat source \f$ r \f$ and its
+ * linearization, not only the Newton operator. Under tangent_algorithmic only dSdE carries the
+ * consistent correction; dSdT, drdE and drdT keep the continuum form.
+ *
+ * **Material Parameters (props, 8):**
+ * | Index | Symbol | Description | Units |
+ * |-------|--------|-------------|-------|
+ * | props[0] | \f$ \rho \f$ | Density | Mass/Volume |
+ * | props[1] | \f$ c_p \f$ | Specific heat capacity | Energy/(Mass.Temperature) |
+ * | props[2] | \f$ E \f$ | Young's modulus | Stress (MPa) |
+ * | props[3] | \f$ \nu \f$ | Poisson's ratio | - |
+ * | props[4] | \f$ \alpha \f$ | Isotropic thermal expansion coefficient | 1/Temperature |
+ * | props[5] | \f$ \sigma_Y \f$ | J2 equivalent yield stress | Stress (MPa) |
+ * | props[6] | \f$ k \f$ | Hardening parameter | Stress (MPa) |
+ * | props[7] | \f$ m \f$ | Hardening exponent | - |
+ *
+ * **State Variables (statev, 8):**
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | statev[0] | \f$ T_{init} \f$ | Initial temperature |
+ * | statev[1] | \f$ p \f$ | Accumulated plastic strain |
+ * | statev[2..7] | \f$ \boldsymbol{\varepsilon}^p \f$ | Plastic strain, Voigt [11,22,33,12,13,23], engineering shear (\f$\times 2\f$) |
+ */
 void umat_plasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
     
 

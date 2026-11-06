@@ -120,7 +120,7 @@ Small-strain mechanical models
        identical or inactive second surfaces); the modular engine handles
        multiple surfaces correctly, so N >= 2 is now functional.
    * - ZENER
-     - Generalized KELVIN chain, 1 branch (standard solid)
+     - Standard linear solid, Poynting-Thomson (Kelvin) form: spring in series with one Kelvin-Voigt unit
      - legacy (kept)
      - E0, nu0, alpha, E1, nu1, etaB1, etaS1
      - No modular equivalent (Kelvin branches in series; the modular
@@ -347,8 +347,29 @@ Unchanged dedicated implementations (out of the modular scope):
   MIPLN (``mp``, ``np``: integration points of the Eshelby integrals; ``n_matrix``:
   index of the matrix phase in the list; ``start``: first guess of the
   self-consistent iteration, 1 Mori-Tanaka (default) or 0 homogeneous strain with
-  ``n_matrix < 0``). The length is checked, so the pre-2.0 layout with its leading
-  ``nphases`` and file-number slots is refused rather than misread.
+  ``n_matrix < 0``). The length and the values are checked, so the pre-2.0 layout with
+  its leading ``nphases`` and file-number slots is refused rather than misread.
+
+  Optional trailing slots set numerical options; all default to 0, the historical
+  behaviour (giving a slot gives the ones before it):
+  ``[mp, np, n_matrix, closed_form, rule]`` for MIMTN and
+  ``[mp, np, n_matrix, start, closed_form, rule, anderson, rtol]`` for MISCN.
+
+  * ``closed_form = 1``: the Eshelby tensor is taken in closed form (sphere, prolate or
+    oblate spheroid of axis 1) when the reference medium is isotropic, and integrated
+    otherwise. Exact, and no integration: ``L_eff`` of a self-consistent composite of
+    spheres is 7 to 10 times faster (20 times with ``anderson = 2``).
+  * ``rule = 1``: half-sphere quadrature, ``(mp+1)/2`` Gauss-Legendre points in
+    ``cos(theta)`` and ``np`` trapezoidal points in ``phi`` (the integrand is centrally
+    symmetric and periodic in ``phi``): half the evaluations of the default
+    Gauss-Legendre rule for the same accuracy or better.
+  * ``anderson = m`` (MISCN, ``L_eff`` only): Anderson acceleration of depth ``m`` of the
+    self-consistent fixed point (``m = 2`` is a good choice: 65 iterations become about
+    11 at a 50 % concentration). The solver does one self-consistent sweep per
+    localization iteration and ignores it.
+  * ``rtol > 0`` (MISCN, ``L_eff`` only): relative stopping criterion
+    ``||L - L_prev|| <= rtol ||L||`` of that fixed point instead of the absolute
+    ``1e-6`` (in the stiffness unit), so the iteration count no longer depends on the unit.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
 - **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
 
@@ -584,13 +605,43 @@ selecting the rate that tangent is expressed in. The default is contract-preserv
 returns precisely the box the finite kernels used to produce unconditionally. Rescaling that
 tangent by :math:`1/J` at the boundary would break ``Lt_convert`` by exactly :math:`J`.
 
-Tangent-operator mode
-=====================
+Integrator and tangent operator
+===============================
 
-All models receive the solver's ``tangent_mode`` (named constants in
-``parameter.hpp`` / ``sim.tangent_*``): 0 = none (Lt = elastic L, explicit
-integration), 1 = continuum, 2 = algorithmic/Simo-Hughes (**default**),
-3 = closest-point (exact operator of the closest-point integrator where the law has one, else the algorithmic operator). Pre-2.0 numbering was 0 = continuum,
+A run makes three numerical choices for the laws with a return mapping, given to ``solve``
+and ``sim.umat`` by name:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Option
+     - Chooses
+     - Values
+     - Changes the converged answer
+   * - ``integrator``
+     - the discrete update of the local step
+     - ``"cutting_plane"`` (default), ``"closest_point"`` (backward Euler)
+     - yes: two different schemes
+   * - ``ncp``
+     - how the Kuhn-Tucker conditions are solved inside it
+     - ``"fischer_burmeister"`` (default), ``"min"``
+     - no, to the local tolerance (see below)
+   * - ``tangent_mode``
+     - the operator handed to the global Newton
+     - ``"none"``, ``"continuum"``, ``"algorithmic"`` (default)
+     - no: global convergence only
+
+``"algorithmic"`` is the consistent operator of the integrator that ran: Simo-Hughes after the
+cutting plane, the exact operator of the closest-point map after the closest point. The closest
+point is offered with that operator only (``integrator="closest_point"`` with ``"none"`` or
+``"continuum"`` raises ``ValueError``). ``tangent_mode = 3`` (``"closest_point"``), the former way
+to ask for the closest point, is no longer accepted: it raises ``ValueError``, pointing to
+``integrator="closest_point"``. Inside, the kernels still read one code (``kernel_tangent_mode``,
+``parameter.hpp``): 0 = none (Lt = elastic L, explicit integration), 1 = continuum,
+2 = algorithmic/Simo-Hughes (**default**), 3 = the closest-point integrator with its exact
+operator. Code 3 reaches only the laws that implement it (``check_integrator_serves``; closest-point
+coverage below), so a
+Python law (``PYEXT``) receives 0, 1 or 2. Pre-2.0 numbering was 0 = continuum,
 1 = algorithmic — see :doc:`solver` for the migration note. The
 finite-strain hyperelastic models ignore the mode (their tangent is always
 the exact one of the hyperelastic law). So do the linear viscoelastic models (``ZENER``,
@@ -602,7 +653,7 @@ von Mises criterion and isotropic hardening only; with kinematic hardening or a 
 Drucker or Tresca criterion the cutting-plane update is path dependent and the operator is
 approximate (see the note on the scope of the algorithmic tangent in :doc:`solver`).
 
-**Mode 3 coverage (2.2).** The closest-point integrator with its exact operator runs for
+**Closest-point coverage (2.2).** The closest-point integrator with its exact operator runs for
 ``MODUL`` rows whose criterion has a flow Hessian (von Mises, Hill, DFA, Ani; with every
 hardening law and a hyperelastic block), for the dedicated kernels ``EPICP``, ``EPCHA``,
 ``EPICP`` / ``EPKCP`` thermomechanical, and for the SMA kernels ``SMADI`` / ``SMADC`` /
@@ -613,9 +664,166 @@ up to 5x on a non-proportional path, for an operator exact to :math:`10^{-8}`). 
 ``EPJCK`` (and the adapter-served von Mises + isotropic names) mode 3 is **identical to mode
 2 by construction**: with a radial flow the cutting-plane update already is the closest-point
 projection and the algorithmic operator is the exact Jacobian of the discrete map, including
-the rate term. Mode 3 falls back to the mode-2 operator for a Tresca or Drucker row, the
-thermomechanical SMA kernel and ``SMA_mono``. A condensed stress state (plane stress, beam,
+the rate term. Any other law, the thermomechanical SMA kernel and ``SMA_mono`` included, refuses
+``integrator="closest_point"`` with ``ValueError`` rather than running its cutting plane
+silently; inside ``MODUL``, a Tresca or Drucker row keeps the cutting plane and its mode-2
+operator. A condensed stress state (plane stress, beam,
 truss) keeps mode 3: the law runs 3D and the state is solved around it.
+
+Numerical options of the local Newton
+=====================================
+
+These options change *how* the local return mapping is solved, not the constitutive law. They
+are settings of the run, not material parameters: they are given to ``solve`` or ``sim.umat``
+by name, and the ``props`` stay those of the law.
+
+``ncp``: a faster local solve for simple plasticity
+---------------------------------------------------
+
+``solve(..., ncp="min")`` or ``sim.umat(..., ncp="min")`` switches the complementarity function
+of the cutting plane from Fischer-Burmeister (``ncp="fischer_burmeister"``, the default, the
+historical results bit for bit) to the min function, the classic cutting-plane step. EPICP,
+EPKCP and ``MODUL`` read it, in their cutting plane. Any other law, a thermomechanical block, a
+mean-field model or the closest-point integrator raises ``ValueError`` for ``ncp="min"``.
+
+**Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
+The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
+In ``MODUL`` this includes a yield surface composed with viscoelastic (Prony) or damage
+mechanisms: their rows are always satisfied and uncoupled, so the min step applies to the yield
+surface next to them. With several coupled yield surfaces the option has no effect:
+Fischer-Burmeister is kept.
+If the min step makes the error grow, the solver switches back to Fischer-Burmeister for the
+rest of the increment.
+
+**Do not use it** with Armstrong-Frederick (Chaboche) back stresses. ``MODUL`` refuses the
+combination, and the Chaboche kernels do not take the option. Those back stresses are integrated
+along the cutting-plane iterates, so the full min steps land on a different answer, without
+any growth in the residual that the fallback could detect. On coarse increments of the
+Chaboche identification programmes, this answer is up to 46 % off the closest-point update,
+where Fischer-Burmeister stays within 4 %. For an accurate Chaboche return, use
+``integrator="closest_point"``.
+
+How the two functions work
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+At each increment the law seeks the plastic multiplier :math:`\Delta p` of each yield surface
+that satisfies the Kuhn-Tucker conditions
+
+.. math::
+
+   \Phi \le 0, \qquad \Delta p \ge 0, \qquad \Phi\,\Delta p = 0,
+
+with :math:`\Phi` the yield function (for EPICP,
+:math:`\Phi = \sigma_{Mises} - R(p) - \sigma_Y`): either the point stays elastic
+(:math:`\Delta p = 0`, :math:`\Phi \le 0`) or it lies on the surface (:math:`\Phi = 0`,
+:math:`\Delta p > 0`). The cutting plane solves them by Newton on :math:`\Delta p`, with the
+linearisation :math:`\Phi(\Delta p + \delta p) \approx \Phi + B\,\delta p`,
+:math:`B = \partial\Phi/\partial\Delta p` (for von Mises with isotropic hardening
+:math:`B \approx -(3G + H)`, :math:`H` the hardening slope). A complementarity function turns
+the three conditions into one equation. Both variants use the normalised multiplier
+:math:`\Delta p^* = |B|\,\Delta p`, a stress like :math:`\Phi`.
+
+**Fischer-Burmeister** (``ncp="fischer_burmeister"``) solves
+
+.. math::
+
+   \sqrt{\Phi^2 + \Delta p^{*2}} + \Phi - \Delta p^* = 0 .
+
+The equation is smooth away from :math:`(0, 0)` and decides by itself whether the surface is
+active: Newton never chooses a branch. It extends as is to a coupled system of several surfaces
+(multi-mechanism ``MODUL``, the SMA kernels). Its first step is short: from
+:math:`\Delta p = 0` on a violated surface (:math:`\Phi > 0`), the residual is :math:`2\Phi`
+and its derivative :math:`2B - |B| = 3B`, so the step is :math:`-2\Phi/(3B)`, two thirds of the
+full cutting-plane step :math:`-\Phi/B`. The return then needs about 6 local iterations. The
+stopping criterion is the residual divided by :math:`\sigma_Y`, summed over the surfaces.
+
+**Min** (``ncp="min"``) solves
+
+.. math::
+
+   \min(\Delta p^*, -\Phi) = 0
+
+by semi-smooth Newton (primal-dual active set, Hintermueller, Ito and Kunisch 2002), which
+picks a branch at each iteration:
+
+* active surface (:math:`\Phi > 0` or :math:`-\Phi < \Delta p^*`): it solves
+  :math:`\Phi + B\,\delta p = 0`, the full step :math:`\delta p = -\Phi/B` of the classic cutting
+  plane (Ortiz and Simo 1986);
+* inactive surface: the multiplier goes back to zero, :math:`\delta p = -\Delta p`.
+
+With linear hardening :math:`\Phi` is affine in :math:`\Delta p`, so the first step is the exact
+return, and one more iteration confirms it. With a nonlinear hardening (power law) the return
+takes about 3 iterations instead of 6. The stopping criterion is twice the residual of the chosen
+branch over :math:`\sigma_Y`: on the first step this equals the Fischer-Burmeister residual, and
+near the solution it is at least as strict.
+
+**Fallback.** Within an increment, the min step switches to Fischer-Burmeister for the rest of
+the local solve as soon as its error grows from one iteration to the next (the full step
+overshoots, or the branch choice oscillates) or :math:`B` vanishes. Coupled surfaces stay on
+Fischer-Burmeister from the start, because the plain semi-smooth Newton can cycle there, the set
+of active surfaces changing from one iteration to the next without converging.
+
+**Which rows count.** The min step applies row by row when the local Jacobian :math:`B` is
+diagonal, i.e. when the rows are independent scalar problems. That is the case of a single yield
+surface, and of a yield surface next to the rows of the viscoelastic and damage mechanisms of
+``MODUL``: those are integrated outside the Newton (the Prony branches in closed form, the damage
+by a fixed point), so their rows are always satisfied (:math:`\Phi = -Y^{crit}`), carry no
+multiplier and no cross term, and stay at zero. Two yield surfaces share the stress, so their
+rows are coupled (off-diagonal terms of :math:`B`) and keep Fischer-Burmeister.
+
+.. list-table:: What ``ncp="min"`` does, case by case
+   :header-rows: 1
+
+   * - Case
+     - Result
+   * - EPICP, linear isotropic hardening
+     - one exact step and one check; the Fischer-Burmeister return to :math:`10^{-10}`
+   * - EPICP, power-law isotropic hardening
+     - about 3 iterations instead of 6; the Fischer-Burmeister return to :math:`10^{-7}`
+   * - EPKCP, ``MODUL`` with isotropic and Prager hardening
+     - the Fischer-Burmeister return to the local tolerance (EPKCP and ``MODUL`` agree to
+       :math:`10^{-12}`)
+   * - ``MODUL``, one yield surface with viscoelastic (Prony) or damage mechanisms
+     - the min step on the yield surface, the other rows untouched; the Fischer-Burmeister
+       return to the local tolerance
+   * - ``MODUL`` with several yield surfaces (coupled)
+     - no effect: Fischer-Burmeister is kept
+   * - ``MODUL`` with an Armstrong-Frederick back stress
+     - refused (``ValueError``), see above
+   * - any other law, a thermomechanical block, a mean-field model
+     - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
+   * - ``integrator="closest_point"``
+     - refused (``ValueError``): the closest-point integrator keeps Fischer-Burmeister
+
+On a batch of :math:`10^4` EPICP points (``sim.umat``, one thread), one increment takes 20 ms
+with Fischer-Burmeister and 14 ms with ``ncp="min"``. On a cyclic uniaxial ``MODUL`` solve
+(150 increments) the whole run drops by 17 % with one Prony branch next to the yield surface,
+29 % with three, 23 % with a damage mechanism.
+
+EPICP consistent tangent
+------------------------
+
+With ``tangent_mode = 2``, EPICP builds the consistent tangent of the radial return in closed
+form (Simo and Taylor 1985),
+:math:`3K\,\mathbb{I}_{vol} + 2G\theta\,\mathbb{I}_{dev} - 2G\bar\theta\,\mathbf{N}\otimes\mathbf{N}`.
+It is the operator of the generic assembly to round-off at the converged return, without its
+6x6 inverse.
+
+Choosing the tangent and the integrator for EPCHA (0D uniaxial)
+----------------------------------------------------------------
+
+* ``tangent_mode = 1`` (continuum) gives the same iterates as the default mode 2 (to
+  :math:`10^{-14}` on the Chaboche identification programmes) for about 27 % less time.
+* ``integrator="closest_point"`` is a different update,
+  backward Euler: 1 to 2 % off the cutting plane there, at about 2.3 times the cost.
+
+Global Newton tolerance
+-----------------------
+
+The global Newton has its own option, ``solve(..., precision_rel=...)``
+(``solver_params::precision_rel``). The residual tolerance becomes
+:math:`\max(\mathrm{precision}, \mathrm{precision\_rel}\,|\boldsymbol\tau|)`, see
+:doc:`python_solver`.
 
 Validation and performance
 ==========================
@@ -635,6 +843,6 @@ Each adapter-served name is validated at two levels:
   elastic/power-law families, < 2e-3 for the Voce/Chaboche family (legacy
   incremental vs modular closed-form Voce integration).
 
-A benchmark row per family lives in ``bench/bench_legacy_vs_modular.py``:
+A benchmark row per family lives in ``benchmark/bench_legacy_vs_modular.py``:
 results show no measurable adapter overhead, and the modular
 engine runs at 0.8-1.2x the speed of the removed kernels on all families.

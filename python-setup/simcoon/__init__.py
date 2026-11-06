@@ -22,18 +22,15 @@ from simcoon.rotation import Rotation  # override _CppRotation from star-import
 from simcoon.solver.micromechanics import L_eff  # override _core.L_eff: Rotation + phase objects
 from simcoon.solver.micromechanics import get_densities_ODF
 from simcoon.tensor import Basis, Tensor2, Tensor4, dyadic, auto_dyadic, sym_dyadic, auto_sym_dyadic, double_contract  # unified tensor classes
-from simcoon.identify import identification, calc_cost
+from simcoon.identify import identification, calc_cost, calc_residuals
 from simcoon.parameter import (
     Parameter,
     read_parameters,
-    copy_parameters,
-    apply_parameters,
+    KeyTemplate,
 )
 from simcoon.constant import (
     Constant,
     read_constants,
-    copy_constants,
-    apply_constants,
 )
 
 # Backward compatibility alias - simmit was the legacy module name

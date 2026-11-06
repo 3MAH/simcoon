@@ -1006,3 +1006,27 @@ TEST(Ttensor_batch, SizeMismatchThrows)
     EXPECT_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_mismatch, Tensor2Type::strain),
                  std::invalid_argument);
 }
+
+// batch_rotate computes every point on its own: the thread count must not change a bit, and each
+// column/slice must be the single-point rotation (past the serial cutoff of the parallel loop).
+TEST(Ttensor_batch, RotateThreadCountAndPointwise)
+{
+    const int N = 500;
+    mat v(6, N, fill::randn);
+    cube t4(6, 6, N, fill::randn);
+    cube R(3, 3, N);
+    for (int i = 0; i < N; i++)
+        R.slice(i) = Rotation::from_rotvec(vec::fixed<3>{0.01 * i, -0.3, 0.002 * i}).as_matrix();
+
+    const mat v_serial = batch_rotate(v, Tensor2Type::strain, R, true, 1);
+    const cube t4_serial = batch_rotate(t4, Tensor4Type::stiffness, R, false, 1);
+    for (unsigned int n_threads : {0u, 2u, 4u}) {
+        EXPECT_TRUE(approx_equal(batch_rotate(v, Tensor2Type::strain, R, true, n_threads), v_serial, "absdiff", 0.));
+        EXPECT_TRUE(approx_equal(batch_rotate(t4, Tensor4Type::stiffness, R, false, n_threads), t4_serial, "absdiff", 0.));
+    }
+    for (int i : {0, 137, N - 1}) {
+        const Rotation Ri = Rotation::from_matrix(mat::fixed<3,3>(R.slice(i)));
+        EXPECT_LT(norm(v_serial.col(i) - vec(Ri.apply_strain(vec(v.col(i)))), "inf"), 1e-14);
+        EXPECT_LT(norm(t4_serial.slice(i) - mat(Ri.apply_stiffness(mat(t4.slice(i)), false)), "inf"), 1e-13);
+    }
+}

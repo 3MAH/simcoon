@@ -26,6 +26,7 @@
 #include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/eig_sym3.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -128,14 +129,62 @@ static inline Fastor::Tensor<double,3,3,3,3> apply_jaumann_correction(
     return result;
 }
 
+// Spectral decomposition of B = F F^T (eigenvalues bi, eigenvectors the columns of Bi) with the
+// fixed-size 3x3 solver; exception_eig_sym on failure, as arma::eig_sym did.
+static inline void eig_B(vec::fixed<3> &bi, mat::fixed<3,3> &Bi, const mat &F, const char *where) {
+    const mat::fixed<3,3> F_(F);
+    if (!eig_sym_3x3(bi, Bi, F_*F_.t())) {
+        throw simcoon::exception_eig_sym(std::string("Error in eig_sym function inside ") + where + ".");
+    }
+}
+
+// Spin coefficients of the logarithmic rate (Xiao-Bruhns-Meyers), f(r) of r = b_i/b_j
+static inline double log_spin_f(const double &bi, const double &bj) {
+    const double s = bi/bj - 1.;
+    if (fabs(s) > 1.e-4) {
+        return (1.+(bi/bj))/(1.-(bi/bj))+2./log(bi/bj);
+    }
+    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+    return s*(-1./6. + s/12.);
+}
+
+// g(r) = (1 - sqrt r)/(1 + sqrt r), r = b_i/b_j
+static inline double log_spin_g(const double &bi, const double &bj) {
+    const double s = bi/bj - 1.;
+    if (fabs(s) > 1.e-4) {
+        return (1.-(pow(bi/bj,0.5)))/(1.+(pow(bi/bj,0.5)));
+    }
+    // Taylor expansion: g(r) = -s/4 + 3s^2/16 + O(s^3) where s = r - 1
+    return s*(-1./4. + 3.*s/16.);
+}
+
+// t/sinh(t), t = 1/2 ln(b_i/b_j): the A^R (log_R) Daleckii-Krein kernel
+static inline double kappa_R(const double &bi, const double &bj) {
+    const double t = 0.5*log(bi/bj);            // ln(lambda_i/lambda_j); 0 on the diagonal
+    if (fabs(t) > 1.e-4) {
+        return t/sinh(t);
+    }
+    return 1. - t*t/6. + 7.*t*t*t*t/360.;       // Taylor of t/sinh(t)
+}
+
+// N_1 and N_2 of the logarithmic rates on the eigenbasis (bi, Bi) of B
+static inline void log_spin_N1_N2(mat &N_1, mat &N_2, const vec::fixed<3> &bi, const mat::fixed<3,3> &Bi, const mat &D) {
+    mat::fixed<3,3> f, g;
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            f(i, j) = (i != j) ? log_spin_f(bi(i), bi(j)) : 0.;
+            g(i, j) = (i != j) ? log_spin_g(bi(i), bi(j)) : 0.;
+        }
+    }
+    N_1 = spectral_congruence(Bi, f, D);
+    N_2 = spectral_congruence(Bi, g, D);
+}
+
 void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
     mat L = zeros(3,3);   // DTime <= iota: D = W = 0, DR = I (rate undefined, see finite_rotation)
     if(DTime > simcoon::iota) {
         try {
-            // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and F at
-            // the MID configuration (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1 (the end-config form
-            // (F1-F0)F1^-1 is only 1st order). The SAME estimate is used by every rate function so
-            // that D=sym(L) is identical across them (enforced by Tobjective_rates.all_rates_same_D).
+            // 2nd-order midpoint L = (2/dt)(F1-F0)(F0+F1)^-1, shared by every rate so D = sym(L) agrees
             L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
@@ -166,13 +215,14 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    // Exact relative polar rotation DR = R1 R0^T and its inverse-Cayley
-    // midpoint spin in one polar pass (Hughes_Winget(Omega) == DR exactly,
-    // so no reconstruction round trip is needed).
+    // DR = R1 R0^T exactly; Hughes_Winget(Omega) == DR, no reconstruction needed
     finite_rotation(F0, F1, DTime, DR, Omega);
 }
 
-void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+namespace {
+
+// one eigen-solve of C0 and one of C1
+void logarithmic_R_kinematics(mat &DR, mat &D, mat &Omega, vec::fixed<3> &b1, mat::fixed<3,3> &Nb, const double &DTime, const mat &F0, const mat &F1) {
     mat L = zeros(3,3);
     if(DTime > simcoon::iota) {    
         try {
@@ -188,56 +238,41 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     D = 0.5*(L+L.t());
     // Exact relative polar rotation + inverse-Cayley spin (see Green_Naghdi):
     // the exact DR is what makes the log_R tangent transport equivariant.
-    finite_rotation(F0, F1, DTime, DR, Omega);
+    mat::fixed<3,3> R0, R1, N0, N1;
+    vec::fixed<3> c0;
+    RU_spectral(R0, c0, N0, F0);
+    RU_spectral(R1, b1, N1, F1);
+    DR = R1*R0.t();
+    Nb = R1*N1;   // B1 = R1 C1 R1^T
 
-    //Logarithmic
-    mat B = L_Cauchy_Green(F1);
-    
-    vec bi = zeros(3);
-    mat Bi;
-    bool success_eig_sym = eig_sym(bi, Bi, B);
-    if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    if (DTime <= simcoon::iota) {
+        Omega = zeros(3,3);
+        return;
     }
+    // Inverse Cayley, as finite_rotation
+    mat::fixed<3,3> DRpI = DR + eye(3,3), DRpI_inv;
+    if (!inv(DRpI_inv, DRpI)) {
+        throw simcoon::exception_inv("Error in inv function inside finite_rotation.");
+    }
+    Omega = (2./DTime)*(DR-eye(3,3))*DRpI_inv;
+}
 
-    std::vector<mat> Bi_proj(3);
-    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
-    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
-    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
-    
-    N_1 = zeros(3,3);
-    for (unsigned int i=0; i<3; i++) {
-        for (unsigned int j=0; j<3; j++) {
-            if (i!=j) {
-                double f_z = 0.;
-                double s = bi(i)/bi(j) - 1.;
-                if (fabs(s) > 1.e-4) {
-                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                } else {
-                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
-                    f_z = s*(-1./6. + s/12.);
-                }
-                N_1 += f_z*Bi_proj[i]*D*Bi_proj[j];
-            }
-        }
-    }
+// De = A^R : D on the eigenbasis (b, Nb) of B, by congruence (t/sinh t kernel)
+mat::fixed<3,3> A_R_D(const vec::fixed<3> &b, const mat::fixed<3,3> &Nb, const mat &D) {
+    mat::fixed<3,3> K;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            K(i, j) = kappa_R(b(i), b(j));
+    return spectral_congruence(Nb, K, D);
+}
 
-    N_2 = zeros(3,3);
-    for (unsigned int i=0; i<3; i++) {
-        for (unsigned int j=0; j<3; j++) {
-            if (i!=j) {
-                double g_z = 0.;
-                double s = bi(i)/bi(j) - 1.;
-                if (fabs(s) > 1.e-4) {
-                    g_z = (1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5)));
-                } else {
-                    // Taylor expansion: g(r) = -s/4 + 3s^2/16 + O(s^3) where s = r - 1
-                    g_z = s*(-1./4. + 3.*s/16.);
-                }
-                N_2 += g_z*Bi_proj[i]*D*Bi_proj[j];
-            }
-        }
-    }
+}  // namespace
+
+void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    vec::fixed<3> bi;
+    mat::fixed<3,3> Bi;
+    logarithmic_R_kinematics(DR, D, Omega, bi, Bi, DTime, F0, F1);
+    log_spin_N1_N2(N_1, N_2, bi, Bi, D);
 }
 
 void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
@@ -257,52 +292,10 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     D = 0.5*(L+L.t());
 
     //Logarithmic
-    mat B = L_Cauchy_Green(F1);
-
-    vec bi = zeros(3);
-    mat Bi;
-    bool success_eig_sym = eig_sym(bi, Bi, B);
-    if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_F.");
-    }
-    std::vector<mat> Bi_proj(3);
-    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
-    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
-    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
-
-    N_1 = zeros(3,3);
-    for (unsigned int i=0; i<3; i++) {
-        for (unsigned int j=0; j<3; j++) {
-            if (i!=j) {
-                double f_z = 0.;
-                double s = bi(i)/bi(j) - 1.;
-                if (fabs(s) > 1.e-4) {
-                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                } else {
-                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
-                    f_z = s*(-1./6. + s/12.);
-                }
-                N_1 += f_z*Bi_proj[i]*D*Bi_proj[j];
-            }
-        }
-    }
-
-    N_2 = zeros(3,3);
-    for (unsigned int i=0; i<3; i++) {
-        for (unsigned int j=0; j<3; j++) {
-            if (i!=j) {
-                double g_z = 0.;
-                double s = bi(i)/bi(j) - 1.;
-                if (fabs(s) > 1.e-4) {
-                    g_z = (1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5)));
-                } else {
-                    // Taylor expansion: g(r) = -s/4 + 3s^2/16 + O(s^3) where s = r - 1
-                    g_z = s*(-1./4. + 3.*s/16.);
-                }
-                N_2 += g_z*Bi_proj[i]*D*Bi_proj[j];
-            }
-        }
-    }
+    vec::fixed<3> bi;
+    mat::fixed<3,3> Bi;
+    eig_B(bi, Bi, F1, "logarithmic_F");
+    log_spin_N1_N2(N_1, N_2, bi, Bi, D);
     
     DF = Hughes_Winget(L, DTime);
 }
@@ -346,28 +339,14 @@ mat Hughes_Winget(const mat &Omega, const double &DTime) {
 }
 
 mat get_BBBB(const mat &F1) {
-    mat B = L_Cauchy_Green(F1);
-    
-    vec bi = zeros(3);
-    mat Bi;
-    bool success_eig_sym = eig_sym(bi, Bi, B);
-    if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside get_BBBB.");
-    }
-    mat BBBB = zeros(6,6);
-    
-    double f_z = 0.;
+    vec::fixed<3> bi;
+    mat::fixed<3,3> Bi;
+    eig_B(bi, Bi, F1, "get_BBBB");
+    mat::fixed<6,6> BBBB(fill::zeros);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if (i!=j) {
-                double s = bi(i)/bi(j) - 1.;
-                if (fabs(s) > 1.e-4) {
-                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                } else {
-                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
-                    f_z = s*(-1./6. + s/12.);
-                }
-                BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
+                add_linearop_eigsym(BBBB, log_spin_f(bi(i), bi(j)), Bi.col(i), Bi.col(j));
             }
         }
     }
@@ -375,22 +354,15 @@ mat get_BBBB(const mat &F1) {
 }
 
 mat get_BBBB_GN(const mat &F1) {
-    mat B = L_Cauchy_Green(F1);
-    
-    vec bi = zeros(3);
-    mat Bi;
-    bool success_eig_sym = eig_sym(bi, Bi, B);
-    if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside get_BBBB_GN.");
-    }
-    mat BBBB = zeros(6,6);
-    
-    double f_z = 0.;
+    vec::fixed<3> bi;
+    mat::fixed<3,3> Bi;
+    eig_B(bi, Bi, F1, "get_BBBB_GN");
+    mat::fixed<6,6> BBBB(fill::zeros);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if (i!=j) {
-                f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
-                BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
+                const double f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
+                add_linearop_eigsym(BBBB, f_z, Bi.col(i), Bi.col(j));
             }
         }
     }
@@ -400,44 +372,25 @@ mat get_BBBB_GN(const mat &F1) {
 // A^R: log_R-frame strain-concentration tensor, De = A^R:D (full doc in objective_rates.hpp).
 // t/sinh(t) geometric-mean Daleckii-Krein kernel on the eigenbasis of B = F F^T.
 mat A_R(const mat &F) {
-    mat B = L_Cauchy_Green(F);
-    vec bi = zeros(3);
-    mat Bi;
-    bool success_eig_sym = eig_sym(bi, Bi, B);
-    if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside A_R.");
-    }
-    mat AR = zeros(6,6);
+    vec::fixed<3> bi;
+    mat::fixed<3,3> Bi;
+    eig_B(bi, Bi, F, "A_R");
+    mat::fixed<6,6> AR(fill::zeros);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            double t = 0.5*log(bi(i)/bi(j));            // ln(lambda_i/lambda_j); 0 on the diagonal
-            double c;
-            if (fabs(t) > 1.e-4) {
-                c = t/sinh(t);
-            } else {
-                c = 1. - t*t/6. + 7.*t*t*t*t/360.;       // Taylor of t/sinh(t)
-            }
-            AR = AR + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+            add_linearop_eigsym(AR, kappa_R(bi(i), bi(j)), Bi.col(i), Bi.col(j));
         }
     }
     AR.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^R(I)=I, read De with v2t_strain
     return AR;
 }
 
-// A^F: log_F-frame (convected) strain-concentration tensor (full doc in objective_rates.hpp).
-// Kernel t*coth(t), t = 1/2 ln(b_i/b_j) -> diagonal = 1, so A^F:D recovers ln V (like A^R:D) in
-// the convected F-frame. The cosh(t) factor vs A_R's t/sinh(t) compensates the convected (inv DF)
-// transport. (An earlier "-1/2 ln(b_i b_j)" term made it deliberately indefinite past lambda=sqrt(e);
-// that corrupted the diagonal to 1-2 lnλ and was the bug -- A^F MUST integrate to ln V, as A^R does.)
+// kernel t*coth(t): unit diagonal, so A^F:D integrates to ln V like A^R:D
 mat A_F(const mat &F) {
-    mat B = L_Cauchy_Green(F);
-    vec bi = zeros(3);
-    mat Bi;
-    bool success_eig_sym = eig_sym(bi, Bi, B);
-    if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside A_F.");
-    }
-    mat AF = zeros(6,6);
+    vec::fixed<3> bi;
+    mat::fixed<3,3> Bi;
+    eig_B(bi, Bi, F, "A_F");
+    mat::fixed<6,6> AF(fill::zeros);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             double t = 0.5*log(bi(i)/bi(j));
@@ -448,7 +401,7 @@ mat A_F(const mat &F) {
                 tcoth = 1. + t*t/3. - t*t*t*t/45.;       // Taylor of t*coth(t)
             }
             double c = tcoth;     // t*coth(t): F-frame strain-concentration kernel (diagonal -> 1, recovers ln V)
-            AF = AF + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+            add_linearop_eigsym(AF, c, Bi.col(i), Bi.col(j));
         }
     }
     AF.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^F(I)=I, read De with v2t_strain
@@ -473,35 +426,14 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     mat W = 0.5*(L-L.t());
     
     //Logarithmic
-    mat B = L_Cauchy_Green(F1);
-    
-    vec bi = zeros(3);
-    mat Bi;
-    bool success_eig_sym = eig_sym(bi, Bi, B);
-    if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic.");
-    }
-    std::vector<mat> Bi_proj(3);
-    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
-    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
-    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
-    
-    mat N = zeros(3,3);
-    for (unsigned int i=0; i<3; i++) {
-        for (unsigned int j=0; j<3; j++) {
-            if (i!=j) {
-                double f_z = 0.;
-                double s = bi(i)/bi(j) - 1.;
-                if (fabs(s) > 1.e-4) {
-                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                } else {
-                    // Taylor expansion: h(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
-                    f_z = s*(-1./6. + s/12.);
-                }
-                N += f_z*Bi_proj[i]*D*Bi_proj[j];
-            }
-        }
-    }
+    vec::fixed<3> bi;
+    mat::fixed<3,3> Bi;
+    eig_B(bi, Bi, F1, "logarithmic");
+    mat::fixed<3,3> f;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            f(i, j) = (i != j) ? log_spin_f(bi(i), bi(j)) : 0.;
+    const mat::fixed<3,3> N = spectral_congruence(Bi, f, D);
     Omega = W + N;
     DR = Hughes_Winget(Omega, DTime);
 }
@@ -512,9 +444,7 @@ mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
 }
 
 mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
-    // Naive log_F midpoint increment: same form as Delta_log_strain, but the frame
-    // increment DF = Hughes_Winget(L, dt) is non-orthogonal, so the rotated term is
-    // the push-forward DF*D*inv(DF) -- inverse, NOT transpose.
+    // DF is non-orthogonal: the rotated term is DF*D*inv(DF), not DF*D*DF^T
     const mat DF = Hughes_Winget(L, DTime);
     return 0.5*(D+(DF*D*inv(DF)))*DTime;
 }
@@ -523,11 +453,13 @@ mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
 // chosen objective rate. Single source of truth for the solver's control_type ladders.
 void corate_kinematics(const int &corate_type, mat &DR, mat &D, mat &Omega, const mat &F0, const mat &F1, const double &DTime) {
     mat N_1 = zeros(3,3), N_2 = zeros(3,3);
+    vec::fixed<3> b1;
+    mat::fixed<3,3> Nb;
     switch (corate_type) {
         case 0: Jaumann(DR, D, Omega, DTime, F0, F1); break;
         case 1: Green_Naghdi(DR, D, Omega, DTime, F0, F1); break;
         case 2: logarithmic(DR, D, Omega, DTime, F0, F1); break;
-        case 3: logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0, F1); break;   // DR = R-rotation
+        case 3: logarithmic_R_kinematics(DR, D, Omega, b1, Nb, DTime, F0, F1); break;   // DR = R-rotation (N_1, N_2 unused)
         case 4: Truesdell(DR, D, Omega, DTime, F0, F1); break;                 // DR = DF, Omega = L
         case 5: logarithmic_F(DR, N_1, N_2, D, Omega, DTime, F0, F1); break;   // DR = DF, Omega = L
         case corate_type_total: Jaumann(DR, D, Omega, DTime, F0, F1); DR.eye(3,3); Omega.zeros(3,3); break;   // strain space: no frame increment
@@ -535,25 +467,57 @@ void corate_kinematics(const int &corate_type, mat &DR, mat &D, mat &Omega, cons
     }
 }
 
+// One-step kinematics plus the strain increment, sharing the spectral work (doc in objective_rates.hpp)
+void corate_kinematics(const int &corate_type, mat &DR, mat &D, mat &Omega, mat &De, const mat &F0, const mat &F1, const double &DTime) {
+    if (corate_type == 3) {   // log_R: the eigen-solve of C1 gives R1, the eigenbasis of B1 and A^R
+        vec::fixed<3> b1;
+        mat::fixed<3,3> Nb;
+        logarithmic_R_kinematics(DR, D, Omega, b1, Nb, DTime, F0, F1);
+        const mat::fixed<3,3> Dh = A_R_D(b1, Nb, D);
+        De = 0.5*(Dh + DR*Dh*DR.t())*DTime;
+        return;
+    }
+    corate_kinematics(corate_type, DR, D, Omega, F0, F1, DTime);
+    De = Delta_log_strain_corate(F0, F1, DR, D, Omega, DTime, corate_type);
+}
+
+namespace {
+
+// 1/2 ln of the SPD matrix A (a Cauchy-Green tensor)
+mat::fixed<3,3> half_logmat(const mat::fixed<3,3> &A, const char *where) {
+    mat::fixed<3,3> H;
+    if (!logmat_sympd_3x3(H, A)) {
+        throw simcoon::exception_logmat_sympd(std::string("Error in logmat_sympd function inside ") + where + ".");
+    }
+    return 0.5*H;
+}
+
+}  // namespace
+
 // Dispatch documented in objective_rates.hpp.
 mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const mat &D, const mat &Omega, const double &DTime, const int &corate_type) {
     if (corate_type == corate_type_total) {   // total formulation: H = 1/2 ln C is a state function of F, reference components
-        return 0.5*logmat_sympd(R_Cauchy_Green(F1)) - 0.5*logmat_sympd(R_Cauchy_Green(F0));
+        const mat::fixed<3,3> F0_(F0), F1_(F1);
+        return half_logmat(F1_.t()*F1_, "Delta_log_strain_corate") - half_logmat(F0_.t()*F0_, "Delta_log_strain_corate");
     }
     if (corate_type == 5) {   // log_F: convected A^F:D rate (Omega carries the velocity gradient L)
         return Delta_log_strain_F(v2t_strain(A_F(F1)*t2v_strain(D)), Omega, DTime);
     }
     if (corate_type == 2) {   // XBM: exact closed-form spatial log-strain difference -> etot = ln V1
-        mat lnV0 = 0.5*logmat_sympd(L_Cauchy_Green(F0));
-        mat lnV1 = 0.5*logmat_sympd(L_Cauchy_Green(F1));
+        const mat::fixed<3,3> F0_(F0), F1_(F1);
+        const mat::fixed<3,3> lnV0 = half_logmat(F0_*F0_.t(), "Delta_log_strain_corate");
+        const mat::fixed<3,3> lnV1 = half_logmat(F1_*F1_.t(), "Delta_log_strain_corate");
         return lnV1 - DR*lnV0*DR.t();                          // orthogonal (DR^T) transport
     }
-    // corate 3 (log_R): A^R:D = the R-corotational (Green-Naghdi) rate of ln V, integrated in the
-    // natural frame -> recovers ln V (~2e-4) and is frame-indifferent under rigid rotation. The
-    // log_R spin is carried by sv_M->DR (logarithmic_R); the solver must NOT also apply the DR_N
-    // natural-basis rotation -- stacking both double-counts the log_R correction (undershoots ln V
-    // by ~11% under large open shear). A^R:D alone is the correct, self-consistent formulation.
-    if (corate_type == 3) return Delta_log_strain(v2t_strain(A_R(F1)*t2v_strain(D)), Omega, DTime);  // log_R: A^R:D
+    // log_R spin is carried by sv_M->DR: the solver must not also apply DR_N (double count)
+    // frame increment is DR itself (inverse Cayley of Omega)
+    if (corate_type == 3) {   // log_R: A^R:D
+        vec::fixed<3> b1;
+        mat::fixed<3,3> Nb;
+        eig_B(b1, Nb, F1, "Delta_log_strain_corate");
+        const mat::fixed<3,3> Dh = A_R_D(b1, Nb, D);
+        return 0.5*(Dh + DR*Dh*DR.t())*DTime;
+    }
     if (corate_type == 4) {   // Truesdell: e_A(F1) = DF^-T e_A(F0) DF^-1 + De, exactly, with DR = DF
         return 0.5*(eye(3,3) - inv_sympd(DR*DR.t()));
     }
@@ -574,50 +538,29 @@ double Delta_work_conjugacy(const vec &tau_start, const vec &tau_start_tr, const
          - 0.5*dot(tau_start_tr + tau, Detot);
 }
 
-// ---------------------------------------------------------------------------
-// EXACT log-box <-> material tangent maps (contract and derivation: see the
-// DtauDe_2_DSDE / DSDE_2_DtauDe Doxygen in objective_rates.hpp). Both
-// directions differentiate S(E) = U^-1 R^T tau(ln V) R U^-1 with
-// Daleckii-Krein spectral derivatives and are mutual algebraic inverses by
-// construction — which keeps the hyperelastic bake-transport round trip
-// exact with no coordinated re-derivation.
-// The kernel box Lt lives in the SPATIAL frame (argument ln V = R ln U R^T),
-// while the spectral machinery differentiates the material-frame ln U: the
-// box must therefore be applied as R^T (Lt : R dh R^T) R. Skipping that
-// conjugation is exact only for isotropic Lt or R = I — with a plastified
-// (anisotropic) box tangent under accumulated rotation it leaves an
-// O(||Lt_dev|| * theta_R) tangent error that grows with rotation and
-// degrades Newton (the "history transport" finding: ~5e-3 at gamma = 0.3
-// simple shear on EPICP, conjugated map ~1e-9).
-// ---------------------------------------------------------------------------
+// Exact log-box <-> material tangent maps (contract: DtauDe_2_DSDE / DSDE_2_DtauDe)
 
 namespace {
 
-// Spectral machinery on C = F^T F shared by the two exact maps above. The
-// Daleckii-Krein derivative is applied in congruence form,
-// dY = N (G % N^T dX N) N^T (N = eigenvector matrix), which is the same map
-// as the sum over eigenprojector sandwiches at a fraction of the products.
+// Daleckii-Krein in congruence form: dY = N (G % N^T dX N) N^T
 struct dk_spectral {
-    arma::vec lam;      // eigenvalues of C (SPD)
-    arma::mat N;        // eigenvectors of C (columns)
-    arma::mat G_h;      // DK coefficients of h(C) = 1/2 ln C
-    arma::mat G_iU;     // DK coefficients of C^{-1/2}
-    arma::mat U;        // C^{1/2}
-    arma::mat invU;     // C^{-1/2}
-    arma::mat R;        // polar rotation F U^{-1}
-    arma::mat tau_hat;  // corotational Kirchhoff stress R^T tau R
+    arma::vec::fixed<3> lam;      // eigenvalues of C (SPD)
+    arma::mat::fixed<3,3> N;      // eigenvectors of C (columns)
+    arma::mat::fixed<3,3> G_h;    // DK coefficients of h(C) = 1/2 ln C
+    arma::mat::fixed<3,3> G_iU;   // DK coefficients of C^{-1/2}
+    arma::mat::fixed<3,3> U;      // C^{1/2}
+    arma::mat::fixed<3,3> invU;   // C^{-1/2}
+    arma::mat::fixed<3,3> R;      // polar rotation F U^{-1}
+    arma::mat::fixed<3,3> tau_hat;  // corotational Kirchhoff stress R^T tau R
 
     void build(const arma::mat &F, const arma::mat &tau) {
-        const bool success_eig_sym = arma::eig_sym(lam, N, R_Cauchy_Green(F));
+        const arma::mat::fixed<3,3> F_(F);
+        const bool success_eig_sym = eig_sym_3x3(lam, N, F_.t()*F_);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym(
                 "Error in eig_sym function inside the exact DtauDe<->DSDE map.");
         }
-        // Near-singular F: lam(min) -> 0 would push log/1/sqrt to NaN/Inf
-        // tangents with NO exception. Throw the exception the solver's
-        // step-cut catch ladder already handles (exception_inv: F is not
-        // usably invertible), preserving the recoverable failure mode of
-        // the previous inv(F)-based implementation.
+        // near-singular F: throw exception_inv, the solver step-cut signal, rather than NaN tangents
         if (!lam.is_finite() || lam.min() <= simcoon::iota) {
             throw simcoon::exception_inv(
                 "Near-singular F inside the exact DtauDe<->DSDE map (eigenvalue of C <= iota).");
@@ -626,15 +569,13 @@ struct dk_spectral {
                     [](double l) { return 0.5 / l; });
         G_iU = gmat([](double l) { return 1.0 / std::sqrt(l); },
                     [](double l) { return -0.5 * std::pow(l, -1.5); });
-        U    = N * diagmat(sqrt(lam)) * N.t();
-        invU = N * diagmat(1.0 / sqrt(lam)) * N.t();
-        R = F * invU;
-        tau_hat = R.t() * tau * R;
+        U    = spectral_compose_3x3(N, sqrt(lam));
+        invU = spectral_compose_3x3(N, 1.0 / sqrt(lam));
+        R = F_ * invU;
+        tau_hat = R.t() * arma::mat::fixed<3,3>(tau) * R;
     }
 
-    // Divided-difference coefficient matrix for f, symmetric; f' at the
-    // midpoint on the coincidence guard (2nd-order limit; same conservative
-    // 1e-4 relative threshold as get_BBBB / A_R in this file).
+    // f' at the midpoint under the 1e-4 relative coincidence guard (as get_BBBB / A_R)
     template <typename Ff, typename Fdf>
     arma::mat gmat(Ff f, Fdf df) const {
         const arma::vec fl = {f(lam(0)), f(lam(1)), f(lam(2))};
@@ -653,20 +594,57 @@ struct dk_spectral {
 
 };
 
+// Fixed-size Voigt helpers of the 6-column tangent maps below: per column, 3x3 products on the
+// stack and the 6x6 box applied by hand (a BLAS gemv call per column otherwise).
+typedef arma::mat::fixed<3,3> m33;
+
+// engineering-Voigt unit strain e_j as a tensor (v2t_strain of the j-th basis vector)
+inline m33 unit_strain_tensor(const int j) {
+    static const int ia[6] = {0, 1, 2, 0, 0, 1}, ib[6] = {0, 1, 2, 1, 2, 2};
+    m33 e(arma::fill::zeros);
+    const double v = (j < 3) ? 1. : 0.5;
+    e(ia[j], ib[j]) = v;
+    e(ib[j], ia[j]) = v;
+    return e;
+}
+
+// y = Lt t2v_strain(e)
+inline void box_apply(const arma::mat::fixed<6,6> &Lt, const m33 &e, double y[6]) {
+    const double x[6] = {e(0,0), e(1,1), e(2,2), e(0,1) + e(1,0), e(0,2) + e(2,0), e(1,2) + e(2,1)};
+    for (int i = 0; i < 6; ++i) {
+        double yi = 0.;
+        for (int k = 0; k < 6; ++k) yi += Lt(i, k)*x[k];
+        y[i] = yi;
+    }
+}
+
+inline m33 v2t_stress_arr(const double v[6]) {
+    m33 S;
+    S(0,0) = v[0]; S(1,1) = v[1]; S(2,2) = v[2];
+    S(0,1) = S(1,0) = v[3];
+    S(0,2) = S(2,0) = v[4];
+    S(1,2) = S(2,1) = v[5];
+    return S;
+}
+
+// column j of a 6x6 Voigt map, as t2v_stress(S)
+inline void set_stress_col(arma::mat &M, const int j, const m33 &S) {
+    M(0, j) = S(0,0); M(1, j) = S(1,1); M(2, j) = S(2,2);
+    M(3, j) = 0.5*(S(0,1) + S(1,0));
+    M(4, j) = 0.5*(S(0,2) + S(2,0));
+    M(5, j) = 0.5*(S(1,2) + S(2,1));
+}
+
 }  // namespace
 
 namespace {
 
-// Total formulation (strain space). The box is posed on H = f(C), f = 1/2 ln, in reference
-// components and returns the dual stress T; with That = N^T T N in the eigenbasis of C:
-//   S    = 2 Df(C)[T]          = 2 N (G % That) N^T,        G_ab    = f[c_a, c_b]
-//   tau  = F S F^T             = R N (kappa % That) N^T R^T, kappa   = 2 lam_a lam_b G_ab
-//   dS   = 2 Df(C)[dT] + 2 D2f(C)[T, dC],  D2f(C)[T, dC]_ab = sum_k Gam_akb (That_ak dC_kb + dC_ak That_kb)
-// with Gam_abc = f[c_a, c_b, c_c]. kappa(t) = t/sinh(t), t = ln(lam_a/lam_b), is A_R's kernel.
+// S = 2 N (G % That) N^T, tau = R N (kappa % That) N^T R^T, That = N^T T N, G_ab = f[c_a, c_b],
+// f = 1/2 ln, kappa = 2 lam_a lam_b G_ab = t/sinh(t) (A_R kernel)
 struct logU_spectral {
-    arma::vec c;                        // eigenvalues of C (SPD)
-    arma::mat N;                        // eigenvectors of C (columns)
-    arma::mat R;                        // polar rotation F U^{-1}
+    arma::vec::fixed<3> c;              // eigenvalues of C (SPD)
+    arma::mat::fixed<3,3> N;            // eigenvectors of C (columns)
+    arma::mat::fixed<3,3> R;            // polar rotation F U^{-1}
     arma::mat::fixed<3,3> kappa;        // t/sinh(t)
     arma::mat::fixed<3,3> G;            // first divided differences of 1/2 ln
     double Gam[3][3][3];                // second divided differences of 1/2 ln
@@ -679,10 +657,7 @@ struct logU_spectral {
     static double dd1(const double &x, const double &y) {
         return kappa_of(x, y)/(2.*std::sqrt(x*y));
     }
-    // f[x, y, z]. Separated: difference of the two first differences over the WIDEST gap, so two
-    // coalescing arguments cost nothing. Clustered (spread below 1e-4): Taylor about the mean m,
-    // f[..] = sum_k f^(k+2)(m)/(k+2)! h_k(d), h_k the complete homogeneous polynomials of the
-    // offsets d (h_1 = 0 about the mean); truncated after h_4, exact limit -1/(4 m^2).
+    // f[x,y,z]: separated -> difference over the widest gap; clustered (< 1e-4) -> Taylor about the mean to h_4
     static double dd2(double x, double y, double z) {
         if (x > y) std::swap(x, y);
         if (y > z) std::swap(y, z);
@@ -699,7 +674,8 @@ struct logU_spectral {
 
     // tangent = false: the stress maps need kappa only
     void build(const arma::mat &F, const bool &tangent) {
-        const bool success_eig_sym = arma::eig_sym(c, N, R_Cauchy_Green(F));
+        const arma::mat::fixed<3,3> F_(F);
+        const bool success_eig_sym = eig_sym_3x3(c, N, F_.t()*F_);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside the total-formulation (strain-space) maps.");
         }
@@ -707,7 +683,7 @@ struct logU_spectral {
         if (!c.is_finite() || c.min() <= simcoon::iota) {
             throw simcoon::exception_inv("Near-singular F inside the total-formulation (strain-space) maps (eigenvalue of C <= iota).");
         }
-        R = F*N*diagmat(1.0/sqrt(c))*N.t();
+        R = F_*spectral_compose_3x3(N, 1.0/sqrt(c));
         for (int a = 0; a < 3; ++a) {
             for (int b = 0; b < 3; ++b) {
                 kappa(a, b) = kappa_of(c(a), c(b));
@@ -795,22 +771,22 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 
     dk_spectral sp;
     sp.build(F, tau);
+    const arma::mat::fixed<6,6> Lt_(Lt);
 
     mat DSDE(6, 6);
-    vec ej(6);
+    double y[6];
     for (int j = 0; j < 6; ++j) {
-        ej.zeros(); ej(j) = 1.;
-        const mat dC = 2. * v2t_strain(ej);            // engineering Voigt basis
-        const mat dCp = sp.N.t() * dC * sp.N;          // shared eigenbasis transform
-        const mat dh = sp.N * (sp.G_h % dCp) * sp.N.t();      // d(1/2 ln C) = d(ln U)
+        const m33 dC = 2. * unit_strain_tensor(j);     // engineering Voigt basis
+        const m33 dCp = sp.N.t() * dC * sp.N;          // shared eigenbasis transform
+        const m33 dh = sp.N * (sp.G_h % dCp) * sp.N.t();      // d(1/2 ln C) = d(ln U)
         // The box acts in the spatial frame (d ln V = R d(ln U) R^T at fixed R):
         // conjugate in, apply Lt, conjugate back to the corotational frame.
-        const mat dtau_sp = v2t_stress(Lt * t2v_strain(sp.R * dh * sp.R.t()));
-        const mat dtau_hat = sp.R.t() * dtau_sp * sp.R;
-        const mat dinvU = sp.N * (sp.G_iU % dCp) * sp.N.t();  // d(C^{-1/2})
-        const mat dS = sp.invU * dtau_hat * sp.invU
+        box_apply(Lt_, sp.R * dh * sp.R.t(), y);
+        const m33 dtau_hat = sp.R.t() * v2t_stress_arr(y) * sp.R;
+        const m33 dinvU = sp.N * (sp.G_iU % dCp) * sp.N.t();  // d(C^{-1/2})
+        const m33 dS = sp.invU * dtau_hat * sp.invU
                      + dinvU * sp.tau_hat * sp.invU + sp.invU * sp.tau_hat * dinvU;
-        DSDE.col(j) = t2v_stress(dS);
+        set_stress_col(DSDE, j, dS);
     }
     return DSDE;
 }
@@ -889,13 +865,6 @@ mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
 
 mat DtauDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 
-    // The PLAIN Green-Naghdi corotational strain (corate 1, integral of
-    // R^T D R) is a PATH integral — not a state function of C — so the exact
-    // spectral map above does not apply: this conversion stays the rate
-    // identity (GN box -> Lie via the GN spin correction, then pull-back),
-    // the exact inverse of DSDE_2_Dtau_GreenNaghdiDD. NB log_R (corate 3) is
-    // NOT in this family: A^R:D accumulates exactly ln U, so the corate
-    // dispatchers route it to the exact map.
     mat invF;
     try {
         invF = inv(F);
@@ -938,32 +907,25 @@ mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
 
 mat DSDE_2_DtauDe(const mat &DSDE, const mat &F, const mat &tau) {
 
-    // Exact algebraic inverse of DtauDe_2_DSDE (see the block comment there):
-    // every step of the composition is inverted — the Daleckii-Krein map is
-    // diagonal in the eigenprojector basis, so its inverse is the entrywise
-    // reciprocal of the coefficient matrix.
     dk_spectral sp;
     sp.build(F, tau);
-    const mat G_h_inv = 1.0 / sp.G_h;      // elementwise; G_h > 0 (1/2 ln strictly increasing)
-    const mat G_comp = sp.G_iU % G_h_inv;  // composed d(C^{-1/2}) o [d(1/2 ln C)]^{-1}
+    const m33 G_h_inv = 1.0 / sp.G_h;      // elementwise; G_h > 0 (1/2 ln strictly increasing)
+    const m33 G_comp = sp.G_iU % G_h_inv;  // composed d(C^{-1/2}) o [d(1/2 ln C)]^{-1}
+    const arma::mat::fixed<6,6> DSDE_(0.5 * DSDE);
 
     mat Lt(6, 6);
-    vec ej(6);
+    double y[6];
     for (int j = 0; j < 6; ++j) {
-        ej.zeros(); ej(j) = 1.;
-        // The box argument is the SPATIAL log strain: pull the basis
-        // perturbation d(ln V) back to the material frame (d ln U at fixed R)
-        // before inverting the spectral steps, and push the corotational
-        // stress response forward again — the exact inverse of the forward
-        // map's R conjugation.
-        const mat dh = sp.R.t() * v2t_strain(ej) * sp.R;
-        const mat dhp = sp.N.t() * dh * sp.N;               // eigenframe
-        const mat dC = sp.N * (G_h_inv % dhp) * sp.N.t();   // inverse of d(1/2 ln C)
-        const mat dS = v2t_stress(0.5 * (DSDE * t2v_strain(dC)));
-        const mat dinvU = sp.N * (G_comp % dhp) * sp.N.t();
-        const mat dtau_hat =
+        // box argument is ln V: pull dh back by R (inverse of the forward R conjugation)
+        const m33 dh = sp.R.t() * unit_strain_tensor(j) * sp.R;
+        const m33 dhp = sp.N.t() * dh * sp.N;               // eigenframe
+        const m33 dC = sp.N * (G_h_inv % dhp) * sp.N.t();   // inverse of d(1/2 ln C)
+        box_apply(DSDE_, dC, y);
+        const m33 dS = v2t_stress_arr(y);
+        const m33 dinvU = sp.N * (G_comp % dhp) * sp.N.t();
+        const m33 dtau_hat =
             sp.U * (dS - dinvU * sp.tau_hat * sp.invU - sp.invU * sp.tau_hat * dinvU) * sp.U;
-        Lt.col(j) = t2v_stress(sp.R * dtau_hat * sp.R.t());
+        set_stress_col(Lt, j, sp.R * dtau_hat * sp.R.t());
     }
     return Lt;
 }
@@ -1071,12 +1033,9 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
         case 4:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // Truesdell: the convected box IS the Lie tangent
         case 5:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau)*inv(A_F(F));   // log_F: De = A^F:D dt, stress carried by sym(DF X DF^-1)
         case corate_type_total:  return DSDE_2_logU_box(DSDE, F, tau);            // strain space: dT/dH in reference components
+        case corate_type_material_tangent:  return DSDE;            // the material tangent itself
         case 2:                                                     // XBM (logarithmic)
-        case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
-                                                                    // R frame (Hoger/Miehe d(ln U)/dC in rate form),
-                                                                    // a state function of C -> exact map applies; the
-                                                                    // R transport even cancels without the isotropy
-                                                                    // argument XBM needs (no residual rotation).
+        case 3:                                                     // log_R: A^R:D accumulates exactly ln U (a function of C) -> exact map
         default: return DSDE_2_DtauDe(DSDE, F, tau);
     }
 }
@@ -1094,7 +1053,7 @@ mat dH_dE(const mat &C) {
     for (int j = 0; j < 6; j++) {
         vec e = zeros(6);
         e(j) = 1.;
-        P.col(j) = t2v_strain(N*(2.*(g % (N.t()*v2t_strain(e)*N)))*N.t());
+        P.col(j) = t2v_strain(spectral_congruence(N, 2.*g, v2t_strain(e)));
     }
     return P;
 }
@@ -1117,6 +1076,7 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
         case 4:  return Dtau_LieDD_2_DSDE(Lt, F);                   // Truesdell: convected box = Lie tangent
         case 5:  return DtauDe_JaumannDD_2_DSDE(Lt*A_F(F), F, tau); // log_F: inverse of the forward map
         case corate_type_total:  return logU_box_2_DSDE(Lt, F, tau);              // strain space: P^T Lt P + T:L
+        case corate_type_material_tangent:  return Lt;              // already dS/dE
         case 2:                                                     // XBM and...
         case 3:                                                     // log_R: exact map (see DSDE_2_DtauDe_corate)
         default: return DtauDe_2_DSDE(Lt, F, tau);
@@ -1124,19 +1084,38 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
 }
 
 mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, const mat &F, const mat &tau) {
-    // Mirrors DSDE_2_DtauDe_corate above, one step earlier in the chain: from the SPATIAL
-    // (Lie/Oldroyd) tangent, which is what a hyperelastic potential closes on, straight to the
-    // box of the requested rate.
     switch (corate_type) {
         case 0:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau);
         case 1:  return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
         case 4:  return Dtau_LieDD;                                   // Truesdell: the convected box IS the Lie tangent
         case 5:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau)*inv(A_F(F));   // log_F: chain rule through De = A^F:D dt
         case corate_type_total:  return DSDE_2_logU_box(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);   // strain space, through dS/dE
+        case corate_type_material_tangent:  return Dtau_LieDD_2_DSDE(Dtau_LieDD, F);   // the pull-back alone
         case 2:                                                       // XBM and...
         case 3:                                                       // log_R: exact spectral map
         default: return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);
     }
+}
+
+mat Dtau_LieDD_2_DtauDe_stretch(const mat &Dtau_LieDD, const vec::fixed<3> &e, const mat::fixed<3,3> &N, const mat &tau) {
+    m33 H;
+    for (int a = 0; a < 3; ++a) {
+        for (int b = 0; b < 3; ++b) {
+            const double d = e(a) - e(b);
+            H(a, b) = (std::fabs(d) > 1.e-4) ? std::tanh(d)/d : 1. - d*d/3. + 2.*d*d*d*d/15.;   // Taylor of tanh(d)/d
+        }
+    }
+    const arma::mat::fixed<6,6> Jc(Dtau_LieDD);
+    const m33 tau_(tau);
+    mat Lt(6, 6);
+    double y[6];
+    for (int j = 0; j < 6; ++j) {
+        const m33 dt = spectral_congruence(N, H, unit_strain_tensor(j));
+        box_apply(Jc, dt, y);
+        const m33 dtau = v2t_stress_arr(y) + dt * tau_ + tau_ * dt;
+        set_stress_col(Lt, j, dtau);
+    }
+    return Lt;
 }
 
 // Canonical box tangent Lt = d(tau_hat)/d(De) (full doc in objective_rates.hpp).
@@ -1172,11 +1151,7 @@ mat Dtau_LieDD_Dtau_GreenNaghdiDD(const mat &Dtau_LieDD, const mat &F, const mat
 
 mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
 
-    // For the XBM logarithmic rate the tangent in-rate IS the box tangent
-    // d(tau_hat)/dDe: route through the exact spectral pair so the whole
-    // corate-2 family shares one core and composes as mutual inverses
-    // (the former frozen-spin correction left this leg first-order while
-    // the box<->DSDE legs were exact).
+    // XBM in-rate tangent = box tangent: route through the exact spectral pair
     return DSDE_2_DtauDe(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);
 }
 

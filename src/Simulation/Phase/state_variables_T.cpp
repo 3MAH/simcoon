@@ -37,10 +37,6 @@ namespace simcoon{
 
 //=====Public methods for state_variables_T============================================
 
-/*!
-  \brief default constructor
-*/
-
 //-------------------------------------------------------------
 state_variables_T::state_variables_T() : state_variables(), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
 //-------------------------------------------------------------
@@ -50,6 +46,8 @@ state_variables_T::state_variables_T() : state_variables(), sigma_in(6), sigma_i
     r_in = 0.;
     sigma_in = zeros(6);
     sigma_in_start = zeros(6);
+    Wm = zeros(4);
+    Wm_start = zeros(4);
     Wt = zeros(3);
     Wt_start = zeros(3);
     dSdE = zeros(6,6);
@@ -58,12 +56,6 @@ state_variables_T::state_variables_T() : state_variables(), sigma_in(6), sigma_i
     drdE = zeros(1,6);
     drdT = zeros(1,1);
 }
-
-/*!
-  \brief Constructor with parameters
-  \n\n
-  \f$ \textbf{Examples :} \f$ \n
-*/
 
 //-------------------------------------------------------------
 state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
@@ -110,11 +102,6 @@ state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const 
     drdT = mdrdT;
 }
 
-/*!
-  \brief Copy constructor
-  \param s state_variables_T object to duplicate
-*/
-
 //------------------------------------------------------
 state_variables_T::state_variables_T(const state_variables_T& sv) : state_variables(sv), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
 //------------------------------------------------------
@@ -135,22 +122,12 @@ state_variables_T::state_variables_T(const state_variables_T& sv) : state_variab
     drdT = sv.drdT;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
-
 //-------------------------------------
 state_variables_T::~state_variables_T()
 //-------------------------------------
 {
 
 }
-
-/*!
-  \brief Standard operator = for state_variables
-*/
 
 //----------------------------------------------------------------------
 state_variables_T& state_variables_T::operator = (const state_variables_T& sv)
@@ -313,9 +290,7 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
     Wt = sv.Wt;
 
     frame.rotate_stiffness(dSdE);
-    // dSdT and drdE are Voigt vectors stored as a mat (1x6 by the constructors, 6x1 by the
-    // solver): rotated as vectors, returned in the shape they came with. Both take the
-    // stress operator: drdE is a gradient w.r.t. the engineering strain (see the header).
+    // dSdT, drdE: Voigt vectors stored as mat, rotated with the stress operator, shape kept (see the header).
     vec dSdT_v = vectorise(dSdT);
     frame.rotate_stress(dSdT_v);
     dSdT = reshape(dSdT_v, size(dSdT));

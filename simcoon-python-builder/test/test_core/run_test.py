@@ -346,3 +346,12 @@ def test_umat_ogden_stress_free_reference():
     assert np.allclose(sig, np.zeros(6), atol=1e-12)
     # ground-state shear stiffness: Lt(3,3) = mu = sum(mu_i)
     assert np.isclose(Lt[3, 3], 0.5673, rtol=1e-6)
+
+
+def test_invalid_elastic_convention_raises():
+    """An unknown convention raises ValueError (it used to end the process, or return zero)."""
+    import pytest
+    with pytest.raises(ValueError, match="L_iso: unknown convention 'Emu'"):
+        sim.L_iso([70000., 0.3], "Emu")
+    with pytest.raises(ValueError, match="L_ortho: unknown convention"):
+        sim.L_ortho([1., 1., 1., 0.3, 0.3, 0.3, 1., 1., 1.], "Enu")

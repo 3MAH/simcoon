@@ -54,9 +54,6 @@ namespace simcoon{
 
 //=====Public methods for phase_characteristics============================================
 
-/*!
-  \brief default constructor
-*/
 //-------------------------------------------------------------
 phase_characteristics::phase_characteristics()
 //-------------------------------------------------------------
@@ -69,10 +66,6 @@ phase_characteristics::phase_characteristics()
    
 }
 
-/*!
-  \brief Constructor with parameters
-  \f$ \textbf{Examples :} \f$ \n
-*/
 
 //-------------------------------------------------------------
 phase_characteristics::phase_characteristics(const int &mshape_type, const int &msv_type, const std::shared_ptr<geometry> &msptr_shape, const std::shared_ptr<phase_multi> &msptr_multi, const std::shared_ptr<material_characteristics> &msptr_matprops, const std::shared_ptr<state_variables> &msptr_sv_global, const std::shared_ptr<state_variables> &msptr_sv_local, const std::shared_ptr<std::ofstream> &msptr_out_global, const std::shared_ptr<std::ofstream> &msptr_out_local, const std::string &msub_phases_file)
@@ -90,10 +83,6 @@ phase_characteristics::phase_characteristics(const int &mshape_type, const int &
     sub_phases_file = msub_phases_file;
 }
 
-/*!
-  \brief Copy constructor
-  \param s phase_characteristics object to duplicate
-*/
     
 //------------------------------------------------------
 phase_characteristics::phase_characteristics(const phase_characteristics& pc)
@@ -114,18 +103,10 @@ phase_characteristics::phase_characteristics(const phase_characteristics& pc)
 }
     
 
-/*!
-  \brief Destructor
-
-  Deletes phase_characteristics, the shared ptr related object will be detroyed automatically if they is no pointer to it.
-*/
 //-------------------------------------
 phase_characteristics::~phase_characteristics() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for phase_characteristics
-*/
   
     
 //-------------------------------------------------------------
@@ -231,7 +212,7 @@ void phase_characteristics::to_start()
         }
     }
     sptr_multi->to_start();
-    for(auto r : sub_phases) {
+    for(auto &r : sub_phases) {
         r.to_start();
     }
     
@@ -262,7 +243,7 @@ void phase_characteristics::set_start(const int &corate_type)
         }
     }
     sptr_multi->set_start();
-    for(auto r : sub_phases) {
+    for(auto &r : sub_phases) {
         r.set_start(corate_type);
     }
 }
@@ -345,13 +326,9 @@ void phase_characteristics::define_output(const std::string &path, const std::st
 
     std::string ext_filename = outputfile.substr(outputfile.length()-4,outputfile.length());
     std::string filename = outputfile.substr(0,outputfile.length()-4); //to remove the extension
-//    if(sptr_matprops->number > 0)
     filename = filename + '-' + std::to_string(sptr_matprops->number) + ext_filename;
     std::string path_filename = path + "/" + filename;
-//    else
-//        filename = filename + ext_filename;
     
-//    std::ofstream of_file(filename);
     if(coordsys == "global") {
         sptr_out_global = make_shared<ofstream>(path_filename);
     }

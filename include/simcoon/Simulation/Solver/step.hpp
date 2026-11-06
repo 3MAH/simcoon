@@ -64,7 +64,7 @@ protected:
     double Dn_inc; ///< Maximum fraction of the step (maximum time increment ratio)
     int ninc; ///< Number of milestones/increments in the step
     int mode; ///< Loading mode identifier
-    unsigned int control_type; ///< Control type (0: strain, 1: stress, 2: mixed)
+    unsigned int control_type; ///< Control type: 1 small strain, 2 Green-Lagrange, 3 logarithmic, 4 Biot, 5 F, 6 grad u (CONTROL_TYPES)
     
     arma::vec times; ///< Vector of time values for the step
     double BC_Time; ///< Boundary condition application time
@@ -96,16 +96,9 @@ protected:
      */
     step(const int &number, const double &Dn_init, const double &Dn_mini, const double &Dn_inc, const int &mode, const unsigned int &control_type);
     
-    /**
-     * @brief Copy constructor.
-     * @param s Step to copy
-     */
-    step(const step &s);
     
-    /**
-     * @brief Virtual destructor.
-     */
-    virtual ~step();
+    /** @brief Virtual destructor; copies are memberwise (implicit). */
+    virtual ~step() = default;
    
     /**
      * @brief Generate the time discretization for the step.
@@ -139,12 +132,6 @@ protected:
     ///         then aborts with status 1 (same protocol as a non-converged Newton loop).
     virtual bool compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dn, const int &control);
     
-    /**
-     * @brief Assignment operator.
-     * @param s Step to assign
-     * @return Reference to this object
-     */
-    virtual step& operator = (const step& s);
     
     /**
      * @brief Stream output operator.

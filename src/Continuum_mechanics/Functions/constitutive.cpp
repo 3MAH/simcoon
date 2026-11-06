@@ -22,19 +22,20 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <iostream>
 #include <assert.h>
 #include <math.h>
+#include <cmath>
 #include <string.h>
 #include <string>
 #include <stdexcept>
 #include <armadillo>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
 
-//Returns the fourth order identity tensor written in Voigt notation Ireal
 mat Ireal(){
 	
 	mat Ireal = eye(6,6);
@@ -44,7 +45,6 @@ mat Ireal(){
 	return Ireal;
 }
 
-//Returns the volumic of the identity tensor Ireal written in Voigt notation
 mat Ivol(){
 	
 	mat Ivol = zeros(6,6);
@@ -56,13 +56,29 @@ mat Ivol(){
 	return Ivol;
 }
 
-//Returns the deviatoric of the identity tensor Ireal written in Voigt notation
-mat Idev(){
-	
-	return	Ireal() - Ivol();
+// a*Ivol + b*X entry by entry: one allocation, same rounding as the expression
+static mat iso_combination(const double &a, const double &b, const double &X_shear) {
+	const double v = a*(1./3.);             // a Ivol_ij on the normal block
+	const double d_ii = b*(1.-1./3.);       // b X_ii, normal block
+	const double d_ij = b*(0.-1./3.);       // b X_ij, normal block, i != j
+	const double d_ss = b*X_shear;          // b X_ii, shear block
+	const double n_ii = v + d_ii;
+	const double n_ij = v + d_ij;
+	mat L(6, 6, fill::zeros);
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+			L(i,j) = (i == j) ? n_ii : n_ij;
+		}
+		L(i+3,i+3) = d_ss;
+	}
+	return L;
 }
 
-//Returns the fourth order identity tensor Iˆ written in Voigt notation
+mat Idev(){
+	
+	return	iso_combination(0., 1., 0.5);
+}
+
 mat Ireal2(){
 	
 	mat Ireal2 = eye(6,6);
@@ -72,13 +88,11 @@ mat Ireal2(){
 	return Ireal2;
 }
 
-//Returns the deviatoric of the identity tensor Iˆ written in Voigt notation
 mat Idev2(){
 	
-	return	Ireal2() - Ivol();
+	return	iso_combination(0., 1., 2.);
 }
 
-//Returns the expansion vector
 vec Ith(){
 	
 	vec Ith = zeros(6);	
@@ -88,7 +102,6 @@ vec Ith(){
 	return Ith;
 }
 
-//Returns the stress 2 strain operator
 vec Ir2(){
 	
 	vec Ir2 = ones(6);	
@@ -98,7 +111,6 @@ vec Ir2(){
 	return Ir2;
 }
 
-//Returns the strain 2 stress operator
 vec Ir05(){
 	
 	vec Ir05 = ones(6);	
@@ -108,10 +120,6 @@ vec Ir05(){
 	return Ir05;
 }
 
-//Provides the elastic stiffness tensor for an isotropic material.
-//The two first arguments are a couple of Lamé coefficients. The third argument specify which couple has been provided and the order of coefficients.
-//Exhaustive list of possible third argument :
-// ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
 mat L_iso(const double &C1, const double &C2, const std::string &conv) {
 	
 	double K = 0.;
@@ -154,16 +162,12 @@ mat L_iso(const double &C1, const double &C2, const std::string &conv) {
 		mu = C1;
 	}	
 	else {
-		cout << "ERROR : Please use a valid couple of elastic constants";
+		throw std::invalid_argument("L_iso: unknown convention '" + conv + "'; expected Enu, nuE, Kmu/KG, muK/GK, lambdamu/lambdaG, mulambda/Glambda");
 	}
 	
-	return 3.*K*Ivol() + 2.*mu*Idev();
+	return iso_combination(3.*K, 2.*mu, 0.5);   // 3K Ivol + 2mu Idev
 }
 
-//Provides the elastic compliance tensor for an isotropic material.
-//The two first arguments are a couple of Lamé coefficients. The third argument specify which couple has been provided and the order of coefficients.
-//Exhaustive list of possible third argument :
-//‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
 mat M_iso(const double &C1, const double &C2, const string &conv) {
 	
 	double K = 0.;
@@ -206,15 +210,12 @@ mat M_iso(const double &C1, const double &C2, const string &conv) {
 		mu = C1;
 	}	
 	else {
-		cout << "ERROR : Please use a valid couple of elastic constants";
-        exit(0);
+		throw std::invalid_argument("M_iso: unknown convention '" + conv + "'; expected Enu, nuE, Kmu/KG, muK/GK, lambdamu/lambdaG, mulambda/Glambda");
 	}
 	
-	return 1/(3.*K)*Ivol() + 1/(2.*mu)*Idev2();
+	return iso_combination(1/(3.*K), 1/(2.*mu), 2.);   // 1/(3K) Ivol + 1/(2mu) Idev2
 }
 
-//Returns the elastic stiffness tensor for a cubic material.
-//Arguments are the stiffness coefficients C11, C12 and C44, or E, nu and G
 mat L_cubic(const double &C1, const double &C2, const double &C4, const string &conv){
 	
     mat L = zeros(6,6);
@@ -255,15 +256,12 @@ mat L_cubic(const double &C1, const double &C2, const double &C4, const string &
         L(5,5) = C44;
     }
     else {
-        cout << "ERROR : Please use a valid couple of elastic constants";
-        exit(0);
+        throw std::invalid_argument("L_cubic: unknown convention '" + conv + "'; expected Cii, EnuG");
     }
     
 	return L;
 }
 
-//Returns the elastic compliance tensor for an isotropic material.
-//Arguments are the stiffness coefficients C11, C12 and C44, or E, nu and G.
 mat M_cubic(const double &C1, const double &C2, const double &C4, const string &conv){
 	
     mat M = zeros(6,6);
@@ -301,15 +299,65 @@ mat M_cubic(const double &C1, const double &C2, const double &C4, const string &
         M(5,5) = 1./G;
     }
     else {
-        cout << "ERROR : Please use a valid couple of elastic constants";
-        exit(0);
+        throw std::invalid_argument("M_cubic: unknown convention '" + conv + "'; expected Cii, EnuG");
     }
 	
 	return M;
 }
 
-//Returns the elastic stiffness tensor for an orthotropic material.
-//Arguments are the stiffness coefficients Cii or E and nu's
+bool cubic_coefficients(const mat &A, double &a, double &b, double &c, const double &tol) {
+    if (A.n_rows != 6 || A.n_cols != 6) {
+        return false;
+    }
+    a = A(0,0);
+    b = A(0,1);
+    c = A(3,3);
+    const double thr = (tol > 0.) ? tol*abs(A).max() : 0.;
+    for (int j=0; j<6; j++) {
+        for (int i=0; i<6; i++) {
+            const double expected = (i < 3 && j < 3) ? ((i == j) ? a : b) : ((i == j) ? c : 0.);
+            if (!(std::fabs(A(i,j) - expected) <= thr)) {   // a NaN fails too
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool is_isotropic(const mat &L, const Tensor4Type &type, const double &tol) {
+    double a, b, c, row, col;
+    mandel_factors(type, row, col);   // isotropic: Mandel shear c row col = a - b
+    return cubic_coefficients(L, a, b, c, tol) && std::fabs(c*row*col - (a - b)) <= tol*abs(L).max();
+}
+
+// closed form: eigenvalues a+2b, a-b of the normal block, shear 1/c
+mat inv_cubic(const mat &A) {
+
+    double a = 0., b = 0., c = 0.;
+    if (!cubic_coefficients(A, a, b, c)) {
+        mat A_inv;
+        if (!inv(A_inv, A)) {
+            throw simcoon::exception_inv("Error in inv function inside inv_cubic.");
+        }
+        return A_inv;
+    }
+    const double l_vol = a + 2.*b;
+    const double l_dev = a - b;
+    if (l_vol == 0. || l_dev == 0. || c == 0. || !std::isfinite(l_vol*l_dev*c)) {
+        throw simcoon::exception_inv("Error in inv function inside inv_cubic (singular matrix).");
+    }
+    const double a_inv = (1./l_vol + 2./l_dev)/3.;
+    const double b_inv = (1./l_vol - 1./l_dev)/3.;
+    mat A_inv(6, 6, fill::zeros);
+    for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
+            A_inv(i,j) = (i == j) ? a_inv : b_inv;
+        }
+        A_inv(i+3,i+3) = 1./c;
+    }
+    return A_inv;
+}
+
 mat L_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv){
 	mat L = zeros(6,6);
 	
@@ -359,15 +407,12 @@ mat L_ortho(const double &C11, const double &C12, const double &C13, const doubl
         L(5,5) = G23;
     }
     else {
-        cout << "ERROR : Please use a valid couple of elastic constants";
-        exit(0);
+        throw std::invalid_argument("L_ortho: unknown convention '" + conv + "'; expected Cii, EnuG");
     }
 	
 	return L;
 }
 
-//Returns the elastic compliance tensor for an orthotropic material.
-//Arguments are the stiffness coefficients Cii or E and nu's
 mat M_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv){
 	
     mat M = zeros(6,6);
@@ -420,15 +465,12 @@ mat M_ortho(const double &C11, const double &C12, const double &C13, const doubl
 		M(5,5) = 1./G23;
 	}
     else {
-        cout << "ERROR : Please use a valid couple of elastic constants";
-        exit(0);
+        throw std::invalid_argument("M_ortho: unknown convention '" + conv + "'; expected Cii, EnuG");
     }
 	
 	return M;
 }
 
-//Returns the elastic stiffness tensor for an isotropic transverse material.
-//Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
 mat L_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis){
 	
     mat L = zeros(6,6);
@@ -481,8 +523,7 @@ mat L_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 			break;	
 		}
         default : {
-            cout << "ERROR : Please use a valid couple of elastic constants";
-            exit(0);
+            throw std::invalid_argument("L_isotrans: the axis must be 1, 2 or 3; got " + std::to_string(axis));
         }
             
 	}
@@ -491,8 +532,6 @@ mat L_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 	return L;
 }
 
-//Returns the elastic compliance tensor for an isotropic transverse material.
-//Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
 mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis){
 	
 	mat M = zeros(6,6);
@@ -543,25 +582,19 @@ mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 			break;
 		}
         default : {
-            cout << "ERROR : Please use a valid couple of elastic constants";
-            exit(0);
+            throw std::invalid_argument("M_isotrans: the axis must be 1, 2 or 3; got " + std::to_string(axis));
         }
 	}			
 	return M;
 }
 
-//Provides the viscous tensor H an isotropic material.
-//The two first arguments are a couple of viscous coefficients (the first is bulk, the second is shear).
 mat H_iso(const double &etaB, const double &etaS) {
 		
-	return 3.*etaB*Ivol() + 2.*etaS*Idev();
+	return iso_combination(3.*etaB, 2.*etaS, 0.5);   // 3 etaB Ivol + 2 etaS Idev
 }
 
-// Condensed stress states (ndi < 3), Abaqus ordering: the stress keeps the first ndi direct
-// components and the first nshr shears (12, 13, 23); every other component is stress-free. Its
-// strain is free and eliminated: Q = L_KK - L_KC L_CC^-1 L_CK on the kept set K. ndi = 3 is the
-// full or plane-strain-like state, whose missing shears are zero strain, not zero stress.
-// nshr < 0 picks Abaqus' default for ndi: truss (1, 0), plane stress (2, 1), 3D (3, 3).
+// ndi < 3 (Abaqus order): first ndi direct + first nshr shears kept, the rest stress-free;
+// Q = L_KK - L_KC L_CC^-1 L_CK. nshr < 0: Abaqus default for ndi
 static vec condensed_pred(const mat &L, const vec &E, const int &ndi, const int &nshr) {
 
     const int ns = (nshr < 0) ? ((ndi == 1) ? 0 : 1) : nshr;
@@ -587,7 +620,6 @@ vec el_pred(const vec &sigma_start, const mat &L, const vec &DE_el, const int &n
     return sigma_start + condensed_pred(L, DE_el, ndi, nshr);
 }
 
-//Provides the elastic prediction, providing the stiffness tensor and the trial elastic strain
 vec el_pred(const mat &L, const vec &E_el, const int &ndi, const int &nshr) {
 
     if (ndi == 3)

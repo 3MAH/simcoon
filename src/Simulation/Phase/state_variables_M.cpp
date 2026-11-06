@@ -37,10 +37,6 @@ namespace simcoon{
 
 //=====Public methods for state_variables============================================
 
-/*!
-  \brief default constructor
-*/
-
 //-------------------------------------------------------------
 state_variables_M::state_variables_M() : state_variables(), sigma_in(6), sigma_in_start(6), Wm(4), Wm_start(4), L(6,6), Lt(6,6)
 //-------------------------------------------------------------
@@ -54,12 +50,6 @@ state_variables_M::state_variables_M() : state_variables(), sigma_in(6), sigma_i
 	L = zeros(6,6);
 	Lt = zeros(6,6);
 }
-
-/*!
-  \brief Constructor with parameters
-  \n\n
-  \f$ \textbf{Examples :} \f$ \n
-*/
 
 //-------------------------------------------------------------
 state_variables_M::state_variables_M(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const vec &mWm, const vec& mWm_start, const mat &mL, const mat &mLt) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start), sigma_in(6), sigma_in_start(6), Wm(4), Wm_start(4), L(6,6), Lt(6,6)
@@ -87,11 +77,6 @@ state_variables_M::state_variables_M(const vec &mEtot, const vec &mDEtot, const 
 	Lt = mLt;
 }
 
-/*!
-  \brief Copy constructor
-  \param s state_variables object to duplicate
-*/
-
 //------------------------------------------------------
 state_variables_M::state_variables_M(const state_variables_M& sv) : state_variables(sv), sigma_in(6), sigma_in_start(6), Wm(4), Wm_start(4), L(6,6), Lt(6,6)
 //------------------------------------------------------
@@ -106,22 +91,12 @@ state_variables_M::state_variables_M(const state_variables_M& sv) : state_variab
 	Lt = sv.Lt;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
-
 //-------------------------------------
 state_variables_M::~state_variables_M()
 //-------------------------------------
 {
 
 }
-
-/*!
-  \brief Standard operator = for state_variables
-*/
 
 //----------------------------------------------------------------------
 state_variables_M& state_variables_M::operator = (const state_variables_M& sv)

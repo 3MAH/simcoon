@@ -4,8 +4,9 @@ from simcoon._core import (  # noqa: F401  (re-exported)
     tangent_none,
     tangent_continuum,
     tangent_algorithmic,
-    tangent_closest_point,
     tangent_default,
+    integrator_cutting_plane,
+    integrator_closest_point,
     corate_type_total as _corate_type_total,
 )
 
@@ -58,12 +59,23 @@ STEP_MODES = {
     "tabular": 3,
 }
 
-#: Tangent operator modes (tangent_mode carried by the state variables)
+#: Tangent operators handed to the global Newton (the closest point is an integrator, INTEGRATORS)
 TANGENT_MODES = {
     "none": tangent_none,
     "continuum": tangent_continuum,
     "algorithmic": tangent_algorithmic,
-    "closest_point": tangent_closest_point,
+}
+
+#: Local integrators of the laws with a return mapping (folded with tangent_mode into the kernel code)
+INTEGRATORS = {
+    "cutting_plane": integrator_cutting_plane,
+    "closest_point": integrator_closest_point,
+}
+
+#: Complementarity functions of the local cutting plane (ncp carried by the state variables)
+NCP_METHODS = {
+    "fischer_burmeister": 0,
+    "min": 1,
 }
 
 

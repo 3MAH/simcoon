@@ -33,9 +33,21 @@ namespace simcoon{
  */
 
     
-void output_modulus(const arma::mat &, const int &, arma::vec &);
+/**
+ * @brief Copy a matrix into the state variables, row by row.
+ * @param L matrix to store (n_rows x n_cols)
+ * @param i0 index of statev where the first entry is written
+ * @param statev state variables, entries i0 .. i0 + n_rows*n_cols - 1 overwritten
+ */
+void output_modulus(const arma::mat &L, const int &i0, arma::vec &statev);
 
-void output_moduli(const std::vector<arma::mat> &, const int &, arma::vec &);
+/**
+ * @brief Copy a list of matrices into the state variables, one after the other, each row by row.
+ * @param list matrices to store
+ * @param i0 index of statev where the first entry of the first matrix is written
+ * @param statev state variables, overwritten from i0 on by the total number of entries of the list
+ */
+void output_moduli(const std::vector<arma::mat> &list, const int &i0, arma::vec &statev);
 
 
 /** @} */ // end of phase group

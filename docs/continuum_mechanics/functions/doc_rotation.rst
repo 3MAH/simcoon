@@ -451,6 +451,23 @@ natively:
    # Get all 6x6 Voigt rotation matrices at once
    QS = rotations.as_voigt_stress_rotation()  # (N, 6, 6)
 
+**Without a Rotation object.** When the rotations already are matrices on simcoon's
+``(3, 3, N)`` layout, as the ``DR`` of :func:`simcoon.objective_rate` in a finite-element
+loop, ``rotate_voigt`` applies them directly: one C++ loop over the points, in parallel
+and without the GIL, with no scipy conversion to quaternions. It returns what
+``Rotation.from_matrix(DR.transpose(2, 0, 1)).apply_<kind>`` returns, up to round-off:
+
+.. code-block:: python
+
+   stress_rotated = smc.rotate_voigt(stress, DR, "stress")          # (6, N)
+   strain_rotated = smc.rotate_voigt(strain, DR, "strain")          # (6, N)
+   L_rotated = smc.rotate_voigt(L, DR, "stiffness", n_threads=0)    # (6, 6, N), all cores
+
+   # one rotation for every tensor: DR of shape (3, 3)
+   L_rotated = smc.rotate_voigt(L, DR[:, :, 0], "stiffness")
+
+.. autofunction:: simcoon.rotate_voigt
+
 Example 4: Averaging Orientations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

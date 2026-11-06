@@ -116,7 +116,6 @@ mat deta_stress(const vec &v) {
 	return (Pm - eta*eta.t())/sigeq;
 }
 
-//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 vec eta_norm_stress(const vec &v) {
     assert(v.size()==6);
     
@@ -494,37 +493,22 @@ mat sym_dyadic_operator(const mat &A, const mat &B) {
 	return C;
 }
 
+void add_linearop_eigsym(mat::fixed<6,6> &acc, const double &c, const vec::fixed<3> &b_i, const vec::fixed<3> &b_j) {
+	static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+	double Bij[3][3];
+	for (int i=0; i<3; i++)
+		for (int j=0; j<3; j++)
+			Bij[i][j] = b_i(i)*b_j(j);
+	for (int i=0; i<3; i++)
+		for (int j=i; j<3; j++)
+			for (int k=0; k<3; k++)
+				for (int l=k; l<3; l++)
+					acc(Id[i][j], Id[k][l]) += c*(0.5*(Bij[i][j]*Bij[k][l] + Bij[i][j]*Bij[l][k]));
+}
+
 mat linearop_eigsym(const vec &b_i, const vec &b_j) {
-
-	mat Bij = b_i*b_j.t();
-	mat BBBB = zeros(6,6);
-
-	int ij=0;
-	int kl=0;
-    
-    umat Id(3,3);
-    Id(0,0) = 0;
-    Id(0,1) = 3;
-    Id(0,2) = 4;
-    Id(1,0) = 3;
-    Id(1,1) = 1;
-    Id(1,2) = 5;
-    Id(2,0) = 4;
-    Id(2,1) = 5;
-    Id(2,2) = 2;
-	
-	for (int i=0; i<3; i++) {
-		for (int j=i; j<3; j++) {
-			ij = Id(i,j);
-			for (int k=0; k<3; k++) {
-				for (int l=k; l<3; l++) {
-					kl = Id(k,l);
-					BBBB(ij,kl) = 0.5*(Bij(i,j)*Bij(k,l) + Bij(i,j)*Bij(l,k));
-				}
-			}
-		}
-	}
-	
+	mat::fixed<6,6> BBBB(fill::zeros);
+	add_linearop_eigsym(BBBB, 1., b_i, b_j);
 	return BBBB;
 }
 

@@ -16,7 +16,7 @@
  */
 
 ///@file TUMABA.cpp
-///@brief The UMABA plugin driven by the solver: the historical reference case, its
+///@brief The Abaqus (UMABA) and Ansys (UMANS) plugins driven by the solver on the historical reference case, its
 ///loading programme built in code (nothing is read from a file since the 2.0 JSON-only
 ///migration; the plugin itself is what the test exercises).
 ///@version 1.0
@@ -38,7 +38,9 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-TEST(TUMABA, TUMABA_solver)
+class TUMABA : public ::testing::TestWithParam<std::string> {};
+
+TEST_P(TUMABA, solver)
 {
     //The material and the programme of the reference case: an elastic plugin (E = 70000 MPa,
     //nu = 0.3), loaded in uniaxial tension to 2 % strain and unloaded, 100 increments each
@@ -79,7 +81,7 @@ TEST(TUMABA, TUMABA_solver)
     solver_memory_sink sink;
     sink.record_tangent = false;
 
-    const int status = solver_run(blocks, T_init, so, "UMABA", props, 1, 0., 0., 0., 0, 2, ctrl, sink);
+    const int status = solver_run(blocks, T_init, so, GetParam(), props, 1, 0., 0., 0., 0, 2, ctrl, sink);
     ASSERT_EQ(status, 0);
 
     //The committed reference: strain in columns 8:14, stress in 14:20
@@ -93,3 +95,6 @@ TEST(TUMABA, TUMABA_solver)
         }
     }
 }
+
+// the same elastic law (E = 70000 MPa, nu = 0.3) through the two FE-compatible plugin interfaces
+INSTANTIATE_TEST_SUITE_P(Plugins, TUMABA, ::testing::Values("UMABA", "UMANS"));

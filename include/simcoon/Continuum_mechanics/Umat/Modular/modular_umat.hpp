@@ -103,6 +103,8 @@ private:
     // Return-mapping controls (local internal-equilibrium Newton loop)
     int maxiter_;           ///< Maximum iterations for return mapping
     double precision_;      ///< Convergence tolerance
+    NCPMethod ncp_ = NCPMethod::fischer_burmeister;   ///< complementarity function of the cutting plane (set_ncp)
+    bool nonlinear_kinematic_ = false;   ///< an Armstrong-Frederick back stress is configured (set_ncp refuses min-NCP)
 
     /// Composition invariant cached by initialize(): the flow-rule drift
     /// guard of run() is armed only when at least TWO guarded constraint
@@ -256,6 +258,18 @@ public:
     }
 
     /**
+     * @brief Complementarity function of the cutting plane (the @c ncp option of the run).
+     *
+     * min-NCP is refused with an Armstrong-Frederick back stress: the cutting plane integrates it
+     * along its own iterates, so the full min-NCP steps give a different, and on coarse increments
+     * much less accurate, return than the damped Fischer-Burmeister ones (up to 0.46 off the
+     * closest-point update where Fischer-Burmeister stays at 0.04, on the Chaboche identification
+     * programmes), and the residual does not grow, so the fallback cannot catch it.
+     * @throw std::invalid_argument for min-NCP with an Armstrong-Frederick back stress
+     */
+    void set_ncp(NCPMethod ncp);
+
+    /**
      * @brief Get total number of state variables required
      * @return nstatev
      */
@@ -280,6 +294,22 @@ public:
      * 5. Compute consistent tangent
      * 6. Compute work quantities
      * 7. Pack state variables
+     *
+     * Rejection policy: an unusable committed state asks for a step cut
+     * (\f$ \Delta t_{new}/\Delta t = 0.5 \f$) instead of being packed. Rejected
+     * are a non-finite stress, a non-converged closest-point solve, a runaway
+     * COMMITTED multiplier (multiplier_cap, checked on the state, not on the raw
+     * FB row, which can be smaller after clipped excursions), and a state that
+     * drifted from the flow rule (state_drift: a spurious converged root of an
+     * oscillating FB Newton, invisible to every residual check; armed per
+     * drift_guard_armed_). Thresholds are per mechanism, infinity opts out.
+     * Negative multipliers need no check: PlasticityMechanism projects onto
+     * \f$ p \ge p_{start} \f$ and PowerLawHardening is regularized at onset. The
+     * closest-point branch satisfies the flow rule by construction (no drift guard).
+     * On rejection statev is left untouched, sigma is reset to its start value and
+     * Lt to the elastic tangent of the start state, so the output stays a
+     * self-consistent triple: the solver's inforce-at-Dn_mini branch commits it
+     * without re-running the UMAT.
      *
      * @param umat_name UMAT identifier
      * @param Etot Total strain at end of increment
@@ -564,7 +594,13 @@ private:
  * @p kinematic_form is the one argument past that interface. Under KinematicForm::total the
  * strain is \f$ \ln\mathbf{U} \f$ in reference components (DR is the identity) and @p sigma is
  * its dual stress \f$ \mathbf{T} \f$; only a hyperelastic elasticity block reads it
- * (ElasticityModule::evaluate).
+ * (ElasticityModule::evaluate). @p ncp, the NCPMethod code of the run (state_variables::ncp),
+ * selects the complementarity function of the cutting plane (ModularUMAT::set_ncp).
+ *
+ * Each thread keeps a few configured ModularUMAT instances, keyed on (props bit for bit,
+ * nstatev, kinematic_form) and reused while that configuration recurs; the state is
+ * always restored from @p statev, so the result is that of a fresh instance. An instance
+ * whose run() throws is discarded.
  */
 void umat_modular(
     const std::string& umat_name,
@@ -591,7 +627,8 @@ void umat_modular(
     const bool& start,
     double& tnew_dt,
     const int& tangent_mode = tangent_default,
-    const KinematicForm& kinematic_form = KinematicForm::rate
+    const KinematicForm& kinematic_form = KinematicForm::rate,
+    const int& ncp = 0
 );
 
 /**

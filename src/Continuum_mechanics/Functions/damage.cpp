@@ -15,7 +15,7 @@
  
  */
 
-///@file damage.hpp
+///@file damage.cpp
 ///@brief Functions that computes damage evolution laws
 ///@version 1.0
 
@@ -35,7 +35,6 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function returns damage evolution (/dt) considering a Weibull damage law
 double damage_weibull(const vec &stress, const double &damage, const double &alpha, const double &beta, const double &DTime, const string &criterion) {
 		
 	if ((criterion == "Mises")) {
@@ -53,7 +52,6 @@ double damage_weibull(const vec &stress, const double &damage, const double &alp
 	}
 }
 
-//This function returns damage evolution (/dt) considering Kachanov's creep damage law
 double damage_kachanov(const vec &stress, const vec &strain, const double &damage, const double &A0, const double &r, const string &criterion) {
 
 	// Use Ith() = {1,1,1,0,0,0} to add identity only to normal components
@@ -74,13 +72,11 @@ double damage_kachanov(const vec &stress, const vec &strain, const double &damag
 	}
 }
 
-//This function returns the constant damage evolution (/dN) considering Woehler- Miner's damage law
 double damage_miner(const double &S_max, const double &S_mean, const double &S_ult, const double &b, const double &B0, const double &beta, const double &Sl_0) {
 		
 	return (S_max - (S_mean + Sl_0*(1.-b*S_mean)))/(S_ult-S_max)*pow((S_max-S_mean)/(B0*(1.-b*S_mean)),beta);
 }
 
-//This function returns the constant damage evolution (/dN) considering Coffin-Manson's damage law
 double damage_manson(const double &S_amp, const double &C2, const double &gamma2) {
 		
 	return pow(S_amp/C2,gamma2);

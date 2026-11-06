@@ -29,23 +29,14 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 namespace simcoon {
 
 namespace {
-// Conjugacy: X = (2/3) C α  (chapter 6 backstress↔back-strain relation).
-// File-local helper so the convention has one canonical implementation across
-// Prager / Armstrong-Frederick / Chaboche.
-//
-// X is a STRESS-like tensor: it shifts the stress in the yield function
-// (σ - X) and pairs with the strain-like flow direction n in X:n. The
-// back-strain α is stored strain-like (factor-2 shear); the product carries
-// that convention, so the result is re-tagged as stress (via the 3x3, which
-// is convention-free) — otherwise σ - X and X:n double-count the shear terms.
+// X = (2/3) C alpha, re-tagged STRESS through the 3x3: alpha is strain-typed (factor-2 shear),
+// so a strain-typed X would double-count the shear terms in sigma - X and X:n
 inline tensor2 backstress_t(double C, const tensor2& alpha) {
     return stress(arma::mat::fixed<3,3>(((2.0 / 3.0) * C * alpha).mat()));
 }
 }  // namespace
 
-// ============================================================================
-// ISOTROPIC HARDENING IMPLEMENTATIONS
-// ============================================================================
+// ==== ISOTROPIC HARDENING IMPLEMENTATIONS ====
 
 std::unique_ptr<IsotropicHardening> IsotropicHardening::create(IsoHardType type, int N) {
     switch (type) {
@@ -70,10 +61,7 @@ void LinearHardening::configure(const arma::vec& props, int& offset) {
     offset += 1;
 }
 
-// PowerLawHardening — onset regularization for m < 1 (rationale and the SMA
-// lagrange_pow analogy are in the header Doxygen). Implementation notes only:
-// the p <= 0 branch extends R linearly (slope a_reg_) so a transient negative
-// FB iterate meets a finite, consistent slope instead of pow(negative, m).
+// p <= 0: R extended linearly (slope a_reg_), so a negative FB iterate meets a finite slope
 namespace {
 constexpr double p_reg_powerlaw = 1.0e-6;  ///< onset regularization cutoff (see header)
 }
@@ -156,9 +144,7 @@ double CombinedVoceHardening::dR_dp(double p) const {
     return result;
 }
 
-// ============================================================================
-// KINEMATIC HARDENING IMPLEMENTATIONS
-// ============================================================================
+// ==== KINEMATIC HARDENING IMPLEMENTATIONS ====
 
 std::unique_ptr<KinematicHardening> KinematicHardening::create(KinHardType type, int N) {
     switch (type) {
@@ -192,10 +178,7 @@ void PragerHardening::compute_backstresses(const InternalVariableCollection& ivc
 
 double PragerHardening::hardening_modulus(const tensor2& n,
                                           const std::vector<tensor2>& /*X_i*/) const {
-    // Exact slope n : dX/dp = (2/3) C <n,n> (tensorial contraction; = C for a
-    // von Mises normal, <n,n> = 3/2). The former (2/3)C underestimated it by
-    // C/3, driving a systematic Newton overshoot (frozen FB loop) and a wrong
-    // continuum tangent via H_eff.
+    // exact slope n : dX/dp = (2/3) C <n,n> (= C for a von Mises normal, <n,n> = 3/2)
     return (2.0 / 3.0) * C_ * arma::accu(n.mat() % n.mat());
 }
 
@@ -237,10 +220,7 @@ void ArmstrongFrederickHardening::compute_backstresses(
 
 double ArmstrongFrederickHardening::hardening_modulus(
     const tensor2& n, const std::vector<tensor2>& X_i) const {
-    // Exact slope n : dX/dp with dX/dp = (2/3)C(n − D α):
-    // H_kin = (2/3) C <n,n> − D (X : n)  (tensorial <n,n> = 3/2 for von Mises,
-    // giving the classical C − D(X:n)). X:n as stress-Voigt · engineering-
-    // strain-Voigt is the work-conjugate pairing of the full contraction.
+    // H_kin = (2/3) C <n,n> - D (X:n); X:n = stress-Voigt . engineering-strain-Voigt
     const double nn = arma::accu(n.mat() % n.mat());
     return (2.0 / 3.0) * C_ * nn - D_ * arma::dot(X_i[0].to_arma_voigt(), n.to_arma_voigt());
 }
@@ -287,9 +267,7 @@ void ChabocheHardening::register_variables(InternalVariableCollection& ivc) {
 
 void ChabocheHardening::compute_backstresses(const InternalVariableCollection& ivc,
                                              std::vector<tensor2>& X_i) const {
-    // X_i = (2/3) C_i α_i, STRESS-typed (backstress_t re-tags through the 3x3;
-    // a strain-typed carrier would put the factor-2 shear back — wrong under
-    // any loading with shear).
+    // X_i stress-typed (backstress_t): a strain-typed carrier would put the factor-2 shear back
     X_i.resize(static_cast<size_t>(N_), tensor2(Tensor2Type::stress));
     for (int i = 0; i < N_; ++i) {
         X_i[static_cast<size_t>(i)] = backstress_t(C_(i), ivc.get(a_keys_[i]).as_tensor2());

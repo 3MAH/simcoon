@@ -35,9 +35,6 @@ namespace simcoon{
 
 //=====Public methods for phase_multi====================================
 
-/*!
-  \brief default constructor
-*/
 
 //-------------------------------------------------------------
 phase_multi::phase_multi() : A(6,6), A_start(6,6), B(6,6), B_start(6,6), A_in(6)
@@ -46,9 +43,6 @@ phase_multi::phase_multi() : A(6,6), A_start(6,6), B(6,6), B_start(6,6), A_in(6)
     
 }
 
-/*!
-  \brief Constructor with parameters
-*/
 
 //-------------------------------------------------------------
 phase_multi::phase_multi(const mat &mA, const mat &mA_start, const mat &mB, const mat &mB_start, const vec &mA_in) : A(6,6), A_start(6,6), B(6,6), B_start(6,6), A_in(6)
@@ -63,10 +57,6 @@ phase_multi::phase_multi(const mat &mA, const mat &mA_start, const mat &mB, cons
     A_in = mA_in;
 }
 
-/*!
-  \brief Copy constructor
-  \param s phase_multi object to duplicate
-*/
     
 //------------------------------------------------------
 phase_multi::phase_multi(const phase_multi& pc) : A(6,6), A_start(6,6), B(6,6), B_start(6,6), A_in(6)
@@ -81,19 +71,11 @@ phase_multi::phase_multi(const phase_multi& pc) : A(6,6), A_start(6,6), B(6,6), 
     A_in = pc.A_in;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes phase_multi (the arma::mat).
-*/
 
 //-------------------------------------
 phase_multi::~phase_multi() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for phase_multi
-*/
 
 //-------------------------------------------------------------
 void phase_multi::to_start()

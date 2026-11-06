@@ -43,12 +43,8 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Finite/Neo_hookean_incomp.cpp
   Continuum_mechanics/Umat/Finite/saint_venant.cpp
 
-  # Continuum Mechanics - UMAT Mechanical Combined
-  Continuum_mechanics/Umat/Mechanical/Combined/Prony_Nfast_Plastic.cpp
-
   # Continuum Mechanics - UMAT Mechanical Damage
   Continuum_mechanics/Umat/Mechanical/Damage/damage_LLD_0.cpp
-  Continuum_mechanics/Umat/Mechanical/Damage/damage_weibull.cpp
 
   # Continuum Mechanics - UMAT Mechanical Elasticity
 
@@ -111,6 +107,7 @@ target_sources(simcoon PRIVATE
   Simulation/Geometry/layer.cpp
 
   # Simulation - Maths
+  Simulation/Maths/eig_sym3.cpp
   Simulation/Maths/lagrange.cpp
   Simulation/Maths/num_solve.cpp
   Simulation/Maths/random.cpp

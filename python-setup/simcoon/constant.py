@@ -3,8 +3,6 @@ Constant class to manage simcoon computations constants
 """
 
 import os
-import re
-import shutil
 from typing import List, NamedTuple, Union
 import numpy as np
 
@@ -72,67 +70,3 @@ def read_constants(
             consts.append(const)
     return consts
 
-
-def copy_constants(
-    consts: List[Constant],
-    src_path: Union[str, os.PathLike],
-    dst_path: Union[str, os.PathLike],
-) -> None:
-    """
-    Copy constants file from a source path to a destination path, so that key values can be applied
-    :param consts: List of Constant objects
-    :param src_path: Source path
-    :param dst_path: Destination path
-    :return: None
-    """
-    if not isinstance(src_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike."
-        )
-
-    if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
-        )
-
-    for co in consts:
-        if not all(isinstance(item, str) for item in co.sim_input_files):
-            raise TypeError("All elements in sim_input_files must be strings.")
-
-        for ifiles in co.sim_input_files:
-            src_files = os.path.join(src_path, ifiles)
-            dst_files = os.path.join(dst_path, ifiles)
-            shutil.copy(src_files, dst_files)
-
-
-def apply_constants(
-    consts: List[Constant],
-    dst_path: Union[str, os.PathLike],
-) -> None:
-    """
-    Apply constants, i.e. replace in file the value of the key with the value of the Constant
-    :param params: List of Constant objects
-    :param src_path: Source path
-    :param dst_path: Destination path
-    :return: None
-    """
-    if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(
-            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
-        )
-
-    # Longest keys first + ``(?!\w)`` lookahead so a shorter key cannot
-    # clobber a longer key that contains it (e.g. ``@E`` vs ``@Et``).
-    ordered = sorted(consts, key=lambda c: -len(c.key))
-
-    for co in ordered:
-        pattern = re.compile(re.escape(co.key) + r"(?!\w)")
-        replacement = str(co.value)
-        for ifiles in co.sim_input_files:
-            mod_files = os.path.join(dst_path, ifiles)
-
-            with open(mod_files, "r", encoding="utf-8") as in_files:
-                content = in_files.read()
-            modified_content = pattern.sub(lambda _m: replacement, content)
-            with open(mod_files, "w", encoding="utf-8") as ou_files:
-                ou_files.write(modified_content)

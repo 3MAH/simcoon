@@ -229,9 +229,7 @@ vec beta_coefs(const vec &dWdlambda_bar, const vec &lambda_bar) {
 mat gamma_coefs(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec &lambda_bar) {
 
     mat gamma = zeros(3,3);
-    // g_ab = lambda_a lambda_b W_ab + delta_ab lambda_a W_a (the W_a term is DIAGONAL,
-    // not an outer product): gamma = P.g.P with P the deviatoric projector, i.e.
-    // gamma_ab = d beta_a / d ln(lambda_b)
+    // g_ab = lam_a lam_b W_ab + delta_ab lam_a W_a (W_a term diagonal); gamma = P.g.P = d beta_a / d ln lam_b
     mat factor = dW2dlambda_bar2%(lambda_bar*lambda_bar.t()) + diagmat(dWdlambda_bar%lambda_bar);
     vec factor_sum_col = ((-1./3.)*sum(factor,0)).t();  // sum along dim 0 returns row vec, transpose to col
     vec factor_sum_row = (-1./3.)*sum(factor,1);
@@ -478,9 +476,7 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
             c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
         }            
 
-        // shear term, summed over ordered pairs a!=b: the full 1/2-symmetrized dyadic
-        // 2*(abab(n_i,n_j) + abab(n_j,n_i)) collapses to the rank-1 outer product s*s^T
-        // with the symmetric dyadic of (n_i n_j^T + n_j n_i^T)
+        // ordered pairs a!=b: the symmetrized dyadic collapses to s s^T, s = sym dyadic of (n_i n_j^T + n_j n_i^T)
         for(unsigned int j=i+1; j<3; j++) {
             if(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.) < 1.E-6) {
                 factor = pow(lambda_bar(i), 2.) * pow(lambda_bar(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
@@ -515,14 +511,8 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
     return L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
 }
 
-// The two box operators of ANY symmetric A whose convected rate is
-// l*A + A*l^T - (2/3) tr(d) A, hence whose trace obeys d(tr A)/dt = 2 dev(A) : d.
-// b_bar satisfies this (tr = I_1_bar) and so does a fibre family's dispersed structure
-// tensor (tr = I*_4_bar): sharing them is what lets the anisotropic tangent reuse the
-// isotropic I_1 algebra verbatim.
-// They take the deviator and trace already held by the caller rather than A itself: both
-// call sites have them, and recomputing dev(A) here once per operator put six extra
-// allocations per call on the isotropic path that the inline form did not pay.
+// box operators of any symmetric A with convected rate l A + A l^T - 2/3 tr(d) A (b_bar, fibre
+// structure tensors): the anisotropic tangent reuses the I_1 algebra verbatim
 static mat gamma_linear(const mat &dev_A, const double &tr_A, const mat &I_dev, const mat &Id) {
     return (4./3.)*(tr_A*I_dev - (sym_dyadic(dev_A,Id)+sym_dyadic(Id,dev_A)));
 }
@@ -542,40 +532,50 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
-
-    mat b_bar2;
-    try {
-        b_bar2 = powmat(b_bar,2);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_powmat("Error in powmat function inside L_iso_hyper_invariants.");
-    }            
-
-    mat dev_b_bar = dev(b_bar);    
-    mat dev_b_bar2 = dev(b_bar2);        
+    mat dev_b_bar = dev(b_bar);
     vec I_bar = isochoric_invariants(b,J);
     mat Id = eye(3,3);
-    mat H_bar = auto_sym_dyadic_operator(b_bar);
 
-    mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
-
-    // Plain locals on purpose: a function-local static of an armadillo type registers a
-    // destructor that runs at DLL unload, and on Windows the unload order of the extension
-    // module, the BLAS/LAPACK DLLs and the CRT is not defined — freeing the matrix after its
-    // allocator is gone aborts the process once the tests are over. These are 6x6 identities,
-    // negligible next to the six dyadic products this function already builds per call.
-    mat I_real = Ireal();
-    mat I_vol = Ivol();
+    // no static arma object: its destructor runs at DLL unload (Windows)
     mat I_dev = Idev();
 
-    mat gamma_1 = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id);
-    mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
-                    + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
-    mat gamma_11 = gamma_quadratic(dev_b_bar);
-    mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
-    mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
+    // terms of a zero potential derivative skipped (exact zeros)
+    mat Lt = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id)*dWdI_1_bar;
+    if ((dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.)) {
+        mat b_bar2;
+        try {
+            b_bar2 = powmat(b_bar,2);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_powmat("Error in powmat function inside L_iso_hyper_invariants.");
+        }
+        mat dev_b_bar2 = dev(b_bar2);
+        mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
+        if (dWdI_2_bar != 0.) {
+            mat I_real = Ireal();
+            mat I_vol = Ivol();
+            mat H_bar = auto_sym_dyadic_operator(b_bar);
+            mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
+                            + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
+            Lt += gamma_2*dWdI_2_bar;
+        }
+        if (dW2dI_11_bar != 0.) {
+            Lt += gamma_quadratic(dev_b_bar)*dW2dI_11_bar;
+        }
+        if (dW2dI_12_bar != 0.) {
+            mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
+            Lt += gamma_12*dW2dI_12_bar;
+        }
+        if (dW2dI_22_bar != 0.) {
+            mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
+            Lt += gamma_22*dW2dI_22_bar;
+        }
+    }
+    else if (dW2dI_11_bar != 0.) {
+        Lt += gamma_quadratic(dev_b_bar)*dW2dI_11_bar;
+    }
 
-    return (1./J)*(gamma_1*dWdI_1_bar+gamma_2*dWdI_2_bar+gamma_11*dW2dI_11_bar+gamma_12*dW2dI_12_bar+gamma_22*dW2dI_22_bar);
+    return (1./J)*Lt;
 }
 
 mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const double &mJ) {
@@ -808,20 +808,12 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
             for (uword i = 0; i < n_fam; i++) {
                 // tr(A_i) IS the fibre pseudo-invariant: no separate channel for it
                 const double E_bar = trace(A[i]) - 1.;
-                // The fibre TERM is inactive below the switch (note this is a condition on
-                // the pseudo-invariant, not on fibre compression: with kappa_d > 0 a
-                // compressed fibre can still have I*_4 > 1). The threshold is iota, not 0:
-                // psi'' jumps from 0 to k1 across it, so an exact comparison would let
-                // round-off in I*_4 decide a FINITE tangent. At I*_4 = 1 exactly (any
-                // unstretched fibre, e.g. pure dilatation) the two routes to b differ in
-                // the last bits and would otherwise disagree by k1.
+                // switch on I*_4 (not on fibre compression), threshold iota not 0: psi'' jumps 0 -> k1 across it,
+                // so round-off at I*_4 = 1 must not select a finite tangent
                 if (E_bar <= simcoon::iota) {
                     continue;
                 }
-                // Finite-arithmetic guard only: exp overflows to inf near arg 709, and a
-                // Newton trial iterate can overshoot the fibre stretch far past anything
-                // physical. inf here becomes NaN stress and tangent, which the solver
-                // cannot step-cut its way out of; a large finite value it can.
+                // finite-arithmetic guard: inf here becomes a NaN state the solver cannot step-cut out of
                 const double e = exp(std::min(k_2*E_bar*E_bar, 350.));
                 dW.dWdI_a_bar(i) = k_1*E_bar*e;
                 dW.dW2dI_aa_bar(i) = k_1*(1. + 2.*k_2*E_bar*E_bar)*e;
@@ -845,27 +837,18 @@ void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, cons
                                     + std::to_string(dW.dWdI_a_bar.n_elem) + " fibre derivatives");
     }
 
-    // Kirchhoff throughout: tau is what the potential differentiates to per REFERENCE volume,
-    // and it is what every consumer on the finite route wants. Cauchy is tau/J, produced at the
-    // output boundary (solver_sink, the python wrapper), never on the route.
+    // Kirchhoff throughout: Cauchy = tau/J only at the output boundary
     mat m_tau_iso = tau_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, b, J);
     mat m_tau_vol = tau_vol_hyper(dW.dUdJ, b, J);
     mat m_tau = m_tau_iso + m_tau_vol;
 
-    // These two builders return the spatial elasticity c = (1/J) d(L_v tau)/dD -- NOT
-    // d(L_v sigma)/dD, which differs from it by sigma (x) I. The single J that turns c into the
-    // Kirchhoff-Lie tangent is applied once, below, where it is visible.
-    // The J is written ASYMMETRICALLY inside them (L_iso carries an explicit 1/J, L_vol carries
-    // none and is J-free by cancellation), so they must be scaled together as a sum and never
-    // "tidied" one at a time.
+    // builders return c = (1/J) d(L_v tau)/dD (not d(L_v sigma)/dD), with J written asymmetrically
+    // (1/J in L_iso, none in L_vol): scale them together as a sum, never one at a time
     mat Lt_iso = L_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, dW.dW2dI_11_bar, dW.dW2dI_12_bar, dW.dW2dI_22_bar, b, J);
     mat Lt_vol = L_vol_hyper(dW.dUdJ, dW.dU2dJ2, b, J);
     mat Lt_spatial = Lt_iso + Lt_vol;
 
-    // Fibre terms: the I_1 algebra with b_bar replaced by the family's structure tensor.
-    // kappa_d is already folded into A upstream, which is what keeps that substitution exact.
-    // Both derivatives are exactly 0 for a family below the tension switch -- the routine
-    // case, not an edge case -- so skip rather than assemble six 6x6 dyadics times zero.
+    // fibre terms: I_1 algebra with b_bar -> structure tensor (kappa_d folded into A); zero below the switch
     if (!A.empty()) {
         mat Id = eye(3,3);
         mat I_dev = Idev();

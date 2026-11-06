@@ -15,7 +15,7 @@
  
  */
 
-///@file state_variables.hpp
+///@file state_variables_M.hpp
 ///@brief State variables of a phase, in a defined coordinate system:
 ///@version 1.0
 
@@ -57,12 +57,46 @@ class state_variables_M : public state_variables
 		arma::mat L; ///< elastic stiffness; plugin-kernel input, crosses g2l only (the solver zeroes the global one)
 		arma::mat Lt; ///< tangent stiffness; crosses both ways
 		
-		state_variables_M(); 	//default constructor
-        state_variables_M(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Constructor with parameters
+		/** @brief Default constructor (zero strains and stresses, identity F, U, R, DR). */
+		state_variables_M();
+        /**
+         * @brief Constructor with parameters; asserts the Voigt and matrix sizes.
+         * @param Etot Green-Lagrange strain
+         * @param DEtot increment of Green-Lagrange strain
+         * @param etot logarithmic strain
+         * @param Detot increment of logarithmic strain
+         * @param PKII 2nd Piola-Kirchhoff stress
+         * @param PKII_start 2nd Piola-Kirchhoff stress at start
+         * @param tau Kirchhoff stress
+         * @param tau_start Kirchhoff stress at start
+         * @param sigma Cauchy stress
+         * @param sigma_start Cauchy stress at start
+         * @param F0 deformation gradient at start
+         * @param F1 deformation gradient at end
+         * @param U0 stretch tensor at start
+         * @param U1 stretch tensor at end
+         * @param R rotation tensor
+         * @param DR rotation increment
+         * @param sigma_in inelastic stress (size 6)
+         * @param sigma_in_start inelastic stress at start (size 6)
+         * @param T temperature
+         * @param DT temperature increment
+         * @param nstatev number of internal state variables
+         * @param statev internal state variables
+         * @param statev_start internal state variables at start
+         * @param Wm mechanical works (size 4)
+         * @param Wm_start mechanical works at start (size 4)
+         * @param L elastic stiffness (6x6)
+         * @param Lt tangent stiffness (6x6)
+         */
+        state_variables_M(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const arma::vec &sigma_in, const arma::vec &sigma_in_start, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const arma::vec &Wm, const arma::vec &Wm_start, const arma::mat &L, const arma::mat &Lt);
     
-		state_variables_M(const state_variables_M &);	//Copy constructor
+		/** @brief Copy constructor. */
+		state_variables_M(const state_variables_M &);
+		/** @brief Destructor. */
 		virtual ~state_variables_M();
 		
+		/** @brief Copy assignment. */
 		virtual state_variables_M& operator = (const state_variables_M&);
 		
 		virtual state_variables_M& copy_fields_M (const state_variables_M&);

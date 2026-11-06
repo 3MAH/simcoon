@@ -103,7 +103,8 @@ void expect_equiv(const UmatFn& reference, const std::string& name,
                   double amp = 0.02, int n_quarter = 25) {
     const vec ref = drive(reference, name, props, nstatev, amp, n_quarter,
                           /*pre-2.0 continuum literal*/ 0);
-    const vec mod = drive(umat_legacy_modular, name, props, nstatev, amp,
+    // the adapter's trailing ncp option keeps its default through the forwarding lambda
+    const vec mod = drive([](auto&&... a) { umat_legacy_modular(a...); }, name, props, nstatev, amp,
                           n_quarter, tangent_continuum);
     const double peak = std::max(std::abs(ref.max()), std::abs(ref.min()));
     ASSERT_GT(peak, 0.);

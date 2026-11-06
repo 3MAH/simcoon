@@ -814,6 +814,7 @@ def discretize_odf(
     axis=(0.0, 0.0, 1.0),
     angle_range=(0.0, 180.0),
     rotate_material: bool = True,
+    weights: str = "simpson",
 ) -> List:
     """Split one phase into ``nphases`` phases whose orientations follow an ODF.
 
@@ -840,6 +841,23 @@ def discretize_odf(
     ``phi`` from an unrotated phase is ``axis=(0, 0, 1)``, a sweep of ``theta`` is
     ``axis=(1, 0, 0)``.
 
+    ``weights="fourier"`` replaces the Simpson fractions by Fourier-projected ones:
+    ``w_k = d * (r_0 + 2 Re(r_1 e^{2i alpha_k} + r_2 e^{4i alpha_k}))``, ``r_m`` the Fourier
+    coefficients of the density over one half turn. A tensor that rotates with the phase
+    about ``axis`` (``R T R^T`` in Voigt notation) is a trigonometric polynomial of degree
+    4 in ``alpha``: only ``r_0``, ``r_1``, ``r_2`` enter its average, and these weights
+    give that average exactly with ``nphases >= 5``. This is
+    the case of the Mori-Tanaka scheme (MIMTN) with an isotropic matrix and a swept phase
+    whose material turns with it (``rotate_material``) or is isotropic: a handful of
+    phases then replaces hundreds. For other schemes (the self-consistent medium turns
+    with nothing) the weights are only a quadrature among others. They need
+    ``angle_range`` to span one half turn. The projected fractions are negative for most
+    peaked densities: a non-negative set reproducing the same three modes exactly is then
+    taken instead (non-negative least squares; it keeps only a few of the ``nphases``
+    directions, the phases of zero fraction being dropped from the result). When the
+    density is too peaked for any such set on these nodes (a few degrees wide), the
+    Simpson fractions are used, with a warning. ``nphases`` of 12 to 36 is a good start.
+
     Returns a new list of new objects, numbered by position; the caller's phases are
     left untouched. ``coatingof`` indices pointing past the swept phase are shifted; a
     coating OF the swept phase is refused (which of its copies would it coat?).
@@ -863,23 +881,37 @@ def discretize_odf(
     if a_max <= a_min:
         raise ValueError("angle_range must be (min, max) with max > min, in degrees")
 
+    if weights not in ("simpson", "fourier"):
+        raise ValueError(f"weights must be 'simpson' or 'fourier', got {weights!r}")
+
     parent = phases[num_phase]
     d = (a_max - a_min) / nphases
     alphas = a_min + d * np.arange(nphases)
     # Simpson over each bin, the density being periodic over 180 deg (director distribution)
     x = np.concatenate([alphas - d / 2, alphas, alphas + d / 2]) % 180.0
     rho = get_densities_ODF(x, peaks)
-    weights = (
+    fractions = (
         d
         / 6.0
         * (rho[:nphases] + 4.0 * rho[nphases : 2 * nphases] + rho[2 * nphases :])
     )
-    if weights.sum() <= 0.0:
+    if fractions.sum() <= 0.0:
         raise ValueError("the ODF density is zero over the whole angle_range")
-    weights *= parent.concentration / weights.sum()
+    if weights == "fourier":
+        fourier = _fourier_fractions(peaks, alphas, d, a_max - a_min, nphases)
+        if fourier is None:
+            warnings.warn(
+                f"discretize_odf: no non-negative Fourier weights on {nphases} phases for "
+                "this density (too peaked); Simpson weights used instead"
+            )
+        else:
+            # the phases of zero weight are dropped
+            keep = fourier > 0.0
+            alphas, fractions = alphas[keep], fourier[keep]
+    fractions *= parent.concentration / fractions.sum()
 
     swept = []
-    for alpha, w in zip(alphas, weights):
+    for alpha, w in zip(alphas, fractions):
         rot = Rotation.from_rotvec(np.deg2rad(alpha) * n)
         copy_k = copy.deepcopy(parent)
         copy_k.concentration = float(w)
@@ -896,11 +928,43 @@ def discretize_odf(
                 f"phase {ph.number} coats phase {num_phase}, which is being discretised"
             )
         if coated > num_phase:
-            ph.coatingof = coated + nphases - 1
+            ph.coatingof = coated + len(swept) - 1
     out = others[:num_phase] + swept + others[num_phase + 1 :]
     for i, ph in enumerate(out):
         ph.number = i
     return out
+
+
+def _fourier_fractions(peaks, alphas, d, span, nphases) -> Optional[np.ndarray]:
+    """Fractions of :func:`discretize_odf` that reproduce the Fourier modes 0, 1, 2 (in
+    2 alpha) of the density exactly: the projected ones when none is negative, else a
+    non-negative set (non-negative least squares on the five moment equations, a few
+    non-zero), else None when no non-negative set of these nodes is exact."""
+    from scipy.optimize import nnls
+
+    if not np.isclose(span, 180.0, rtol=0.0, atol=1e-9):
+        raise ValueError("weights='fourier' needs angle_range to span one half turn (180 degrees)")
+    if nphases < 5:
+        raise ValueError("weights='fourier' needs nphases >= 5 (exact for the modes up to 4 alpha)")
+    # coefficients over one period of the director density: the trapezoidal rule is spectral
+    xf = np.arange(4096) * (180.0 / 4096)
+    rf = get_densities_ODF(xf, peaks)
+    two_a = 2.0 * np.deg2rad(xf)
+    r = [np.mean(rf * np.exp(-1j * m * two_a)) for m in range(3)]
+    two_alpha = 2.0 * np.deg2rad(alphas)
+    projected = d * np.real(
+        r[0] + 2.0 * (r[1] * np.exp(1j * two_alpha) + r[2] * np.exp(2j * two_alpha))
+    )
+    if projected.min() >= 0.0:
+        return projected
+    # sum_k w_k e^{2im alpha_k} = 180 conj(r_m), m = 0, 1, 2 (real and imaginary parts)
+    moments = np.vstack([np.ones(nphases), np.cos(two_alpha), np.sin(two_alpha),
+                         np.cos(2.0 * two_alpha), np.sin(2.0 * two_alpha)])
+    target = 180.0 * np.array([r[0].real, r[1].real, -r[1].imag, r[2].real, -r[2].imag])
+    w, residual = nnls(moments, target)
+    if residual > 1e-12 * np.linalg.norm(target):
+        return None
+    return w
 
 
 # =============================================================================
@@ -1008,6 +1072,16 @@ def L_eff(
     mean-field model (MIHEN, MIMTN, MISCN, MIPLN) ``phases`` gives its sub-phases, as
     the dataclasses of this module or the dicts :func:`to_phase_dicts` makes of them.
     This is ``sim.L_eff``; ``sim._core.L_eff`` is the extension entry it wraps.
+
+    The ``props`` of a mean-field model hold its settings: ``[mp, np]`` (MIHEN),
+    ``[mp, np, n_matrix, closed_form, rule]`` (MIMTN),
+    ``[mp, np, n_matrix, start, closed_form, rule, anderson, rtol]`` (MISCN), ``[]``
+    (MIPLN), the trailing slots being optional and 0 by default (the historical
+    behaviour): ``closed_form=1`` takes the Eshelby tensors in closed form when the
+    medium is isotropic and the inclusion a sphere or a spheroid of axis 1, ``rule=1``
+    integrates them on a half sphere with a trapezoidal rule in phi (half the points),
+    ``anderson=m`` accelerates the self-consistent fixed point (m = 2 is a good choice)
+    and ``rtol > 0`` stops it on a relative criterion. See the UMAT catalog.
     """
     angles = None if orientation is None else euler_angles(orientation)
     dicts = None if phases is None else to_phase_dicts(phases)

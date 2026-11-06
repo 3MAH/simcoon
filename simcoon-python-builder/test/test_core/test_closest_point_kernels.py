@@ -1,10 +1,11 @@
-"""tangent_mode = 3 on the dedicated plasticity kernels (EPICP, EPCHA): the closest-point
+"""integrator="closest_point" on the dedicated plasticity kernels (EPICP, EPCHA): the closest-point
 projection of return_mapping.hpp replaces their cutting-plane loops, with the exact operator."""
 import numpy as np
 import pytest
 
 import simcoon as sim
 from simcoon.solver import StepMeca, solve
+from solver_harness import tangent_kwargs
 
 _UNIAXIAL = ["strain"] + ["stress"] * 5
 EPICP_LIN = [70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 1.0]     # E nu alpha sigmaY k m (linear hardening)
@@ -16,7 +17,7 @@ I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
 
 def _run(name, props, nstatev, mode, ninc=10):
     step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=ninc, time=0.5)
-    r = solve(step, name, props, nstatev, T_init=290.0, tangent_mode=mode)
+    r = solve(step, name, props, nstatev, T_init=290.0, **tangent_kwargs(mode))
     assert r.status == 0
     return r
 
@@ -24,7 +25,7 @@ def _run(name, props, nstatev, mode, ninc=10):
 def _umat(name, props, e, s, sv, De, mode):
     return sim.umat(name, col(e), col(De), I3, I3, col(s), I3, col(props), col(sv), 0.5, 0.3,
                     np.zeros((4, 1), order="F"), temp=np.full(1, 290.0), n_threads=1,
-                    tangent_mode=mode, start=False)
+                    **tangent_kwargs(mode), start=False)
 
 
 def _tangent_vs_fd(name, props, e, s, sv, mode, h=1e-8):
@@ -80,7 +81,7 @@ def test_epcha_closest_point_cyclic_path_runs_at_full_increments():
              StepMeca(control=["strain", "stress", "stress", "strain", "stress", "stress"],
                       value=[-0.01, 0, 0, 0.012, 0, 0], ninc=10, time=1.0),
              StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=10, time=1.0)]
-    r = solve(steps, "EPCHA", EPCHA, 33, T_init=290.0, tangent_mode=3)
+    r = solve(steps, "EPCHA", EPCHA, 33, T_init=290.0, integrator="closest_point")
     assert r.status == 0 and len(r) == 30
     np.testing.assert_allclose(np.diff(r["Time"]), 0.1)
     assert r["Stress"][0, 9] > 300.0 and r["Stress"][0, 19] < -300.0
@@ -96,7 +97,7 @@ def test_thermomechanical_kernel_closest_point_tangent_is_exact(name, props, nst
     Jacobian (the Prager backstress makes mode 2 approximate on EPKCP)."""
     from simcoon.solver import StepThermomeca
     step = StepThermomeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=10, T_final=300.0)
-    r = solve(step, name, props, nstatev, T_init=290.0, tangent_mode=3)
+    r = solve(step, name, props, nstatev, T_init=290.0, integrator="closest_point")
     assert r.status == 0
     e, s, sv, Tn = r["Strain"][:, -1], r["Stress"][:, -1], r["Statev"][:, -1], r["Temp"][-1]
     De0 = np.array([4e-4, 1e-4, -1e-4, 1.5e-4, 0.0, 0.0])
@@ -104,7 +105,7 @@ def test_thermomechanical_kernel_closest_point_tangent_is_exact(name, props, nst
     def call(d, mode):
         out = sim.umat_T(name, col(e), col(d), col(s), I3, col(props), col(sv), 0.5, 0.3,
                          np.zeros((4, 1), order="F"), np.zeros((3, 1), order="F"),
-                         np.array([Tn]), np.array([0.0]), tangent_mode=mode)
+                         np.array([Tn]), np.array([0.0]), **tangent_kwargs(mode))
         return out[0][:, 0], out[5][:, :, 0]
 
     h = 1e-8
@@ -128,7 +129,7 @@ def test_sma_unified_T_closest_point_superelastic_loop_and_exact_tangent():
     steps = [StepMeca(control=_UNIAXIAL, value=[0.04, 0, 0, 0, 0, 0], time=1.0, ninc=100, Dn_mini=0.01),
              StepMeca(control=_UNIAXIAL, value=[0.0] * 6, time=1.0, ninc=100, Dn_mini=0.01)]
     r2 = solve(steps, "SMADI", SMADI, 30, T_init=T_SUPERELASTIC, corate=3, tangent_mode=2)
-    r3 = solve(steps, "SMADI", SMADI, 30, T_init=T_SUPERELASTIC, corate=3, tangent_mode=3)
+    r3 = solve(steps, "SMADI", SMADI, 30, T_init=T_SUPERELASTIC, corate=3, integrator="closest_point")
     assert r3.status == 0 and len(r3) == 200
     np.testing.assert_allclose(np.diff(r3["Time"]), 0.01)
     np.testing.assert_allclose(r3["Stress"][0], r2["Stress"][0], atol=0.5)   # same loop, O(h^2) apart
@@ -141,7 +142,7 @@ def test_sma_unified_T_closest_point_superelastic_loop_and_exact_tangent():
     def call(d, mode):
         return sim.umat("SMADI", col(e), col(d), I3, I3, col(s), I3, col(SMADI), col(sv), 0.5, 0.01,
                         np.zeros((4, 1), order="F"), temp=np.full(1, T_SUPERELASTIC), n_threads=1,
-                        tangent_mode=mode, start=False)
+                        **tangent_kwargs(mode), start=False)
 
     h = 1e-7
     Lt = call(De0, 3)[3][:, :, 0]
@@ -174,7 +175,7 @@ def _unified_TR_loop_and_tangent(name, extra, Y_Reo, points):
     steps = [StepMeca(control=_UNIAXIAL, value=[0.04, 0, 0, 0, 0, 0], time=1.0, ninc=200, Dn_mini=0.01),
              StepMeca(control=["stress"] * 6, value=[0.0] * 6, time=1.0, ninc=200, Dn_mini=0.01)]
     r2 = solve(steps, name, props, 30, T_init=T_SUPERELASTIC, corate=3, tangent_mode=2)
-    r3 = solve(steps, name, props, 30, T_init=T_SUPERELASTIC, corate=3, tangent_mode=3)
+    r3 = solve(steps, name, props, 30, T_init=T_SUPERELASTIC, corate=3, integrator="closest_point")
     assert r2.status == 0 and r3.status == 0 and len(r3) == 400
     np.testing.assert_allclose(r3["Stress"][0], r2["Stress"][0], atol=0.5)
     assert abs(r3["Strain"][0, -1]) < 1e-3   # the loop closes (full reverse transformation)
@@ -185,7 +186,7 @@ def _unified_TR_loop_and_tangent(name, extra, Y_Reo, points):
         def call(d):
             return sim.umat(name, col(e), col(d), I3, I3, col(s), I3, col(props), col(sv), 0.5, 0.005,
                             np.zeros((4, 1), order="F"), temp=np.full(1, T_SUPERELASTIC), n_threads=1,
-                            tangent_mode=3, start=False)
+                            integrator="closest_point", start=False)
 
         h = 1e-7
         out = call(De0)

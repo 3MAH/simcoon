@@ -27,7 +27,6 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function is used to determine an exponential Lagrange Multiplier (like contact in Abaqus)
 double lagrange_exp(const double &h, const double &c, const double &p0) {
 	if(h <= -c)
 	{
@@ -39,7 +38,6 @@ double lagrange_exp(const double &h, const double &c, const double &p0) {
 	}
 }
 
-//This function is used to determine the first derivative of an exponential Lagrange Multiplier
 double dlagrange_exp(const double &h, const double &c, const double &p0) {
 	if(h <= -c)
 	{
@@ -52,7 +50,6 @@ double dlagrange_exp(const double &h, const double &c, const double &p0) {
     
 }
 
-//This function is used to determine a power-law Lagrange Multiplier for problem such x >= 0
 double lagrange_pow_0(const double &x, const double &c, const double &p0, const double &n, const double &alpha) {
     
 	double h = c;
@@ -67,7 +64,6 @@ double lagrange_pow_0(const double &x, const double &c, const double &p0, const 
 	}
 }
 
-//This function is used to determine the first derivative of a power-law Lagrange Multiplier for problem such x >= 0
 double dlagrange_pow_0(const double &x, const double &c, const double &p0, const double &n, const double &alpha)
 {
     
@@ -83,7 +79,6 @@ double dlagrange_pow_0(const double &x, const double &c, const double &p0, const
 	}
 }
 
-//This function is used to determine a power-law Lagrange Multiplier for problem such x <= 1
 double lagrange_pow_1(const double &x, const double &c, const double &p0, const double &n, const double &alpha)
 {
 	double h = 1.-c;
@@ -98,7 +93,6 @@ double lagrange_pow_1(const double &x, const double &c, const double &p0, const 
 	}
 }
 
-//This function is used to determine the first derivative of a power-law Lagrange Multiplier for problem such x <= 1
 double dlagrange_pow_1(const double &x, const double &c, const double &p0, const double &n, const double &alpha)
 {
 	double h = 1.-c;
@@ -113,14 +107,13 @@ double dlagrange_pow_1(const double &x, const double &c, const double &p0, const
 	}
 }
 
-//This function is used to determine the SECOND derivative of a power-law Lagrange Multiplier for problem such x <= 1
 double d2lagrange_pow_1(const double &x, const double &c, const double &p0, const double &n, const double &alpha)
 {
 	double h = 1.-c;
 	
 	if(x <= h)
 	{
-		return (p0 + 1.) * n * pow(1. - x, -n - 1.) + n * (n + 1.) * x * pow(1. - x, -n - 2.);
+		return p0*(2.*n*pow(1. - x, -n - 1.) + n*(n + 1.)*x*pow(1. - x, -n - 2.));
 	}
 	else
 	{

@@ -1,4 +1,21 @@
-///@file Zener_fast.hpp
+/* This file is part of simcoon.
+ 
+ simcoon is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ simcoon is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ */
+
+///@file Zener_Nfast.cpp
 ///@brief User subroutine for Zener viscoelastic model with  N viscoelastic Kelvin branches in series in 3D case, with thermoelastic effect
 ///@brief This implementation uses a single scalar internal variable for the evaluation of the viscoelastic strain increment
 ///@author Chemisky, Chatzigeorgiou
@@ -16,21 +33,6 @@
 
 using namespace std;
 using namespace arma;
-
-///@brief The viscoelastic burger model requires 4+N*4 constants:
-//      -------------------
-//
-///@brief
-///@brief      props(0) = E0                   - Thermoelastic Young's modulus
-///@brief      props(1) = nu0                  - Thermoelastic Poisson's ratio
-///@brief      props(2) = alpha_iso            - Thermoelastic CTE
-///@brief      props(3) = N_kelvin             - Number of Kelvin branches
-///@brief      props(4+i*4) = E_visco(i)       - Viscoelastic Young modulus of Zener branch i
-///@brief      props(4+i*4+1) = nu_visco(i)    - Viscoelastic Poisson ratio of Zener branch i
-///@brief      props(4+i*4+2) = etaB_visco     - Viscoelastic Bulk viscosity of Zener branch i
-///@brief      props(4+i*4+3) = etaS_visco     - Viscoelastic Bulk viscosity of Zener branch i
-
-///@brief Number of statev required for thermoelastic constitutive law : 7+N*7
 
 namespace simcoon {
     
@@ -100,8 +102,6 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         Wm_d = 0.;
     }
 
-    // Implicit (backward-Euler) step of the Kelvin branches in closed form: the exact solution of
-    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
     const std::vector<vec> EV_i_start = EV_i;
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
     const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
@@ -127,7 +127,6 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
-    //Return the statev;
     statev(0) = T_init;
     //From the statev to the internal variables
     statev(1) = EV(0);

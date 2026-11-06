@@ -10,10 +10,11 @@
  */
 
 ///@file num_solve.hpp
-///@brief random number generators
+///@brief Newton and Fischer-Burmeister solvers of the local return-mapping systems
 ///@author Chemisky
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -28,12 +29,89 @@ namespace simcoon{
  */
 
     
-void Newton_Raphon(const arma::vec &, const arma::vec &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief One plain Newton step on the constraints: \f$ \delta p = -B^{-1}\,\Phi \f$, no complementarity.
+ *
+ * The solvers of this file target the Kuhn-Tucker conditions \f$ \Phi_i \le 0,\ \Delta p_i \ge 0,\
+ * \Phi_i\,\Delta p_i = 0 \f$, with \f$ \Delta p = \dot{p}\,\Delta t \f$. A singular \f$ B \f$ gives a zero step.
+ * @param[in] Phi constraints \f$ \Phi_i \f$ (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\Phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Newton_Raphon(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, arma::vec &Dp, arma::vec &dp, double &error);
 
-void Fischer_Burmeister(const arma::vec &, const arma::vec &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief One Newton step of the non-normalised Fischer-Burmeister reformulation of the Kuhn-Tucker conditions.
+ *
+ * As Fischer_Burmeister_m with \f$ \Delta p_i \f$ in place of the normalised \f$ \Delta p_i^* \f$:
+ * \f$ \phi_i = \sqrt{\Phi_i^2 + \Delta p_i^2} + \Phi_i - \Delta p_i \f$. A singular Jacobian gives a zero step.
+ * @param[in] Phi constraints \f$ \Phi_i \f$ (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Fischer_Burmeister(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, arma::vec &Dp, arma::vec &dp, double &error);
 
-void Fischer_Burmeister_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief Fischer_Burmeister with an upper limit on each multiplier, \f$ \Phi^l_i \le 0 \f$ (e.g. \f$ \Phi^l = p - 1 \f$).
+ *
+ * On a row where \f$ \Phi^l_i \neq 0 \f$ the equation is \f$ \phi_{1,i}^2 + \phi_{2,i}^2 = 0 \f$, with
+ * \f$ \phi_1 \f$ the Fischer-Burmeister function of \f$ (\Phi^p_i, \Delta p_i) \f$ and
+ * \f$ \phi_2 = |\Phi^l_i| + \Phi^l_i \f$; other rows are those of Fischer_Burmeister.
+ * @param[in] Phi_p constraints of the mechanisms (N)
+ * @param[in] Phi_l limit constraints (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom Jacobian \f$ \partial \Phi^p / \partial \Delta p \f$ (N x N)
+ * @param[in] denom_l Jacobian \f$ \partial \Phi^l / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Fischer_Burmeister_limits(const arma::vec &Phi_p, const arma::vec &Phi_l, const arma::vec &Y_crit, const arma::mat &denom, const arma::mat &denom_l, arma::vec &Dp, arma::vec &dp, double &error);
 
+/**
+ * @brief One Newton step of the normalised Fischer-Burmeister reformulation of the local
+ *        Kuhn-Tucker conditions (the default complementarity function of the cutting planes).
+ *
+ * The return mapping seeks multipliers \f$ \Delta p_i \f$ with
+ * \f$ \Phi_i \le 0,\ \Delta p_i \ge 0,\ \Phi_i\,\Delta p_i = 0 \f$ for each surface \f$ i \f$.
+ * With the normalised multiplier \f$ \Delta p_i^* = \Delta p_i\,|B_{ii}| \f$ (a stress, as
+ * \f$ \Phi_i \f$) these three conditions are the single equation
+ * \f[
+ *   \phi_i = \sqrt{\Phi_i^2 + \Delta p_i^{*2}} + \Phi_i - \Delta p_i^* = 0,
+ * \f]
+ * the Fischer-Burmeister function \f$ \sqrt{a^2+b^2} - a - b \f$ with \f$ a = -\Phi_i \f$,
+ * \f$ b = \Delta p_i^* \f$. It is smooth away from \f$ (0, 0) \f$ and decides by itself whether
+ * a surface is active, so the same equation serves one surface or a coupled system of N. The
+ * Newton step solves \f$ J\,\delta p = -\phi \f$ with, \f$ r_i = \sqrt{\Phi_i^2 + \Delta p_i^{*2}} \f$,
+ * \f[
+ *   J_{ij} = \left(\frac{\Phi_i}{r_i} + 1\right) B_{ij}
+ *            + \delta_{ij}\,|B_{ii}| \left(\frac{\Delta p_i^*}{r_i} - 1\right),
+ *   \qquad B_{ij} = \frac{\partial \Phi_i}{\partial \Delta p_j}.
+ * \f]
+ * From \f$ \Delta p = 0 \f$ on a violated surface (\f$ \Phi > 0 \f$, \f$ B < 0 \f$) one row
+ * gives \f$ \phi = 2\Phi \f$, \f$ J = 3B \f$: the step is two thirds of the full cutting-plane
+ * step \f$ -\Phi/B \f$, which ncp_step with NCPMethod::min_fb_fallback takes instead. A row with
+ * \f$ \Phi_i = \Delta p_i^* = 0 \f$ is frozen (\f$ J_{ii} = 10^{12} \f$); a singular \f$ J \f$
+ * gives a zero step. One and two surfaces are solved in closed form, more by LAPACK.
+ *
+ * @param[in] Phi constraints \f$ \Phi_i \f$ (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero), typically the yield stresses
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ *             (Fischer_Burmeister_residual)
+ * @throw simcoon::exception_det when LAPACK fails on a system of more than two surfaces
+ */
 void Fischer_Burmeister_m(const arma::vec &, const arma::vec &, const arma::mat &, arma::vec &, arma::vec &, double &);
 
 /**
@@ -55,9 +133,83 @@ void Fischer_Burmeister_m(const arma::vec &, const arma::vec &, const arma::mat 
  */
 double Fischer_Burmeister_residual(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, const arma::vec &Dp);
 
-void Fischer_Burmeister_m_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);
+/**
+ * @brief Fischer_Burmeister_limits with the normalised multipliers \f$ \Delta p_i^* = \Delta p_i\,|B_{ii}| \f$ of Fischer_Burmeister_m.
+ * @param[in] Phi_p constraints of the mechanisms (N)
+ * @param[in] Phi_l limit constraints (N)
+ * @param[in] Y_crit normalisations of the error (N, non-zero)
+ * @param[in] denom Jacobian \f$ B = \partial \Phi^p / \partial \Delta p \f$ (N x N)
+ * @param[in] denom_l Jacobian \f$ \partial \Phi^l / \partial \Delta p \f$ (N x N)
+ * @param[in,out] Dp multipliers, updated: \f$ \Delta p \leftarrow \Delta p + \delta p \f$
+ * @param[out] dp the step \f$ \delta p \f$
+ * @param[out] error \f$ \sum_i |\phi_i| / |Y^{crit}_i| \f$ of the entering iterate
+ * @throw simcoon::exception_det when the determinant or solve fails
+ */
+void Fischer_Burmeister_m_limits(const arma::vec &Phi_p, const arma::vec &Phi_l, const arma::vec &Y_crit, const arma::mat &denom, const arma::mat &denom_l, arma::vec &Dp, arma::vec &dp, double &error);
+
+/**
+ * @brief Complementarity function of a local return-mapping Newton (the loops on Fischer_Burmeister_m).
+ *
+ * A numerical setting of the run, not a material parameter: solver_params::ncp and
+ * state_variables::ncp carry its code, set by the @c ncp option of @c solve and @c sim.umat
+ * (see the UMAT catalogue). Fischer-Burmeister, the historical smoothing, is the default.
+ */
+enum class NCPMethod : int {
+    fischer_burmeister = 0,  ///< normalised Fischer-Burmeister function (Fischer_Burmeister_m)
+    min_fb_fallback = 1      ///< min-NCP semi-smooth Newton on a single surface, Fischer-Burmeister once the error grows
+};
+
+/**
+ * @brief The NCP method of a code (solver_params::ncp, state_variables::ncp), checked: 0 or 1.
+ * @param code the code
+ * @param where the caller, for the error message
+ * @throw std::invalid_argument for any other value
+ */
+NCPMethod ncp_method_of(const int &code, const std::string &where);
+
+/**
+ * @brief One Newton step per call of a local complementarity solve, with the chosen function.
+ *
+ * NCPMethod::fischer_burmeister forwards to Fischer_Burmeister_m. NCPMethod::min_fb_fallback takes
+ * the semi-smooth Newton step of \f$ \min(\Delta p^*_i, -\Phi_i) = 0 \f$ (\f$ \Delta p^*_i = \Delta p_i |B_{ii}| \f$):
+ * on an active row (\f$ \Phi_i > 0 \f$ or \f$ -\Phi_i < \Delta p^*_i \f$) the linearised constraint
+ * \f$ \Phi_i + B_{i\cdot}\,\delta p = 0 \f$, the classic cutting plane (Ortiz and Simo 1986), on an
+ * inactive one the multiplier back to zero (primal-dual active set, Hintermueller, Ito and Kunisch
+ * 2002). The first step from \f$ \Delta p = 0 \f$ is the full Newton step, where the Fischer-Burmeister
+ * function only takes two thirds of it: a linear hardening returns in one step instead of six.
+ * Its @c error is \f$ \sum_i 2|r_i|/|Y^{crit}_i| \f$ of the entering iterate, the scale of the
+ * Fischer-Burmeister measure near the solution. It applies row by row when the rows are
+ * uncoupled (@p denom diagonal): a single surface, or a surface next to the always-satisfied
+ * rows of the viscoelastic and damage mechanisms of MODUL (\f$ \Phi = -Y^{crit} \f$, no
+ * multiplier, no cross term), which stay at zero. A coupled system (off-diagonal terms, e.g.
+ * several yield surfaces) keeps the Fischer-Burmeister step, the active set of coupled surfaces
+ * making the plain semi-smooth Newton cycle. When the error grows from one call to the next, or
+ * a row is singular, the solve falls back to Fischer-Burmeister for the remaining calls (a
+ * nonlinear kinematic hardening can make the full step overshoot).
+ *
+ * One object per local solve (its state is the fallback).
+ */
+class ncp_step {
+public:
+    explicit ncp_step(const NCPMethod &method = NCPMethod::fischer_burmeister) : method_(method) {}
+    /// Same arguments and effects as Fischer_Burmeister_m: Dp += dp, error of the entering iterate
+    void operator()(const arma::vec &Phi, const arma::vec &Y_crit, const arma::mat &denom, arma::vec &Dp, arma::vec &dp, double &error);
+    /// Whether this solve fell back to Fischer-Burmeister
+    bool fell_back() const { return fallback_; }
+private:
+    NCPMethod method_;
+    bool fallback_ = false;
+    double prev_error_ = -1.;
+};
     
-arma::mat denom_FB_m(const arma::vec &, const arma::mat &, const arma::vec &);
+/**
+ * @brief Jacobian \f$ J \f$ of the normalised Fischer-Burmeister system of Fischer_Burmeister_m, without the step.
+ * @param[in] Phi constraints (N)
+ * @param[in] denom local Jacobian \f$ B = \partial \Phi / \partial \Delta p \f$ (N x N)
+ * @param[in] Dp multipliers (N)
+ * @return \f$ J \f$ (N x N); a row with \f$ \Phi_i = \Delta p_i^* = 0 \f$ is frozen (\f$ J_{ii} = 10^{12} \f$)
+ */
+arma::mat denom_FB_m(const arma::vec &Phi, const arma::mat &denom, const arma::vec &Dp);
     
 
 /** @} */ // end of maths group

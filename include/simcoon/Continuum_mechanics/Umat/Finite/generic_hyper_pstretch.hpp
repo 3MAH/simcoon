@@ -41,7 +41,9 @@ namespace simcoon{
  *
  * The potential is selected by umat_name. Currently available:
  * - OGDEN: \f$ W = \sum_{i=1}^N \frac{2 \mu_i}{\alpha_i^2} \left( \bar{\lambda}_1^{\alpha_i} + \bar{\lambda}_2^{\alpha_i} + \bar{\lambda}_3^{\alpha_i} - 3 \right) + \kappa \left( J \, \textrm{ln} J - J + 1 \right) \f$
- *   with props = { N, \f$ \kappa \f$, \f$ \mu_1 \f$, \f$ \alpha_1 \f$, ..., \f$ \mu_N \f$, \f$ \alpha_N \f$ } (nprops = 2 + 2N).
+ *   with props = { N, \f$ \kappa \f$, \f$ \mu_1 \f$, \f$ \alpha_1 \f$, ..., \f$ \mu_N \f$, \f$ \alpha_N \f$ } (nprops = 2 + 2N), optionally followed by props(2 + 2N)
+ *   selecting the volumetric term (see VolumetricPotential: absent or 0 for
+ *   \f$ \kappa (J \ln J - J + 1) \f$, 1 for \f$ \frac{\kappa}{2} (J-1)^2 \f$).
  *   Constraints (validated, throws std::invalid_argument): \f$ N \geq 1 \f$ and every \f$ \alpha_i \neq 0 \f$.
  *   The ground-state shear modulus is \f$ \mu = \sum_i \mu_i \f$; N=1, \f$ \alpha_1 = 2 \f$ recovers the compressible neo-Hookean potential (NEOHC).
  *

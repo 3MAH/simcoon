@@ -17,7 +17,7 @@
 
 /**
  * @file Zener_fast.hpp
- * @brief Linear viscoelastic material model using the Zener (Standard Linear Solid) representation
+ * @brief Standard linear solid, Poynting--Thomson (Kelvin) form (ZENER)
  * @author Yves Chemisky
  * @version 1.0
  */
@@ -36,37 +36,40 @@ namespace simcoon {
  */
 
 /**
- * @brief Linear viscoelastic constitutive model using the Zener (Standard Linear Solid) model
+ * @brief Standard linear solid in its Poynting--Thomson (Kelvin) form (``ZENER``): a spring
+ *        \f$ \mathbf{L}_0 \f$ in series with one Kelvin--Voigt unit \f$ (\mathbf{L}_1, \mathbf{H}_1) \f$.
  *
- * @details This function implements a linear viscoelastic material model using the Zener model,
- * also known as the Standard Linear Solid (SLS). The Zener model consists of a spring in series
- * with a Kelvin-Voigt element (spring and dashpot in parallel), providing both instantaneous
- * elastic response and time-dependent relaxation.
- *
- * **Rheological Representation:**
- *
- * ```
- *     E_0 (instantaneous)
- *   ─────────┬─────────
- *            │
- *     ┌──────┴──────┐
- *     │   E_1      η_1   │  (Kelvin-Voigt element)
- *     │ ──/\/\──┬──[=]──│
- *     │         │        │
- *     └─────────┴────────┘
- * ```
- *
- * **Constitutive Equations:**
- *
- * The Zener model stress-strain relationship is given by:
+ * @details The instantaneous spring and the Kelvin unit carry the same stress:
  * \f[
- * \boldsymbol{\sigma} + \tau \dot{\boldsymbol{\sigma}} = E_0 \boldsymbol{\varepsilon} + (E_0 + E_1) \tau \dot{\boldsymbol{\varepsilon}}
+ * \boldsymbol{\sigma} = \mathbf{L}_0 : \left( \boldsymbol{\varepsilon} - \boldsymbol{\alpha}\,(T - T_{init})
+ *   - \boldsymbol{\varepsilon}^{v} \right)
+ *   = \mathbf{L}_1 : \boldsymbol{\varepsilon}^{v} + \mathbf{H}_1 : \dot{\boldsymbol{\varepsilon}}^{v},
  * \f]
- * where:
- * - \f$ E_0 \f$ is the instantaneous (glassy) modulus
- * - \f$ E_1 \f$ is the modulus of the Kelvin-Voigt element
- * - \f$ \tau = \eta_1 / E_1 \f$ is the relaxation time
- * - \f$ \eta_1 \f$ is the viscosity of the dashpot
+ * with \f$ \mathbf{L}_0 = \mathbf{L}_{iso}(E_0, \nu_0) \f$, \f$ \mathbf{L}_1 = \mathbf{L}_{iso}(E_1, \nu_1) \f$
+ * and the viscosity tensor \f$ \mathbf{H}_1 = 3\eta_{B,1}\,\mathbf{I}_{vol} + 2\eta_{S,1}\,\mathbf{I}_{dev} \f$
+ * (H_iso). ``ZENNK`` (umat_zener_Nfast()) chains \f$ N \f$ such units in series.
+ *
+ * **One-dimensional response.** With the dashpot viscosity \f$ \eta_1 \f$:
+ * \f[
+ * \sigma + \tau_r\,\dot{\sigma} = E_\infty\,\varepsilon + E_0\,\tau_r\,\dot{\varepsilon},\qquad
+ * J(t) = \frac{1}{E_0} + \frac{1}{E_1}\left(1 - e^{-t/\tau_c}\right),\qquad
+ * E(t) = E_\infty + (E_0 - E_\infty)\,e^{-t/\tau_r},
+ * \f]
+ * with the retardation time \f$ \tau_c = \eta_1 / E_1 \f$, the relaxation time
+ * \f$ \tau_r = \eta_1 / (E_0 + E_1) \f$ and the relaxed modulus \f$ E_\infty = E_0 E_1 / (E_0 + E_1) \f$.
+ * The same solid in its Zener (Maxwell) form, a spring \f$ E_\infty \f$ in parallel with a Maxwell
+ * branch \f$ (E_M, \eta_M) \f$, has \f$ E_M = E_0^2 / (E_0 + E_1) \f$ and
+ * \f$ \eta_M = \eta_1 E_0^2 / (E_0 + E_1)^2 \f$. In 3D the props of the two forms do not map one to
+ * one (each branch has its own Poisson ratio and bulk and shear viscosities): this law is not the
+ * one-branch umat_prony_Nfast() (``PRONK``, generalized Maxwell).
+ *
+ * **Discrete update.** Backward Euler on \f$ \boldsymbol{\varepsilon}^{v} \f$, solved in closed form
+ * (kelvin_series_step, linear_viscoelastic.hpp); the tangent is the exact derivative of that update
+ * (\f$ \mathbf{L}_0 \f$ under tangent_none).
+ *
+ * **Work split.** \f$ \Delta W_d = \tfrac{1}{2}\left(\mathbf{A}^{v}_n + \mathbf{A}^{v}_{n+1}\right) : \Delta\boldsymbol{\varepsilon}^{v} \f$
+ * with \f$ \mathbf{A}^{v} = \boldsymbol{\sigma} - \mathbf{L}_1 : \boldsymbol{\varepsilon}^{v} \f$,
+ * \f$ W_r = W - W_d \f$, \f$ W_{ir} = 0 \f$.
  *
  * @note **Stress measure.** The stress returned by this model (the `stress` argument,
  * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
@@ -77,54 +80,25 @@ namespace simcoon {
  * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
  * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
- * **Relaxation Modulus:**
+ * **Material properties** (7; MPa, MPa.s):
  *
- * The relaxation modulus for the Zener model is:
- * \f[
- * E(t) = E_\infty + (E_0 - E_\infty) e^{-t/\tau}
- * \f]
- * where:
- * - \f$ E_\infty = \frac{E_0 E_1}{E_0 + E_1} \f$ is the long-term (rubbery) modulus
- * - \f$ E_0 \f$ is the instantaneous modulus
- * - \f$ \tau \f$ is the relaxation time
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | props[0] | \f$ E_0 \f$ | Young modulus of the instantaneous spring |
+ * | props[1] | \f$ \nu_0 \f$ | Poisson ratio of the instantaneous spring |
+ * | props[2] | \f$ \alpha \f$ | isotropic thermal expansion coefficient |
+ * | props[3] | \f$ E_1 \f$ | Young modulus of the Kelvin unit |
+ * | props[4] | \f$ \nu_1 \f$ | Poisson ratio of the Kelvin unit |
+ * | props[5] | \f$ \eta_{B,1} \f$ | bulk viscosity of the Kelvin unit |
+ * | props[6] | \f$ \eta_{S,1} \f$ | shear viscosity of the Kelvin unit |
  *
- * **Creep Compliance:**
+ * **State variables** (8; Voigt order [11, 22, 33, 12, 13, 23], engineering shear strains):
  *
- * The creep compliance is:
- * \f[
- * J(t) = \frac{1}{E_0} + \frac{1}{E_1} \left( 1 - e^{-t/\tau_c} \right)
- * \f]
- * where \f$ \tau_c = \eta_1 / E_1 \f$ is the retardation time.
- *
- * **Incremental Form:**
- *
- * For numerical integration over a time step \f$ \Delta t \f$:
- * \f[
- * \boldsymbol{\sigma}_{n+1} = \mathbf{L}_\infty : \boldsymbol{\varepsilon}_{n+1} + \mathbf{q}_{n+1}
- * \f]
- * where the internal variable \f$ \mathbf{q} \f$ evolves as:
- * \f[
- * \mathbf{q}_{n+1} = e^{-\Delta t/\tau} \mathbf{q}_n + \frac{E_1 - E_\infty}{E_\infty} \mathbf{L}_\infty : \left( e^{-\Delta t/\tau} - 1 \right) \Delta \boldsymbol{\varepsilon}
- * \f]
- *
- * **Material Parameters (props):**
- *
- * | Index | Symbol | Description | Units |
- * |-------|--------|-------------|-------|
- * | props[0] | \f$ E_\infty \f$ | Equilibrium (long-term) Young's modulus | Stress |
- * | props[1] | \f$ \nu \f$ | Poisson's ratio (assumed constant) | - |
- * | props[2] | \f$ \alpha \f$ | Thermal expansion coefficient | 1/Temperature |
- * | props[3] | \f$ E_1 \f$ | Modulus of Kelvin-Voigt element | Stress |
- * | props[4] | \f$ \tau \f$ | Relaxation time | Time |
- *
- * **State Variables (statev):**
- *
- * Total state variables required: \f$ n_{statev} = 7 \f$
- *
- * | Index | Symbol | Description | Units |
- * |-------|--------|-------------|-------|
- * | statev[0] | \f$ T_{init} \f$ | Initial temperature | Temperature |
- * | statev[1:6] | \f$ \mathbf{q} \f$ | Internal stress-like variable (Voigt \f$6 \times 1\f$) | Stress |
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | statev[0] | \f$ T_{init} \f$ | initial temperature |
+ * | statev[1] | \f$ v \f$ | accumulated viscous strain \f$ \sum \|\Delta\boldsymbol{\varepsilon}^{v}\| \f$ |
+ * | statev[2..7] | \f$ \boldsymbol{\varepsilon}^{v} \f$ | viscous strain of the Kelvin unit |
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
  * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
@@ -148,15 +122,9 @@ namespace simcoon {
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
  *
- * @note The Zener model is the simplest model capturing both creep and relaxation
- * @note For multiple relaxation times, use the Prony series model (umat_prony_Nfast)
- * @note Time step should be small relative to relaxation time for accuracy
- * @note The model assumes small strains and linear viscoelasticity
- *
  * **References:**
  * - Zener, C. (1948). *Elasticity and Anelasticity of Metals*. University of Chicago Press.
- * - Ferry, J. D. (1980). *Viscoelastic Properties of Polymers* (3rd ed.). Wiley.
- * - Simo, J. C., & Hughes, T. J. R. (1998). *Computational Inelasticity*. Springer.
+ * - Tschoegl, N. W. (1989). *The Phenomenological Theory of Linear Viscoelastic Behavior*. Springer.
  */
 void umat_zener_fast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
 

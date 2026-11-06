@@ -52,12 +52,26 @@ class variant
 		double g;
 		arma::vec ETn;	//Strain associated to each variant
 		
-		variant(); 	//default constructor
-		variant(arma::vec, arma::vec, double); //Constructor with parameters
-		variant(const variant &);	//Copy constructor
+		/** @brief Default constructor: zero normal, direction, Schmid tensor and transformation strain. */
+		variant();
+		/**
+		 * @brief Constructor with parameters; builds the Schmid tensor and the transformation strain.
+		 * @param n habit plane normal (size 3)
+		 * @param m transformation direction (size 3)
+		 * @param g transformation magnitude, \f$ \varepsilon^{T}_n = g\,\mathrm{Schmid\_v}(n, m) \f$
+		 */
+		variant(arma::vec n, arma::vec m, double g);
+		/** @brief Copy constructor. */
+		variant(const variant &);
+		/** @brief Destructor. */
 		~variant();
 		
-		void build(const double &);
+		/**
+		 * @brief Rebuild the Schmid tensor R and the transformation strain ETn from the stored n, m.
+		 * @param g transformation magnitude (must be > 0)
+		 */
+		void build(const double &g);
+		/** @brief Copy assignment. */
 		virtual variant& operator = (const variant&);
 		
         friend std::ostream& operator << (std::ostream&, const variant&);

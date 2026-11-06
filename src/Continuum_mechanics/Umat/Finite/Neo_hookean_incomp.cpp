@@ -15,7 +15,7 @@
  
  */
 
-///@file elastic_isotropic.cpp
+///@file Neo_hookean_incomp.cpp
 ///@brief User subroutine for Isotropic elastic materials in 3D case
 ///@version 1.0
 
@@ -39,13 +39,6 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
-///@brief The elastic UMAT requires 2 constants:
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
-
-///@brief No statev is required for thermoelastic constitutive law
 
 void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {
@@ -108,18 +101,13 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     }
     mat I = eye(3,3);
 
-    //Compute the PKII stress and then the Cauchy stress.
-    // S = 2 dW/dC for W = C_10*(I1_bar-3) + (1/D_1)*(J-1)^2, with I1_bar = J^(-2/3) tr(C):
-    //   S_iso = 2 C_10 J^(-2/3) I - (2/3) C_10 I1_bar invC ;  S_vol = (2/D_1)(J-1) J invC.
-    // (The previous deviatoric I-term carried a stray 1/J -> J^(-5/3) instead of J^(-2/3),
-    //  a ~ (1-1/J) stress error; fixed so stress and the rebuilt tangent both match dS/dE.)
+    // S = 2 dW/dC: S_iso = 2 C_10 J^(-2/3) I - (2/3) C_10 I1_bar invC, S_vol = (2/D_1)(J-1) J invC
     mat S = (-2./3.)*C_10*I1_bar*invC + 2.*C_10*pow(J,-2./3.)*I + (2./D_1)*(J-1)*J*invC;
     // Kirchhoff-native: the route stress IS tau, Cauchy is tau/J formed at the output boundary.
     mat tau_t = PKII2Kirchoff(S, F1, J);
     sigma = t2v_stress(tau_t);
 	
-    // Tangent from the invariant machinery (spatial Lie tangent of the same potential),
-    // converted to the box tangent of corate_type, as generic_hyper_invariants.
+    // spatial Lie tangent of the same potential, mapped to the box of corate_type
     mat b = L_Cauchy_Green(F1);
     double dWdI_1_bar = C_10;       // dW/dI1_bar; dW/dI2_bar = 0 (no I2 term), all 2nd deviatoric derivs = 0
     double dUdJ   = (2./D_1)*(J-1.);

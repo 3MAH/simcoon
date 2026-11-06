@@ -4,8 +4,8 @@ import tempfile
 import numpy as np
 import pytest
 
-from simcoon.parameter import Parameter, read_parameters, copy_parameters, apply_parameters
-from simcoon.constant import Constant, read_constants, copy_constants, apply_constants
+from simcoon.parameter import KeyTemplate, Parameter, read_parameters
+from simcoon.constant import Constant, read_constants
 from simcoon.identify import identification, calc_cost
 
 
@@ -73,28 +73,22 @@ class TestReadParameters:
             read_parameters("nonexistent.inp", skiprows=-1)
 
 
-class TestCopyParameters:
-    def test_copy_parameters(self, data_dir, keys_dir):
+class TestKeyTemplateFiles:
+    def test_write_creates_the_working_file(self, data_dir, keys_dir):
         params = read_parameters(os.path.join(data_dir, "parameters.inp"))
         with tempfile.TemporaryDirectory() as tmp:
-            copy_parameters(params, keys_dir, tmp)
+            KeyTemplate(keys_dir, params).write(tmp)
             assert os.path.exists(os.path.join(tmp, "Nellipsoids0.dat"))
 
-    def test_copy_parameters_invalid_src(self, data_dir):
-        params = read_parameters(os.path.join(data_dir, "parameters.inp"))
-        with pytest.raises(TypeError):
-            copy_parameters(params, 123, "/tmp")
 
-
-class TestApplyParameters:
-    def test_apply_parameters_replaces_keys(self, data_dir, keys_dir):
+class TestKeyTemplateParameters:
+    def test_write_replaces_keys(self, data_dir, keys_dir):
         params = read_parameters(os.path.join(data_dir, "parameters.inp"))
         params[0].value = 45.0
         params[1].value = 72000.0
 
         with tempfile.TemporaryDirectory() as tmp:
-            copy_parameters(params, keys_dir, tmp)
-            apply_parameters(params, tmp)
+            KeyTemplate(keys_dir, params).write(tmp)
 
             with open(os.path.join(tmp, "Nellipsoids0.dat"), "r") as f:
                 content = f.read()
@@ -105,7 +99,7 @@ class TestApplyParameters:
             assert "72000.0" in content
 
 
-class TestApplyParametersKeyBoundary:
+class TestKeyBoundary:
     """Substring keys must not clobber longer keys that contain them."""
 
     def test_prefix_key_does_not_clobber_longer_key(self):
@@ -122,7 +116,7 @@ class TestApplyParametersKeyBoundary:
             with open(fpath, "w") as f:
                 f.write("E=@E Et=@Et")
 
-            apply_parameters(params, tmp)
+            KeyTemplate(tmp, params).write(tmp)
 
             with open(fpath) as f:
                 content = f.read()
@@ -138,7 +132,7 @@ class TestApplyParametersKeyBoundary:
             fpath = os.path.join(tmp, "m.dat")
             with open(fpath, "w") as f:
                 f.write("v=@x")
-            apply_parameters([p], tmp)
+            KeyTemplate(tmp, [p]).write(tmp)
             with open(fpath) as f:
                 assert f.read() == r"v=\1abc"
 
@@ -156,7 +150,7 @@ class TestParameterRepr:
 
 
 class TestConstants:
-    """Coverage for Constant + read/copy/apply_constants."""
+    """Coverage for Constant, read_constants and their substitution."""
 
     def _write_constants_file(self, path, n_consts, rows):
         with open(path, "w") as f:
@@ -188,7 +182,7 @@ class TestConstants:
             assert len(consts) == 1
             assert consts[0].key == "@c"
 
-    def test_apply_constants_replaces_key(self):
+    def test_constants_replace_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
             template_dir = os.path.join(tmp, "keys")
             work_dir = os.path.join(tmp, "data")
@@ -211,13 +205,12 @@ class TestConstants:
                 ),
             ]
 
-            copy_constants(consts, template_dir, work_dir)
-            apply_constants(consts, work_dir)
+            KeyTemplate(template_dir, consts=consts).write(work_dir)
 
             with open(os.path.join(work_dir, "mat.dat")) as f:
                 assert f.read() == "density=7800.0 mu=0.3"
 
-    def test_apply_constants_prefix_collision_safe(self):
+    def test_constants_prefix_collision_safe(self):
         """``@m`` must not clobber ``@mu`` (same hardening as parameters)."""
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, "mat.dat"), "w") as f:
@@ -227,29 +220,28 @@ class TestConstants:
                 Constant(0, "@m", np.array([1.0]), 1.0, ["mat.dat"]),
                 Constant(1, "@mu", np.array([0.3]), 0.3, ["mat.dat"]),
             ]
-            apply_constants(consts, tmp)
+            KeyTemplate(tmp, consts=consts).write(tmp)
 
             with open(os.path.join(tmp, "mat.dat")) as f:
                 assert f.read() == "a=1.0 b=0.3"
 
 
 class TestIdentificationWorkflow:
-    """Test the full identification workflow: template -> apply -> forward model -> cost."""
+    """Test the full identification workflow: template -> substitution -> forward model -> cost."""
 
-    def test_template_apply_no_residual_keys(self, data_dir, keys_dir):
+    def test_template_no_residual_keys(self, data_dir, keys_dir):
         """End-to-end: key substitution produces valid input (no residual @)."""
         params = read_parameters(os.path.join(data_dir, "parameters.inp"))
         params[0].value = 0.8
         params[1].value = 73000
 
         with tempfile.TemporaryDirectory() as tmp:
-            copy_parameters(params, keys_dir, tmp)
-            apply_parameters(params, tmp)
+            KeyTemplate(keys_dir, params).write(tmp)
 
             with open(os.path.join(tmp, "Nellipsoids0.dat"), "r") as f:
                 content = f.read()
 
-            assert "@" not in content, "Residual keys found after apply_parameters"
+            assert "@" not in content, "Residual keys found after the substitution"
             assert "0.8" in content
             assert "73000" in content
 
@@ -257,12 +249,12 @@ class TestIdentificationWorkflow:
         """Each iteration starts from a fresh template (no stale values)."""
         params = read_parameters(os.path.join(data_dir, "parameters.inp"))
 
+        template = KeyTemplate(keys_dir, params)
         with tempfile.TemporaryDirectory() as tmp:
             # First iteration
             params[0].value = 0.7
             params[1].value = 50000
-            copy_parameters(params, keys_dir, tmp)
-            apply_parameters(params, tmp)
+            template.write(tmp)
 
             with open(os.path.join(tmp, "Nellipsoids0.dat"), "r") as f:
                 content1 = f.read()
@@ -271,8 +263,7 @@ class TestIdentificationWorkflow:
             # Second iteration with different values
             params[0].value = 0.9
             params[1].value = 80000
-            copy_parameters(params, keys_dir, tmp)
-            apply_parameters(params, tmp)
+            template.write(tmp)
 
             with open(os.path.join(tmp, "Nellipsoids0.dat"), "r") as f:
                 content2 = f.read()

@@ -1,4 +1,21 @@
-///@file Zener_fast.hpp
+/* This file is part of simcoon.
+ 
+ simcoon is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ simcoon is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ */
+
+///@file Zener_Nfast.cpp
 ///@brief User subroutine for Zener viscoelastic model with  N viscoelastic Kelvin branches in series in 3D case, with thermoelastic effect
 ///@brief This implementation uses a single scalar internal variable for the evaluation of the viscoelastic strain increment
 ///@author Chemisky, Chatzigeorgiou
@@ -15,9 +32,6 @@
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 using namespace std;
 using namespace arma;
-
-// Model, props and statev layout: see the Doxygen block in
-// simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Zener_Nfast.hpp
 
 namespace simcoon {
     
@@ -115,8 +129,6 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     //Variables at the start of the increment
     const std::vector<vec> EV_i_start = EV_i;
 
-    // Implicit (backward-Euler) step of the Kelvin branches in closed form: the exact solution of
-    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
     const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
     EV = zeros(6);
@@ -178,7 +190,6 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     Wt_r += (T+DT)*Deta_r;
     Wt_ir += (T+DT)*Deta_ir;
         
-    //Return the statev;
     statev(0) = T_init;
     //From the statev to the internal variables
     statev(1) = EV(0);

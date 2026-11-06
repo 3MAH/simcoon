@@ -149,7 +149,7 @@ private:
     void refresh_tensors() {
         // Cholesky is the cheap positive-definiteness test (succeeds iff SPD,
         // ~2-3x faster than a full eigendecomposition) — matters because
-        // umat_modular reconstructs the module on every integration-point call.
+        // umat_modular reconstructs the module on every configuration change.
         arma::mat R;
         if (!arma::chol(R, L_)) {
             throw std::invalid_argument(
@@ -250,7 +250,17 @@ public:
      * + \partial W / \partial \bar{I}_2) \f$ built from the potential's own
      * derivatives, which is what evaluate() returns at zero strain. It is
      * validated as positive definite by refresh_tensors(), a genuine
-     * admissibility check on the parameters.
+     * admissibility check on the parameters. It is formed in closed form at
+     * \f$ \mathbf{b} = \mathbf{I} \f$, \f$ J = 1 \f$, \f$ U'(1) = 0 \f$ (the module is
+     * rebuilt on every UMAT call), not by a full evaluate().
+     *
+     * For an anisotropic potential L0() is still this isotropic stiffness, exactly:
+     * a fibre family is unstretched at the ground state
+     * (\f$ \mathrm{tr}\,\mathbf{A} = 3\kappa_d + (1 - 3\kappa_d) = 1 \f$), so its
+     * derivatives vanish there (tension-only switch). No mechanism consumes it as an
+     * anisotropic stiffness: plasticity and damage are handed the current tangent,
+     * and the Prony branches are isotropic because each is built as
+     * L_iso\f$(E_i, \nu_i)\f$, L0() entering only as the compliance \f$ \mathbf{L}_0^{-1} \f$.
      *
      * @param potential the potential (see HyperPotential for its parameters)
      * @param params the potential's parameters

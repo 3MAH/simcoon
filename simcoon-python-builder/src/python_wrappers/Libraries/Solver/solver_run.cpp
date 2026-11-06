@@ -21,6 +21,7 @@
 #include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Solver/solver_sink.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/python_wrappers/dict_get.hpp>
 #include <simcoon/python_wrappers/Libraries/Phase/phases.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
@@ -165,9 +166,16 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     ctrl.maxiter = dget<int>(params_py, "maxiter", ctrl.maxiter);
     ctrl.inforce = dget<int>(params_py, "inforce", ctrl.inforce);
     ctrl.precision = dget<double>(params_py, "precision", ctrl.precision);
+    ctrl.precision_rel = dget<double>(params_py, "precision_rel", ctrl.precision_rel);
+    if (ctrl.precision_rel < 0.) {
+        throw std::invalid_argument("solver_run: precision_rel must be >= 0 (0: absolute tolerance only)");
+    }
     //"lambda_solver" is the documented spelling (lambda is a Python keyword); "lambda" kept as alias
     ctrl.lambda = dget<double>(params_py, "lambda_solver", dget<double>(params_py, "lambda", ctrl.lambda));
-    ctrl.tangent_mode = dget<int>(params_py, "tangent_mode", ctrl.tangent_mode);
+    // integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
+    ctrl.tangent_mode = simcoon::kernel_tangent_mode(dget<int>(params_py, "integrator", simcoon::integrator_cutting_plane),
+                                                     dget<int>(params_py, "tangent_mode", ctrl.tangent_mode));
+    ctrl.ncp = dget<int>(params_py, "ncp", ctrl.ncp);
 
     //Loading blocks
     unsigned int nblocks = static_cast<unsigned int>(py::len(blocks_py));
