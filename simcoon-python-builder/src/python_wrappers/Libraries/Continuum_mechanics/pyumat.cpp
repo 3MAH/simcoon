@@ -51,6 +51,26 @@ struct step_cut_tag {};
 PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object> g_step_cut;
 static py::object *g_fn = nullptr;   // touched only with the GIL held
 
+// The keyword names of the call, interned once (same lifetime rule as g_step_cut). The call
+// passes them with the values in one vector (PyObject_Vectorcall): building a kwargs dict
+// key by key, as a pybind11 keyword call does, was a third of the bridge.
+constexpr const char *k_kwnames[] = {"Etot", "DEtot", "sigma", "DR", "props", "statev", "T", "DT",
+                                     "Time", "DTime", "Wm", "ndi", "nshr", "start", "tangent_mode"};
+constexpr std::size_t k_nkw = sizeof(k_kwnames) / sizeof(k_kwnames[0]);
+PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::tuple> g_kwnames;
+
+const py::tuple &kwnames() {
+    return g_kwnames.call_once_and_store_result([]() {
+        py::tuple names(k_nkw);
+        for (std::size_t k = 0; k < k_nkw; k++) {
+            PyObject *s = PyUnicode_InternFromString(k_kwnames[k]);
+            if (!s) throw py::error_already_set();
+            names[k] = py::reinterpret_steal<py::str>(s);
+        }
+        return names;
+    }).get_stored();
+}
+
 using farr = py::array_t<double, py::array::f_style | py::array::forcecast>;
 
 // (rows, cols) column-major copy — cheaper than simpy::arma_to_numpy::mat_to_arr(arma::mat(m)), which
@@ -126,20 +146,28 @@ void python_umat_bridge(const std::string &umat_name, const arma::vec &Etot, con
     if (!g_fn || g_fn->is_none()) {
         throw simcoon::exception_solver("PYEXT: no Python UMAT registered");
     }
+    // own reference for the call: a law that unregisters or replaces itself must stay alive
+    const py::object fn = *g_fn;
 
     py::array_t<double> Wm4(4);
     {
         double *w = Wm4.mutable_data();
         w[0] = Wm; w[1] = Wm_r; w[2] = Wm_ir; w[3] = Wm_d;
     }
+    // keyword arguments, in the order of k_kwnames
+    const py::object values[k_nkw] = {np1d(Etot), np1d(DEtot), np1d(sigma), np2d(DR), np1d(props),
+                                      np1d(statev), py::float_(T), py::float_(DT), py::float_(Time),
+                                      py::float_(DTime), Wm4, py::int_(ndi), py::int_(nshr),
+                                      py::bool_(start), py::int_(tangent_mode)};
     py::object ret;
     try {
-        ret = (*g_fn)("Etot"_a = np1d(Etot), "DEtot"_a = np1d(DEtot), "sigma"_a = np1d(sigma),
-                      "DR"_a = np2d(DR), "props"_a = np1d(props),
-                      "statev"_a = np1d(statev),
-                      "T"_a = T, "DT"_a = DT, "Time"_a = Time, "DTime"_a = DTime,
-                      "Wm"_a = Wm4, "ndi"_a = ndi, "nshr"_a = nshr, "start"_a = start,
-                      "tangent_mode"_a = tangent_mode);
+        PyObject *argv[k_nkw + 1];   // argv[0]: the slot PY_VECTORCALL_ARGUMENTS_OFFSET lends the callee
+        argv[0] = nullptr;
+        for (std::size_t k = 0; k < k_nkw; k++) argv[k + 1] = values[k].ptr();
+        PyObject *res = PyObject_Vectorcall(fn.ptr(), argv + 1, PY_VECTORCALL_ARGUMENTS_OFFSET,
+                                            kwnames().ptr());
+        if (!res) throw py::error_already_set();
+        ret = py::reinterpret_steal<py::object>(res);
     } catch (py::error_already_set &e) {
         if (e.matches(g_step_cut.get_stored())) {
             // Requested step cut: leave sigma/statev/Wm untouched (the solver restores the

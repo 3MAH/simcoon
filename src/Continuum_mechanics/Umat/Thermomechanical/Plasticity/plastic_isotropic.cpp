@@ -24,6 +24,7 @@
 #include <iostream>
 #include <fstream>
 #include <armadillo>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -59,9 +60,8 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
-    //Elastic stiffness tensor and thermal tensor
+    //Elastic stiffness tensor
     mat L = L_iso(E, nu, "Enu");
-	mat M = M_iso(E, nu, "Enu");
     
     ///@brief Temperature initialization
     double T_init = statev(0);
@@ -137,7 +137,7 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     //Compute the explicit flow direction
     vec Lambdap = eta_stress(sigma);
     std::vector<vec> kappa_j(1);
-    kappa_j[0] = L*Lambdap;
+    mul6(L, Lambdap, kappa_j[0]);
     mat K = zeros(1,1);
     
     //Loop parameters
@@ -185,8 +185,8 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
         //compute Phi and the derivatives
         Phi(0) = Mises_stress(sigma) - Hp - sigmaY;
 
-        Lambdap = eta_stress(sigma);
-        kappa_j[0] = L*Lambdap;
+        Lambdap = dPhidsigma;   // associated J2 flow
+        mul6(L, Lambdap, kappa_j[0]);
         
         K(0,0) = dPhidp;
         B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
@@ -228,9 +228,11 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
 
     std::vector<double> P_theta(1);
     // P_theta = invBhat (dPhi/dtheta - dPhi/dsigma:L:alpha), 1/K; invBhat masked so elastic gives 0
-    P_theta[0] = ct.invBhat(0, 0) * (dPhidtheta - sum(dPhidsigma%(L*alpha)));
+    vec L_alpha;
+    mul6(L, alpha, L_alpha);
+    P_theta[0] = ct.invBhat(0, 0) * (dPhidtheta - sum(dPhidsigma%L_alpha));
 
-    dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0]);
+    dSdT = -1.*L_alpha - (kappa_j[0]*P_theta[0]);
     
     //computation of the internal energy production
     double eta_r = c_0*log((T+DT)/T_init) + sum(alpha%sigma);

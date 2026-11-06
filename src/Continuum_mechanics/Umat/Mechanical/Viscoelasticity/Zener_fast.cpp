@@ -79,9 +79,11 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
     //Define the viscoelastic stiffness
     mat L0 = L_iso(E0, nu0, "Enu");
     L = L0;
-    mat L1 = L_iso(E1, nu1, "Enu");
-    
-    mat H1 = H_iso(etaB1, etaS1);                  //dimension of stiffness tensor
+    // the branch operators are built in the lists kelvin_series_step reads (no copies)
+    std::vector<mat> L_branch(1), H_branch(1);
+    L_branch[0] = L_iso(E1, nu1, "Enu");
+    H_branch[0] = H_iso(etaB1, etaS1);              //dimension of stiffness tensor
+    const mat &L1 = L_branch[0];
     
     if(start) { //Initialization
         T_init = T;
@@ -101,7 +103,7 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
 
     // backward Euler in closed form, with its consistent tangent (linear_viscoelastic.hpp)
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
-    const LinearViscoStep st = kelvin_series_step(L0, {L1}, {H1}, {EV1_start}, eps_e, alpha, DTime);
+    const LinearViscoStep st = kelvin_series_step(L0, L_branch, H_branch, {EV1_start}, eps_e, alpha, DTime);
     EV1 = st.EV_i[0];
     const vec DEV1 = EV1 - EV1_start;
     v += norm_strain(DEV1);

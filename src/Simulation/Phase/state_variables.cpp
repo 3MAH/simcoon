@@ -440,6 +440,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const fr
     statev = sv.statev;
     statev_start = sv.statev_start;
 
+    if (frame.is_identity())   //every rotation below is then a no-op
+        return *this;
     frame.rotate_strain(Etot);
     frame.rotate_strain(DEtot);
     frame.rotate_strain(etot);
@@ -485,6 +487,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const fr
     statev_start = sv.statev_start;
 
     // inverse operators: global -> local
+    if (frame.is_identity())   //every rotation below is then a no-op
+        return *this;
     frame.rotate_strain(Etot, frame_rotation::inverse);
     frame.rotate_strain(DEtot, frame_rotation::inverse);
     frame.rotate_strain(etot, frame_rotation::inverse);

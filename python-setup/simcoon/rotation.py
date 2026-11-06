@@ -7,6 +7,7 @@ giving users access to all scipy rotation features (batch operations, ``mean()``
 methods (``apply_stress``, ``apply_stiffness``, etc.).
 """
 
+import math
 import warnings
 from typing import Dict, Sequence, Union
 
@@ -81,7 +82,16 @@ class Rotation(ScipyRotation):
 
     @classmethod
     def identity(cls, num=None):
-        return cls._ensure_cls(super().identity(num))
+        r = super().identity(num)
+        if type(r) is not cls:
+            # exact unit quaternions: nothing to renormalize through from_quat (the default
+            # orientation of every phase, built with each phase object)
+            r.__class__ = cls
+        if num is None:
+            # a single rotation cannot be modified in place: euler_angles reads its angles
+            # without decomposing it
+            r._exact_identity = True
+        return r
 
     @classmethod
     def random(cls, num=None, random_state=None):
@@ -501,17 +511,23 @@ def as_rotation(value: Orientation) -> Rotation:
         return value
     if isinstance(value, ScipyRotation):
         return Rotation.from_scipy(value)
+    return Rotation.from_euler(EULER_SEQ, _euler_triplet(value), degrees=True)
+
+
+def _euler_triplet(value):
+    """The Euler angles of a ``{"psi", "theta", "phi"}`` dict (missing angles are 0) or of a
+    3-sequence, in degrees, checked: unknown keys, a count other than 3 or a non-numeric value
+    raise ``ValueError``."""
     if isinstance(value, dict):
         unknown = set(value) - set(_ANGLES)
         if unknown:
             raise ValueError(f"orientation: unknown keys {sorted(unknown)}; expected {_ANGLES}")
-        angles = [float(value.get(k, 0.0)) for k in _ANGLES]
-    else:
-        angles = np.asarray(value, dtype=float).ravel()
-        if angles.size != 3:
-            raise ValueError(f"orientation: 3 Euler angles (psi, theta, phi) in degrees "
-                             f"expected, got {angles.size} values")
-    return Rotation.from_euler(EULER_SEQ, angles, degrees=True)
+        return [float(value.get(k, 0.0)) for k in _ANGLES]
+    angles = np.asarray(value, dtype=float).ravel()
+    if angles.size != 3:
+        raise ValueError(f"orientation: 3 Euler angles (psi, theta, phi) in degrees "
+                         f"expected, got {angles.size} values")
+    return angles
 
 
 def euler_angles(rotation: Orientation) -> Dict[str, float]:
@@ -525,11 +541,15 @@ def euler_angles(rotation: Orientation) -> Dict[str, float]:
     if not isinstance(rotation, ScipyRotation) and rotation is not None:
         # angles given as angles are written as given: no detour through a quaternion
         # (float noise, and a gimbal-locked triplet rewritten) for a no-op
-        as_rotation(rotation)   # validates the dict keys / the 3 values
-        values = ([float(rotation.get(k, 0.0)) for k in _ANGLES] if isinstance(rotation, dict)
-                  else [float(a) for a in np.asarray(rotation, dtype=float).ravel()])
+        values = [float(a) for a in _euler_triplet(rotation)]   # validates the dict keys / the 3 values
+        if not all(math.isfinite(a) for a in values):
+            as_rotation(rotation)   # the error of a rotation built from non-finite angles
         return dict(zip(_ANGLES, values))
     rot = as_rotation(rotation)
+    if getattr(rot, "_exact_identity", False):
+        # Rotation.identity() (the default orientation of every phase): the angles scipy
+        # returns for it, +0, without the decomposition
+        return {'psi': 0.0, 'theta': 0.0, 'phi': 0.0}
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')   # scipy's "Gimbal lock detected" - see above
         psi, theta, phi = rot.as_euler(EULER_SEQ, degrees=True)

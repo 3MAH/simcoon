@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <memory>
@@ -22,6 +24,8 @@
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Solver/solver_sink.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Simulation/Phase/state_variables_M.hpp>
+#include <simcoon/Simulation/Phase/state_variables_T.hpp>
 #include <simcoon/python_wrappers/dict_get.hpp>
 #include <simcoon/python_wrappers/Libraries/Phase/phases.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
@@ -124,22 +128,174 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
     }
 }
 
-//one row per record, vecs/mats flattened row-major (matrices reshape to
-//(N, n_rows, n_cols) C-order on the Python side).
-template <typename ArmaT>
-py::array_t<double> rows_to_arr(const std::vector<ArmaT> &v) {
-    arma::mat M(v.size(), v.empty() ? 0 : v[0].n_elem);
-    for (size_t i = 0; i < v.size(); i++) {
-        M.row(i) = arma::vectorise(v[i].t()).t();
-    }
-    return simpy::arma_to_numpy::mat_to_arr(std::move(M));   // the heap matrix is handed over, not copied
-}
-
 template <typename T>
 py::array_t<T> scalars_to_arr(const std::vector<T> &v) {
     py::array_t<T> a(v.size());
     std::memcpy(a.mutable_data(), v.data(), v.size()*sizeof(T));
     return a;
+}
+
+//History of one recorded vector or matrix, as the (N, n_comp) Fortran-ordered array it is
+//returned as: one column per component (a matrix flattened row by row), one row per record,
+//filled in place. The buffer is sized at once for the expected count of records, which every
+//complete run reaches exactly, so that it becomes the array itself: no copy, no growth peak
+//(a doubling buffer cost 60 % more peak memory and 25 % more time on a 1e6-increment run). Its
+//untouched pages cost address space only, so a run planned long that stops early stays small;
+//beyond 1 GiB per field the buffer starts smaller and doubles instead. It grows on if need be
+//and is cut to the records of an aborted run. A std::vector of arma objects constructed (and later destroyed)
+//one object per field and record, with a heap block for each 6x6 tangent, and its
+//conversion into arrays, were a quarter of an elastic increment.
+class flat_history {
+public:
+    void set_capacity(const std::size_t &n_records) { capacity_ = n_records; }
+
+    void push(const arma::mat &m) {
+        if (n_records_ == 0) {
+            n_comp_ = m.n_elem;
+            const std::size_t bounded = std::max<std::size_t>(first_rows, max_doubles/std::max<std::size_t>(n_comp_, 1));
+            buf_.set_size(std::max<std::size_t>(std::min(capacity_, bounded), 1), n_comp_);
+        }
+        else if (m.n_elem != n_comp_) {
+            throw std::length_error("solver_run: a recorded quantity changed size during the run");
+        }
+        if (n_records_ == buf_.n_rows) {
+            grow();
+        }
+        const arma::uword ld = buf_.n_rows;
+        double *out = buf_.memptr() + n_records_;
+        if (m.n_rows == 1 || m.n_cols == 1) {
+            const double *in = m.memptr();
+            for (arma::uword k = 0; k < n_comp_; k++)
+                out[k*ld] = in[k];
+        }
+        else {
+            for (arma::uword a = 0; a < m.n_rows; a++)
+                for (arma::uword b = 0; b < m.n_cols; b++, out += ld)
+                    *out = m(a, b);
+        }
+        n_records_++;
+    }
+
+    //The (N, n_comp) array (Fortran order): the Python side takes .T of a vector history and
+    //reshapes a matrix one to (N, n_rows, n_cols), then (n_rows, n_cols, N), both views
+    py::array_t<double> columns() {
+        if (n_records_ == 0 || n_comp_ == 0) {
+            return simpy::arma_to_numpy::mat_to_arr(arma::mat(n_records_, n_comp_));
+        }
+        if (n_records_ < buf_.n_rows) {
+            buf_.shed_rows(n_records_, buf_.n_rows - 1);
+        }
+        return simpy::arma_to_numpy::mat_to_arr(std::move(buf_));   // handed over, not copied
+    }
+
+private:
+    //doubles, but stops at the expected count when it lies in between
+    void grow() {
+        std::size_t rows = 2*buf_.n_rows;
+        if (capacity_ > buf_.n_rows && capacity_ < rows) rows = capacity_;
+        arma::mat bigger(rows, n_comp_, arma::fill::none);
+        for (arma::uword k = 0; k < n_comp_; k++)
+            std::memcpy(bigger.colptr(k), buf_.colptr(k), n_records_*sizeof(double));
+        buf_ = std::move(bigger);
+    }
+
+    static constexpr std::size_t first_rows = 1024;                ///< smallest first allocation (records)
+    static constexpr std::size_t max_doubles = std::size_t(1) << 27;   ///< 1 GiB: larger expected histories double from here
+    arma::mat buf_;
+    std::size_t capacity_ = 0;
+    std::size_t n_comp_ = 0;
+    std::size_t n_records_ = 0;
+};
+
+//The memory sink of the bindings: the converged state of every output point, as
+//simcoon::solver_memory_sink captures it, in flat histories that become the arrays of the
+//result dict.
+class history_sink : public simcoon::solver_results_sink {
+public:
+    bool record_tangent = true;
+    int sv_type = 0;   ///< 1: mechanical, 2: thermomechanical (set by init())
+
+    explicit history_sink(const std::size_t &n_hint) : n_hint_(n_hint) {}
+
+    void init(simcoon::phase_characteristics &rve) override {
+        auto *sv = rve.sptr_sv_global.get();
+        if (dynamic_cast<simcoon::state_variables_T *>(sv) != nullptr)
+            sv_type = 2;
+        else if (dynamic_cast<simcoon::state_variables_M *>(sv) != nullptr)
+            sv_type = 1;
+        for (auto *v : {&blocks_i, &cycles_i, &steps_i, &incs_i}) v->reserve(n_hint_);
+        for (auto *v : {&time, &T, &Q, &r}) v->reserve(n_hint_);
+        for (auto *h : {&Etot, &etot, &PKII, &tau, &sigma, &F1, &R, &DR, &statev, &Wm, &Wt,
+                        &Lt, &dSdE, &dSdT, &drdE, &drdT}) h->set_capacity(n_hint_);
+    }
+
+    void record(simcoon::phase_characteristics &rve, const simcoon::solver_output &, const int &kblock,
+                const int &kcycle, const int &kstep, const int &kinc, const double &Time) override {
+        simcoon::state_variables *sv = rve.sptr_sv_global.get();
+        // defensive re-detection of the state-variable type, as solver_memory_sink
+        auto *sv_T = dynamic_cast<simcoon::state_variables_T *>(sv);
+        auto *sv_M = (sv_T == nullptr) ? dynamic_cast<simcoon::state_variables_M *>(sv) : nullptr;
+        sv_type = (sv_T != nullptr) ? 2 : ((sv_M != nullptr) ? 1 : 0);
+
+        blocks_i.push_back(kblock);
+        cycles_i.push_back(kcycle);
+        steps_i.push_back(kstep);
+        incs_i.push_back(kinc);
+        time.push_back(Time);
+
+        Etot.push(sv->Etot);
+        etot.push(sv->etot);
+        PKII.push(sv->PKII);
+        tau.push(sv->tau);
+        // Cauchy stress, as solver_memory_sink (o_stress_type 4 of phase_characteristics::output)
+        sigma.push(sv->tau / det(sv->F1));
+        F1.push(sv->F1);
+        R.push(sv->R);
+        DR.push(sv->DR);
+        T.push_back(sv->T);
+        statev.push(sv->statev);
+
+        if (sv_T != nullptr) {
+            Wm.push(sv_T->Wm);
+            Wt.push(sv_T->Wt);
+            Q.push_back(sv_T->Q);
+            r.push_back(sv_T->r);
+            if (record_tangent) {
+                dSdE.push(sv_T->dSdE);
+                dSdT.push(sv_T->dSdT);
+                drdE.push(sv_T->drdE);
+                drdT.push(sv_T->drdT);
+            }
+        }
+        else if (sv_M != nullptr) {
+            Wm.push(sv_M->Wm);
+            if (record_tangent) {
+                Lt.push(sv_M->Lt);
+            }
+        }
+    }
+
+    std::vector<int> blocks_i, cycles_i, steps_i, incs_i;
+    std::vector<double> time, T, Q, r;
+    flat_history Etot, etot, PKII, tau, sigma, F1, R, DR, statev, Wm, Wt, Lt, dSdE, dSdT, drdE, drdT;
+
+private:
+    std::size_t n_hint_;
+};
+
+//Records of a complete run, every increment being an output point here (as step::generate()
+//counts the increments): the capacity of the histories
+std::size_t expected_records(const std::vector<simcoon::block> &blocks) {
+    std::size_t n = 0;
+    for (const auto &bl : blocks) {
+        std::size_t n_inc = 0;
+        for (const auto &sptr : bl.steps) {
+            if (sptr->mode == 3) n_inc += sptr->tab_data.n_rows;
+            else if (sptr->Dn_inc > 0.) n_inc += static_cast<std::size_t>(std::round(1./sptr->Dn_inc));
+        }
+        n += n_inc*bl.ncycle;
+    }
+    return n;
 }
 
 } //anonymous namespace
@@ -235,7 +391,7 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     }
     simcoon::check_path_output(blocks, so);
 
-    simcoon::solver_memory_sink sink;
+    history_sink sink(expected_records(blocks));
     sink.record_tangent = record_tangent;
 
     //Sub-phases of a mean-field model, built HERE, while the GIL is still held: they are read
@@ -251,7 +407,8 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
                                      sub_phases);
     }
 
-    //Assemble the results (canonical state; measure transforms happen in Python)
+    //Assemble the results (canonical state; measure transforms happen in Python): one row per
+    //record, (N, n) in Fortran order, a matrix flattened row by row
     py::dict res;
     res["status"] = status;
     res["sv_type"] = sink.sv_type;
@@ -260,30 +417,30 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     res["step"] = scalars_to_arr(sink.steps_i);
     res["inc"] = scalars_to_arr(sink.incs_i);
     res["time"] = scalars_to_arr(sink.time);
-    res["Etot"] = rows_to_arr(sink.Etot);
-    res["etot"] = rows_to_arr(sink.etot);
-    res["PKII"] = rows_to_arr(sink.PKII);
-    res["tau"] = rows_to_arr(sink.tau);
-    res["sigma"] = rows_to_arr(sink.sigma);
-    res["F1"] = rows_to_arr(sink.F1);
-    res["R"] = rows_to_arr(sink.R);
-    res["DR"] = rows_to_arr(sink.DR);
+    res["Etot"] = sink.Etot.columns();
+    res["etot"] = sink.etot.columns();
+    res["PKII"] = sink.PKII.columns();
+    res["tau"] = sink.tau.columns();
+    res["sigma"] = sink.sigma.columns();
+    res["F1"] = sink.F1.columns();
+    res["R"] = sink.R.columns();
+    res["DR"] = sink.DR.columns();
     res["T"] = scalars_to_arr(sink.T);
-    res["Wm"] = rows_to_arr(sink.Wm);
-    res["statev"] = rows_to_arr(sink.statev);
+    res["Wm"] = sink.Wm.columns();
+    res["statev"] = sink.statev.columns();
     if (sink.sv_type == 2) {
         res["Q"] = scalars_to_arr(sink.Q);
         res["r"] = scalars_to_arr(sink.r);
-        res["Wt"] = rows_to_arr(sink.Wt);
+        res["Wt"] = sink.Wt.columns();
         if (record_tangent) {
-            res["dSdE"] = rows_to_arr(sink.dSdE);
-            res["dSdT"] = rows_to_arr(sink.dSdT);
-            res["drdE"] = rows_to_arr(sink.drdE);
-            res["drdT"] = rows_to_arr(sink.drdT);
+            res["dSdE"] = sink.dSdE.columns();
+            res["dSdT"] = sink.dSdT.columns();
+            res["drdE"] = sink.drdE.columns();
+            res["drdT"] = sink.drdT.columns();
         }
     }
     else if (record_tangent) {
-        res["Lt"] = rows_to_arr(sink.Lt);
+        res["Lt"] = sink.Lt.columns();
     }
     return res;
 }

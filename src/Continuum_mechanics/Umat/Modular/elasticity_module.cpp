@@ -20,6 +20,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * @brief Implementation of ElasticityModule class
  */
 
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
@@ -290,7 +291,11 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
         throw std::invalid_argument("ElasticityModule: not configured");
     }
     if (type_ != ElasticityType::HYPER_INVARIANTS) {
-        sigma = L_ * eps_el;
+        if (L_.n_rows == 6 && L_.n_cols == 6 && eps_el.n_elem == 6 ) {
+            mul6(L_, eps_el, sigma);
+        } else {
+            sigma = L_ * eps_el;
+        }
         Lt = L_;
         return;
     }

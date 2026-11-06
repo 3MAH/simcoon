@@ -69,6 +69,8 @@ private:
     // inside the FB hot loop).
     std::vector<std::string> ev_key_;   ///< "EV_<i>" per branch
     std::vector<std::string> v_key_;    ///< "v_<i>" per branch
+    std::vector<size_t> ev_index_;      ///< ivc_ index of "EV_<i>", resolved by register_variables
+    std::vector<size_t> v_index_;       ///< ivc_ index of "v_<i>", resolved by register_variables
 
     // Per-iteration caches (CCP: frozen flow direction from previous iteration)
     mutable std::vector<tensor2> kappa_t_;        ///< Zero fluxes: the rows carry no multiplier

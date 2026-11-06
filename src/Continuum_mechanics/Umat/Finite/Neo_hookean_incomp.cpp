@@ -114,8 +114,10 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     double dU2dJ2 = 2./D_1;
     // The sum is the spatial elasticity c = (1/J) d(L_v tau)/dD; the J that turns it into the
     // Kirchhoff-Lie tangent is applied once here -- see the note on L_vol_hyper.
-    mat Lt_spatial = L_iso_hyper_invariants(dWdI_1_bar, 0., 0., 0., 0., b, J) + L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F1, tau_t);
+    mat Lt_spatial = L_iso_hyper_invariants(dWdI_1_bar, 0., 0., 0., 0., b, J);
+    Lt_spatial += L_vol_hyper(dUdJ, dU2dJ2, b, J);
+    Lt_spatial *= J;   // the Kirchhoff-Lie tangent, in place
+    Lt = Dtau_LieDD_2_DtauDe_corate(Lt_spatial, corate_type, F1, tau_t);
 
     if(start) {
         L = Lt;

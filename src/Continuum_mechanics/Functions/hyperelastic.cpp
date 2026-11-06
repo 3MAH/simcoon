@@ -34,27 +34,277 @@ using namespace arma;
 
 namespace simcoon{
 
-vec isochoric_invariants(const mat &b, const double &mJ) {
+namespace {
 
+// Fixed-size kernels of the isochoric-invariant functions. Each one reproduces the armadillo
+// expression it replaces operation by operation (same products, summed in the same order), with
+// the 3x3 and 6x6 temporaries on the stack. Bit identity with the armadillo expressions was
+// established with Apple clang (-ffp-contract=on: a product is fused only with an addition of the
+// same statement) and Armadillo 15.6.0 (the simcoon-prof environment); it rests on internal details
+// of that version (tiny-matrix product kernel, two-accumulator trace, diagonal shortcut of powmat).
+// A compiler that contracts across statements (GCC's default -ffp-contract=fast in gnu++ mode, on
+// FMA targets) or another Armadillo may round differently, at the epsilon level; the
+// tolerance-based tests remain the guarantee of correctness.
+typedef mat::fixed<3,3> m33;
+typedef mat::fixed<6,6> m66;
+
+// trace(X), summed as armadillo's trace (15.6.0): two accumulators, (X00 + X22) + X11
+inline double trace3(const m33 &X) {
+    double val1 = 0.;
+    double val2 = 0.;
+    val1 += X(0,0);
+    val2 += X(1,1);
+    val1 += X(2,2);
+    return val1 + val2;
+}
+
+// dev(X) = X - ((1/3) tr X) I
+inline m33 dev3(const m33 &X) {
+    const double s = (1./3.)*trace3(X);
+    m33 D;
+    for (int j = 0; j < 3; ++j) {
+        for (int i = 0; i < 3; ++i) {
+            const double e = (i == j) ? 1. : 0.;
+            const double sph = e*s;
+            D(i,j) = X(i,j) - sph;
+        }
+    }
+    return D;
+}
+
+// powmat(X, 2): X*X as armadillo's tiny-matrix kernel (15.6.0); a diagonal X takes armadillo's own
+// shortcut (a pow call per entry, not always the rounded square)
+inline m33 square3(const m33 &X) {
+    m33 P;
+    if (X.is_diagmat()) {
+        P = powmat(X, 2);
+        return P;
+    }
+    for (int j = 0; j < 3; ++j) {
+        const double x0 = X(0,j), x1 = X(1,j), x2 = X(2,j);
+        for (int i = 0; i < 3; ++i) {
+            P(i,j) = X(i,0)*x0 + X(i,1)*x1 + X(i,2)*x2;
+        }
+    }
+    return P;
+}
+
+// t2v_sym(A)
+inline void sym_voigt(const m33 &A, double v[6]) {
+    v[0] = A(0,0);
+    v[1] = A(1,1);
+    v[2] = A(2,2);
+    v[3] = 0.5*(A(0,1) + A(1,0));
+    v[4] = 0.5*(A(0,2) + A(2,0));
+    v[5] = 0.5*(A(1,2) + A(2,1));
+}
+
+// t2v_sym of the identity
+const double I_voigt[6] = {1., 1., 1., 0., 0., 0.};
+
+// Idev(), Ivol() and Ireal() entries (constitutive.cpp)
+inline double Idev_at(const int i, const int j) {
+    if (i < 3 && j < 3) return (i == j) ? 1.*(1.-1./3.) : 1.*(0.-1./3.);
+    return (i == j) ? 0.5 : 0.;
+}
+inline double Ivol_at(const int i, const int j) {
+    return (i < 3 && j < 3) ? (1./3.) : 0.;
+}
+inline double Ireal_at(const int i, const int j) {
+    return (i == j) ? ((i < 3) ? 1. : 0.5) : 0.;
+}
+
+// b_bar = J^(-2/3) b
+inline m33 b_bar_of(const mat &b, const double &J) {
+    const double k = pow(J,-2./3.);
+    m33 b_bar;
+    for (int e = 0; e < 9; ++e) b_bar(e) = b(e)*k;
+    return b_bar;
+}
+
+// The first two isochoric invariants of b_bar, as isochoric_invariants
+inline void bar_invariants(const m33 &b_bar, double &I1, double &I2) {
+    I1 = trace3(b_bar);
+    I2 = 0.5*(pow(trace3(b_bar),2.) - trace3(square3(b_bar)));
+}
+
+double J_of_b(const mat &b, const double &mJ, const char *where) {
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
         try {
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in det function inside isochoric_invariants.");
-        }            
+            throw simcoon::exception_det(std::string("Error in det function inside ") + where + ".");
+        }
     }
-    mat b_bar = pow(J,-2./3.)*b;
-    vec I = zeros(3);    
+    return J;
+}
 
-    I(0) = trace(b_bar);
-    try {
-        I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_powmat("Error in powmat function inside isochoric_invariants.");
-    }        
+// 2 dW/dI1 dev(b_bar) + 2 dW/dI2 (tr(b_bar) dev(b_bar) - dev(b_bar^2)); the I_2 part is skipped
+// when its derivative is zero (an exact zero term)
+m33 tau_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, const m33 &b_bar) {
+    const m33 dev_b_bar = dev3(b_bar);
+    const double c1 = 2.*dWdI_1_bar;
+    m33 tau;
+    for (int e = 0; e < 9; ++e) tau(e) = dev_b_bar(e)*c1;
+    if (dWdI_2_bar != 0.) {
+        const m33 dev_b_bar2 = dev3(square3(b_bar));
+        const double tr = trace3(b_bar);
+        const double c2 = 2.*dWdI_2_bar;
+        for (int e = 0; e < 9; ++e) {
+            const double p = dev_b_bar(e)*tr;
+            const double d = p - dev_b_bar2(e);
+            const double q = d*c2;
+            tau(e) = tau(e) + q;
+        }
+    }
+    return tau;
+}
+
+// gamma_linear: (4/3) (tr_A I_dev - (dev_A (x) I + I (x) dev_A)), scaled by d1, added to Lt
+// (Lt = that product when first), with dev_A in Voigt form
+void add_gamma_linear(m66 &Lt, const double a[6], const double &tr_A, const double &d1, const bool &first) {
+    for (int j = 0; j < 6; ++j) {
+        for (int i = 0; i < 6; ++i) {
+            const double s1 = a[i]*I_voigt[j];
+            const double s2 = I_voigt[i]*a[j];
+            const double s = s1 + s2;
+            const double x = Idev_at(i,j)*tr_A;
+            const double g = (x - s)*(4./3.);
+            const double t = g*d1;
+            Lt(i,j) = first ? t : Lt(i,j) + t;
+        }
+    }
+}
+
+// Lt += (4 a (x) a) d2, auto_sym_dyadic of the Voigt vector a
+void add_gamma_quadratic(m66 &Lt, const double a[6], const double &d2) {
+    for (int j = 0; j < 6; ++j) {
+        for (int i = 0; i < 6; ++i) {
+            const double g = (a[i]*a[j])*4.;
+            const double t = g*d2;
+            Lt(i,j) = Lt(i,j) + t;
+        }
+    }
+}
+
+// L_iso_hyper_invariants without the 1/J, on the stack
+m66 L_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const m33 &b_bar) {
+    const m33 dev_b_bar = dev3(b_bar);
+    double I1, I2;
+    bar_invariants(b_bar, I1, I2);
+    double a[6];
+    sym_voigt(dev_b_bar, a);
+
+    // Only the terms of a non-zero potential derivative are built, summed in the order of the
+    // full expression (a skipped term adds an exact zero): a Neo-Hookean potential needs gamma_1
+    // alone, and the I_2 terms cost b_bar^2 and five more dyadic products.
+    m66 Lt;
+    add_gamma_linear(Lt, a, I1, dWdI_1_bar, true);
+    if ((dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.)) {
+        const m33 dev_b_bar2 = dev3(square3(b_bar));
+        m33 devdevbb2;                        // I1 dev(b_bar) - dev(b_bar^2)
+        for (int e = 0; e < 9; ++e) {
+            const double p = dev_b_bar(e)*I1;
+            devdevbb2(e) = p - dev_b_bar2(e);
+        }
+        if (dWdI_2_bar != 0.) {
+            double a2[6], bv[6];
+            sym_voigt(dev_b_bar2, a2);
+            sym_voigt(b_bar, bv);
+            static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+            m66 H_bar;                        // auto_sym_dyadic_operator(b_bar)
+            for (int i=0; i<3; i++) {
+                for (int j=i; j<3; j++) {
+                    for (int k=0; k<3; k++) {
+                        for (int l=k; l<3; l++) {
+                            H_bar(Id[i][j],Id[k][l]) = 0.5*(b_bar(i,k)*b_bar(j,l) + b_bar(i,l)*b_bar(j,k));
+                        }
+                    }
+                }
+            }
+            // gamma_2 = (8/3) (I2 (I_real - 2 I_vol) - I1 (dev(b_bar) (x) I + I (x) dev(b_bar))
+            //         + (dev(b_bar^2) (x) I + I (x) dev(b_bar^2))) + 4 (b_bar (x) b_bar - H_bar)
+            for (int j = 0; j < 6; ++j) {
+                for (int i = 0; i < 6; ++i) {
+                    const double v2 = Ivol_at(i,j)*2.;
+                    const double r = Ireal_at(i,j) - v2;
+                    const double X = r*I2;
+                    const double s1 = a[i]*I_voigt[j];
+                    const double s2 = I_voigt[i]*a[j];
+                    const double Y = (s1 + s2)*I1;
+                    const double z1 = a2[i]*I_voigt[j];
+                    const double z2 = I_voigt[i]*a2[j];
+                    const double Z = z1 + z2;
+                    const double T = ((X - Y) + Z)*(8./3.);
+                    const double bb = bv[i]*bv[j];
+                    const double U = (bb - H_bar(i,j))*4.;
+                    const double g = T + U;
+                    const double t = g*dWdI_2_bar;
+                    Lt(i,j) = Lt(i,j) + t;
+                }
+            }
+        }
+        if (dW2dI_11_bar != 0.) {
+            add_gamma_quadratic(Lt, a, dW2dI_11_bar);
+        }
+        double dd[6];
+        sym_voigt(devdevbb2, dd);
+        if (dW2dI_12_bar != 0.) {
+            for (int j = 0; j < 6; ++j) {
+                for (int i = 0; i < 6; ++i) {
+                    const double s1 = a[i]*dd[j];
+                    const double s2 = dd[i]*a[j];
+                    const double g = (s1 + s2)*4.;
+                    const double t = g*dW2dI_12_bar;
+                    Lt(i,j) = Lt(i,j) + t;
+                }
+            }
+        }
+        if (dW2dI_22_bar != 0.) {
+            add_gamma_quadratic(Lt, dd, dW2dI_22_bar);
+        }
+    }
+    else if (dW2dI_11_bar != 0.) {
+        add_gamma_quadratic(Lt, a, dW2dI_11_bar);
+    }
+    return Lt;
+}
+
+// L_vol_hyper on the stack: (dU/dJ + J d2U/dJ2) 3 I_vol - 2 dU/dJ I_real
+m66 L_vol_fixed(const double &dUdJ, const double &dU2dJ2, const double &J) {
+    const double k1 = (dUdJ+dU2dJ2*J)*3.;
+    const double k2 = 2.*dUdJ;
+    m66 L;
+    for (int j = 0; j < 6; ++j) {
+        for (int i = 0; i < 6; ++i) {
+            const double p1 = Ivol_at(i,j)*k1;
+            const double p2 = Ireal_at(i,j)*k2;
+            L(i,j) = p1 - p2;
+        }
+    }
+    return L;
+}
+
+// N_k = n_k n_k^T, the eigenprojectors of the columns of n (n_k(a) n_k(b), as their outer product)
+void eigen_projectors(std::vector<mat> &N_projectors, const mat &n) {
+    for (int k = 0; k < 3; k++) {
+        mat P(3,3);
+        for (int q = 0; q < 3; q++)
+            for (int p = 0; p < 3; p++)
+                P(p,q) = n(p,k)*n(q,k);
+        N_projectors[k] = P;
+    }
+}
+
+}  // namespace
+
+vec isochoric_invariants(const mat &b, const double &mJ) {
+
+    const double J = J_of_b(b, mJ, "isochoric_invariants");
+    vec I = zeros(3);
+    bar_invariants(b_bar_of(b, J), I(0), I(1));
     I(2) = 1.;
     return I;
 }
@@ -167,9 +417,7 @@ void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &inpu
 void pstretch(vec &lambda, mat &n_pvectors, std::vector<mat> &N_projectors, const mat &input, const string &input_tensor, const double &mJ) {
 
     pstretch(lambda, n_pvectors, input, input_tensor, mJ);
-    N_projectors[0] = n_pvectors.col(0)*(n_pvectors.col(0)).t();
-    N_projectors[1] = n_pvectors.col(1)*(n_pvectors.col(1)).t();
-    N_projectors[2] = n_pvectors.col(2)*(n_pvectors.col(2)).t();        
+    eigen_projectors(N_projectors, n_pvectors);
 }
 
 void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, const string &input_tensor, const double &mJ) {
@@ -215,9 +463,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
 void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, std::vector<mat> &N_projectors, const mat &input, const string &input_tensor, const double &mJ) {
 
     isochoric_pstretch(lambda_bar, n_pvectors, input, input_tensor, mJ);
-    N_projectors[0] = n_pvectors.col(0)*(n_pvectors.col(0)).t();
-    N_projectors[1] = n_pvectors.col(1)*(n_pvectors.col(1)).t();
-    N_projectors[2] = n_pvectors.col(2)*(n_pvectors.col(2)).t();        
+    eigen_projectors(N_projectors, n_pvectors);
 }
 
 vec beta_coefs(const vec &dWdlambda_bar, const vec &lambda_bar) {
@@ -338,26 +584,8 @@ vec delta_coefs(const vec &a_coefs, const vec &b_coefs, const mat &b) {
 }*/
 
 mat tau_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const mat &b, const double &mJ) {
-    double J=mJ;
-    if (fabs(mJ) < simcoon::iota) {
-        try {
-            J = sqrt(det(b));
-        } catch (const std::runtime_error &e) {
-            cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in det function inside tau_iso_hyper_invariants.");
-        }   
-    }    
-    mat b_bar = pow(J,-2./3.)*b;
-
-    mat b_bar2;
-    try {
-        b_bar2 = powmat(b_bar,2);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_powmat("Error in powmat function inside tau_iso_hyper_invariants.");
-    }        
-
-    return 2.*dWdI_1_bar*dev(b_bar) + 2.*dWdI_2_bar*(trace(b_bar)*dev(b_bar) - dev(b_bar2));
+    const double J = J_of_b(b, mJ, "tau_iso_hyper_invariants");
+    return tau_iso_invariants_fixed(dWdI_1_bar, dWdI_2_bar, b_bar_of(b, J));
 }
 
 mat tau_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
@@ -376,25 +604,12 @@ mat tau_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
 }
 
 mat sigma_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const mat &b, const double &mJ) {
-    double J=mJ;
-    if (fabs(mJ) < simcoon::iota) {
-        try {
-            J = sqrt(det(b));
-        } catch (const std::runtime_error &e) {
-            cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in det function inside sigma_iso_hyper_invariants.");
-        }   
-    }    
-    mat b_bar = pow(J,-2./3.)*b;
-    mat b_bar2;
-    try {
-        b_bar2 = powmat(b_bar,2);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_powmat("Error in powmat function inside sigma_iso_hyper_invariants.");
-    }            
-
-    return (1./J)*(2.*dWdI_1_bar*dev(b_bar) + 2.*dWdI_2_bar*(trace(b_bar)*dev(b_bar) - dev(b_bar2)));
+    const double J = J_of_b(b, mJ, "sigma_iso_hyper_invariants");
+    const m33 tau = tau_iso_invariants_fixed(dWdI_1_bar, dWdI_2_bar, b_bar_of(b, J));
+    const double invJ = 1./J;
+    mat sigma(3,3);
+    for (int e = 0; e < 9; ++e) sigma(e) = tau(e)*invJ;
+    return sigma;
 }
 
 mat sigma_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
@@ -466,15 +681,31 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
 
     vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
     mat gamma = gamma_coefs(dWdlambda_bar, dW2dlambda_bar2, lambda_bar);
-    mat c = zeros(6,6);
     mat delta = eye(3,3);
+    const m33 n(n_pvectors);
 
+    // c accumulated on the stack, the dyadic products built in place: the same products, rounded
+    // and summed in the same order as dyadic_4vectors_sym and auto_sym_dyadic (bit identity: see the
+    // note on the fixed-size kernels at the top of this file)
+    static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+    m66 c(fill::zeros);
     double factor = 0.;
 
     for(unsigned int i=0; i<3; i++) {
         for(unsigned int j=0; j<3; j++) {
-            c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
-        }            
+            const double coef = (gamma(i,j) - 2*delta(i,j)*beta(i));
+            for (int p=0; p<3; p++) {
+                for (int q=p; q<3; q++) {
+                    for (int k=0; k<3; k++) {
+                        for (int l=k; l<3; l++) {
+                            const double D = n(p,i)*n(q,i)*n(k,j)*n(l,j);   // aabb dyadic of (n_i, n_j)
+                            const double t = D*coef;
+                            c(Id[p][q],Id[k][l]) = c(Id[p][q],Id[k][l]) + t;
+                        }
+                    }
+                }
+            }
+        }
 
         // ordered pairs a!=b: the symmetrized dyadic collapses to s s^T, s = sym dyadic of (n_i n_j^T + n_j n_i^T)
         for(unsigned int j=i+1; j<3; j++) {
@@ -485,10 +716,28 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
                 factor = (beta(j)*pow(lambda_bar(i),2.) - beta(i)*pow(lambda_bar(j),2.))/(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.));
             }
 
-            c += factor*auto_sym_dyadic(n_pvectors.col(i)*(n_pvectors.col(j)).t() + n_pvectors.col(j)*(n_pvectors.col(i)).t());
+            m33 M;
+            for (int q=0; q<3; q++) {
+                for (int p=0; p<3; p++) {
+                    const double m1 = n(p,i)*n(q,j);
+                    const double m2 = n(p,j)*n(q,i);
+                    M(p,q) = m1 + m2;
+                }
+            }
+            double s[6];
+            sym_voigt(M, s);
+            for (int q=0; q<6; q++) {
+                for (int p=0; p<6; p++) {
+                    const double t = (s[p]*s[q])*factor;
+                    c(p,q) = c(p,q) + t;
+                }
+            }
         }
     }
-    return (1./J)*c;
+    const double invJ = 1./J;
+    mat L(6,6);
+    for (int e = 0; e < 36; ++e) L(e) = c(e)*invJ;
+    return L;
 }
 
 mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const mat &b, const double &mJ) {
@@ -522,75 +771,16 @@ static mat gamma_quadratic(const mat &dev_A) {
 }
 
 mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
-    double J=mJ;
-    if (fabs(mJ) < simcoon::iota) {
-        try {
-            J = sqrt(det(b));
-        } catch (const std::runtime_error &e) {
-            cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in det function inside L_iso_hyper_invariants.");
-        }   
-    }    
-    mat b_bar = pow(J,-2./3.)*b;
-    mat dev_b_bar = dev(b_bar);
-    vec I_bar = isochoric_invariants(b,J);
-    mat Id = eye(3,3);
-
-    // no static arma object: its destructor runs at DLL unload (Windows)
-    mat I_dev = Idev();
-
-    // terms of a zero potential derivative skipped (exact zeros)
-    mat Lt = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id)*dWdI_1_bar;
-    if ((dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.)) {
-        mat b_bar2;
-        try {
-            b_bar2 = powmat(b_bar,2);
-        } catch (const std::runtime_error &e) {
-            cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_powmat("Error in powmat function inside L_iso_hyper_invariants.");
-        }
-        mat dev_b_bar2 = dev(b_bar2);
-        mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
-        if (dWdI_2_bar != 0.) {
-            mat I_real = Ireal();
-            mat I_vol = Ivol();
-            mat H_bar = auto_sym_dyadic_operator(b_bar);
-            mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
-                            + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
-            Lt += gamma_2*dWdI_2_bar;
-        }
-        if (dW2dI_11_bar != 0.) {
-            Lt += gamma_quadratic(dev_b_bar)*dW2dI_11_bar;
-        }
-        if (dW2dI_12_bar != 0.) {
-            mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
-            Lt += gamma_12*dW2dI_12_bar;
-        }
-        if (dW2dI_22_bar != 0.) {
-            mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
-            Lt += gamma_22*dW2dI_22_bar;
-        }
-    }
-    else if (dW2dI_11_bar != 0.) {
-        Lt += gamma_quadratic(dev_b_bar)*dW2dI_11_bar;
-    }
-
-    return (1./J)*Lt;
+    const double J = J_of_b(b, mJ, "L_iso_hyper_invariants");
+    const m66 Lt = L_iso_invariants_fixed(dWdI_1_bar, dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, b_bar_of(b, J));
+    const double invJ = 1./J;
+    mat L(6,6);
+    for (int e = 0; e < 36; ++e) L(e) = Lt(e)*invJ;
+    return L;
 }
 
 mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const double &mJ) {
-    double J=mJ;
-    if (fabs(mJ) < simcoon::iota) {
-        try {
-            J = sqrt(det(b));
-        } catch (const std::runtime_error &e) {
-            cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in det function inside L_vol_hyper.");
-        } 
-    }
-    mat I_real = Ireal();                                // never static: see L_iso_hyper above
-    mat I_vol = Ivol();
-    return (dUdJ+dU2dJ2*J)*3.*I_vol - 2.*dUdJ*I_real;
+    return L_vol_fixed(dUdJ, dU2dJ2, J_of_b(b, mJ, "L_vol_hyper"));
 }
 
 namespace {
@@ -838,15 +1028,22 @@ void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, cons
     }
 
     // Kirchhoff throughout: Cauchy = tau/J only at the output boundary
-    mat m_tau_iso = tau_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, b, J);
+    const double Jb = J_of_b(b, J, "hyper_invariants_response");
+    const m33 b_bar = b_bar_of(b, Jb);
+    mat m_tau_iso = tau_iso_invariants_fixed(dW.dWdI_1_bar, dW.dWdI_2_bar, b_bar);
     mat m_tau_vol = tau_vol_hyper(dW.dUdJ, b, J);
     mat m_tau = m_tau_iso + m_tau_vol;
 
     // builders return c = (1/J) d(L_v tau)/dD (not d(L_v sigma)/dD), with J written asymmetrically
     // (1/J in L_iso, none in L_vol): scale them together as a sum, never one at a time
-    mat Lt_iso = L_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, dW.dW2dI_11_bar, dW.dW2dI_12_bar, dW.dW2dI_22_bar, b, J);
-    mat Lt_vol = L_vol_hyper(dW.dUdJ, dW.dU2dJ2, b, J);
-    mat Lt_spatial = Lt_iso + Lt_vol;
+    const m66 Lt_iso = L_iso_invariants_fixed(dW.dWdI_1_bar, dW.dWdI_2_bar, dW.dW2dI_11_bar, dW.dW2dI_12_bar, dW.dW2dI_22_bar, b_bar);
+    const m66 Lt_vol = L_vol_fixed(dW.dUdJ, dW.dU2dJ2, Jb);
+    const double invJb = 1./Jb;
+    m66 Lt_spatial;
+    for (int e = 0; e < 36; ++e) {
+        const double l_iso = Lt_iso(e)*invJb;
+        Lt_spatial(e) = l_iso + Lt_vol(e);
+    }
 
     // fibre terms: I_1 algebra with b_bar -> structure tensor (kappa_d folded into A); zero below the switch
     if (!A.empty()) {
@@ -868,7 +1065,8 @@ void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, cons
 
     // Box tangent Lt = d(tau_hat)/d(De) in corate_type (Kirchhoff, no J). J*Lt_spatial is the
     // Kirchhoff-Lie tangent d(L_v tau)/dD that the map consumes.
-    Lt_box = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F, m_tau);
+    for (int e = 0; e < 36; ++e) Lt_spatial(e) = Lt_spatial(e)*J;
+    Lt_box = Dtau_LieDD_2_DtauDe_corate(Lt_spatial, corate_type, F, m_tau);
 }
 
 } //namespace simcoon

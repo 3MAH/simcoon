@@ -114,6 +114,9 @@ private:
     mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
     std::vector<ClosestPointIngredients> cpp_cache_{ClosestPointIngredients{}};  ///< built by refresh_state, read by closest_point_ingredients
 
+    /// Total backstress (engineering stress Voigt), summed in the X_branches_ buffer it overwrites (no allocation)
+    [[nodiscard]] arma::vec total_backstress_voigt() const;
+
 public:
     /**
      * @brief Constructor

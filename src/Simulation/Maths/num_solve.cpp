@@ -249,6 +249,40 @@ void Fischer_Burmeister_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_
     
 }
     
+namespace {
+
+// row i of the normalised FB system (Dp* = Dp |B_ii|): residual and Jacobian entry, bit for bit
+inline double fb_m_value(const double &Phi, const double &Dpstar)
+{
+    if ((fabs(Phi) > 0.)&&(fabs(Dpstar) > 0.)) {
+        return sqrt(pow(Phi,2.) + pow(Dpstar,2.)) + Phi - Dpstar;
+    }
+    else if(fabs(Phi) > 0.) {
+        return sqrt(pow(Phi,2.)) + Phi;
+    }
+    else if(fabs(Dpstar) > 0.) {
+        return sqrt(pow(Dpstar,2.)) - Dpstar;
+    }
+    return 0.;
+}
+
+inline double fb_m_jacobian(const double &Phi, const double &Dpstar, const double &dDpstar, const double &denom_ij, const bool &diag)
+{
+    const double delta = diag ? 1. : 0.;
+    if ((fabs(Phi) > 0.)&&(fabs(Dpstar) > 0.)) {
+        return (Phi/(sqrt(pow(Phi,2.) + pow(Dpstar,2.)))+1.)*denom_ij + delta*dDpstar*(Dpstar/(sqrt(pow(Phi,2.) + pow(Dpstar,2.))) - 1.);
+    }
+    else if(fabs(Phi) > 0.) {
+        return (Phi/(sqrt(pow(Phi,2.)))+1.)*denom_ij - delta*dDpstar;
+    }
+    else if(fabs(Dpstar) > 0.) {
+        return denom_ij + delta*dDpstar*(Dpstar/(sqrt(pow(Dpstar,2.))) - 1.);
+    }
+    return diag ? 1.E12 : 0.;
+}
+
+} // namespace
+
 double Fischer_Burmeister_residual(const vec &Phi, const vec &Y_crit, const mat &denom, const vec &Dp)
 {
     // Same branches and expressions as the FB vector of Fischer_Burmeister_m below.
@@ -281,9 +315,44 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
         assert(fabs(Y_crit(i)) > 0);
     }
     
+    // one or two mechanisms: system on the stack, closed forms, no LAPACK call
+    if (n == 1 || n == 2) {
+        double FB[2], denomFB[2][2];
+        for (int i=0; i<n; i++) {
+            //factor_denom(i): the eigenvalue estimate of denom used to normalise Dp
+            const double dDpstar = fabs(denom(i,i));
+            const double Dpstar = Dp(i)*dDpstar;
+            FB[i] = fb_m_value(Phi(i), Dpstar);
+            for (int j=0; j<n; j++) {
+                denomFB[i][j] = fb_m_jacobian(Phi(i), Dpstar, dDpstar, denom(i,j), i == j);
+            }
+        }
+        dp.zeros(n);
+        if (n == 1) {
+            const double a = denomFB[0][0];
+            if (fabs(a) > simcoon::limit) {
+                dp(0) = -FB[0]/a;
+            }
+        }
+        else {
+            const double det_FB = denomFB[0][0]*denomFB[1][1] - denomFB[0][1]*denomFB[1][0];
+            if (fabs(det_FB) > simcoon::limit) {
+                dp(0) = -(denomFB[1][1]*FB[0] - denomFB[0][1]*FB[1])/det_FB;   // Cramer
+                dp(1) = -(denomFB[0][0]*FB[1] - denomFB[1][0]*FB[0])/det_FB;
+            }
+        }
+        //New update of the transformation/orientation multipliers
+        Dp += dp;
+        // the entering iterate's residual: Fischer_Burmeister_residual, kept in step
+        error = 0.;
+        for (int i=0; i<n; i++) {
+            error+= fabs(FB[i])/fabs(Y_crit(i));
+        }
+        return;
+    }
+
     vec FB = zeros(n);
     mat denomFB = zeros(n,n);
-    mat delta = eye(n,n);
     
     // row scaling: |diagonal of denom|
     vec factor_denom = zeros(n);
@@ -296,76 +365,24 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     
     //Normalized Fischer-Burmeister set of equations
     for (int i=0; i<n; i++) {
-        
-        if ((fabs(Phi(i)) > 0.)&&(fabs(Dpstar(i)) > 0.)) {
-            FB(i) = sqrt(pow(Phi(i),2.) + pow(Dpstar(i),2.)) + Phi(i) - Dpstar(i);
-        }
-        else if(fabs(Phi(i)) > 0.) {
-            FB(i) = sqrt(pow(Phi(i),2.)) + Phi(i);
-        }
-        else if(fabs(Dpstar(i)) > 0.) {
-            FB(i) = sqrt(pow(Dpstar(i),2.)) - Dpstar(i);
-        }
-        else {
-            FB(i) = 0.;
-        }
-        
+        FB(i) = fb_m_value(Phi(i), Dpstar(i));
         for (int j=0; j<n; j++) {
-            if ((fabs(Phi(i)) > 0.)&&(fabs(Dpstar(i)) > 0.)) {
-                denomFB(i,j) = (Phi(i)/(sqrt(pow(Phi(i),2.) + pow(Dpstar(i),2.)))+1.)*denom(i,j) + delta(i,j)*dDpstar(i)*(Dpstar(i)/(sqrt(pow(Phi(i),2.) + pow(Dpstar(i),2.))) - 1.);
-            }
-            else if(fabs(Phi(i)) > 0.) {
-                denomFB(i,j) = (Phi(i)/(sqrt(pow(Phi(i),2.)))+1.)*denom(i,j) - delta(i,j)*dDpstar(i);
-            }
-            else if(fabs(Dpstar(i)) > 0.) {
-                denomFB(i,j) = denom(i,j) + delta(i,j)*dDpstar(i)*(Dpstar(i)/(sqrt(pow(Dpstar(i),2.))) - 1.);
-            }
-            else {
-                if (i==j)
-                    denomFB(i,j) = 1.E12;
-                else
-                    denomFB(i,j) = 0.;
-            }
+            denomFB(i,j) = fb_m_jacobian(Phi(i), Dpstar(i), dDpstar(i), denom(i,j), i == j);
         }
-        
     }
     
-    // One or two mechanisms (the common cases): closed forms, no LAPACK call.
-    if (n == 1) {
-        const double a = denomFB(0,0);
-        if (fabs(a) > simcoon::limit) {
-            dp.set_size(1);
-            dp(0) = -FB(0)/a;
+    try {
+        if (fabs(det(denomFB)) > simcoon::limit) {
+            dp = -1.*solve(denomFB, FB);
         }
         else {
             dp = zeros(n);
         }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_m.");
     }
-    else if (n == 2) {
-        const double det_FB = denomFB(0,0)*denomFB(1,1) - denomFB(0,1)*denomFB(1,0);
-        if (fabs(det_FB) > simcoon::limit) {
-            dp.set_size(2);
-            dp(0) = -(denomFB(1,1)*FB(0) - denomFB(0,1)*FB(1))/det_FB;   // Cramer
-            dp(1) = -(denomFB(0,0)*FB(1) - denomFB(1,0)*FB(0))/det_FB;
-        }
-        else {
-            dp = zeros(n);
-        }
-    }
-    else {
-        try {
-            if (fabs(det(denomFB)) > simcoon::limit) {
-                dp = -1.*solve(denomFB, FB);
-            }
-            else {
-                dp = zeros(n);
-            }
-        } catch (const std::runtime_error &e) {
-            cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
-            throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_m.");
-        }
-    }
-    
+
     //New update of the transformation/orientation multipliers
     Dp = Dp + dp;
 
@@ -374,7 +391,7 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     for (int i=0; i<n; i++) {
         error+= fabs(FB(i))/fabs(Y_crit(i));
     }
-    
+
 }
                      
 NCPMethod ncp_method_of(const int &code, const string &where)
