@@ -371,8 +371,8 @@ if(SIMCOON_BUILD_TESTS)
   if(NOT MSVC)
     # Fortran is only needed for Abaqus UMAT plugin tests
     enable_language(Fortran)
-    set_source_files_properties(testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f PROPERTIES Fortran_PREPROCESS OFF)
-    add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+    set_source_files_properties(external/UMAT_ABAQUS_ELASTIC.f PROPERTIES Fortran_PREPROCESS OFF)
+    add_library(umat_plugin_aba SHARED external/UMAT_ABAQUS_ELASTIC.f external/umat_plugin_aba.cpp)
     # Use default PREFIX (lib) and SUFFIX (.so on Linux, .dylib on macOS)
     # to match dylib::decorations::os_default() expectations
     set_target_properties(umat_plugin_aba PROPERTIES
@@ -380,13 +380,20 @@ if(SIMCOON_BUILD_TESTS)
     )
     target_link_libraries(umat_plugin_aba PRIVATE simcoon ${ARMADILLO_LIBRARIES})
 
-    # Ansys USERMAT plugin test (same elastic reference case as UMABA)
-    set_source_files_properties(testBin/Umats/UMANS/external/USERMAT_ANSYS_ELASTIC.for PROPERTIES Fortran_PREPROCESS OFF)
-    add_library(umat_plugin_ans SHARED testBin/Umats/UMANS/external/USERMAT_ANSYS_ELASTIC.for testBin/Umats/UMANS/external/umat_plugin_ans.cpp)
+    # Ansys USERMAT plugin, built from the external/ example: TUMABA runs it on the same case
+    set_source_files_properties(external/USERMAT_ANSYS_ELASTIC.for PROPERTIES Fortran_PREPROCESS OFF)
+    add_library(umat_plugin_ans SHARED external/USERMAT_ANSYS_ELASTIC.for external/umat_plugin_ans.cpp)
     set_target_properties(umat_plugin_ans PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMANS/external
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
     )
     target_link_libraries(umat_plugin_ans PRIVATE simcoon ${ARMADILLO_LIBRARIES})
+
+    # the same plugin on a USERMAT that exposes what it receives (TUMANS: data layout)
+    add_library(umat_plugin_ans_layout SHARED external/umat_plugin_ans.cpp test_extern/Umats/UMANS/usermat_layout.cpp)
+    set_target_properties(umat_plugin_ans_layout PROPERTIES OUTPUT_NAME umat_plugin_ans
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMANS/external
+    )
+    target_link_libraries(umat_plugin_ans_layout PRIVATE simcoon ${ARMADILLO_LIBRARIES})
   endif()
 
   add_library(umat_plugin_ext SHARED

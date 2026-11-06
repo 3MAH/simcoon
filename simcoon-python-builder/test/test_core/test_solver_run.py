@@ -597,6 +597,11 @@ def test_external_plugins_refused_under_finite_strain(name):
     step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
     with pytest.raises(ValueError, match="small-strain route only"):
         solve(Block(steps=[step], control_type="logarithmic"), name, np.array([70000., 0.3]), 1, T_init=290.0)
+    col = lambda v: np.asfortranarray(np.asarray(v, dtype=float).reshape(-1, 1))
+    with pytest.raises(ValueError, match="external plugin, served by the solver"):
+        sim.umat(name, col(np.zeros(6)), col([1e-3, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0), col(np.zeros(6)),
+                 np.asfortranarray(np.eye(3)[:, :, None]), col([70000., 0.3]), col(np.zeros(1)), 0.0, 1.0,
+                 col(np.zeros(4)), temp=np.full(1, 290.0), n_threads=1)
 
 # ---------------------------------------------------------------------------
 # error paths

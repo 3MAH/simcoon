@@ -82,8 +82,6 @@ step_meca::step_meca(const int &mnumber, const double &mDn_init, const double &m
     BC_R = mBC_R;
 }
 
-step_meca::~step_meca() {}
-
 //-------------------------------------------------------------
 void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
 //-------------------------------------------------------------

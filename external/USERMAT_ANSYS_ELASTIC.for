@@ -59,6 +59,12 @@ c     Material properties
          alpha = 0.0d0
       endif
 c
+c     3D only (ncomp = 6): the tangent below fills the 6x6
+      if (ncomp .ne. 6) then
+         write(*,*) 'USERMAT_ANSYS_ELASTIC: 3D only (ncomp = 6)'
+         stop
+      endif
+c
 c     Lame constants
       lambda = E * nu / ((1.0d0 + nu) * (1.0d0 - 2.0d0 * nu))
       mu = E / (2.0d0 * (1.0d0 + nu))
@@ -89,9 +95,9 @@ c     Shear terms
       dsdde(5,5) = mu
       dsdde(6,6) = mu
 c
-c     Initialize reference temperature from state variable
-      if (nStatev .ge. 5) then
-         T_init = ustatev(5)
+c     Reference temperature: the first state variable
+      if (nStatev .ge. 1) then
+         T_init = ustatev(1)
       else
          T_init = Temp
       endif
@@ -104,8 +110,8 @@ c     First increment: initialize
          enddo
          sedEl = 0.0d0
          sedPl = 0.0d0
-         if (nStatev .ge. 5) then
-            ustatev(5) = T_init
+         if (nStatev .ge. 1) then
+            ustatev(1) = T_init
          endif
       endif
 c

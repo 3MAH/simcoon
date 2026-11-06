@@ -83,8 +83,12 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 ### Added
 
 - The Ansys USERMAT plugin (`UMANS`, `umat_plugin_ans_api`) is dispatched on the small-strain
-  route, as UMABA; test `TUMANS` (the Fortran example `USERMAT_ANSYS_ELASTIC.for`, which did not
-  compile in fixed form, is fixed).
+  route, as UMABA, and tested by `TUMABA` on the same case. The example plugin is rebuilt on the
+  `fea_transfer` component maps (now public: `fea_components`, `ansys_components`, `fe2vec`,
+  `fe2mat`...): it read the tangent and wrote the rotation row-major (transposed), hid four Wm
+  slots in the USERMAT's statev, and sent condensed states as 3D. `TUMANS` checks the data layout
+  on a USERMAT with a non-symmetric tangent and a non-trivial rotation. The Fortran example did
+  not compile in fixed form. `sim.umat` names the plugins in its error (`is_external_plugin`).
 - `KeyTemplate.write(dst, test=i)`: a constant holds one value per test
   (`input_values`, e.g. the fibre angle of each specimen) and the value of test
   `i` is substituted. A constant with a single value warns: it belongs in the

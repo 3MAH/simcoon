@@ -87,10 +87,6 @@ protected:
      */
     step_meca(const int &number, const double &Dn_init, const double &Dn_mini, const double &Dn_inc, const int &mode, const unsigned int &control_type, const arma::Col<int>& cBC_meca, const arma::vec& BC_meca, const arma::mat& mecas, const arma::mat& BC_mecas, const double& BC_T, const int& cBC_T, const arma::vec& Ts, const arma::vec& BC_Ts, const arma::mat& BC_w, const arma::mat& BC_R);
 
-    /** @brief Copy constructor. */
-    step_meca(const step_meca &s) = default;
-    /** @brief Destructor. */
-    virtual ~step_meca();
     
     using step::generate;
     virtual void generate(const double&, const arma::vec &, const arma::vec&, const double&);
@@ -105,8 +101,6 @@ protected:
     virtual void generate_kin(const double&, const arma::mat &, const double &);
     virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &, const arma::mat &, const int &);
     
-    /** @brief Copy assignment. */
-    virtual step_meca& operator = (const step_meca &s) = default;
 
     friend  std::ostream& operator << (std::ostream& os, const step_meca &s);
 };

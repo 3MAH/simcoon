@@ -81,8 +81,6 @@ step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, con
     BC_R = mBC_R;
 }
 
-step_thermomeca::~step_thermomeca() {}
-
 //-------------------------------------------------------------
 void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
 //-------------------------------------------------------------

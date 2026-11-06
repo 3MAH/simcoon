@@ -81,8 +81,6 @@ step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, c
     
 }
 
-step::~step() {}
-
 //-------------------------------------------------------------
 void step::generate()
 //-------------------------------------------------------------

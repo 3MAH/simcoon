@@ -155,8 +155,21 @@ const std::map<string, int> &finite_umat_names()
 {
     // The finite dispatch's name -> id map. A file-scope accessor rather than a
     // function-local static inside select_umat_M_finite so the convention test can iterate it.
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPJCK",17},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
+    static const std::map<string, int> list_umat = {{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPJCK",17},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
     return list_umat;
+}
+
+// The small-strain mechanical dispatch's name -> id map (select_umat_M_3D); ids 0-2 are the plugins
+static const std::map<string, int> &small_strain_umat_names()
+{
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"UMANS",2},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"EPJCK",25},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200},{"PYEXT",300}};
+    return list_umat;
+}
+
+bool is_external_plugin(const std::string &umat_name)
+{
+    const auto it = small_strain_umat_names().find(umat_name);
+    return it != small_strain_umat_names().end() && it->second <= 2;
 }
 
 namespace {
@@ -210,10 +223,6 @@ const std::map<string, umat_convention> &umat_conventions()
         {"HOLZA", {SM::kirchhoff, false, false, {}, true}},
 
         // --- foreign conventions (plugin adapters, host contract: Abaqus DDSDDE is Cauchy) ---
-        // UMEXT, UMABA, UMANS: small-strain route only (select_umat_M_finite refuses them)
-        {"UMEXT", {SM::cauchy}},
-        {"UMABA", {SM::cauchy}},
-        {"UMANS", {SM::cauchy}},
     };
     return conventions;
 }
@@ -528,7 +537,7 @@ void leave_finite_box(state_variables &sv, const finite_box &box, const int &cor
     if (box.conv.material_frame)
         sv.sigma = rotate_stress(sv.sigma, box.R_hat);
 
-    // tau is the route stress: pass-through except for the foreign-convention (plugin) kernels
+    // tau is the route stress: pass-through, converted for a kernel declaring cauchy
     if (box.total) {
         double dW_T;
         sv.tau = total_formulation_tau(sv.sigma, sv.Detot, sv.F1, box.conv.material_frame, dW_T);
@@ -563,16 +572,19 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     }
     const std::map<string, int> &list_umat = finite_umat_names();
 
-    // guarded lookup: operator[] would default-insert 0 (=UMEXT, a no-op) for an
-    // unknown name and silently return zero stress; -1 falls to the default case
-    auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
-    const int id_umat = (it_umat != list_umat.end()) ? it_umat->second : -1;
     const std::string &law = rve.sptr_matprops->umat_name;
-    if (law == "UMEXT" || law == "UMABA" || law == "UMANS") {
-        throw std::invalid_argument("The external plugins UMEXT, UMABA and UMANS serve the small-strain route only "
-                                    "(the plugin API has no finite-strain entry); '" + rve.sptr_matprops->umat_name
-                                    + "' cannot run under finite strain");
+    auto it_umat = list_umat.find(law);
+    if (it_umat == list_umat.end()) {
+        if (is_external_plugin(law)) {
+            throw std::invalid_argument("'" + law + "' is an external plugin: the plugin API has no "
+                                        "finite-strain entry, it serves the small-strain route only");
+        }
+        if (small_strain_umat_names().count(law)) {
+            throw std::invalid_argument("'" + law + "' serves the small-strain route only (no finite-strain kernel)");
+        }
+        throw std::invalid_argument("Unknown umat name in the finite-strain dispatch: " + law);
     }
+    const int id_umat = it_umat->second;
 
     // The caller provides DR in global coordinates; rotate it with the other
     // state variables so that the local UMAT receives a consistent increment.
@@ -581,9 +593,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
 
     // one declaration per kernel: output_convention_of throws for an undeclared one
-    umat_convention conv{StressMeasure::kirchhoff};
-    if (id_umat >= 0)
-        conv = output_convention_of(rve.sptr_matprops->umat_name);
+    const umat_convention conv = output_convention_of(law);
     // The corate the kernel's tangent is expressed in: the solver's, or the material tangent
     // dS/dE when asked for and declared (a kernel built on F: the corate shapes nothing else)
     const int corate_Lt = (material_tangent && conv.material_tangent) ? corate_type_material_tangent : corate_type;
@@ -672,7 +682,8 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             default: {
-                throw std::invalid_argument("Unknown umat name in the finite-strain dispatch: " + rve.sptr_matprops->umat_name);
+                throw std::logic_error("select_umat_M_finite: no kernel case for the id " + std::to_string(id_umat)
+                                       + " of '" + law + "' (finite_umat_names and the switch disagree)");
             }
         }
     
@@ -732,10 +743,22 @@ static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_globa
     rve.local2global();
 }
     
+// The instance of an external plugin API (one library per API type), loaded on first use and kept
+// until exit: the library before the object, so the object is destroyed while its code is loaded
+template <class Api>
+static Api &plugin(const char *path)
+{
+    static dylib::library lib(path, dylib::decorations::os_default());
+    using destroy_fn = void(Api*);
+    static std::unique_ptr<Api, destroy_fn*> api(lib.get_function<Api*()>("create_api")(),
+                                                 lib.get_function<destroy_fn>("destroy_api"));
+    return *api;
+}
+
 static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
 
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"UMANS",2},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"EPJCK",25},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200},{"PYEXT",300}};
+    const std::map<string, int> &list_umat = small_strain_umat_names();
 
     // caller's DR is global: rotated with the state so the local UMAT gets the material-frame increment
     rve.sptr_sv_global->DR = DR_global;
@@ -747,58 +770,16 @@ static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,co
     switch (it_umat != list_umat.end() ? it_umat->second : -1) {
 
         case 0: {
-
-            static dylib::library ext_lib("external/umat_plugin_ext", dylib::decorations::os_default());
-
-            using create_fn = umat_plugin_ext_api*();
-            using destroy_fn = void(umat_plugin_ext_api*);
-
-            static create_fn* ext_create = ext_lib.get_function<create_fn>("create_api");
-            static destroy_fn* ext_destroy = ext_lib.get_function<destroy_fn>("destroy_api");
-
-            static std::unique_ptr<umat_plugin_ext_api, destroy_fn*> external_umat(
-                ext_create(),
-                ext_destroy
-            );
-
             // plugin ABI predates tangent_mode: never forward it (symbol mismatch); bump umat_plugin_ext_api to add it
-            external_umat->umat_external_M(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt);
-
+            plugin<umat_plugin_ext_api>("external/umat_plugin_ext").umat_external_M(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt);
             break;
         }
         case 1: {
-            //
-            static dylib::library aba_lib("external/umat_plugin_aba", dylib::decorations::os_default());
-
-            using create_fn = umat_plugin_aba_api*();
-            using destroy_fn = void(umat_plugin_aba_api*);
-
-            static create_fn* aba_create = aba_lib.get_function<create_fn>("create_api");
-            static destroy_fn* aba_destroy = aba_lib.get_function<destroy_fn>("destroy_api");
-
-            static std::unique_ptr<umat_plugin_aba_api, destroy_fn*> abaqus_umat(
-                aba_create(),
-                aba_destroy
-            );
-
-            abaqus_umat->umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            plugin<umat_plugin_aba_api>("external/umat_plugin_aba").umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
         case 2: {
-            static dylib::library ans_lib("external/umat_plugin_ans", dylib::decorations::os_default());
-
-            using create_fn = umat_plugin_ans_api*();
-            using destroy_fn = void(umat_plugin_ans_api*);
-
-            static create_fn* ans_create = ans_lib.get_function<create_fn>("create_api");
-            static destroy_fn* ans_destroy = ans_lib.get_function<destroy_fn>("destroy_api");
-
-            static std::unique_ptr<umat_plugin_ans_api, destroy_fn*> ansys_umat(
-                ans_create(),
-                ans_destroy
-            );
-
-            ansys_umat->umat_ansys(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            plugin<umat_plugin_ans_api>("external/umat_plugin_ans").umat_ansys(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
         case 5: {

@@ -367,19 +367,15 @@ The test data is located in ``testBin/Umats/UMEXT/``:
 
 **TUMABA Test**
 
-Located in ``test_extern/Umats/UMABA/``, this test validates the Abaqus UMAT compatibility layer.
+Located in ``test_extern/Umats/UMABA/``, this test validates the Abaqus UMAT and the Ansys USERMAT
+compatibility layers: the same elastic case runs through both plugins (``UMABA``, and ``UMANS``
+built from ``external/umat_plugin_ans.cpp`` and ``external/USERMAT_ANSYS_ELASTIC.for``).
 The test structure is identical to TUMEXT with the ``UMABA`` name; its reference is in ``testBin/Umats/UMABA/comparison/``.
 
 .. note::
 
     The TUMABA test is located in ``test_extern/`` because it requires linking against an external 
     Fortran UMAT library, which is compiled separately from the main simcoon library.
-
-**TUMANS Test**
-
-Located in ``test_extern/Umats/UMANS/``, this test validates the Ansys USERMAT compatibility layer
-on the TUMABA reference case (the same elastic law, ``external/USERMAT_ANSYS_ELASTIC.for``); its
-reference is in ``testBin/Umats/UMANS/comparison/``. Like TUMABA it needs a Fortran compiler.
 
 Running the Tests
 -----------------

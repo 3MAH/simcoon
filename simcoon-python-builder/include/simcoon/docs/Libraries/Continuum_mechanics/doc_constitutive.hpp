@@ -811,8 +811,8 @@ constexpr auto umat = R"pbdoc(
     and F1 given, sigma is multiplied by det(F0) on the way in and divided by
     det(F1) on the way out, so the caller always exchanges Cauchy. Without F0/F1
     (or with a degenerate F) no conversion is applied, which is exact at small
-    strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
-    through unconverted.
+    strain. The external plugins (UMEXT, UMABA, UMANS) are not served here: they run
+    through the solver (simcoon.solver.solve), small-strain route only.
 
     Wm is the work per reference volume. The kernel alone accumulates
     1/2 (tau_start + tau_end) : Detot on the strain increment it is handed,

@@ -16,80 +16,76 @@
  */
 
 ///@file TUMANS.cpp
-///@brief The UMANS (Ansys USERMAT) plugin driven by the solver on the UMABA reference case (the same elastic law), its
-///loading programme built in code (nothing is read from a file since the 2.0 JSON-only
-///migration; the plugin itself is what the test exercises).
+///@brief The UMANS plugin's data layout against a USERMAT that exposes what it receives
+///       (usermat_layout.cpp): component order, column-major tangent and rotation, the law's
+///       statev without header, energies, condensed (plane stress) components
 ///@version 1.0
 
 #include <gtest/gtest.h>
-#include <cmath>
 #include <memory>
 #include <string>
-#include <vector>
 #include <armadillo>
+#include <dylib.hpp>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Simulation/Solver/block.hpp>
-#include <simcoon/Simulation/Solver/step.hpp>
-#include <simcoon/Simulation/Solver/step_meca.hpp>
-#include <simcoon/Simulation/Solver/output.hpp>
-#include <simcoon/Simulation/Solver/solver_sink.hpp>
+#include <simcoon/Simulation/Phase/phase_characteristics.hpp>
+#include <simcoon/Simulation/Phase/state_variables_M.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
 
-using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-TEST(TUMANS, TUMANS_solver)
+namespace {
+
+struct ans_plugin {
+    dylib::library lib{"external/umat_plugin_ans", dylib::decorations::os_default()};
+    std::unique_ptr<umat_plugin_ans_api, void(*)(umat_plugin_ans_api*)> api{
+        lib.get_function<umat_plugin_ans_api*()>("create_api")(),
+        lib.get_function<void(umat_plugin_ans_api*)>("destroy_api")};
+};
+
+// one call of the plugin on a fresh point with nstatev law variables; returns the local state
+std::shared_ptr<state_variables_M> call(ans_plugin &p, const mat &DR, const int &ndi, const int &nshr) {
+    const int nstatev = 10;
+    phase_characteristics rve;
+    rve.construct(0, 1);
+    rve.sptr_matprops->update(0, "UMANS", 1, 0., 0., 0., 3, vec{70000., 0.3, 0.});
+    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6),
+                               zeros(6), zeros(6), eye(3, 3), eye(3, 3), eye(3, 3), eye(3, 3), eye(3, 3), eye(3, 3), 290., 0.,
+                               nstatev, zeros(nstatev), zeros(nstatev));
+    rve.global2local();
+    auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
+    sv->DEtot = vec{1e-3, 0., 0., 0., 0., 0.};
+    bool start = false;
+    double tnew_dt = 1.;
+    p.api->umat_ansys(rve, DR, 0., 1., ndi, nshr, start, 0, tnew_dt);
+    return sv;
+}
+
+}  // namespace
+
+TEST(TUMANS, data_layout_3D)
 {
-    //The material and the programme of the reference case: an elastic plugin (E = 70000 MPa,
-    //nu = 0.3), loaded in uniaxial tension to 2 % strain and unloaded, 100 increments each
-    const vec props = {70000., 0.3, 0.};
-    const double T_init = 290.;
-    const double targets[2] = {0.02, 0.};
-
-    std::vector<block> blocks(1);
-    blocks[0].number = 1;
-    blocks[0].type = 1;
-    blocks[0].control_type = 1;
-    blocks[0].ncycle = 1;
-    blocks[0].nstep = 2;
-    blocks[0].generate();
-    for (unsigned int j = 0; j < 2; j++) {
-        auto s = std::dynamic_pointer_cast<step_meca>(blocks[0].steps[j]);
-        s->number = j + 1;
-        s->control_type = 1;
-        s->mode = 1;
-        s->Dn_init = 1.;
-        s->Dn_mini = 1.;
-        s->Dn_inc = 0.01;
-        s->BC_Time = 1.;
-        s->cBC_meca(0) = 0;                 //strain-driven 11
-        for (unsigned int k = 1; k < 6; k++) {
-            s->cBC_meca(k) = 1;             //stress-free otherwise
-        }
-        s->BC_meca = zeros(6);
-        s->BC_meca(0) = targets[j];
-        s->cBC_T = 0;
-        s->BC_T = T_init;
+    ans_plugin p;
+    const mat DR = Rotation::from_euler(0.3, 0.5, 0.7, "zxz").as_matrix();
+    auto sv = call(p, DR, 3, 3);
+    const int K[6] = {0, 1, 2, 3, 5, 4};   // Ansys 11, 22, 33, 12, 23, 13
+    for (int i = 0; i < 6; i++) {
+        EXPECT_EQ(sv->sigma(K[i]), 10.*(i + 1));
+        for (int j = 0; j < 6; j++) EXPECT_EQ(sv->Lt(K[i], K[j]), 100.*(i + 1) + (j + 1)) << i << "," << j;
     }
+    for (int k = 0; k < 9; k++) EXPECT_EQ(sv->statev(k), DR(k % 3, k / 3));   // rotateM(r,c) = DR(r,c)
+    EXPECT_EQ(sv->statev(9), 10.);       // the law's own count, no simcoon header
+    EXPECT_EQ(sv->Wm(1), 1.5);
+    EXPECT_EQ(sv->Wm(3), 2.5);
+}
 
-    solver_output so(1);
-    so.o_type(0) = 1;
-    so.o_nfreq(0) = 1;
-    solver_params ctrl;
-    solver_memory_sink sink;
-    sink.record_tangent = false;
-
-    const int status = solver_run(blocks, T_init, so, "UMANS", props, 1, 0., 0., 0., 0, 2, ctrl, sink);
-    ASSERT_EQ(status, 0);
-
-    //The committed reference: strain in columns 8:14, stress in 14:20
-    mat C;
-    ASSERT_TRUE(C.load("comparison/results_job_global-0.txt")) << "missing reference";
-    ASSERT_EQ(C.n_rows, sink.sigma.size());
-    for (unsigned int i = 0; i < C.n_rows; i++) {
-        for (unsigned int k = 0; k < 6; k++) {
-            EXPECT_LT(fabs(C(i, 8 + k) - sink.Etot[i](k)), 1.E-6);
-            EXPECT_LT(fabs(C(i, 14 + k) - sink.sigma[i](k)), 1.E-6);
-        }
-    }
+TEST(TUMANS, data_layout_plane_stress)
+{
+    ans_plugin p;
+    auto sv = call(p, eye(3, 3), 2, 1);
+    const int K[3] = {0, 1, 3};          // Ansys plane stress 11, 22, 12
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) EXPECT_EQ(sv->Lt(K[i], K[j]), 100.*(i + 1) + (j + 1));
+    EXPECT_EQ(sv->Lt(2, 2), 0.);         // absent components stay zero
 }

@@ -25,6 +25,8 @@
 #include <fstream>
 #include <assert.h>
 #include <string.h>
+#include <algorithm>
+#include <vector>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
@@ -32,6 +34,7 @@
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
+#include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
 
 using namespace std;
 using namespace arma;
@@ -84,197 +87,70 @@ extern "C" {
     );
 }
 
-///@brief Convert simcoon state to Ansys USERMAT format
-///@details Transforms simcoon Armadillo arrays to C-style arrays for Ansys interface
-void smart2ansys_M(
-    double *stress, double *dsdde, double *ustatev,
-    double *Strain, double *dStrain, double *Time, double *dTime,
-    double *Temp, double *dTemp, double *prop, double *rotateM,
-    int &nDirect, int &nShear, int &ncomp, int &nStatev, int &nProp,
-    const vec &sigma_smart, const mat &Lt_smart,
-    const vec &Etot_smart, const vec &DEtot_smart,
-    const double &T_smart, const double &DT_smart,
-    const double &Time_smart, const double &DTime_smart,
-    const vec &props_smart, const vec &Wm_smart, const vec &statev_smart,
-    const mat &DR_smart, const bool &start
-) {
-    // Dimensions
-    nDirect = 3;
-    nShear = 3;
-    ncomp = 6;
-    nStatev = statev_smart.n_elem;
-    nProp = props_smart.n_elem;
-    
-    // Time
-    *Time = Time_smart;
-    *dTime = DTime_smart;
-    
-    // Temperature
-    *Temp = T_smart;
-    *dTemp = DT_smart;
-    
-    // Material properties
-    for (int i = 0; i < nProp; i++) {
-        prop[i] = props_smart(i);
-    }
-    
-    // Ansys uses Voigt notation: 11, 22, 33, 12, 23, 13
-    // simcoon uses: 11, 22, 33, 12, 13, 23
-    // Need to swap indices 4<->5 (13 and 23)
-    int ansys_map[6] = {0, 1, 2, 3, 5, 4};
-    
-    // Stress (initialize if start)
-    if (start) {
-        for (int i = 0; i < 6; i++) {
-            stress[i] = 0.0;
-        }
-    } else {
-        for (int i = 0; i < 6; i++) {
-            stress[i] = sigma_smart(ansys_map[i]);
-        }
-    }
-    
-    // Strain and strain increment
-    for (int i = 0; i < 6; i++) {
-        Strain[i] = Etot_smart(ansys_map[i]);
-        dStrain[i] = DEtot_smart(ansys_map[i]);
-    }
-    
-    // Rotation matrix (row-major for Ansys)
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            rotateM[i * 3 + j] = DR_smart(i, j);
-        }
-    }
-    
-    // State variables (first 4 are Wm components, then user statev)
-    ustatev[0] = Wm_smart(0);  // Wm
-    ustatev[1] = Wm_smart(1);  // Wm_r
-    ustatev[2] = Wm_smart(2);  // Wm_ir
-    ustatev[3] = Wm_smart(3);  // Wm_d
-    for (int i = 0; i < nStatev; i++) {
-        ustatev[i + 4] = statev_smart(i);
-    }
-    
-    // Initialize tangent modulus
-    for (int i = 0; i < 36; i++) {
-        dsdde[i] = 0.0;
-    }
-}
-
-///@brief Convert Ansys USERMAT output back to simcoon format
-void ansys2smart_M(
-    const double *stress, const double *dsdde,
-    const int &nStatev, const double *ustatev,
-    const int &nDirect, const int &nShear,
-    vec &sigma_smart, mat &Lt_smart, vec &Wm_smart, vec &statev_smart
-) {
-    // Ansys to simcoon index mapping
-    int ansys_map[6] = {0, 1, 2, 3, 5, 4};
-    
-    // Stress
-    for (int i = 0; i < 6; i++) {
-        sigma_smart(ansys_map[i]) = stress[i];
-    }
-    
-    // Tangent modulus with index reordering
-    for (int i = 0; i < 6; i++) {
-        for (int j = 0; j < 6; j++) {
-            Lt_smart(ansys_map[i], ansys_map[j]) = dsdde[i * 6 + j];
-        }
-    }
-    
-    // State variables (extract Wm and user statev)
-    Wm_smart(0) = ustatev[0];  // Wm
-    Wm_smart(1) = ustatev[1];  // Wm_r
-    Wm_smart(2) = ustatev[2];  // Wm_ir
-    Wm_smart(3) = ustatev[3];  // Wm_d
-    for (int i = 0; i < nStatev; i++) {
-        statev_smart(i) = ustatev[i + 4];
-    }
-}
-
+// simcoon calls a foreign Ansys USERMAT: the components are those of Ansys (fea_transfer.hpp),
+// the matrices column-major as Fortran, and the law's statev are its own (no simcoon header)
 class LIB_EXPORT umat_plugin_ans : public umat_plugin_ans_api {
 public:
 
     std::string name() const {
         return "umans";
     }
-    
+
     void umat_ansys(simcoon::phase_characteristics &rve, const arma::mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt) {
-        
-        // Get state variables pointer
-        auto rve_sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
-        
-        // Ansys USERMAT variables
-        int matId = 1;
-        int elemId = 1;
-        int kDomIntPt = 1;
-        int kLayer = 1;
-        int kSectPt = 1;
+        (void)solver_type;
+        auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
+        const fea_components K = ansys_components(ndi, nshr);
+
+        int matId = 1, elemId = 1, kDomIntPt = 1, kLayer = 1, kSectPt = 1;
         int ldstep = 1;
-        int isubst = 1;
+        int isubst = start ? 1 : 2;   // the USERMAT initialises its state on the first increment
         int keycut = 0;
-        int nDirect = 3;
-        int nShear = 3;
-        int ncomp = 6;
-        int nStatev = rve.sptr_sv_global->nstatev;
-        int nProp = rve.sptr_matprops->nprops;
-        
-        // Allocate arrays
-        double stress[6];
-        double ustatev[nStatev + 4];  // +4 for Wm components
-        double dsdde[36];
-        double sedEl = 0.0;
-        double sedPl = 0.0;
-        double epseq = 0.0;
-        double Strain[6];
-        double dStrain[6];
-        double epsPl[6] = {0.0};
-        double prop[nProp];
-        double coords[3] = {0.0, 0.0, 0.0};
+        int nDirect = ndi, nShear = nshr, ncomp = K.ntens;
+        int nStatev = static_cast<int>(sv->statev.n_elem);
+        int nProp = static_cast<int>(rve.sptr_matprops->props.n_elem);
+        std::vector<double> ustatev(sv->statev.begin(), sv->statev.end());
+        std::vector<double> prop(rve.sptr_matprops->props.begin(), rve.sptr_matprops->props.end());
+
+        if (start) sv->sigma.zeros();
+        const vec sigma_start = sv->sigma;
+        double stress[6], Strain[6], dStrain[6], epsPl[6] = {0.}, dsdde[36] = {0.};
+        vec2fe(sv->sigma, K, stress);
+        vec2fe(sv->Etot, K, Strain);
+        vec2fe(sv->DEtot, K, dStrain);
         double rotateM[9];
-        double defGrad_t[9] = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
-        double defGrad[9] = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
-        double tsstif[2] = {0.0, 0.0};
-        double epsZZ = 0.0;
-        double dTime_loc = DTime;
-        double Time_loc = Time;
-        double Temp_loc = rve_sv_M->T;
-        double dTemp_loc = rve_sv_M->DT;
+        std::copy(DR.memptr(), DR.memptr() + 9, rotateM);   // column-major, as rotateM(3,3)
+        double sedEl = sv->Wm(1), sedPl = sv->Wm(3), epseq = 0.;
+        double Time_loc = Time, dTime_loc = DTime, Temp_loc = sv->T, dTemp_loc = sv->DT;
+        double coords[3] = {0., 0., 0.};
+        double defGrad_t[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
+        double defGrad[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
+        double tsstif[2] = {0., 0.};
+        double epsZZ = 0.;
         int var1 = 0, var2 = 0, var3 = 0, var4 = 0, var5 = 0;
-        
-        // Convert simcoon to Ansys format
-        smart2ansys_M(stress, dsdde, ustatev, Strain, dStrain, &Time_loc, &dTime_loc,
-                      &Temp_loc, &dTemp_loc, prop, rotateM,
-                      nDirect, nShear, ncomp, nStatev, nProp,
-                      rve_sv_M->sigma, rve_sv_M->Lt,
-                      rve_sv_M->Etot, rve_sv_M->DEtot,
-                      rve_sv_M->T, rve_sv_M->DT,
-                      Time, DTime,
-                      rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev,
-                      DR, start);
-        
-        // Call Ansys USERMAT
+
         usermat_(&matId, &elemId, &kDomIntPt, &kLayer, &kSectPt,
                  &ldstep, &isubst, &keycut,
                  &nDirect, &nShear, &ncomp, &nStatev, &nProp,
                  &Time_loc, &dTime_loc, &Temp_loc, &dTemp_loc,
-                 stress, ustatev, dsdde,
+                 stress, ustatev.data(), dsdde,
                  &sedEl, &sedPl, &epseq,
                  Strain, dStrain, epsPl,
-                 prop, coords, rotateM,
+                 prop.data(), coords, rotateM,
                  defGrad_t, defGrad,
                  tsstif, &epsZZ,
                  &var1, &var2, &var3, &var4, &var5);
-        
-        // Convert Ansys output back to simcoon format
-        ansys2smart_M(stress, dsdde, nStatev, ustatev, nDirect, nShear,
-                      rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Wm, rve_sv_M->statev);
-        
-        // Handle cutback request
+
+        fe2vec(stress, K, sv->sigma);
+        fe2mat(dsdde, K, sv->Lt);
+        std::copy(ustatev.begin(), ustatev.end(), sv->statev.begin());
+        // work by the trapezoidal rule; recoverable and dissipated parts from the USERMAT energies
+        sv->Wm(0) += 0.5*sum((sigma_start + sv->sigma) % sv->DEtot);
+        sv->Wm(1) = sedEl;
+        sv->Wm(3) = sedPl;
+        sv->Wm(2) = sv->Wm(0) - sedEl - sedPl;
+
         if (keycut == 1) {
-            tnew_dt = 0.5;  // Request smaller time step
+            tnew_dt = 0.5;
         }
     }
 

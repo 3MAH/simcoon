@@ -467,10 +467,16 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const 
  * Every NATIVE simcoon kernel is @c kirchhoff: in the logarithmic framework the potential
  * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume. It is the default route 
  * stress, and \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed at the output
- * boundaries only. @c cauchy is reserved for the plugin adapters (UMEXT, UMABA), whose
- * contract belongs to the host code.
+ * boundaries only. @c cauchy is the contract of a kernel whose convention belongs to a host code
+ * (none on the finite route today: the external plugins serve the small-strain route only).
  */
 enum class StressMeasure { kirchhoff, cauchy };
+
+/**
+ * @brief True for the external plugin names (UMEXT, UMABA, UMANS): laws loaded from a library at
+ *        run time, served by the solver's small-strain route only.
+ */
+bool is_external_plugin(const std::string &umat_name);
 
 // Declared in Functions/tensor.hpp (kept out of this widely included header).
 enum class Tensor2Type;
