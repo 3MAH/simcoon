@@ -55,6 +55,8 @@ class YieldCriterion {
 private:
     YieldType type_;
     arma::vec params_;      ///< Criterion-specific parameters
+    arma::mat P_;           ///< HILL / DFA / ANISOTROPIC: quadratic-form matrix of params_
+                            ///< (P_Hill / P_DFA / P_Ani), built once by configure_*
     bool configured_;
 
     /**
@@ -62,6 +64,18 @@ private:
      * @return String identifier for the criterion
      */
     std::string type_string() const;
+
+    /**
+     * @brief equivalent_stress(sigma) and flow_direction(sigma) in one call (the quadratic criteria share P sigma).
+     */
+    void equivalent_stress_and_flow(const arma::vec& sigma, double& sigma_eq, arma::vec& flow) const;
+
+    /**
+     * @brief The same plus flow_hessian(sigma) (criteria with a flow Hessian only, else its exception).
+     */
+    void equivalent_stress_flow_hessian(const arma::vec& sigma, double& sigma_eq, arma::vec& flow,
+                                        arma::mat& hessian) const;
+    friend class PlasticityMechanism;
 
 public:
     /**

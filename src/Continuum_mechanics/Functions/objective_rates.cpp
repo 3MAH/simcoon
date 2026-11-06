@@ -70,12 +70,192 @@ static inline Fastor::Tensor<double,3,3,3,3> pullback_4(
     return push_forward_4(C, invF);
 }
 
-// Helper: 4th-order push-forward DSDE_ijkl = F_iL F_jH F_kM F_lN C_LHMN
-static inline Fastor::Tensor<double,3,3,3,3> pushforward_4(
-    const Fastor::Tensor<double,3,3,3,3> &C,
-    const Fastor::Tensor<double,3,3> &F)
-{
-    return push_forward_4(C, F);
+typedef mat::fixed<3,3> m33;
+
+// Inline 3x3 products, the same arithmetic as armadillo's tiny-matrix kernel (each entry the
+// three-term dot product A(i,0)*x0 + A(i,1)*x1 + A(i,2)*x2 written as it does) without its call and
+// dispatch overhead. A chain A*B*C is (A*B)*C, as armadillo evaluates it for square operands.
+// Bit identity with the armadillo expressions, here and in the Voigt-native push-forward and
+// tangent corrections below (which reproduce the Fastor loops they replace), was established with
+// Apple clang (-ffp-contract=on: a product is fused only with an addition of the same statement)
+// and Armadillo 15.6.0 (the simcoon-prof environment), whose kernel shapes it relies on. A compiler
+// that contracts across statements (GCC's default -ffp-contract=fast in gnu++ mode, on FMA targets)
+// or another Armadillo may round differently, at the epsilon level; the tolerance-based tests
+// remain the guarantee of correctness.
+static inline m33 mm(const m33 &A, const m33 &B) {          // A*B
+    m33 C;
+    for (int j = 0; j < 3; ++j) {
+        const double x0 = B(0,j), x1 = B(1,j), x2 = B(2,j);
+        for (int i = 0; i < 3; ++i) C(i,j) = A(i,0)*x0 + A(i,1)*x1 + A(i,2)*x2;
+    }
+    return C;
+}
+static inline m33 mtm(const m33 &A, const m33 &B) {         // A^T*B
+    m33 C;
+    for (int j = 0; j < 3; ++j) {
+        const double x0 = B(0,j), x1 = B(1,j), x2 = B(2,j);
+        for (int i = 0; i < 3; ++i) C(i,j) = A(0,i)*x0 + A(1,i)*x1 + A(2,i)*x2;
+    }
+    return C;
+}
+static inline m33 mmt(const m33 &A, const m33 &B) {         // A*B^T
+    m33 C;
+    for (int j = 0; j < 3; ++j) {
+        const double x0 = B(j,0), x1 = B(j,1), x2 = B(j,2);
+        for (int i = 0; i < 3; ++i) C(i,j) = A(i,0)*x0 + A(i,1)*x1 + A(i,2)*x2;
+    }
+    return C;
+}
+
+// alpha*X entrywise: the scaling armadillo applies after a product carrying a scalar factor
+static inline m33 alpha_times(const double alpha, const m33 &X) {
+    m33 Y;
+    for (int e = 0; e < 9; ++e) Y(e) = alpha*X(e);
+    return Y;
+}
+
+// 2nd-order centered velocity gradient L = (2/dt)(F1-F0)(F0+F1)^-1, as the armadillo expression
+// (the inverse throws std::runtime_error on a singular F0+F1)
+static inline m33 velocity_gradient(const mat &F0, const mat &F1, const double &DTime) {
+    const m33 Fsum_inv = inv(F0+F1);
+    return alpha_times(2./DTime, mm(m33(F1-F0), Fsum_inv));
+}
+
+// Helper: push-forward of a stiffness-convention Voigt 6x6, C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN,
+// the same as push_forward_4(voigt_to_fastor4(L), F) (to the bit: see the note above): the four
+// one-index contractions run in the same order over the same values, but only for the entries a
+// Voigt result reads. C is symmetric in (M,N) exactly, and so are the first two partial
+// contractions; only the pairs i <= s of the result are read. 198 contracted entries instead of
+// 324, no 3x3x3x3 temporaries.
+// R[is][r][p] = C'(i,s,r,p) for the Voigt pair is = (i <= s), unaveraged.
+static void push_forward_voigt_core(double R[6][3][3], const mat::fixed<6,6> &L, const mat::fixed<3,3> &F) {
+    static const int vm[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};   // Voigt index of (i,j)
+    static const int vi[6] = {0, 1, 2, 0, 0, 1}, vj[6] = {0, 1, 2, 1, 2, 2};
+
+    // T1(i,J,MN) = sum_L F(i,L) C(L,J,M,N)
+    double T1[3][3][6];
+    for (int i = 0; i < 3; ++i)
+    for (int J = 0; J < 3; ++J)
+    for (int MN = 0; MN < 6; ++MN) {
+        double sum = 0.0;
+        for (int l = 0; l < 3; ++l)
+            sum += F(i,l) * L(vm[l][J], MN);
+        T1[i][J][MN] = sum;
+    }
+    // T2(is,MN) = sum_J F(s,J) T1(i,J,MN), i <= s
+    double T2[6][6];
+    for (int is = 0; is < 6; ++is)
+    for (int MN = 0; MN < 6; ++MN) {
+        const int i = vi[is], s = vj[is];
+        double sum = 0.0;
+        for (int J = 0; J < 3; ++J)
+            sum += F(s,J) * T1[i][J][MN];
+        T2[is][MN] = sum;
+    }
+    // T3(is,r,N) = sum_M F(r,M) T2(is,M,N)
+    double T3[6][3][3];
+    for (int is = 0; is < 6; ++is)
+    for (int r = 0; r < 3; ++r)
+    for (int N = 0; N < 3; ++N) {
+        double sum = 0.0;
+        for (int M = 0; M < 3; ++M)
+            sum += F(r,M) * T2[is][vm[M][N]];
+        T3[is][r][N] = sum;
+    }
+    // R(is,r,p) = sum_N F(p,N) T3(is,r,N)
+    for (int is = 0; is < 6; ++is)
+    for (int r = 0; r < 3; ++r)
+    for (int p = 0; p < 3; ++p) {
+        double sum = 0.0;
+        for (int N = 0; N < 3; ++N)
+            sum += F(p,N) * T3[is][r][N];
+        R[is][r][p] = sum;
+    }
+}
+
+// The Voigt average of the minor pair (r,p), as fastor4_to_voigt
+static mat::fixed<6,6> voigt_average(const double R[6][3][3]) {
+    static const int vi[6] = {0, 1, 2, 0, 0, 1}, vj[6] = {0, 1, 2, 1, 2, 2};
+    mat::fixed<6,6> out;
+    for (int I = 0; I < 6; ++I)
+        for (int J = 0; J < 6; ++J)
+            out(I, J) = 0.5 * (R[I][vi[J]][vj[J]] + R[I][vj[J]][vi[J]]);
+    return out;
+}
+
+// fastor4_to_voigt(push_forward_4(voigt_to_fastor4(L), F)) (to the bit, see the note above)
+static mat::fixed<6,6> push_forward_voigt(const mat::fixed<6,6> &L, const mat::fixed<3,3> &F) {
+    double R[6][3][3];
+    push_forward_voigt_core(R, L, F);
+    return voigt_average(R);
+}
+
+// The Jaumann correction of apply_jaumann_correction on the entries a Voigt result reads:
+// R[is][p][r] += sign*corr(i,s,p,r), the same terms added in the same order. tau_f is indexed as
+// the Fastor copy of tau (to_fastor2 with the symmetric memcpy: tau_f(a,b) = tau(b,a)).
+static void add_jaumann_correction(double R[6][3][3], const mat::fixed<3,3> &tau_f, const bool add) {
+    static const int vi[6] = {0, 1, 2, 0, 0, 1}, vj[6] = {0, 1, 2, 1, 2, 2};
+    const double sign = add ? 0.5 : -0.5;
+    for (int is = 0; is < 6; ++is) {
+        const int i = vi[is], s = vj[is];
+        for (int p = 0; p < 3; ++p)
+        for (int r = 0; r < 3; ++r) {
+            double corr = 0.0;
+            if (i == r) corr += tau_f(p,s);
+            if (i == p) corr += tau_f(r,s);
+            if (s == p) corr += tau_f(i,r);
+            if (s == r) corr += tau_f(i,p);
+            R[is][p][r] += sign * corr;
+        }
+    }
+}
+
+// R[is][p][r] = A(i,s,p,r) of voigt_to_fastor4(L), for the Voigt pairs is = (i <= s)
+static void voigt_expand(double R[6][3][3], const mat::fixed<6,6> &L) {
+    static const int vm[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+    for (int is = 0; is < 6; ++is)
+        for (int p = 0; p < 3; ++p)
+            for (int r = 0; r < 3; ++r)
+                R[is][p][r] = L(is, vm[p][r]);
+}
+
+// The B-correction of apply_B_correction on the entries a Voigt result reads (pairs i <= j):
+// R[ij][k][l] = A(i,j,k,l) + sign*(sum1 + sum2), with B - I and the sums as there; A and B are
+// stiffness-convention Voigt 6x6, tau_f indexed as the Fastor copy of tau.
+static void add_B_correction(double R[6][3][3], const mat::fixed<6,6> &A, const mat::fixed<6,6> &B, const mat::fixed<3,3> &tau_f, const bool add) {
+    static const int vm[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+    static const int vi[6] = {0, 1, 2, 0, 0, 1}, vj[6] = {0, 1, 2, 1, 2, 2};
+    // B - I, I the symmetric 4th-order identity of sym_identity_4 (entries 0, 0.5 or 1)
+    auto BmI = [&](const int a, const int b, const int c, const int d) {
+        double I = 0.;
+        if (c == a && d == b) I += 0.5;
+        if (c == b && d == a) I += 0.5;
+        return B(vm[a][b], vm[c][d]) - I;
+    };
+    const double sign = add ? 1.0 : -1.0;
+    for (int ij = 0; ij < 6; ++ij) {
+        const int i = vi[ij], j = vj[ij];
+        for (int k = 0; k < 3; ++k)
+        for (int l = 0; l < 3; ++l) {
+            double sum1 = 0.0, sum2 = 0.0;
+            for (int p = 0; p < 3; ++p) {
+                sum1 += BmI(i,p,k,l) * tau_f(p,j);
+                sum2 += tau_f(i,p) * BmI(j,p,k,l);
+            }
+            double r = A(ij, vm[k][l]);
+            r += sign * (sum1 + sum2);
+            R[ij][k][l] = r;
+        }
+    }
+}
+
+// The Fastor copy of a symmetric 3x3 (to_fastor2 with the symmetric memcpy), as an arma matrix
+static inline mat::fixed<3,3> fastor_sym_copy(const mat &tau) {
+    return mat::fixed<3,3>(tau).t();
+}
+
+static inline bool is_exactly_symmetric(const mat &X) {
+    return X(0,1) == X(1,0) && X(0,2) == X(2,0) && X(1,2) == X(2,1);
 }
 
 // Helper: B-correction for objective rate conversions
@@ -185,7 +365,7 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     if(DTime > simcoon::iota) {
         try {
             // 2nd-order midpoint L = (2/dt)(F1-F0)(F0+F1)^-1, shared by every rate so D = sym(L) agrees
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            L = velocity_gradient(F0, F1, DTime);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Jaumann (L).");
@@ -206,7 +386,7 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
         try {
             // Same 2nd-order centered velocity gradient as the other rate functions (see Jaumann),
             // so that D=sym(L) matches across all rates.
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            L = velocity_gradient(F0, F1, DTime);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (L).");
@@ -227,7 +407,7 @@ void logarithmic_R_kinematics(mat &DR, mat &D, mat &Omega, vec::fixed<3> &b1, ma
     if(DTime > simcoon::iota) {    
         try {
             // 2nd-order centered velocity gradient (see Jaumann); D=sym(L) is shared by all rates.
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            L = velocity_gradient(F0, F1, DTime);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic_R (L).");
@@ -242,8 +422,8 @@ void logarithmic_R_kinematics(mat &DR, mat &D, mat &Omega, vec::fixed<3> &b1, ma
     vec::fixed<3> c0;
     RU_spectral(R0, c0, N0, F0);
     RU_spectral(R1, b1, N1, F1);
-    DR = R1*R0.t();
-    Nb = R1*N1;   // B1 = R1 C1 R1^T
+    DR = mmt(R1, R0);
+    Nb = mm(R1, N1);   // B1 = R1 C1 R1^T
 
     if (DTime <= simcoon::iota) {
         Omega = zeros(3,3);
@@ -254,7 +434,7 @@ void logarithmic_R_kinematics(mat &DR, mat &D, mat &Omega, vec::fixed<3> &b1, ma
     if (!inv(DRpI_inv, DRpI)) {
         throw simcoon::exception_inv("Error in inv function inside finite_rotation.");
     }
-    Omega = (2./DTime)*(DR-eye(3,3))*DRpI_inv;
+    Omega = alpha_times(2./DTime, mm(m33(DR-eye(3,3)), DRpI_inv));
 }
 
 // De = A^R : D on the eigenbasis (b, Nb) of B, by congruence (t/sinh t kernel)
@@ -262,7 +442,7 @@ mat::fixed<3,3> A_R_D(const vec::fixed<3> &b, const mat::fixed<3,3> &Nb, const m
     mat::fixed<3,3> K;
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
-            K(i, j) = kappa_R(b(i), b(j));
+            K(i, j) = (i != j) ? kappa_R(b(i), b(j)) : 1.;   // kappa_R(b, b) = 1 exactly
     return spectral_congruence(Nb, K, D);
 }
 
@@ -281,7 +461,7 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
         try {
             // 2nd-order centered velocity gradient (see Jaumann): D=sym(L) is shared by all rates,
             // and exp(L*dt) approximates F1 F0^-1 used below for the transport DF.
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            L = velocity_gradient(F0, F1, DTime);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic_F (L).");
@@ -306,7 +486,7 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
         try {
             // 2nd-order centered velocity gradient (see Jaumann): D=sym(L) is shared by all rates,
             // and exp(L*dt) approximates F1 F0^-1 used below for the transport DF.
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            L = velocity_gradient(F0, F1, DTime);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Truesdell (L).");
@@ -393,7 +573,7 @@ mat A_F(const mat &F) {
     mat::fixed<6,6> AF(fill::zeros);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            double t = 0.5*log(bi(i)/bi(j));
+            double t = (i != j) ? 0.5*log(bi(i)/bi(j)) : 0.;   // log(b/b) = 0 exactly
             double tcoth;
             if (fabs(t) > 1.e-4) {
                 tcoth = t/tanh(t);
@@ -414,7 +594,7 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     if(DTime > simcoon::iota) {    
         try {
             // 2nd-order centered velocity gradient (see Jaumann); D=sym(L) is shared by all rates.
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            L = velocity_gradient(F0, F1, DTime);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic (L).");
@@ -439,8 +619,8 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
 }
 
 mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
-    const mat DR = Hughes_Winget(Omega, DTime);
-    return 0.5*(D+(DR*D*DR.t()))*DTime;
+    const m33 DR = Hughes_Winget(Omega, DTime), D_(D);
+    return 0.5*(D_+mmt(mm(DR, D_), DR))*DTime;
 }
 
 mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
@@ -474,7 +654,8 @@ void corate_kinematics(const int &corate_type, mat &DR, mat &D, mat &Omega, mat 
         mat::fixed<3,3> Nb;
         logarithmic_R_kinematics(DR, D, Omega, b1, Nb, DTime, F0, F1);
         const mat::fixed<3,3> Dh = A_R_D(b1, Nb, D);
-        De = 0.5*(Dh + DR*Dh*DR.t())*DTime;
+        const m33 DR_(DR);
+        De = 0.5*(Dh + mmt(mm(DR_, Dh), DR_))*DTime;
         return;
     }
     corate_kinematics(corate_type, DR, D, Omega, F0, F1, DTime);
@@ -531,7 +712,7 @@ double Delta_work_conjugacy(const vec &tau_start, const vec &tau_start_tr, const
     mat::fixed<3,3> Fsum_inv;
     if (!inv(Fsum_inv, mat::fixed<3,3>(F1 + F0)))
         return 0.;
-    const mat::fixed<3,3> LDt = 2.*(F1 - F0)*Fsum_inv;   // midpoint velocity gradient times DTime
+    const mat::fixed<3,3> LDt = alpha_times(2., mm(m33(F1 - F0), Fsum_inv));   // midpoint velocity gradient times DTime
     // both stresses in the lab frame: a start stress carried to the end frame against a midpoint
     // D would leave a first-order [W, tau] : D error, even for isotropic elasticity
     return 0.5*dot(tau_start + tau, t2v_strain(0.5*(LDt + LDt.t())))
@@ -548,12 +729,12 @@ struct dk_spectral {
     arma::mat::fixed<3,3> N;      // eigenvectors of C (columns)
     arma::mat::fixed<3,3> G_h;    // DK coefficients of h(C) = 1/2 ln C
     arma::mat::fixed<3,3> G_iU;   // DK coefficients of C^{-1/2}
-    arma::mat::fixed<3,3> U;      // C^{1/2}
+    arma::mat::fixed<3,3> U;      // C^{1/2} (built when asked: only the inverse map reads it)
     arma::mat::fixed<3,3> invU;   // C^{-1/2}
     arma::mat::fixed<3,3> R;      // polar rotation F U^{-1}
     arma::mat::fixed<3,3> tau_hat;  // corotational Kirchhoff stress R^T tau R
 
-    void build(const arma::mat &F, const arma::mat &tau) {
+    void build(const arma::mat &F, const arma::mat &tau, const bool &with_U = true) {
         const arma::mat::fixed<3,3> F_(F);
         const bool success_eig_sym = eig_sym_3x3(lam, N, F_.t()*F_);
         if (!success_eig_sym) {
@@ -569,10 +750,10 @@ struct dk_spectral {
                     [](double l) { return 0.5 / l; });
         G_iU = gmat([](double l) { return 1.0 / std::sqrt(l); },
                     [](double l) { return -0.5 * std::pow(l, -1.5); });
-        U    = spectral_compose_3x3(N, sqrt(lam));
+        if (with_U) U = spectral_compose_3x3(N, sqrt(lam));
         invU = spectral_compose_3x3(N, 1.0 / sqrt(lam));
-        R = F_ * invU;
-        tau_hat = R.t() * arma::mat::fixed<3,3>(tau) * R;
+        R = mm(F_, invU);
+        tau_hat = mm(mtm(R, arma::mat::fixed<3,3>(tau)), R);
     }
 
     // f' at the midpoint under the 1e-4 relative coincidence guard (as get_BBBB / A_R)
@@ -597,6 +778,7 @@ struct dk_spectral {
 // Fixed-size Voigt helpers of the 6-column tangent maps below: per column, 3x3 products on the
 // stack and the 6x6 box applied by hand (a BLAS gemv call per column otherwise).
 typedef arma::mat::fixed<3,3> m33;
+
 
 // engineering-Voigt unit strain e_j as a tensor (v2t_strain of the j-th basis vector)
 inline m33 unit_strain_tensor(const int j) {
@@ -686,11 +868,19 @@ struct logU_spectral {
         R = F_*spectral_compose_3x3(N, 1.0/sqrt(c));
         for (int a = 0; a < 3; ++a) {
             for (int b = 0; b < 3; ++b) {
-                kappa(a, b) = kappa_of(c(a), c(b));
+                kappa(a, b) = (a != b) ? kappa_of(c(a), c(b)) : 1.;   // kappa_of(c, c) = 1 exactly
                 if (!tangent) continue;
                 G(a, b) = kappa(a, b)/(2.*std::sqrt(c(a)*c(b)));
-                for (int k = 0; k < 3; ++k) {
-                    Gam[a][b][k] = dd2(c(a), c(b), c(k));
+            }
+        }
+        if (!tangent) return;
+        // dd2 sorts its arguments, so Gam is the same, to the bit, for every permutation of
+        // (a, b, k): the 10 index multisets are evaluated once each, instead of 27 calls
+        for (int a = 0; a < 3; ++a) {
+            for (int b = a; b < 3; ++b) {
+                for (int k = b; k < 3; ++k) {
+                    const double g = dd2(c(a), c(b), c(k));
+                    Gam[a][b][k] = Gam[a][k][b] = Gam[b][a][k] = Gam[b][k][a] = Gam[k][a][b] = Gam[k][b][a] = g;
                 }
             }
         }
@@ -723,13 +913,16 @@ mat logU_box_2_DSDE(const mat &Lt, const mat &F, const mat &tau) {
     logU_spectral sp;
     sp.build(F, true);
     const mat That = sp.That_of_tau(tau);
+    const arma::mat::fixed<6,6> Lt_(Lt);
     mat DSDE(6, 6);
     vec ej(6);
     for (int j = 0; j < 6; ++j) {
         ej.zeros(); ej(j) = 1.;
         const mat dCp = sp.N.t()*(2.*v2t_strain(ej))*sp.N;
         const mat dH = sp.N*(sp.G % dCp)*sp.N.t();
-        const mat dTp = sp.N.t()*v2t_stress(Lt*t2v_strain(dH))*sp.N;
+        double y[6];
+        box_apply(Lt_, dH, y);   // Lt t2v_strain(dH) by hand (a BLAS gemv call per column otherwise)
+        const mat dTp = sp.N.t()*v2t_stress_arr(y)*sp.N;
         DSDE.col(j) = t2v_stress(2.*sp.N*(sp.G % dTp + sp.geometric(That, dCp))*sp.N.t());
     }
     return DSDE;
@@ -740,12 +933,15 @@ mat DSDE_2_logU_box(const mat &DSDE, const mat &F, const mat &tau) {
     logU_spectral sp;
     sp.build(F, true);
     const mat That = sp.That_of_tau(tau);
+    const arma::mat::fixed<6,6> DSDE_(DSDE);
     mat Lt(6, 6);
     vec ej(6);
     for (int j = 0; j < 6; ++j) {
         ej.zeros(); ej(j) = 1.;
         const mat dCp = (sp.N.t()*v2t_strain(ej)*sp.N)/sp.G;
-        const mat dS = v2t_stress(DSDE*t2v_strain(0.5*sp.N*dCp*sp.N.t()));
+        double y[6];
+        box_apply(DSDE_, m33(0.5*sp.N*dCp*sp.N.t()), y);   // DSDE t2v_strain(.) by hand, as above
+        const mat dS = v2t_stress_arr(y);
         const mat dTp = (0.5*sp.N.t()*dS*sp.N - sp.geometric(That, dCp))/sp.G;
         Lt.col(j) = t2v_stress(sp.N*dTp*sp.N.t());
     }
@@ -770,22 +966,23 @@ mat Kirchoff2LogStressU(const mat &tau, const mat &F) {
 mat DtauDe_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 
     dk_spectral sp;
-    sp.build(F, tau);
+    sp.build(F, tau, false);
     const arma::mat::fixed<6,6> Lt_(Lt);
+    const m33 invU_tau_hat = mm(sp.invU, sp.tau_hat);   // column-independent factor of dS
 
     mat DSDE(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
         const m33 dC = 2. * unit_strain_tensor(j);     // engineering Voigt basis
-        const m33 dCp = sp.N.t() * dC * sp.N;          // shared eigenbasis transform
-        const m33 dh = sp.N * (sp.G_h % dCp) * sp.N.t();      // d(1/2 ln C) = d(ln U)
+        const m33 dCp = mm(mtm(sp.N, dC), sp.N);       // shared eigenbasis transform
+        const m33 dh = mmt(mm(sp.N, m33(sp.G_h % dCp)), sp.N);   // d(1/2 ln C) = d(ln U)
         // The box acts in the spatial frame (d ln V = R d(ln U) R^T at fixed R):
         // conjugate in, apply Lt, conjugate back to the corotational frame.
-        box_apply(Lt_, sp.R * dh * sp.R.t(), y);
-        const m33 dtau_hat = sp.R.t() * v2t_stress_arr(y) * sp.R;
-        const m33 dinvU = sp.N * (sp.G_iU % dCp) * sp.N.t();  // d(C^{-1/2})
-        const m33 dS = sp.invU * dtau_hat * sp.invU
-                     + dinvU * sp.tau_hat * sp.invU + sp.invU * sp.tau_hat * dinvU;
+        box_apply(Lt_, mmt(mm(sp.R, dh), sp.R), y);
+        const m33 dtau_hat = mm(mtm(sp.R, v2t_stress_arr(y)), sp.R);
+        const m33 dinvU = mmt(mm(sp.N, m33(sp.G_iU % dCp)), sp.N);   // d(C^{-1/2})
+        const m33 dS = mm(mm(sp.invU, dtau_hat), sp.invU)
+                     + mm(mm(dinvU, sp.tau_hat), sp.invU) + mm(invU_tau_hat, dinvU);
         set_stress_col(DSDE, j, dS);
     }
     return DSDE;
@@ -799,12 +996,9 @@ mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside Dtau_LieDD_2_DSDE.");
-    }   
+    }
 
-    auto invF_ = to_fastor2(invF, false);
-    auto Dtau_LieDD = to_fastor4(Lt);
-    auto DSDE = pullback_4(Dtau_LieDD, invF_);
-    return fastor4_to_voigt(DSDE);
+    return push_forward_voigt(mat::fixed<6,6>(Lt), mat::fixed<3,3>(invF));   // pull-back by F^-1
 }
 
 mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
@@ -816,6 +1010,22 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside DtauDe_JaumannDD_2_DSDE.");
     }   
+    if (is_exactly_symmetric(tau)) {
+        // Dtau_LieDD = Dtau_JaumannDD - Jaumann correction: with a symmetric tau it keeps both minor
+        // symmetries exactly, so its Voigt form (the corrected entries i <= s) pulled back is the
+        // Fastor route (to the bit with Apple clang, see the note on the inline products)
+        double R[6][3][3];
+        voigt_expand(R, mat::fixed<6,6>(Lt));
+        add_jaumann_correction(R, fastor_sym_copy(tau), false);
+        static const int vm[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+        mat::fixed<6,6> Dtau_LieDD;
+        for (int is = 0; is < 6; ++is)
+            for (int p = 0; p < 3; ++p)
+                for (int r = p; r < 3; ++r)
+                    Dtau_LieDD(is, vm[p][r]) = R[is][p][r];
+        return push_forward_voigt(Dtau_LieDD, mat::fixed<3,3>(invF));   // pull-back by F^-1
+    }
+
     auto invF_ = to_fastor2(invF, false);
     auto tau_ = to_fastor2(tau);
     auto Dtau_JaumannDD = to_fastor4(Lt);
@@ -872,6 +1082,20 @@ mat DtauDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside DtauDe_GreenNaghdiDD_2_DSDE.");
     }
+    if (is_exactly_symmetric(tau)) {
+        // with a symmetric tau the corrected tangent keeps both minor symmetries exactly: its Voigt
+        // form (the corrected entries i <= j), pulled back, is the Fastor route (to the bit with
+        // Apple clang, see the note on the inline products)
+        double R[6][3][3];
+        add_B_correction(R, mat::fixed<6,6>(Lt), mat::fixed<6,6>(get_BBBB_GN(F)), fastor_sym_copy(tau), true);
+        static const int vm[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+        mat::fixed<6,6> Dtau_LieDD;
+        for (int ij = 0; ij < 6; ++ij)
+            for (int k = 0; k < 3; ++k)
+                for (int l = k; l < 3; ++l)
+                    Dtau_LieDD(ij, vm[k][l]) = R[ij][k][l];
+        return push_forward_voigt(Dtau_LieDD, mat::fixed<3,3>(invF));   // pull-back by F^-1
+    }
     auto invF_ = to_fastor2(invF, false);
     auto tau_ = to_fastor2(tau);
     auto Dtau_GN = to_fastor4(Lt);
@@ -912,20 +1136,21 @@ mat DSDE_2_DtauDe(const mat &DSDE, const mat &F, const mat &tau) {
     const m33 G_h_inv = 1.0 / sp.G_h;      // elementwise; G_h > 0 (1/2 ln strictly increasing)
     const m33 G_comp = sp.G_iU % G_h_inv;  // composed d(C^{-1/2}) o [d(1/2 ln C)]^{-1}
     const arma::mat::fixed<6,6> DSDE_(0.5 * DSDE);
+    const m33 invU_tau_hat = mm(sp.invU, sp.tau_hat);   // column-independent factor
 
     mat Lt(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
         // box argument is ln V: pull dh back by R (inverse of the forward R conjugation)
-        const m33 dh = sp.R.t() * unit_strain_tensor(j) * sp.R;
-        const m33 dhp = sp.N.t() * dh * sp.N;               // eigenframe
-        const m33 dC = sp.N * (G_h_inv % dhp) * sp.N.t();   // inverse of d(1/2 ln C)
+        const m33 dh = mm(mtm(sp.R, unit_strain_tensor(j)), sp.R);
+        const m33 dhp = mm(mtm(sp.N, dh), sp.N);                     // eigenframe
+        const m33 dC = mmt(mm(sp.N, m33(G_h_inv % dhp)), sp.N);      // inverse of d(1/2 ln C)
         box_apply(DSDE_, dC, y);
         const m33 dS = v2t_stress_arr(y);
-        const m33 dinvU = sp.N * (G_comp % dhp) * sp.N.t();
-        const m33 dtau_hat =
-            sp.U * (dS - dinvU * sp.tau_hat * sp.invU - sp.invU * sp.tau_hat * dinvU) * sp.U;
-        set_stress_col(Lt, j, sp.R * dtau_hat * sp.R.t());
+        const m33 dinvU = mmt(mm(sp.N, m33(G_comp % dhp)), sp.N);
+        const m33 inner = dS - mm(mm(dinvU, sp.tau_hat), sp.invU) - mm(invU_tau_hat, dinvU);
+        const m33 dtau_hat = mm(mm(sp.U, inner), sp.U);
+        set_stress_col(Lt, j, mmt(mm(sp.R, dtau_hat), sp.R));
     }
     return Lt;
 }
@@ -944,10 +1169,7 @@ mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &F, const mat &sigma) {
 
 mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
 
-    auto F_ = to_fastor2(F, false);
-    auto DSDE_ = to_fastor4(DSDE);
-    auto C = pushforward_4(DSDE_, F_);
-    return fastor4_to_voigt(C);
+    return push_forward_voigt(mat::fixed<6,6>(DSDE), mat::fixed<3,3>(F));
 }
 
 mat DSDE_2_Dsigma_LieDD(const mat &DSDE, const mat &F) {
@@ -959,19 +1181,17 @@ mat DSDE_2_Dsigma_LieDD(const mat &DSDE, const mat &F) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DSDE_2_DsigmaDe_LieDD.");
     }
-    return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);
+    return (1./J)*push_forward_voigt(mat::fixed<6,6>(DSDE), mat::fixed<3,3>(F));   // DSDE_2_Dtau_LieDD / J
 }
 
 mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
 
-    auto F_ = to_fastor2(F, false);
-    auto tau_ = to_fastor2(tau);
-    auto DSDE_ = to_fastor4(DSDE);
-
-    // Push-forward + Jaumann correction
-    auto Dtau_LieDD = pushforward_4(DSDE_, F_);
-    auto C = apply_jaumann_correction(Dtau_LieDD, tau_, true);
-    return fastor4_to_voigt(C);
+    // Push-forward + Jaumann correction, on the Voigt entries only (the same sums as the
+    // 3x3x3x3 Fastor route)
+    double R[6][3][3];
+    push_forward_voigt_core(R, mat::fixed<6,6>(DSDE), mat::fixed<3,3>(F));
+    add_jaumann_correction(R, fastor_sym_copy(tau), true);
+    return voigt_average(R);
 }
 
 mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
@@ -1112,7 +1332,7 @@ mat Dtau_LieDD_2_DtauDe_stretch(const mat &Dtau_LieDD, const vec::fixed<3> &e, c
     for (int j = 0; j < 6; ++j) {
         const m33 dt = spectral_congruence(N, H, unit_strain_tensor(j));
         box_apply(Jc, dt, y);
-        const m33 dtau = v2t_stress_arr(y) + dt * tau_ + tau_ * dt;
+        const m33 dtau = v2t_stress_arr(y) + mm(dt, tau_) + mm(tau_, dt);
         set_stress_col(Lt, j, dtau);
     }
     return Lt;
@@ -1126,21 +1346,20 @@ mat box_DtauDe_from_dSdE(const mat &dSdE, const mat &F, const vec &sigma) {
 
 mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {
 
-    auto tau_ = to_fastor2(tau);
-    auto Dtau_LieDD_ = to_fastor4(Dtau_LieDD);
-    auto result = apply_jaumann_correction(Dtau_LieDD_, tau_, true);
-    return fastor4_to_voigt(result);
+    // the correction on the Voigt entries only (the same sums as the 3x3x3x3 Fastor route)
+    double R[6][3][3];
+    voigt_expand(R, mat::fixed<6,6>(Dtau_LieDD));
+    add_jaumann_correction(R, fastor_sym_copy(tau), true);
+    return voigt_average(R);
 }
 
 mat Dtau_LieDD_Dtau_objectiveDD(const mat &Dtau_LieDD, const mat &B, const mat &tau) {
 
-    auto tau_ = to_fastor2(tau);
-    auto Dtau_LieDD_ = to_fastor4(Dtau_LieDD);
-    auto B_ = to_fastor4(B);
-
-    // Dtau_objectiveDD = Dtau_LieDD - B-correction
-    auto result = apply_B_correction(Dtau_LieDD_, B_, tau_, false);
-    return fastor4_to_voigt(result);
+    // Dtau_objectiveDD = Dtau_LieDD - B-correction, on the Voigt entries only (the same sums as
+    // the 3x3x3x3 Fastor route)
+    double R[6][3][3];
+    add_B_correction(R, mat::fixed<6,6>(Dtau_LieDD), mat::fixed<6,6>(B), fastor_sym_copy(tau), false);
+    return voigt_average(R);
 }
 
 mat Dtau_LieDD_Dtau_GreenNaghdiDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
@@ -1157,21 +1376,19 @@ mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &F, const mat
 
 mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
 
-    auto sigma_ = to_fastor2(sigma);
-    auto Dsigma_LieDD_ = to_fastor4(Dsigma_LieDD);
-    auto result = apply_jaumann_correction(Dsigma_LieDD_, sigma_, true);
-    return fastor4_to_voigt(result);
+    // as Dtau_LieDD_Dtau_JaumannDD
+    double R[6][3][3];
+    voigt_expand(R, mat::fixed<6,6>(Dsigma_LieDD));
+    add_jaumann_correction(R, fastor_sym_copy(sigma), true);
+    return voigt_average(R);
 }
 
 mat Dsigma_LieDD_Dsigma_objectiveDD(const mat &Dsigma_LieDD, const mat &B, const mat &sigma) {
 
-    auto sigma_ = to_fastor2(sigma);
-    auto Dsigma_LieDD_ = to_fastor4(Dsigma_LieDD);
-    auto B_ = to_fastor4(B);
-
-    // Dsigma_objectiveDD = Dsigma_LieDD - B-correction
-    auto result = apply_B_correction(Dsigma_LieDD_, B_, sigma_, false);
-    return fastor4_to_voigt(result);
+    // Dsigma_objectiveDD = Dsigma_LieDD - B-correction, as Dtau_LieDD_Dtau_objectiveDD
+    double R[6][3][3];
+    add_B_correction(R, mat::fixed<6,6>(Dsigma_LieDD), mat::fixed<6,6>(B), fastor_sym_copy(sigma), false);
+    return voigt_average(R);
 }
 
 mat Dsigma_LieDD_Dsigma_GreenNaghdiDD(const mat &Dsigma_LieDD, const mat &F, const mat &sigma) {
@@ -1196,35 +1413,50 @@ mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &F, con
 
 mat DSDE_DBiotStressDU(const mat &DSDE, const mat &U, const mat &S) {
 
-    auto U_ = to_fastor2(U);
-    auto S_ = to_fastor2(S);
-    auto DSDE_ = to_fastor4(DSDE);
-
     // C_sjpr = 0.5*δ_is*(U_lj*U_mp*δ_nr*DSDE_ilmn + U_lj*δ_mr*U_np*DSDE_ilmn)
     //        + 0.5*S_sp*δ_rj + 0.5*S_rj*δ_sp
-    Fastor::Tensor<double,3,3,3,3> C;
-    C.zeros();
-    for (int s = 0; s < 3; ++s)
-    for (int j = 0; j < 3; ++j)
-    for (int p = 0; p < 3; ++p)
-    for (int r = 0; r < 3; ++r) {
-        double sum = 0.0;
-        // i=s (delta_is), contract over l,m,n
-        for (int l = 0; l < 3; ++l)
-        for (int m = 0; m < 3; ++m)
-        for (int n = 0; n < 3; ++n) {
-            double dsde_val = DSDE_(s,l,m,n);
-            // term1: U_lj * U_mp * δ_nr
-            if (n == r) sum += 0.5 * U_(l,j) * U_(m,p) * dsde_val;
-            // term2: U_lj * δ_mr * U_np
-            if (m == r) sum += 0.5 * U_(l,j) * U_(n,p) * dsde_val;
+    // Computed straight from the Voigt DSDE and for the entries the Voigt result reads only
+    // (s <= j), visiting the (l, m, n) terms that the deltas keep in their original order: the
+    // same sums as the full 3x3x3x3 Fastor contraction this replaces (to the bit with Apple clang,
+    // see the note on the inline products).
+    static const int vm[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+    static const int vi[6] = {0, 1, 2, 0, 0, 1}, vj[6] = {0, 1, 2, 1, 2, 2};
+    const mat::fixed<6,6> D(DSDE);
+    // U and S as the Fastor copies read them (a plain memcpy of the column-major storage)
+    const mat::fixed<3,3> U_t = mat::fixed<3,3>(U).t(), S_t = mat::fixed<3,3>(S).t();
+    double C[6][3][3];
+    for (int I = 0; I < 6; ++I) {
+        const int s = vi[I], j = vj[I];
+        for (int p = 0; p < 3; ++p) {
+            for (int r = 0; r < 3; ++r) {
+                double sum = 0.0;
+                for (int l = 0; l < 3; ++l) {
+                    for (int m = 0; m < 3; ++m) {
+                        if (m != r) {   // only n == r contributes
+                            const int n = r;
+                            const double dsde_val = D(vm[s][l], vm[m][n]);
+                            sum += 0.5 * U_t(l,j) * U_t(m,p) * dsde_val;
+                            continue;
+                        }
+                        for (int n = 0; n < 3; ++n) {
+                            const double dsde_val = D(vm[s][l], vm[m][n]);
+                            if (n == r) sum += 0.5 * U_t(l,j) * U_t(m,p) * dsde_val;
+                            sum += 0.5 * U_t(l,j) * U_t(n,p) * dsde_val;
+                        }
+                    }
+                }
+                // Jaumann-like terms
+                if (r == j) sum += 0.5 * S_t(s,p);
+                if (s == p) sum += 0.5 * S_t(r,j);
+                C[I][p][r] = sum;
+            }
         }
-        // Jaumann-like terms
-        if (r == j) sum += 0.5 * S_(s,p);
-        if (s == p) sum += 0.5 * S_(r,j);
-        C(s,j,p,r) = sum;
     }
-    return fastor4_to_voigt(C);
+    mat L(6,6);
+    for (int I = 0; I < 6; ++I)
+        for (int J = 0; J < 6; ++J)
+            L(I, J) = 0.5 * (C[I][vi[J]][vj[J]] + C[I][vj[J]][vi[J]]);
+    return L;
 
 }
 

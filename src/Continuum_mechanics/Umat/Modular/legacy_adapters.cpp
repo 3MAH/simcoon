@@ -22,8 +22,10 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
+#include <cstring>
 #include <map>
 #include <stdexcept>
+#include <vector>
 
 using namespace arma;
 
@@ -200,12 +202,29 @@ void umat_legacy_modular(
     const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
     const int& tangent_mode, const int& ncp) {
 
-    const auto it = registry().find(umat_name);
-    if (it == registry().end()) {
-        throw std::invalid_argument("umat_legacy_modular: no adapter registered for '"
-                                 + umat_name + "'");
+    // per-thread memo of the last (name, props) translation; the key is written last so a throw leaves no stale pair
+    struct translation {
+        std::string name;
+        std::vector<double> props;
+        vec props_mod;
+    };
+    thread_local translation last;
+    const bool hit = !last.name.empty() && umat_name == last.name && props.n_elem == last.props.size()
+        && (last.props.empty()
+            || std::memcmp(last.props.data(), props.memptr(), last.props.size() * sizeof(double)) == 0);
+    if (!hit) {
+        const auto it = registry().find(umat_name);
+        if (it == registry().end()) {
+            throw std::invalid_argument("umat_legacy_modular: no adapter registered for '"
+                                     + umat_name + "'");
+        }
+        vec props_mod = it->second(props);
+        last.name.clear();
+        last.props.assign(props.begin(), props.end());
+        last.props_mod = std::move(props_mod);
+        last.name = umat_name;
     }
-    const vec props_mod = it->second(props);
+    const vec& props_mod = last.props_mod;
     try {
         umat_modular(umat_name, Etot, DEtot, sigma, Lt, L, DR,
                      static_cast<int>(props_mod.n_elem), props_mod,

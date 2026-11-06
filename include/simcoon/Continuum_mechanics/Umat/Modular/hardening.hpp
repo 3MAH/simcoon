@@ -231,7 +231,8 @@ public:
 
     /**
      * @brief Register internal variables for this hardening model
-     * @param ivc The owning mechanism's internal variable collection
+     * @param ivc The owning mechanism's internal variable collection; every other member taking a
+     *        collection must get this same one (read by the indices resolved here, debug-checked).
      */
     virtual void register_variables(InternalVariableCollection& ivc) = 0;
 
@@ -410,6 +411,7 @@ class PragerHardening final : public KinematicHardening {
 private:
     double C_;  ///< Kinematic hardening modulus
     std::string a_key_{"a"};  ///< IVC key for the back-strain α
+    size_t a_index_ = 0;      ///< its index in the collection, resolved by register_variables
 public:
     PragerHardening() : C_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
@@ -434,6 +436,7 @@ private:
     double C_;  ///< Hardening parameter
     double D_;  ///< Dynamic recovery parameter
     std::string a_key_{"a"};  ///< IVC key for the back-strain α
+    size_t a_index_ = 0;      ///< its index in the collection, resolved by register_variables
 public:
     ArmstrongFrederickHardening() : C_(0.0), D_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
@@ -461,6 +464,7 @@ private:
     arma::vec C_;                    ///< Hardening parameters
     arma::vec D_;                    ///< Dynamic recovery parameters
     std::vector<std::string> a_keys_; ///< IVC keys for back-strains α_i ("a_0", "a_1", ...)
+    std::vector<size_t> a_index_;     ///< their indices in the collection, resolved by register_variables
 public:
     explicit ChabocheHardening(int N = 1) : N_(N), C_(arma::zeros(N)), D_(arma::zeros(N)) {}
     void configure(const arma::vec& props, int& offset) override;

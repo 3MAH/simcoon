@@ -174,22 +174,29 @@ tensor2::tensor2(const arma::mat &m, Tensor2Type vtype)
     _mat = m;
 }
 
-tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype) {
-    arma::mat::fixed<3,3> m;
+// engineering Voigt (6 contiguous values) -> symmetric 3x3 of a stress/strain tensor; false for none
+static bool fill_from_voigt(arma::mat::fixed<3,3> &m, const double *v, Tensor2Type vtype) {
     if (vtype == Tensor2Type::strain) {
-        m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
-        m(0,1) = 0.5 * v(3); m(1,0) = 0.5 * v(3);
-        m(0,2) = 0.5 * v(4); m(2,0) = 0.5 * v(4);
-        m(1,2) = 0.5 * v(5); m(2,1) = 0.5 * v(5);
-    } else if (vtype == Tensor2Type::stress || vtype == Tensor2Type::symmetric) {
-        m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
-        m(0,1) = v(3); m(1,0) = v(3);
-        m(0,2) = v(4); m(2,0) = v(4);
-        m(1,2) = v(5); m(2,1) = v(5);
-    } else {
-        throw std::runtime_error("Cannot construct tensor2 from Voigt with Tensor2Type::none");
+        m(0,0) = v[0]; m(1,1) = v[1]; m(2,2) = v[2];
+        m(0,1) = 0.5 * v[3]; m(1,0) = 0.5 * v[3];
+        m(0,2) = 0.5 * v[4]; m(2,0) = 0.5 * v[4];
+        m(1,2) = 0.5 * v[5]; m(2,1) = 0.5 * v[5];
+        return true;
     }
-    tensor2 result(m, vtype);
+    if (vtype == Tensor2Type::stress || vtype == Tensor2Type::symmetric) {
+        m(0,0) = v[0]; m(1,1) = v[1]; m(2,2) = v[2];
+        m(0,1) = v[3]; m(1,0) = v[3];
+        m(0,2) = v[4]; m(2,0) = v[4];
+        m(1,2) = v[5]; m(2,1) = v[5];
+        return true;
+    }
+    return false;
+}
+
+tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype) {
+    tensor2 result(vtype);
+    if (!fill_from_voigt(result._mat, v.memptr(), vtype))
+        throw std::runtime_error("Cannot construct tensor2 from Voigt with Tensor2Type::none");
     return result;
 }
 
@@ -197,8 +204,10 @@ tensor2 tensor2::from_voigt(const arma::vec &v, Tensor2Type vtype) {
     if (v.n_elem != 6)
         throw std::invalid_argument("tensor2: expected 6-element vector, got "
             + std::to_string(v.n_elem));
-    arma::vec::fixed<6> vf(v.memptr());
-    return from_voigt(vf, vtype);
+    tensor2 result(vtype);
+    if (!fill_from_voigt(result._mat, v.memptr(), vtype))
+        throw std::runtime_error("Cannot construct tensor2 from Voigt with Tensor2Type::none");
+    return result;
 }
 
 tensor2 tensor2::from_voigt(const arma::vec &v, const std::string &type_str) {
@@ -250,27 +259,16 @@ void tensor2::set_mat(const arma::mat &m) {
 }
 
 void tensor2::set_voigt(const arma::vec::fixed<6> &v) {
-    if (_vtype == Tensor2Type::strain) {
-        _mat(0,0) = v(0); _mat(1,1) = v(1); _mat(2,2) = v(2);
-        _mat(0,1) = 0.5 * v(3); _mat(1,0) = 0.5 * v(3);
-        _mat(0,2) = 0.5 * v(4); _mat(2,0) = 0.5 * v(4);
-        _mat(1,2) = 0.5 * v(5); _mat(2,1) = 0.5 * v(5);
-    } else if (_vtype == Tensor2Type::stress || _vtype == Tensor2Type::symmetric) {
-        _mat(0,0) = v(0); _mat(1,1) = v(1); _mat(2,2) = v(2);
-        _mat(0,1) = v(3); _mat(1,0) = v(3);
-        _mat(0,2) = v(4); _mat(2,0) = v(4);
-        _mat(1,2) = v(5); _mat(2,1) = v(5);
-    } else {
+    if (!fill_from_voigt(_mat, v.memptr(), _vtype))
         throw std::runtime_error("Cannot set_voigt on Tensor2Type::none tensor");
-    }
 }
 
 void tensor2::set_voigt(const arma::vec &v) {
     if (v.n_elem != 6)
         throw std::invalid_argument("tensor2::set_voigt: expected 6-element vector, got "
             + std::to_string(v.n_elem));
-    arma::vec::fixed<6> vf(v.memptr());
-    set_voigt(vf);
+    if (!fill_from_voigt(_mat, v.memptr(), _vtype))
+        throw std::runtime_error("Cannot set_voigt on Tensor2Type::none tensor");
 }
 
 arma::vec::fixed<6> tensor2::voigt() const {
@@ -583,12 +581,20 @@ tensor4::tensor4(Tensor4Type type) : _mandel(arma::fill::zeros), _type(type) {}
 tensor4::tensor4(const arma::mat::fixed<6,6> &m, Tensor4Type type)
     : _mandel(eng_to_mandel(m, type)), _type(type) {}
 
+// eng_to_mandel in place on the stored matrix (same products)
+static void eng_to_mandel_inplace(arma::mat::fixed<6,6> &X, Tensor4Type type) {
+    double r, c; mandel_factors(type, r, c);
+    for (int I = 3; I < 6; ++I) X.row(I) *= r;
+    for (int J = 3; J < 6; ++J) X.col(J) *= c;
+}
+
 tensor4::tensor4(const arma::mat &m, Tensor4Type type)
     : _type(type) {
     if (m.n_rows != 6 || m.n_cols != 6)
         throw std::invalid_argument("tensor4: expected 6x6 matrix, got "
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
-    _mandel = eng_to_mandel(arma::mat::fixed<6,6>(m), type);
+    _mandel = m;
+    eng_to_mandel_inplace(_mandel, type);
 }
 
 tensor4::tensor4(const arma::mat &m, const std::string &type_str)
@@ -646,7 +652,8 @@ void tensor4::set_mat(const arma::mat &m) {
     if (m.n_rows != 6 || m.n_cols != 6)
         throw std::invalid_argument("tensor4: expected 6x6 matrix, got "
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
-    _mandel = eng_to_mandel(arma::mat::fixed<6,6>(m), _type);
+    _mandel = m;
+    eng_to_mandel_inplace(_mandel, _type);
     _invalidate_fastor();
 }
 

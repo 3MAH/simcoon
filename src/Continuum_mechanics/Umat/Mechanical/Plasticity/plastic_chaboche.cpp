@@ -180,12 +180,11 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     vec dPhida_1 = zeros(6);
     vec dPhida_2 = zeros(6);
     vec dPhidsigma = zeros(6);
-    double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
     vec Lambdap = eta_stress(stress-X);
-    vec Lambdaa_1 = eta_stress(stress-X) - D_1*a_1;
-    vec Lambdaa_2 = eta_stress(stress-X) - D_2*a_2;
+    vec Lambdaa_1 = Lambdap - D_1*a_1;
+    vec Lambdaa_2 = Lambdap - D_2*a_2;
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
@@ -227,23 +226,26 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         }
     }
     else {
+    const vec Ir05_v = Ir05();
+    const vec Eel_0 = Etot + DEtot - alpha*(T + DT - T_init);
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
         Hp = hardening.R(p);
         dHpdp = hardening.dR_dp(p);
-        dPhidsigma = eta_stress(stress-X);
+        const vec sigma_eff = stress-X;
+        dPhidsigma = eta_stress(sigma_eff);
         dPhidp = -1.*dHpdp;
-        dPhida_1 = -1.*(2./3.)*C_1*(eta_stress(stress-X)%Ir05());
-        dPhida_2 = -1.*(2./3.)*C_2*(eta_stress(stress-X)%Ir05());
+        dPhida_1 = -1.*(2./3.)*C_1*(dPhidsigma%Ir05_v);
+        dPhida_2 = -1.*(2./3.)*C_2*(dPhidsigma%Ir05_v);
         
         //compute Phi and the derivatives
-        Phi(0) = Mises_stress(stress-X) - Hp - sigmaY;
+        Phi(0) = Mises_stress(sigma_eff) - Hp - sigmaY;
         
-        Lambdap = eta_stress(stress-X);
-        Lambdaa_1 = eta_stress(stress-X) - D_1*a_1;
-        Lambdaa_2 = eta_stress(stress-X) - D_2*a_2;
+        Lambdap = dPhidsigma;
+        Lambdaa_1 = dPhidsigma - D_1*a_1;
+        Lambdaa_2 = dPhidsigma - D_2*a_2;
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp + sum(dPhida_1%Lambdaa_1) + sum(dPhida_2%Lambdaa_2);
@@ -256,12 +258,12 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         EP = EP + ds_j(0)*Lambdap;
         a_1 = a_1 + ds_j(0)*Lambdaa_1;
         a_2 = a_2 + ds_j(0)*Lambdaa_2;
-        X_1 += ds_j(0)*(2./3.)*C_1*(Lambdaa_1%Ir05());
-        X_2 += ds_j(0)*(2./3.)*C_2*(Lambdaa_2%Ir05());
+        X_1 += ds_j(0)*(2./3.)*C_1*(Lambdaa_1%Ir05_v);
+        X_2 += ds_j(0)*(2./3.)*C_2*(Lambdaa_2%Ir05_v);
         X = X_1 + X_2;
         
         //the stress is now computed using the relationship stress = L(E-Ep)
-        Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
+        Eel = Eel_0 - EP;
         stress = el_pred(L, Eel);
     }
     // the loop reads p at the top and corrects s_j at the bottom
@@ -270,7 +272,6 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     }
     
     //Computation of the increments of variables
-    vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
     vec Da_1 = a_1 - a_1start;
@@ -285,13 +286,11 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
             // J2 flow on sigma-X; the backstress coupling is only in the closest-point branch
-            const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress - X) };
+            std::vector<mat> dLambda_dsigma_l(1);
+            dLambda_dsigma_l[0] = deta_stress(stress - X);
             return dLambda_dsigma_l;
         });
     Lt = ct.Lt;
-
-    std::vector<double> P_theta(1);
-    P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
     
     double A_p = -Hp;
     vec A_a1 = -X_1;

@@ -59,9 +59,8 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
-    //Elastic stiffness tensor and thermal tensor
+    //Elastic stiffness tensor
     mat L = L_iso(E, nu, "Enu");
-	mat M = M_iso(E, nu, "Enu");
     
     ///@brief Temperature initialization
     double T_init = statev(0);
@@ -185,7 +184,7 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
         //compute Phi and the derivatives
         Phi(0) = Mises_stress(sigma) - Hp - sigmaY;
 
-        Lambdap = eta_stress(sigma);
+        Lambdap = dPhidsigma;   // associated J2 flow
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp;
