@@ -33,13 +33,21 @@ using namespace simcoon;
 
 namespace {
 
-//Distinct, non-default values in every field of the common part
+//Distinct, non-default values in every field of the common part, statev included
 template <class SV>
 void fill_common(SV &sv)
 {
     sv.tangent_mode = 3;
     sv.Etot = {1., 2., 3., 4., 5., 6.};
+    sv.DEtot = sv.Etot + 0.1;
+    sv.etot = sv.Etot + 0.2;
+    sv.Detot = sv.Etot + 0.3;
     sv.sigma = {10., 20., 30., 40., 50., 60.};
+    sv.sigma_start = sv.sigma + 1.;
+    sv.PKII = sv.sigma + 2.;
+    sv.PKII_start = sv.sigma + 3.;
+    sv.tau = sv.sigma + 4.;
+    sv.tau_start = sv.sigma + 5.;
     sv.F0 = {{1.1, 0.1, 0.}, {0., 1., 0.2}, {0., 0., 0.9}};
     sv.F1 = sv.F0 + 0.01;
     sv.U0 = {{1.2, 0., 0.}, {0., 1.1, 0.}, {0., 0., 0.8}};
@@ -48,16 +56,30 @@ void fill_common(SV &sv)
     sv.DR = sv.R.t();
     sv.T = 300.;
     sv.DT = 5.;
+    sv.resize(3, true, 1.5);
+    sv.statev_start = {7., 8., 9.};
 }
 
+//full = copy constructor or operator= (tangent_mode and statev included); otherwise copy_fields
 template <class SV>
-void expect_common(const SV &a, const SV &b, bool with_tangent_mode)
+void expect_common(const SV &a, const SV &b, bool full)
 {
-    if (with_tangent_mode) {
+    if (full) {
         EXPECT_EQ(a.tangent_mode, b.tangent_mode);
+        EXPECT_EQ(a.nstatev, b.nstatev);
+        EXPECT_TRUE(approx_equal(a.statev, b.statev, "absdiff", 0.));
+        EXPECT_TRUE(approx_equal(a.statev_start, b.statev_start, "absdiff", 0.));
     }
     EXPECT_TRUE(approx_equal(a.Etot, b.Etot, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.DEtot, b.DEtot, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.etot, b.etot, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.Detot, b.Detot, "absdiff", 0.));
     EXPECT_TRUE(approx_equal(a.sigma, b.sigma, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.sigma_start, b.sigma_start, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.PKII, b.PKII, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.PKII_start, b.PKII_start, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.tau, b.tau, "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(a.tau_start, b.tau_start, "absdiff", 0.));
     EXPECT_TRUE(approx_equal(a.F0, b.F0, "absdiff", 0.));
     EXPECT_TRUE(approx_equal(a.F1, b.F1, "absdiff", 0.));
     EXPECT_TRUE(approx_equal(a.U0, b.U0, "absdiff", 0.));
@@ -70,8 +92,8 @@ void expect_common(const SV &a, const SV &b, bool with_tangent_mode)
 
 }
 
-// The copy constructor and the assignment operators copy every common field, U0, U1, R, DR and
-// tangent_mode included; copy_fields_M/T copy the same fields as copy_fields.
+// The copy constructor and the assignment operators copy every common field, U0, U1, R, DR,
+// tangent_mode and statev included; copy_fields_M/T copy the same fields as copy_fields.
 TEST(Tstate_variables, copies_keep_every_common_field)
 {
     state_variables s;

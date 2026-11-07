@@ -167,11 +167,6 @@ void phase_characteristics::construct(const int &mshape_type, const int &msv_typ
     
     //Switch case for the state_variables type of the phase
     switch (sv_type) {
-        case 0: {
-            sptr_sv_global = std::make_shared<state_variables>();
-            sptr_sv_local = std::make_shared<state_variables>();
-            break;
-        }
         case 1: {
             sptr_sv_global = std::make_shared<state_variables_M>();
             sptr_sv_local = std::make_shared<state_variables_M>();
