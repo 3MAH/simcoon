@@ -23,6 +23,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdexcept>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <algorithm>
 
 namespace simcoon {
 
@@ -312,7 +313,11 @@ void InternalVariable::pack(arma::vec& statev) const {
             statev(offset) = scalar_value_;
             break;
         case IVarType::VECTOR_6:
-            statev.subvec(offset, offset + 5) = vec_value_;
+            if (vec_value_.n_elem == 6) {
+                std::copy(vec_value_.begin(), vec_value_.end(), statev.begin() + offset);
+            } else {
+                statev.subvec(offset, offset + 5) = vec_value_;   // reports the size mismatch
+            }
             break;
         case IVarType::MATRIX_6x6:
             for (unsigned int i = 0; i < 6; ++i) {
@@ -337,8 +342,10 @@ void InternalVariable::unpack(const arma::vec& statev) {
             scalar_start_ = scalar_value_;
             break;
         case IVarType::VECTOR_6:
-            vec_value_ = statev.subvec(offset, offset + 5);
-            vec_start_ = vec_value_;
+            vec_value_.set_size(6);
+            vec_start_.set_size(6);
+            std::copy(statev.begin() + offset, statev.begin() + offset + 6, vec_value_.begin());
+            std::copy(statev.begin() + offset, statev.begin() + offset + 6, vec_start_.begin());
             break;
         case IVarType::MATRIX_6x6:
             for (unsigned int i = 0; i < 6; ++i) {

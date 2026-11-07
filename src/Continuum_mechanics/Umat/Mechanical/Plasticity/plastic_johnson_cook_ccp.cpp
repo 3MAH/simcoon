@@ -131,7 +131,8 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
     vec ds_j = zeros(1);
 
     //Elastic prediction - Accounting for the thermal prediction
-    vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
+    const vec Eel_0 = Etot + DEtot - alpha*(T+DT-T_init);
+    vec Eel = Eel_0 - EP;
     sigma = el_pred(L, Eel);
 
     //Define the plastic function and the stress
@@ -159,7 +160,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
             Ds_j(0) = x0;
             s_j(0) += x0;
             EP = EP + x0*Lambda_trial;
-            Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
+            Eel = Eel_0 - EP;
             sigma = el_pred(L, Eel);
         }
     }
@@ -215,7 +216,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
         EP = EP + ds_j(0)*Lambdap;
 
         //the stress is now computed using the relationship sigma = L(E-Ep)
-        Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
+        Eel = Eel_0 - EP;
         sigma = el_pred(L, Eel);
     }
 
@@ -248,7 +249,8 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
         tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
             // J2 associated flow: dLambda/dsigma = deta_stress, complete for one isotropic mechanism
-            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
+            std::vector<mat> dLambda_dsigma_l(1);
+            dLambda_dsigma_l[0] = deta_stress(sigma);
             return dLambda_dsigma_l;
         });
     Lt = ct.Lt;

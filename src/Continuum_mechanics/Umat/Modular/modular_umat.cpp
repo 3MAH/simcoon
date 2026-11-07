@@ -35,9 +35,29 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <memory>
 #include <stdexcept>
 #include <cmath>
+#include <utility>
 #include <vector>
 
 namespace simcoon {
+
+namespace {
+
+/// approx_equal(DR, eye(3, 3), "absdiff", 0.0) without building the identity (NaN or wrong size: false)
+bool is_identity_rotation(const arma::mat& DR) {
+    if (DR.n_rows != 3 || DR.n_cols != 3) {
+        return false;
+    }
+    for (arma::uword j = 0; j < 3; ++j) {
+        for (arma::uword i = 0; i < 3; ++i) {
+            if (DR(i, j) != ((i == j) ? 1.0 : 0.0)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+}  // namespace
 
 // ========== Constructor ==========
 
@@ -312,7 +332,7 @@ void ModularUMAT::run(
     }
 
     // Apply rotation for objectivity (DR = I under small strain: nothing to do)
-    const bool rotate = !arma::approx_equal(DR, arma::eye(3, 3), "absdiff", 0.0);
+    const bool rotate = !is_identity_rotation(DR);
     if (rotate) {
         for (auto& mech : mechanisms_) {
             mech->rotate(DR);
@@ -371,11 +391,14 @@ void ModularUMAT::run(
 
     // Wm_r closes the balance Wm = Wm_r + Wm_ir + Wm_d
     double Wm_ir_inc = 0.0, Wm_d_inc = 0.0;
-    for (const auto& mech : mechanisms_) {
-        double Wm_r_m = 0.0, Wm_ir_m = 0.0, Wm_d_m = 0.0;
-        mech->compute_work(sigma_start_, sigma, Etot, Etot + DEtot, Wm_r_m, Wm_ir_m, Wm_d_m);
-        Wm_ir_inc += Wm_ir_m;
-        Wm_d_inc += Wm_d_m;
+    if (!mechanisms_.empty()) {
+        const arma::vec::fixed<6> Etot_end = Etot + DEtot;   // once, not per mechanism
+        for (const auto& mech : mechanisms_) {
+            double Wm_r_m = 0.0, Wm_ir_m = 0.0, Wm_d_m = 0.0;
+            mech->compute_work(sigma_start_, sigma, Etot, Etot_end, Wm_r_m, Wm_ir_m, Wm_d_m);
+            Wm_ir_inc += Wm_ir_m;
+            Wm_d_inc += Wm_d_m;
+        }
     }
 
     Wm += Wm_inc;
@@ -392,11 +415,18 @@ void ModularUMAT::run(
 
 void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
                                  int ndi, int nshr, arma::vec& sigma) {
-    arma::vec E_inel = arma::zeros(6);
-    for (const auto& mech : mechanisms_) {
-        E_inel += mech->inelastic_strain();
+    // no mechanism: the inelastic sum is +0 and x - (+0) = x bit for bit, so it is skipped
+    if (!elasticity_.is_configured()) {
+        throw std::runtime_error("ElasticityModule: not configured");   // thermal_strain's guard
     }
-    const arma::vec Eel = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
+    arma::vec::fixed<6> Eel = Etot_end - elasticity_.alpha() * DT_init;
+    if (!mechanisms_.empty()) {
+        arma::vec::fixed<6> E_inel(arma::fill::zeros);
+        for (const auto& mech : mechanisms_) {
+            E_inel += mech->inelastic_strain();
+        }
+        Eel -= E_inel;
+    }
     elasticity_.evaluate(Eel, ndi, nshr, sigma_eff_, L_cur_);
     // strain equivalence (Lemaitre): the mechanisms work on sigma_eff_, damage scales it
     sigma = stiffness_reduction() * sigma_eff_;
@@ -424,7 +454,7 @@ bool ModularUMAT::return_mapping(
     }
 
     // with no constraints this elastic call is the whole response
-    const arma::vec Etot_end = Etot + DEtot;
+    const arma::vec::fixed<6> Etot_end = Etot + DEtot;
     for (auto& mech : mechanisms_) {
         mech->predict(Etot_end, DTime);   // closed-form parts first (viscoelastic branches)
     }
@@ -514,8 +544,15 @@ void ModularUMAT::return_mapping_ccp(
     hooks.update = [&](const arma::vec& ds) {
         for (size_t m = 0; m < mechanisms_.size(); ++m) mechanisms_[m]->update(ds, mech_offset_[m]);
     };
-    // D may have evolved in update: the reduction factor is re-evaluated with the stress
-    hooks.refresh = [&]() { refresh_stress(Etot_end, DT_init, ndi, nshr, sigma); };
+    // D may have evolved in update: the reduction factor is re-evaluated with the stress.
+    // one captured reference keeps the closure in std::function's small buffer (no heap per call)
+    struct refresh_args {
+        const arma::vec& Etot_end;
+        double DT_init;
+        int ndi, nshr;
+        arma::vec& sigma;
+    } const ra{Etot_end, DT_init, ndi, nshr, sigma};
+    hooks.refresh = [this, &ra]() { refresh_stress(ra.Etot_end, ra.DT_init, ra.ndi, ra.nshr, ra.sigma); };
     hooks.consistency = [&]() {
         double res = 0.0;
         for (const auto& mech : mechanisms_) res += mech->consistency_residual(sigma_eff_);
@@ -658,28 +695,30 @@ void ModularUMAT::assemble_jacobian(
     // Phase 2: B_lj = -dPhi^l/dsigma . kappa^j + K^lj (engineering Voigt dot); strain-form Phi
     // (viscoelastic) returns an empty dPhi_dsigma and contributes no row
     B.zeros();
-    // Fetch each mechanism's kappa list once — the const-refs stay valid
-    // for the whole phase (no compute_constraints call in between).
-    std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
-    for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma_eff_, DT, L_cur_);
-    }
-    for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
-        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma_eff_);
-        if (dPhi_l_all.empty()) continue;
-        for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
-            const int row = mech_offset_[lm] + static_cast<int>(l_c);
-            const arma::vec::fixed<6> dPhi_l = dPhi_l_all[l_c].voigt();
-            for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-                const auto& kappa_j_all = *kappa_all[jm];
-                for (size_t j_c = 0; j_c < kappa_j_all.size(); ++j_c) {
-                    if (lm == jm && l_c == j_c) continue;  // diagonal last
-                    const int col = mech_offset_[jm] + static_cast<int>(j_c);
-                    B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c].voigt())
-                                + mechanisms_[lm]->K_cross(
-                                      static_cast<int>(l_c),
-                                      *mechanisms_[jm],
-                                      static_cast<int>(j_c));
+    // single row: no off-diagonal entry, phase 2 skipped (compute_tangent fetches dPhi and kappa itself)
+    if (B.n_rows > 1) {
+        // kappa lists fetched once: the refs stay valid, nothing below calls compute_constraints
+        std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
+        for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
+            kappa_all[jm] = &mechanisms_[jm]->kappa(sigma_eff_, DT, L_cur_);
+        }
+        for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
+            const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma_eff_);
+            if (dPhi_l_all.empty()) continue;
+            for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
+                const int row = mech_offset_[lm] + static_cast<int>(l_c);
+                const arma::vec::fixed<6> dPhi_l = dPhi_l_all[l_c].voigt();
+                for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
+                    const auto& kappa_j_all = *kappa_all[jm];
+                    for (size_t j_c = 0; j_c < kappa_j_all.size(); ++j_c) {
+                        if (lm == jm && l_c == j_c) continue;  // diagonal last
+                        const int col = mech_offset_[jm] + static_cast<int>(j_c);
+                        B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c].voigt())
+                                    + mechanisms_[lm]->K_cross(
+                                          static_cast<int>(l_c),
+                                          *mechanisms_[jm],
+                                          static_cast<int>(j_c));
+                    }
                 }
             }
         }
@@ -726,20 +765,21 @@ void ModularUMAT::compute_tangent(
     // mechanisms see sigma_eff_; damage enters last through its stress_map().
     const arma::vec& sigma_eff = sigma_eff_;
 
-    // algorithmic assembly only for stress-dependent Phi with an analytic flow Hessian
-    std::vector<size_t> algo;
+    // algorithmic assembly only for stress-dependent Phi with an analytic flow Hessian (the Hessians are kept)
+    std::vector<std::pair<size_t, const std::vector<tensor4>*>> algo;
+    algo.reserve(mechanisms_.size());
     if (tangent_mode == tangent_closest_point) {
         // Exact operator of the closest-point solve; every multiplier-carrying row is inside it.
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            if (mechanisms_[m]->carries_multipliers()) algo.push_back(m);
+            if (mechanisms_[m]->carries_multipliers()) algo.emplace_back(m, nullptr);
         }
         Lt = cpp_consistent_tangent(cpp_result_, L_cur_).Lt;
     } else if (tangent_mode == tangent_algorithmic && arma::any(Ds_total > simcoon::iota)) {
         // no active multiplier: the assembly masks everything and returns L, skip the Hessians
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            if (mechanisms_[m]->dLambda_dsigma(sigma_eff) != nullptr &&
-                !mechanisms_[m]->dPhi_dsigma(sigma_eff).empty()) {
-                algo.push_back(m);
+            const std::vector<tensor4>* hess = mechanisms_[m]->dLambda_dsigma(sigma_eff);
+            if (hess != nullptr && !mechanisms_[m]->dPhi_dsigma(sigma_eff).empty()) {
+                algo.emplace_back(m, hess);
             }
         }
     }
@@ -757,10 +797,14 @@ void ModularUMAT::compute_tangent(
         std::vector<arma::vec> kappa_j;
         std::vector<arma::vec> dPhi_l;
         std::vector<arma::mat> dLambda_l;
-        for (size_t m : algo) {
+        rows.reserve(n_total);
+        kappa_j.reserve(n_total);
+        dPhi_l.reserve(n_total);
+        dLambda_l.reserve(n_total);
+        for (const auto& [m, hess] : algo) {
             const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma_eff);
             const auto& kappa_all = mechanisms_[m]->kappa(sigma_eff, 0.0, L_cur_);
-            const auto& hess_all = *mechanisms_[m]->dLambda_dsigma(sigma_eff);
+            const auto& hess_all = *hess;
             for (size_t c = 0; c < dPhi_all.size(); ++c) {
                 rows.push_back(mech_offset_[m] + static_cast<int>(c));
                 dPhi_l.emplace_back(dPhi_all[c].voigt());
@@ -783,7 +827,7 @@ void ModularUMAT::compute_tangent(
     }
 
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
-        if (std::find(algo.begin(), algo.end(), m) != algo.end()) {
+        if (std::find_if(algo.begin(), algo.end(), [m](const auto& a) { return a.first == m; }) != algo.end()) {
             continue;
         }
         mechanisms_[m]->tangent_contribution(

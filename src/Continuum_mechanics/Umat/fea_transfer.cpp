@@ -194,10 +194,19 @@ bool abaqus_nlgeom(const double *dfgrd1) {
 }
 
 mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
-    // symmetric part of sigma (x) I: what Abaqus's default (symmetric) solver keeps
-    const vec I = {1., 1., 1., 0., 0., 0.};
-    const mat sigma_I = sigma * I.t();
-    return Lt + 0.5*(sigma_I + sigma_I.t());
+    // symmetric part of sigma (x) I: what Abaqus's default (symmetric) solver keeps, built in
+    // place (the products and sums of Lt + 0.5*(sigma I^T + I sigma^T), without the temporaries)
+    static const double I[6] = {1., 1., 1., 0., 0., 0.};
+    mat J(6, 6);
+    for (int j = 0; j < 6; j++) {
+        for (int i = 0; i < 6; i++) {
+            const double s1 = sigma(i)*I[j];
+            const double s2 = sigma(j)*I[i];
+            const double h = (s1 + s2)*0.5;
+            J(i, j) = Lt(i, j) + h;
+        }
+    }
+    return J;
 }
 
 int abaqus_kinematic_form(const char *cmname) {

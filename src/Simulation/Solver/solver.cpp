@@ -21,6 +21,7 @@
 ///@version 1.9
 
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <fstream>
@@ -172,6 +173,18 @@ void restore_box_tangent(material_tangent_state &mt, simcoon::state_variables_M 
     if (!mt.held) return;
     sv.Lt = simcoon::DSDE_2_DtauDe_corate(sv.Lt, corate_type, mt.F1, simcoon::v2t_stress(mt.tau));
     mt.held = false;
+}
+
+// Invariant behind the rollback the Newton loops skip on their first trial: every attempt begins at
+// the start state (set_start and assess_inc both end there, and the solver writes only the driving
+// fields in between), i.e. the fields to_start restores equal their *_start copies. Debug check.
+[[maybe_unused]] bool at_start_state(const simcoon::state_variables &sv) {
+    auto same = [](const arma::mat &a, const arma::mat &b) {
+        return a.n_elem == b.n_elem
+            && (a.n_elem == 0 || std::memcmp(a.memptr(), b.memptr(), a.n_elem*sizeof(double)) == 0);
+    };
+    return same(sv.PKII, sv.PKII_start) && same(sv.tau, sv.tau_start)
+        && same(sv.sigma, sv.sigma_start) && same(sv.statev, sv.statev_start);
 }
 
 }  // namespace
@@ -591,7 +604,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         DTime = Dtinc*sptr_meca->times(inc);
                                         finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
                                     }
-                                    rve.to_start();
+                                    // no rve.to_start(): the single trial of this path begins at the start state (at_start_state)
+                                    assert(at_start_state(*rve.sptr_sv_global));
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                                     if (!sv_M->tau.is_finite()) {   // non-finite answer: cut, or give up at Dn_mini
                                         if (Dtinc_cur == sptr_meca->Dn_mini) {
@@ -655,7 +669,13 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         else {
                                             finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
                                         }
-                                        rve.to_start();
+                                        // first trial of the attempt (compteur 0): already at the start state (at_start_state)
+                                        if (compteur > 0) {
+                                            rve.to_start();
+                                        }
+                                        else {
+                                            assert(at_start_state(*rve.sptr_sv_global));
+                                        }
                                         run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt, ask_material_tangent);
                                         if (ask_material_tangent) {
                                             native_Lt.held = true;
@@ -1077,7 +1097,13 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         if (finite_ct)
                                             finite_kinematics(*sv_T, blocks[i].control_type, sptr_thermomeca->BC_w, sptr_thermomeca->BC_R, DTime, corate_type, DR);
                                         
-                                        rve.to_start();
+                                        // first trial of the attempt (compteur 0): already at the start state (at_start_state)
+                                        if (compteur > 0) {
+                                            rve.to_start();
+                                        }
+                                        else {
+                                            assert(at_start_state(*rve.sptr_sv_global));
+                                        }
                                         run_umat_T(rve, (blocks[i].control_type == 1) ? DR : sv_T->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                                         
                                         // -r - DTime Q_imposed = 0, r the heat of the increment

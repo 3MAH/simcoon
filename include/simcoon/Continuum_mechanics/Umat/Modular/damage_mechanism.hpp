@@ -107,6 +107,16 @@ private:
     mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
     mutable arma::mat L_cached_;        ///< Stiffness the cached compliance was inverted from
     std::vector<tensor2> kappa_cache_{tensor2::zeros(Tensor2Type::strain)};   ///< zero: no multiplier carried
+    size_t D_index_ = 0;        ///< ivc_ index of "D", resolved by register_variables
+    size_t Y_max_index_ = 0;    ///< ivc_ index of "Y_max", resolved by register_variables
+
+    // last driving force and the effective stress it was evaluated at, for the cached compliance (reset with it)
+    mutable arma::vec::fixed<6> Y_sigma_;
+    mutable double Y_sigma_value_ = 0.0;
+    mutable bool Y_sigma_valid_ = false;
+
+    /// compute_driving_force(sigma_eff, M_cached_), memoised on the last stress
+    double driving_force(const arma::vec& sigma_eff) const;
 
 public:
     /**

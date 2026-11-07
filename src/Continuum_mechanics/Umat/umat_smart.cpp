@@ -98,7 +98,7 @@ namespace simcoon{
 
 void size_statev(phase_characteristics &rve, unsigned int &size) {
 
-    for (auto r:rve.sub_phases) {
+    for (auto &r:rve.sub_phases) {   // by reference: a copy would duplicate the whole sub-tree
         size = size + r.sptr_sv_local->nstatev + 57;
         size_statev(r,size);
     }
@@ -106,7 +106,7 @@ void size_statev(phase_characteristics &rve, unsigned int &size) {
 
 void statev_2_phases(phase_characteristics &rve, unsigned int &pos, const vec &statev) {
 
-    for(auto r : rve.sub_phases) {
+    for(auto &r : rve.sub_phases) {
         shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
         unsigned int nstatev = umat_phase_M->statev.n_elem;
 
@@ -130,7 +130,7 @@ void statev_2_phases(phase_characteristics &rve, unsigned int &pos, const vec &s
     
 void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics &rve) {
     
-    for(auto r : rve.sub_phases) {
+    for(const auto &r : rve.sub_phases) {
         shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
         unsigned int nstatev = umat_phase_M->statev.n_elem;
         
@@ -229,7 +229,11 @@ const std::map<string, umat_convention> &umat_conventions()
 
 }  // namespace
 
-umat_convention output_convention_of(const std::string &umat_name)
+namespace {
+
+// The declaration itself, by reference into the table (no copy of its statev tensor list on the
+// per-point finite dispatch)
+const umat_convention &declared_convention(const std::string &umat_name)
 {
     const auto &conventions = umat_conventions();
     auto it = conventions.find(umat_name);
@@ -241,6 +245,13 @@ umat_convention output_convention_of(const std::string &umat_name)
             "are silent.");
     }
     return it->second;
+}
+
+}  // namespace
+
+umat_convention output_convention_of(const std::string &umat_name)
+{
+    return declared_convention(umat_name);
 }
 
 bool stress_output_is_kirchhoff(const std::string &umat_name)

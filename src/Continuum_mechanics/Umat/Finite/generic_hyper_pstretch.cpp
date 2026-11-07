@@ -127,7 +127,8 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     mat Lt_spatial = Lt_iso + Lt_vol;
 
     // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) -- see generic_hyper_invariants.
-    Lt = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F1, m_tau);
+    Lt_spatial *= J;   // the Kirchhoff-Lie tangent, in place
+    Lt = Dtau_LieDD_2_DtauDe_corate(Lt_spatial, corate_type, F1, m_tau);
 
     if(start) {
         L = Lt;

@@ -37,11 +37,13 @@ namespace simcoon{
 
 void Lt_2_K(const mat &Lt, mat &K, const Col<int> &cBC_meca, const double &lambda)
 {
-	K = zeros(6,6);
+	K.zeros(6,6);
 
+    // element by element: a subview row copy per stress-controlled row cost more than the copy
     for (int i=0; i<6; i++) {
         if (cBC_meca(i)) {
-            K.row(i) = Lt.row(i);
+            for (int j=0; j<6; j++)
+                K(i,j) = Lt(i,j);
         }
         else
             K(i,i) = lambda;
