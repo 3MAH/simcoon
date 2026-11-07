@@ -66,8 +66,8 @@ class phase_characteristics
 
 	public :
 
-        int shape_type; ///< Type of geometric shape (0: sphere, 1: cylinder, 2: ellipsoid, etc.)
-        int sv_type; ///< Type of state variables (0: mechanical, 1: thermomechanical)
+        int shape_type; ///< Type of geometric shape (0: general, 1: layer, 2: ellipsoid, 3: cylinder)
+        int sv_type; ///< Type of state variables (1: mechanical, 2: thermomechanical); construct() throws for any other value
         std::shared_ptr<geometry> sptr_shape; ///< Pointer to the geometric shape of the phase
         std::shared_ptr<phase_multi> sptr_multi; ///< Pointer to multiscale information
         std::shared_ptr<material_characteristics> sptr_matprops; ///< Pointer to material properties
