@@ -65,8 +65,10 @@ private:
      */
     std::string type_string() const;
 
+public:
     /**
-     * @brief equivalent_stress(sigma) and flow_direction(sigma) in one call (the quadratic criteria share P sigma).
+     * @brief equivalent_stress(sigma) and flow_direction(sigma) in one call (the quadratic criteria share
+     * \f$ \mathbf{P}\boldsymbol{\sigma} \f$).
      */
     void equivalent_stress_and_flow(const arma::vec& sigma, double& sigma_eq, arma::vec& flow) const;
 
@@ -75,9 +77,7 @@ private:
      */
     void equivalent_stress_flow_hessian(const arma::vec& sigma, double& sigma_eq, arma::vec& flow,
                                         arma::mat& hessian) const;
-    friend class PlasticityMechanism;
 
-public:
     /**
      * @brief Default constructor (von Mises)
      */

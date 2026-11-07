@@ -51,9 +51,8 @@ struct step_cut_tag {};
 PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object> g_step_cut;
 static py::object *g_fn = nullptr;   // touched only with the GIL held
 
-// The keyword names of the call, interned once (same lifetime rule as g_step_cut). The call
-// passes them with the values in one vector (PyObject_Vectorcall): building a kwargs dict
-// key by key, as a pybind11 keyword call does, was a third of the bridge.
+// The keyword names of the call, interned once (same lifetime rule as g_step_cut) and passed with
+// the values in one vector (PyObject_Vectorcall, no kwargs dict per call)
 constexpr const char *k_kwnames[] = {"Etot", "DEtot", "sigma", "DR", "props", "statev", "T", "DT",
                                      "Time", "DTime", "Wm", "ndi", "nshr", "start", "tangent_mode"};
 constexpr std::size_t k_nkw = sizeof(k_kwnames) / sizeof(k_kwnames[0]);

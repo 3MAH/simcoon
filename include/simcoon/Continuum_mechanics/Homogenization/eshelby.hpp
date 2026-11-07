@@ -184,8 +184,17 @@ arma::mat Eshelby_penny(const double &);
 /// Uses the Voigt notation for the tensors.
 void calG(const double &, const double &, const double &, const double &, const double &, const arma::Mat<int> &, const arma::mat &, arma::mat &);
 
-//Weighted Gauss integration over a sphere to represent the integration over the ellipsoid
-void Gauss(arma::Mat<int> &, const arma::mat &, arma::mat &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const int &, const int &);
+/**
+ * @brief Weighted Gauss integration of \f$ \mathcal{G} \f$ over the unit sphere (the ellipsoid of semi-axes
+ * \f$ a_1, a_2, a_3 \f$ mapped to it), accumulated into the 6x6 @p G.
+ * @param[in] Lt stiffness of the medium (6x6, Voigt)
+ * @param[in,out] G integral, added to
+ * @param[in] a1,a2,a3 semi-axes of the ellipsoid
+ * @param[in] x,wx polar Gauss points and weights (mp of them)
+ * @param[in] y,wy azimuthal Gauss points and weights (np of them)
+ * @param[in] mp,np numbers of points
+ */
+void Gauss(const arma::mat &Lt, arma::mat &G, const double &a1, const double &a2, const double &a3, const arma::vec &x, const arma::vec &wx, const arma::vec &y, const arma::vec &wy, const int &mp, const int &np);
 
 /**
  * @brief Provides a numerical estimation of the Eshelby tensor of an ellipsoisal, possibly anisotropic inclusion, 

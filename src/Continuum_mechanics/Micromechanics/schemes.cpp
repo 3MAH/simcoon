@@ -56,10 +56,8 @@ static const eshelby_quadrature &scheme_quadrature(const phase_characteristics &
                                      opt.rule, opt.closed_form == 1);
 }
 
-//inv(sumT) of the Mori-Tanaka passes, the last one of this thread kept: an unchanged medium
-//(elastic phases: the localization and the tangent passes of every call) hands bitwise the same
-//sumT to each pass, whose inverse is then the stored one. inv throws on a singular sumT, and
-//nothing is stored then.
+//inv(sumT) memoised per thread on the bits of the last sumT: the localization and tangent passes of an
+//unchanged medium share it (inv throws on a singular sumT, nothing stored then)
 static void inv_sumT_memoized(const mat &sumT, mat &inv_sumT)
 {
     thread_local bool valid = false;
@@ -101,7 +99,7 @@ void DE_Homogeneous_E(phase_characteristics &phase) {
 
 void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
     
-    mat::fixed<6,6> sumT(fill::zeros);   //fixed size: no heap allocation per pass
+    mat::fixed<6,6> sumT(fill::zeros);
     mat::fixed<6,6> inv_sumT(fill::zeros);
 
     std::shared_ptr<ellipsoid_multi> elli_multi;
@@ -123,7 +121,7 @@ void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         if (r.sptr_matprops->number == n_matrix)
-            elli_multi->T = eye(6,6);
+            elli_multi->T.eye(6,6);
         else
             elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
 
@@ -147,7 +145,7 @@ void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
 
 void Lt_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
     
-    mat::fixed<6,6> sumT(fill::zeros);   //fixed size: no heap allocation per pass
+    mat::fixed<6,6> sumT(fill::zeros);
     mat::fixed<6,6> inv_sumT(fill::zeros);
     
     std::shared_ptr<ellipsoid_multi> elli_multi;
@@ -169,7 +167,7 @@ void Lt_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         if (r.sptr_matprops->number == n_matrix)
-            elli_multi->T = eye(6,6);
+            elli_multi->T.eye(6,6);
         else
             elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
         
@@ -193,7 +191,7 @@ void Lt_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
     
 void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
     
-    mat::fixed<6,6> sumT(fill::zeros);   //fixed size: no heap allocation per pass
+    mat::fixed<6,6> sumT(fill::zeros);
     mat::fixed<6,6> inv_sumT(fill::zeros);
     
     std::shared_ptr<ellipsoid_multi> elli_multi;
@@ -214,7 +212,7 @@ void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
         
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         if (r.sptr_matprops->number == n_matrix)
-            elli_multi->T = eye(6,6);
+            elli_multi->T.eye(6,6);
         else
             elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
 
@@ -241,7 +239,7 @@ void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
 
 void DE_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
     
-    mat::fixed<6,6> sumT(fill::zeros);   //fixed size: no heap allocation per pass
+    mat::fixed<6,6> sumT(fill::zeros);
     mat::fixed<6,6> inv_sumT(fill::zeros);
     
     std::shared_ptr<ellipsoid_multi> elli_multi;
@@ -262,7 +260,7 @@ void DE_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
         
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         if (r.sptr_matprops->number == n_matrix)
-            elli_multi->T = eye(6,6);
+            elli_multi->T.eye(6,6);
         else
             elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
         
@@ -317,7 +315,7 @@ void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         sv_eff->Lt = Lt_eff;
     }
     
-    mat::fixed<6,6> sumA(fill::zeros);   //fixed size: no heap allocation per pass
+    mat::fixed<6,6> sumA(fill::zeros);
     //Compute the Eshelby tensor and the interaction tensor for each phase
     //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
     eshelby_memo memo;
@@ -329,7 +327,7 @@ void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         if (phase.sub_phases[i].sptr_matprops->number == n_matrix)
-            elli_multi->T = eye(6,6);
+            elli_multi->T.eye(6,6);
         else {
             elli_multi->fillT(sv_eff->Lt, sv_r->Lt, *elli, quad, &memo);
             sumA += elli->concentration*elli_multi->T;
@@ -378,7 +376,7 @@ void DE_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         sv_eff->Lt = Lt_eff;
     }
     
-    mat::fixed<6,6> sumA(fill::zeros);   //fixed size: no heap allocation per pass
+    mat::fixed<6,6> sumA(fill::zeros);
     //Compute the Eshelby tensor and the interaction tensor for each phase
     //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
     eshelby_memo memo;
@@ -390,7 +388,7 @@ void DE_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         if (phase.sub_phases[i].sptr_matprops->number == n_matrix)
-            elli_multi->T = eye(6,6);
+            elli_multi->T.eye(6,6);
         else {
             elli_multi->fillT(sv_eff->Lt, sv_r->Lt, *elli, quad, &memo);
             sumA += elli->concentration*elli_multi->T;

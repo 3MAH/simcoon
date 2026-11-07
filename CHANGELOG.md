@@ -28,7 +28,7 @@ Known gaps and planned work, not yet in a release. An item moves to
   entry in the plugin API (law fed the logarithmic strain, returning tau, as the internal
   kernels) would let them run under NLGEOM.
 - `tangent_assembly` takes per-mechanism `std::vector<arma::vec>` / `std::vector<arma::mat>`
-  (κ, ∂Φ/∂σ, ∂Λ/∂σ): every MODUL tangent copies the 6×6 flow Hessians to the heap, the
+  (kappa, dPhi/dsigma, dLambda/dsigma): every MODUL tangent copies the 6x6 flow Hessians to the heap, the
   largest remaining allocation source in MODUL plasticity. Fixed-size or view-based arguments
   need an API change of `assemble_*_tangent`.
 - Migration of the laws to the modular engine (MODUL), state in

@@ -199,7 +199,7 @@ void calG(const double &pt, const double &a1, const double &a2, const double &a3
 
 }
 
-//Voigt index of the pair (i,j): the table that Eshelby and T_II hand to Gauss as Id
+//Voigt index of the pair (i,j)
 static const int Voigt_index[3][3] = {{0,3,4},{3,1,5},{4,5,2}};
 
 // two rows of G per operation (vector type on GCC/Clang, else a pair); each lane runs the scalar expressions
@@ -219,16 +219,15 @@ static inline lane2 mul_add(const lane2 &a, const lane2 &b, const lane2 &c) { la
 #endif
 
 // sum of calG in the per-entry operation order of the point loop (bitwise); sin/cos hoisted, two rows of G at a time
-void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
+void Gauss(const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
-    (void)Id;   //always the Voigt table (Voigt_index)
     double L[6][6];
     for (int i=0; i<6; i++)
         for (int j=0; j<6; j++)
             L[i][j] = Lt(i,j);
-    //rows ij of G in pairs, (00, 01), (02, 11), (12, 22); columns kl in the order 00, 01, 02, 11, 12, 22
+    //rows ij of G in pairs, (00, 01), (02, 11), (12, 22); columns kl in the same order 00, 01, 02, 11, 12, 22
     static const int row_ij[6] = {0, 3, 4, 1, 5, 2};
-    static const int col_kl[6] = {0, 3, 4, 1, 5, 2};
+    const int *col_kl = row_ij;
     lane2 Gp[3][6];
     for (int q=0; q<3; q++)
         for (int c=0; c<6; c++)
@@ -362,8 +361,7 @@ static mat contract_G(const mat &M, const mat &G)
 mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
     mat G = zeros(6,6);
-    Mat<int> Id;   //unused by Gauss (always the Voigt table)
-    Gauss(Id, Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
+    Gauss(Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
     return contract_G(Lt, G);
 }
 
@@ -377,8 +375,7 @@ mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3,
 mat T_II(const mat &Lt, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
     mat G = zeros(6,6);
-    Mat<int> Id;   //unused by Gauss (always the Voigt table)
-    Gauss(Id, Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
+    Gauss(Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
     return contract_G(eye(6,6), G);
 }
 

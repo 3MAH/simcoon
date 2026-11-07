@@ -48,6 +48,14 @@ inline void dev_voigt(const vec &v, const double &s_shear, double d[6], double d
     }
 }
 
+// v and its partner with shears scaled by s_shear (2 stress, 0.5 strain)
+inline void shear_scaled(const vec &v, const double &s_shear, double v1[6], double v2[6]) {
+    for (int i=0; i<6; i++) {
+        v1[i] = v(i);
+        v2[i] = (i < 3) ? v1[i] : s_shear*v1[i];
+    }
+}
+
 // sum(a % b) with the two interleaved partial sums of Armadillo's dot (same rounding as sum())
 inline double dot_voigt(const double a[6], const double b[6]) {
     double val1 = 0.;
@@ -62,8 +70,6 @@ inline double dot_voigt(const double a[6], const double b[6]) {
 } // namespace
 
 mat dev(const mat &m) {
-    assert((m.n_cols==3)&&(m.n_rows==3));
-
     if ((m.n_rows != 3) || (m.n_cols != 3)) {
         return m - sph(m);
     }
@@ -155,7 +161,7 @@ mat deta_stress(const vec &v) {
 	double eta[6];
 	const double inv_n = 1./sigeq;
 	for (int i=0; i<6; i++)
-		eta[i] = (sigeq > 0.) ? ((3./2.)*vdev2[i])*inv_n : 0.;
+		eta[i] = ((3./2.)*vdev2[i])*inv_n;
 	// P_Mises in simcoon's engineering-shear Voigt basis: normal block = (3/2) dev,
 	// shear diagonal = 3 (the factor 2 is already embedded, as in eta_stress / Mises_stress).
 	// the product stays its own statement: rounded before the subtraction, as in the matrix temporary
@@ -179,10 +185,7 @@ vec eta_norm_stress(const vec &v) {
     assert(v.size()==6);
     
     double v1[6], v2[6];
-    for (int i=0; i<6; i++) {
-        v1[i] = v(i);
-        v2[i] = (i < 3) ? v1[i] : 2.*v1[i];
-    }
+    shear_scaled(v, 2., v1, v2);
     
     double n = sqrt(dot_voigt(v1, v2));
     
@@ -202,10 +205,7 @@ vec eta_norm_strain(const vec &v) {
     assert(v.size()==6);
     
     double v1[6], v2[6];
-    for (int i=0; i<6; i++) {
-        v1[i] = v(i);
-        v2[i] = (i < 3) ? v1[i] : 0.5*v1[i];
-    }
+    shear_scaled(v, 0.5, v1, v2);
     
     double n = sqrt(dot_voigt(v1, v2));
     
@@ -226,10 +226,7 @@ double norm_stress(const vec &v) {
     assert(v.size()==6);
     
     double v1[6], v2[6];
-    for (int i=0; i<6; i++) {
-        v1[i] = v(i);
-        v2[i] = (i < 3) ? v1[i] : 2.*v1[i];
-    }
+    shear_scaled(v, 2., v1, v2);
     
     return sqrt(dot_voigt(v1, v2));
 }
@@ -239,10 +236,7 @@ double norm_strain(const vec &v) {
     assert(v.size()==6);
     
     double v1[6], v2[6];
-    for (int i=0; i<6; i++) {
-        v1[i] = v(i);
-        v2[i] = (i < 3) ? v1[i] : 0.5*v1[i];
-    }
+    shear_scaled(v, 0.5, v1, v2);
     
     return sqrt(dot_voigt(v1, v2));
 }

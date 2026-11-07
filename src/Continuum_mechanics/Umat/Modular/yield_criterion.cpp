@@ -232,33 +232,19 @@ void YieldCriterion::equivalent_stress_and_flow(const arma::vec& sigma, double& 
 
 void YieldCriterion::equivalent_stress_flow_hessian(const arma::vec& sigma, double& sigma_eq,
                                                     arma::vec& flow, arma::mat& hessian) const {
+    equivalent_stress_and_flow(sigma, sigma_eq, flow);
     switch (type_) {
         case YieldType::HILL:
         case YieldType::DFA:
-        case YieldType::ANISOTROPIC: {
-            if (!configured_) {
-                throw std::runtime_error("YieldCriterion: not configured");
-            }
-            // Eq_stress_P, dEq_stress_P and ddEq_stress_P(sigma, P_) (criteria.cpp) on one P sigma
-            if (arma::norm(sigma, 2) > simcoon::iota) {
-                const arma::vec P_sigma = P_ * sigma;
-                sigma_eq = std::pow(arma::sum(sigma % P_sigma), 0.5);
-                flow = P_sigma / sigma_eq;
-                if (sigma_eq < simcoon::iota) {
-                    hessian = arma::zeros(6, 6);
-                } else {
-                    hessian = (P_ - flow * flow.t()) / sigma_eq;   // flow is ddEq_stress_P's Lambda
-                }
-            } else {
-                sigma_eq = 0.;
-                flow = arma::zeros(6);
+        case YieldType::ANISOTROPIC:
+            // ddEq_stress_P(sigma, P_) (criteria.cpp) on the flow just built: its Lambda
+            if (sigma_eq < simcoon::iota) {
                 hessian = arma::zeros(6, 6);
+            } else {
+                hessian = (P_ - flow * flow.t()) / sigma_eq;
             }
             return;
-        }
         default:
-            sigma_eq = equivalent_stress(sigma);
-            flow = flow_direction(sigma);
             hessian = flow_hessian(sigma);
     }
 }

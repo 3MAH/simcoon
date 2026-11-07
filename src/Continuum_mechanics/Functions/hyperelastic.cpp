@@ -36,17 +36,14 @@ namespace simcoon{
 
 namespace {
 
-// Fixed-size kernels of the isochoric-invariant functions. Each one reproduces the armadillo
-// expression it replaces operation by operation (same products, summed in the same order), with
-// the 3x3 and 6x6 temporaries on the stack. Bit identity with the armadillo expressions was
-// established with Apple clang (-ffp-contract=on: a product is fused only with an addition of the
-// same statement) and Armadillo 15.6.0 (the simcoon-prof environment); it rests on internal details
-// of that version (tiny-matrix product kernel, two-accumulator trace, diagonal shortcut of powmat).
-// A compiler that contracts across statements (GCC's default -ffp-contract=fast in gnu++ mode, on
-// FMA targets) or another Armadillo may round differently, at the epsilon level; the
-// tolerance-based tests remain the guarantee of correctness.
+// Fixed-size kernels of the isochoric-invariant functions: the same products summed in the same
+// order as the armadillo expressions they replace, temporaries on the stack (bit-identical under
+// -ffp-contract=on with Armadillo 15.6; the tolerance-based tests remain the guarantee).
 typedef mat::fixed<3,3> m33;
 typedef mat::fixed<6,6> m66;
+
+// Voigt index of the pair (i,j)
+static const int voigt_id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
 
 // trace(X), summed as armadillo's trace (15.6.0): two accumulators, (X00 + X22) + X11
 inline double trace3(const m33 &X) {
@@ -104,7 +101,7 @@ const double I_voigt[6] = {1., 1., 1., 0., 0., 0.};
 
 // Idev(), Ivol() and Ireal() entries (constitutive.cpp)
 inline double Idev_at(const int i, const int j) {
-    if (i < 3 && j < 3) return (i == j) ? 1.*(1.-1./3.) : 1.*(0.-1./3.);
+    if (i < 3 && j < 3) return (i == j) ? (1.-1./3.) : (0.-1./3.);
     return (i == j) ? 0.5 : 0.;
 }
 inline double Ivol_at(const int i, const int j) {
@@ -202,24 +199,27 @@ m66 L_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, c
     // alone, and the I_2 terms cost b_bar^2 and five more dyadic products.
     m66 Lt;
     add_gamma_linear(Lt, a, I1, dWdI_1_bar, true);
-    if ((dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.)) {
+    // the I_2 work is split around the gamma_11 term to keep the summation order of the full expression
+    const bool with_I2 = (dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.);
+    double dd[6] = {0., 0., 0., 0., 0., 0.};   // Voigt form of I1 dev(b_bar) - dev(b_bar^2)
+    if (with_I2) {
         const m33 dev_b_bar2 = dev3(square3(b_bar));
-        m33 devdevbb2;                        // I1 dev(b_bar) - dev(b_bar^2)
+        m33 devdevbb2;
         for (int e = 0; e < 9; ++e) {
             const double p = dev_b_bar(e)*I1;
             devdevbb2(e) = p - dev_b_bar2(e);
         }
+        sym_voigt(devdevbb2, dd);
         if (dWdI_2_bar != 0.) {
             double a2[6], bv[6];
             sym_voigt(dev_b_bar2, a2);
             sym_voigt(b_bar, bv);
-            static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
             m66 H_bar;                        // auto_sym_dyadic_operator(b_bar)
             for (int i=0; i<3; i++) {
                 for (int j=i; j<3; j++) {
                     for (int k=0; k<3; k++) {
                         for (int l=k; l<3; l++) {
-                            H_bar(Id[i][j],Id[k][l]) = 0.5*(b_bar(i,k)*b_bar(j,l) + b_bar(i,l)*b_bar(j,k));
+                            H_bar(voigt_id[i][j],voigt_id[k][l]) = 0.5*(b_bar(i,k)*b_bar(j,l) + b_bar(i,l)*b_bar(j,k));
                         }
                     }
                 }
@@ -246,11 +246,11 @@ m66 L_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, c
                 }
             }
         }
-        if (dW2dI_11_bar != 0.) {
-            add_gamma_quadratic(Lt, a, dW2dI_11_bar);
-        }
-        double dd[6];
-        sym_voigt(devdevbb2, dd);
+    }
+    if (dW2dI_11_bar != 0.) {
+        add_gamma_quadratic(Lt, a, dW2dI_11_bar);
+    }
+    if (with_I2) {
         if (dW2dI_12_bar != 0.) {
             for (int j = 0; j < 6; ++j) {
                 for (int i = 0; i < 6; ++i) {
@@ -265,9 +265,6 @@ m66 L_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, c
         if (dW2dI_22_bar != 0.) {
             add_gamma_quadratic(Lt, dd, dW2dI_22_bar);
         }
-    }
-    else if (dW2dI_11_bar != 0.) {
-        add_gamma_quadratic(Lt, a, dW2dI_11_bar);
     }
     return Lt;
 }
@@ -681,26 +678,26 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
 
     vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
     mat gamma = gamma_coefs(dWdlambda_bar, dW2dlambda_bar2, lambda_bar);
-    mat delta = eye(3,3);
     const m33 n(n_pvectors);
+    double l2[3];   // lambda_bar^2
+    for (int k = 0; k < 3; ++k) l2[k] = pow(lambda_bar(k), 2.);
 
     // c accumulated on the stack, the dyadic products built in place: the same products, rounded
-    // and summed in the same order as dyadic_4vectors_sym and auto_sym_dyadic (bit identity: see the
-    // note on the fixed-size kernels at the top of this file)
-    static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+    // and summed in the same order as dyadic_4vectors_sym and auto_sym_dyadic
     m66 c(fill::zeros);
     double factor = 0.;
 
     for(unsigned int i=0; i<3; i++) {
         for(unsigned int j=0; j<3; j++) {
-            const double coef = (gamma(i,j) - 2*delta(i,j)*beta(i));
+            const double delta_ij = (i == j) ? 1. : 0.;
+            const double coef = (gamma(i,j) - 2*delta_ij*beta(i));
             for (int p=0; p<3; p++) {
                 for (int q=p; q<3; q++) {
                     for (int k=0; k<3; k++) {
                         for (int l=k; l<3; l++) {
                             const double D = n(p,i)*n(q,i)*n(k,j)*n(l,j);   // aabb dyadic of (n_i, n_j)
                             const double t = D*coef;
-                            c(Id[p][q],Id[k][l]) = c(Id[p][q],Id[k][l]) + t;
+                            c(voigt_id[p][q],voigt_id[k][l]) = c(voigt_id[p][q],voigt_id[k][l]) + t;
                         }
                     }
                 }
@@ -709,11 +706,11 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
 
         // ordered pairs a!=b: the symmetrized dyadic collapses to s s^T, s = sym dyadic of (n_i n_j^T + n_j n_i^T)
         for(unsigned int j=i+1; j<3; j++) {
-            if(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.) < 1.E-6) {
-                factor = pow(lambda_bar(i), 2.) * pow(lambda_bar(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
+            if(l2[j]-l2[i] < 1.E-6) {
+                factor = l2[i] * pow(lambda_bar(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
             }
             else {
-                factor = (beta(j)*pow(lambda_bar(i),2.) - beta(i)*pow(lambda_bar(j),2.))/(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.));
+                factor = (beta(j)*l2[i] - beta(i)*l2[j])/(l2[j]-l2[i]);
             }
 
             m33 M;
