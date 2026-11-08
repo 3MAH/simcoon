@@ -21,6 +21,7 @@
 #include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 
 namespace simcoon {
 
@@ -127,15 +128,11 @@ inline Fastor::Tensor<double,3,3,3,3> voigt_to_fastor4(const arma::mat::fixed<6,
  * or the type-free Mandel pair mandel_to_fastor4 / fastor4_to_mandel.
  */
 inline arma::mat::fixed<6,6> fastor4_to_voigt(const Fastor::Tensor<double,3,3,3,3> &C) {
-    // Voigt index -> (i,j) pair
-    static constexpr int vi[6] = {0, 1, 2, 0, 0, 1};
-    static constexpr int vj[6] = {0, 1, 2, 1, 2, 2};
-
     arma::mat::fixed<6,6> L;
     for (int I = 0; I < 6; ++I) {
-        int i = vi[I], j = vj[I];
+        int i = voigt_i[I], j = voigt_j[I];
         for (int J = 0; J < 6; ++J) {
-            int k = vi[J], l = vj[J];
+            int k = voigt_i[J], l = voigt_j[J];
             L(I, J) = 0.5 * (C(i,j,k,l) + C(i,j,l,k));
         }
     }

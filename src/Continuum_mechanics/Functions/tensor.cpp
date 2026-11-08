@@ -153,21 +153,9 @@ tensor2::tensor2(const arma::mat &m, Tensor2Type vtype)
 
 // engineering Voigt (6 contiguous values) -> symmetric 3x3 of a stress/strain tensor; false for none
 static bool fill_from_voigt(arma::mat::fixed<3,3> &m, const double *v, Tensor2Type vtype) {
-    if (vtype == Tensor2Type::strain) {
-        m(0,0) = v[0]; m(1,1) = v[1]; m(2,2) = v[2];
-        m(0,1) = 0.5 * v[3]; m(1,0) = 0.5 * v[3];
-        m(0,2) = 0.5 * v[4]; m(2,0) = 0.5 * v[4];
-        m(1,2) = 0.5 * v[5]; m(2,1) = 0.5 * v[5];
-        return true;
-    }
-    if (vtype == Tensor2Type::stress || vtype == Tensor2Type::symmetric) {
-        m(0,0) = v[0]; m(1,1) = v[1]; m(2,2) = v[2];
-        m(0,1) = v[3]; m(1,0) = v[3];
-        m(0,2) = v[4]; m(2,0) = v[4];
-        m(1,2) = v[5]; m(2,1) = v[5];
-        return true;
-    }
-    return false;
+    if (vtype == Tensor2Type::none) return false;
+    mat_from_voigt(m, v, voigt_shear_in(vtype));
+    return true;
 }
 
 tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype) {
@@ -254,17 +242,7 @@ arma::vec::fixed<6> tensor2::voigt() const {
     }
 
     arma::vec::fixed<6> v;
-    v(0) = _mat(0,0); v(1) = _mat(1,1); v(2) = _mat(2,2);
-
-    if (_vtype == Tensor2Type::strain) {
-        v(3) = _mat(0,1) + _mat(1,0);
-        v(4) = _mat(0,2) + _mat(2,0);
-        v(5) = _mat(1,2) + _mat(2,1);
-    } else {
-        v(3) = 0.5 * (_mat(0,1) + _mat(1,0));
-        v(4) = 0.5 * (_mat(0,2) + _mat(2,0));
-        v(5) = 0.5 * (_mat(1,2) + _mat(2,1));
-    }
+    voigt_from_mat(v.memptr(), _mat, voigt_shear_out(_vtype));
     return v;
 }
 

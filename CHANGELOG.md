@@ -144,6 +144,14 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Changed
 
+- The fixed-size kernels that the perf code had copied file by file live once in
+  `Simulation/Maths`: `small_dense.hpp` (3x3 products `mul3`, `mul3_AtB`, `mul3_ABt`, the 6-vector
+  `dot6` and rank-one `outer6`, next to `mul6`/`mul66`), the new `small_voigt.hpp` (the Voigt index
+  tables, `mat_from_voigt` / `voigt_from_mat` on the stack), `lanes.hpp` (two-lane arithmetic) and
+  `rotation.hpp` (`is_identity_rotation`). `tensor.hpp` adds the typed forms `voigt_to_mat` /
+  `mat_to_voigt` on `Tensor2Type`, used by `tensor2` itself and by the MODUL hardening. The local
+  copies in `objective_rates.cpp`, `hyperelastic.cpp`, `contimech.cpp`, `eshelby.cpp`,
+  `fastor_bridge.hpp`, `hardening.cpp` and `modular_umat.cpp` are gone; results bitwise unchanged.
 - EPKCP thermomechanical: the cutting plane evaluates the power-law hardening through
   `PowerLawHardening` (C1 blend below p = 1e-6), as EPICP and its own closest point; for
   m < 1 the first plastic increment no longer meets an infinite slope.

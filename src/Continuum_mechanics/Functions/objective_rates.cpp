@@ -27,6 +27,8 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/eig_sym3.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -72,37 +74,9 @@ static inline Fastor::Tensor<double,3,3,3,3> pullback_4(
 
 typedef mat::fixed<3,3> m33;
 
-// Voigt index of the pair (i,j), and the pair (vi, vj) of a Voigt index
-static const int vm[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
-static const int vi[6] = {0, 1, 2, 0, 0, 1}, vj[6] = {0, 1, 2, 1, 2, 2};
-
-// Fixed-size 3x3 products and Voigt-native contractions: the same products summed in the same order
+// Fixed-size kernels (small_dense.hpp, small_voigt.hpp): the same products summed in the same order
 // as the armadillo / Fastor expressions they replace (bit-identical under -ffp-contract=on; the
 // tolerance-based tests remain the guarantee).
-static inline m33 mm(const m33 &A, const m33 &B) {          // A*B
-    m33 C;
-    for (int j = 0; j < 3; ++j) {
-        const double x0 = B(0,j), x1 = B(1,j), x2 = B(2,j);
-        for (int i = 0; i < 3; ++i) C(i,j) = A(i,0)*x0 + A(i,1)*x1 + A(i,2)*x2;
-    }
-    return C;
-}
-static inline m33 mtm(const m33 &A, const m33 &B) {         // A^T*B
-    m33 C;
-    for (int j = 0; j < 3; ++j) {
-        const double x0 = B(0,j), x1 = B(1,j), x2 = B(2,j);
-        for (int i = 0; i < 3; ++i) C(i,j) = A(0,i)*x0 + A(1,i)*x1 + A(2,i)*x2;
-    }
-    return C;
-}
-static inline m33 mmt(const m33 &A, const m33 &B) {         // A*B^T
-    m33 C;
-    for (int j = 0; j < 3; ++j) {
-        const double x0 = B(j,0), x1 = B(j,1), x2 = B(j,2);
-        for (int i = 0; i < 3; ++i) C(i,j) = A(i,0)*x0 + A(i,1)*x1 + A(i,2)*x2;
-    }
-    return C;
-}
 
 // alpha*X entrywise: the scaling armadillo applies after a product carrying a scalar factor
 static inline m33 alpha_times(const double alpha, const m33 &X) {
@@ -115,7 +89,7 @@ static inline m33 alpha_times(const double alpha, const m33 &X) {
 // (the inverse throws std::runtime_error on a singular F0+F1)
 static inline m33 velocity_gradient(const mat &F0, const mat &F1, const double &DTime) {
     const m33 Fsum_inv = inv(F0+F1);
-    return alpha_times(2./DTime, mm(m33(F1-F0), Fsum_inv));
+    return alpha_times(2./DTime, mul3(m33(F1-F0), Fsum_inv));
 }
 
 // Helper: push-forward of a stiffness-convention Voigt 6x6, C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN,
@@ -132,14 +106,14 @@ static void push_forward_voigt_core(double R[6][3][3], const mat::fixed<6,6> &L,
     for (int MN = 0; MN < 6; ++MN) {
         double sum = 0.0;
         for (int l = 0; l < 3; ++l)
-            sum += F(i,l) * L(vm[l][J], MN);
+            sum += F(i,l) * L(voigt_index[l][J], MN);
         T1[i][J][MN] = sum;
     }
     // T2(is,MN) = sum_J F(s,J) T1(i,J,MN), i <= s
     double T2[6][6];
     for (int is = 0; is < 6; ++is)
     for (int MN = 0; MN < 6; ++MN) {
-        const int i = vi[is], s = vj[is];
+        const int i = voigt_i[is], s = voigt_j[is];
         double sum = 0.0;
         for (int J = 0; J < 3; ++J)
             sum += F(s,J) * T1[i][J][MN];
@@ -152,7 +126,7 @@ static void push_forward_voigt_core(double R[6][3][3], const mat::fixed<6,6> &L,
     for (int N = 0; N < 3; ++N) {
         double sum = 0.0;
         for (int M = 0; M < 3; ++M)
-            sum += F(r,M) * T2[is][vm[M][N]];
+            sum += F(r,M) * T2[is][voigt_index[M][N]];
         T3[is][r][N] = sum;
     }
     // R(is,r,p) = sum_N F(p,N) T3(is,r,N)
@@ -171,7 +145,7 @@ static mat::fixed<6,6> voigt_average(const double R[6][3][3]) {
     mat::fixed<6,6> out;
     for (int I = 0; I < 6; ++I)
         for (int J = 0; J < 6; ++J)
-            out(I, J) = 0.5 * (R[I][vi[J]][vj[J]] + R[I][vj[J]][vi[J]]);
+            out(I, J) = 0.5 * (R[I][voigt_i[J]][voigt_j[J]] + R[I][voigt_j[J]][voigt_i[J]]);
     return out;
 }
 
@@ -188,7 +162,7 @@ static mat::fixed<6,6> push_forward_voigt(const mat::fixed<6,6> &L, const mat::f
 static void add_jaumann_correction(double R[6][3][3], const mat::fixed<3,3> &tau_f, const bool add) {
     const double sign = add ? 0.5 : -0.5;
     for (int is = 0; is < 6; ++is) {
-        const int i = vi[is], s = vj[is];
+        const int i = voigt_i[is], s = voigt_j[is];
         for (int p = 0; p < 3; ++p)
         for (int r = 0; r < 3; ++r) {
             double corr = 0.0;
@@ -206,7 +180,7 @@ static void voigt_expand(double R[6][3][3], const mat::fixed<6,6> &L) {
     for (int is = 0; is < 6; ++is)
         for (int p = 0; p < 3; ++p)
             for (int r = 0; r < 3; ++r)
-                R[is][p][r] = L(is, vm[p][r]);
+                R[is][p][r] = L(is, voigt_index[p][r]);
 }
 
 // The Voigt 6x6 of R[is][p][r] for the pairs p <= r (a result that keeps both minor symmetries exactly)
@@ -215,7 +189,7 @@ static mat::fixed<6,6> voigt_collapse(const double R[6][3][3]) {
     for (int is = 0; is < 6; ++is)
         for (int p = 0; p < 3; ++p)
             for (int r = p; r < 3; ++r)
-                out(is, vm[p][r]) = R[is][p][r];
+                out(is, voigt_index[p][r]) = R[is][p][r];
     return out;
 }
 
@@ -228,11 +202,11 @@ static void add_B_correction(double R[6][3][3], const mat::fixed<6,6> &A, const 
         double I = 0.;
         if (c == a && d == b) I += 0.5;
         if (c == b && d == a) I += 0.5;
-        return B(vm[a][b], vm[c][d]) - I;
+        return B(voigt_index[a][b], voigt_index[c][d]) - I;
     };
     const double sign = add ? 1.0 : -1.0;
     for (int ij = 0; ij < 6; ++ij) {
-        const int i = vi[ij], j = vj[ij];
+        const int i = voigt_i[ij], j = voigt_j[ij];
         for (int k = 0; k < 3; ++k)
         for (int l = 0; l < 3; ++l) {
             double sum1 = 0.0, sum2 = 0.0;
@@ -240,7 +214,7 @@ static void add_B_correction(double R[6][3][3], const mat::fixed<6,6> &A, const 
                 sum1 += BmI(i,p,k,l) * tau_f(p,j);
                 sum2 += tau_f(i,p) * BmI(j,p,k,l);
             }
-            double r = A(ij, vm[k][l]);
+            double r = A(ij, voigt_index[k][l]);
             r += sign * (sum1 + sum2);
             R[ij][k][l] = r;
         }
@@ -420,8 +394,8 @@ void logarithmic_R_kinematics(mat &DR, mat &D, mat &Omega, vec::fixed<3> &b1, ma
     vec::fixed<3> c0;
     RU_spectral(R0, c0, N0, F0);
     RU_spectral(R1, b1, N1, F1);
-    DR = mmt(R1, R0);
-    Nb = mm(R1, N1);   // B1 = R1 C1 R1^T
+    DR = mul3_ABt(R1, R0);
+    Nb = mul3(R1, N1);   // B1 = R1 C1 R1^T
 
     if (DTime <= simcoon::iota) {
         Omega = zeros(3,3);
@@ -432,7 +406,7 @@ void logarithmic_R_kinematics(mat &DR, mat &D, mat &Omega, vec::fixed<3> &b1, ma
     if (!inv(DRpI_inv, DRpI)) {
         throw simcoon::exception_inv("Error in inv function inside finite_rotation.");
     }
-    Omega = alpha_times(2./DTime, mm(m33(DR-eye(3,3)), DRpI_inv));
+    Omega = alpha_times(2./DTime, mul3(m33(DR-eye(3,3)), DRpI_inv));
 }
 
 // De = A^R : D on the eigenbasis (b, Nb) of B, by congruence (t/sinh t kernel)
@@ -618,7 +592,7 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
 
 mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
     const m33 DR = Hughes_Winget(Omega, DTime), D_(D);
-    return 0.5*(D_+mmt(mm(DR, D_), DR))*DTime;
+    return 0.5*(D_+mul3_ABt(mul3(DR, D_), DR))*DTime;
 }
 
 mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
@@ -653,7 +627,7 @@ void corate_kinematics(const int &corate_type, mat &DR, mat &D, mat &Omega, mat 
         logarithmic_R_kinematics(DR, D, Omega, b1, Nb, DTime, F0, F1);
         const mat::fixed<3,3> Dh = A_R_D(b1, Nb, D);
         const m33 DR_(DR);
-        De = 0.5*(Dh + mmt(mm(DR_, Dh), DR_))*DTime;
+        De = 0.5*(Dh + mul3_ABt(mul3(DR_, Dh), DR_))*DTime;
         return;
     }
     corate_kinematics(corate_type, DR, D, Omega, F0, F1, DTime);
@@ -710,7 +684,7 @@ double Delta_work_conjugacy(const vec &tau_start, const vec &tau_start_tr, const
     mat::fixed<3,3> Fsum_inv;
     if (!inv(Fsum_inv, mat::fixed<3,3>(F1 + F0)))
         return 0.;
-    const mat::fixed<3,3> LDt = alpha_times(2., mm(m33(F1 - F0), Fsum_inv));   // midpoint velocity gradient times DTime
+    const mat::fixed<3,3> LDt = alpha_times(2., mul3(m33(F1 - F0), Fsum_inv));   // midpoint velocity gradient times DTime
     // both stresses in the lab frame: a start stress carried to the end frame against a midpoint
     // D would leave a first-order [W, tau] : D error, even for isotropic elasticity
     return 0.5*dot(tau_start + tau, t2v_strain(0.5*(LDt + LDt.t())))
@@ -750,8 +724,8 @@ struct dk_spectral {
                     [](double l) { return -0.5 * std::pow(l, -1.5); });
         if (with_U) U = spectral_compose_3x3(N, sqrt(lam));
         invU = spectral_compose_3x3(N, 1.0 / sqrt(lam));
-        R = mm(F_, invU);
-        tau_hat = mm(mtm(R, arma::mat::fixed<3,3>(tau)), R);
+        R = mul3(F_, invU);
+        tau_hat = mul3(mul3_AtB(R, arma::mat::fixed<3,3>(tau)), R);
     }
 
     // f' at the midpoint under the 1e-4 relative coincidence guard (as get_BBBB / A_R)
@@ -780,36 +754,16 @@ struct dk_spectral {
 inline m33 unit_strain_tensor(const int j) {
     m33 e(arma::fill::zeros);
     const double v = (j < 3) ? 1. : 0.5;
-    e(vi[j], vj[j]) = v;
-    e(vj[j], vi[j]) = v;
+    e(voigt_i[j], voigt_j[j]) = v;
+    e(voigt_j[j], voigt_i[j]) = v;
     return e;
 }
 
-// y = Lt t2v_strain(e)
+// y = Lt t2v_strain(e), the 6x6 applied by hand (a BLAS gemv call per column otherwise)
 inline void box_apply(const arma::mat::fixed<6,6> &Lt, const m33 &e, double y[6]) {
-    const double x[6] = {e(0,0), e(1,1), e(2,2), e(0,1) + e(1,0), e(0,2) + e(2,0), e(1,2) + e(2,1)};
-    for (int i = 0; i < 6; ++i) {
-        double yi = 0.;
-        for (int k = 0; k < 6; ++k) yi += Lt(i, k)*x[k];
-        y[i] = yi;
-    }
-}
-
-inline m33 v2t_stress_arr(const double v[6]) {
-    m33 S;
-    S(0,0) = v[0]; S(1,1) = v[1]; S(2,2) = v[2];
-    S(0,1) = S(1,0) = v[3];
-    S(0,2) = S(2,0) = v[4];
-    S(1,2) = S(2,1) = v[5];
-    return S;
-}
-
-// column j of a 6x6 Voigt map, as t2v_stress(S)
-inline void set_stress_col(arma::mat &M, const int j, const m33 &S) {
-    M(0, j) = S(0,0); M(1, j) = S(1,1); M(2, j) = S(2,2);
-    M(3, j) = 0.5*(S(0,1) + S(1,0));
-    M(4, j) = 0.5*(S(0,2) + S(2,0));
-    M(5, j) = 0.5*(S(1,2) + S(2,1));
+    double x[6];
+    voigt_from_mat(x, e, 1.);
+    mul6(Lt.memptr(), x, y);
 }
 
 }  // namespace
@@ -917,7 +871,7 @@ mat logU_box_2_DSDE(const mat &Lt, const mat &F, const mat &tau) {
         const mat dH = sp.N*(sp.G % dCp)*sp.N.t();
         double y[6];
         box_apply(Lt_, dH, y);   // Lt t2v_strain(dH) by hand (a BLAS gemv call per column otherwise)
-        const mat dTp = sp.N.t()*v2t_stress_arr(y)*sp.N;
+        const mat dTp = sp.N.t()*mat_from_voigt(y, 1.)*sp.N;
         DSDE.col(j) = t2v_stress(2.*sp.N*(sp.G % dTp + sp.geometric(That, dCp))*sp.N.t());
     }
     return DSDE;
@@ -936,7 +890,7 @@ mat DSDE_2_logU_box(const mat &DSDE, const mat &F, const mat &tau) {
         const mat dCp = (sp.N.t()*v2t_strain(ej)*sp.N)/sp.G;
         double y[6];
         box_apply(DSDE_, m33(0.5*sp.N*dCp*sp.N.t()), y);   // DSDE t2v_strain(.) by hand, as above
-        const mat dS = v2t_stress_arr(y);
+        const mat dS = mat_from_voigt(y, 1.);
         const mat dTp = (0.5*sp.N.t()*dS*sp.N - sp.geometric(That, dCp))/sp.G;
         Lt.col(j) = t2v_stress(sp.N*dTp*sp.N.t());
     }
@@ -963,22 +917,22 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     dk_spectral sp;
     sp.build(F, tau, false);
     const arma::mat::fixed<6,6> Lt_(Lt);
-    const m33 invU_tau_hat = mm(sp.invU, sp.tau_hat);   // column-independent factor of dS
+    const m33 invU_tau_hat = mul3(sp.invU, sp.tau_hat);   // column-independent factor of dS
 
     mat DSDE(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
         const m33 dC = 2. * unit_strain_tensor(j);     // engineering Voigt basis
-        const m33 dCp = mm(mtm(sp.N, dC), sp.N);       // shared eigenbasis transform
-        const m33 dh = mmt(mm(sp.N, m33(sp.G_h % dCp)), sp.N);   // d(1/2 ln C) = d(ln U)
+        const m33 dCp = mul3(mul3_AtB(sp.N, dC), sp.N);       // shared eigenbasis transform
+        const m33 dh = mul3_ABt(mul3(sp.N, m33(sp.G_h % dCp)), sp.N);   // d(1/2 ln C) = d(ln U)
         // The box acts in the spatial frame (d ln V = R d(ln U) R^T at fixed R):
         // conjugate in, apply Lt, conjugate back to the corotational frame.
-        box_apply(Lt_, mmt(mm(sp.R, dh), sp.R), y);
-        const m33 dtau_hat = mm(mtm(sp.R, v2t_stress_arr(y)), sp.R);
-        const m33 dinvU = mmt(mm(sp.N, m33(sp.G_iU % dCp)), sp.N);   // d(C^{-1/2})
-        const m33 dS = mm(mm(sp.invU, dtau_hat), sp.invU)
-                     + mm(mm(dinvU, sp.tau_hat), sp.invU) + mm(invU_tau_hat, dinvU);
-        set_stress_col(DSDE, j, dS);
+        box_apply(Lt_, mul3_ABt(mul3(sp.R, dh), sp.R), y);
+        const m33 dtau_hat = mul3(mul3_AtB(sp.R, mat_from_voigt(y, 1.)), sp.R);
+        const m33 dinvU = mul3_ABt(mul3(sp.N, m33(sp.G_iU % dCp)), sp.N);   // d(C^{-1/2})
+        const m33 dS = mul3(mul3(sp.invU, dtau_hat), sp.invU)
+                     + mul3(mul3(dinvU, sp.tau_hat), sp.invU) + mul3(invU_tau_hat, dinvU);
+        voigt_from_mat(DSDE.colptr(j), dS, 0.5);
     }
     return DSDE;
 }
@@ -1117,21 +1071,21 @@ mat DSDE_2_DtauDe(const mat &DSDE, const mat &F, const mat &tau) {
     const m33 G_h_inv = 1.0 / sp.G_h;      // elementwise; G_h > 0 (1/2 ln strictly increasing)
     const m33 G_comp = sp.G_iU % G_h_inv;  // composed d(C^{-1/2}) o [d(1/2 ln C)]^{-1}
     const arma::mat::fixed<6,6> DSDE_(0.5 * DSDE);
-    const m33 invU_tau_hat = mm(sp.invU, sp.tau_hat);   // column-independent factor
+    const m33 invU_tau_hat = mul3(sp.invU, sp.tau_hat);   // column-independent factor
 
     mat Lt(6, 6);
     double y[6];
     for (int j = 0; j < 6; ++j) {
         // box argument is ln V: pull dh back by R (inverse of the forward R conjugation)
-        const m33 dh = mm(mtm(sp.R, unit_strain_tensor(j)), sp.R);
-        const m33 dhp = mm(mtm(sp.N, dh), sp.N);                     // eigenframe
-        const m33 dC = mmt(mm(sp.N, m33(G_h_inv % dhp)), sp.N);      // inverse of d(1/2 ln C)
+        const m33 dh = mul3(mul3_AtB(sp.R, unit_strain_tensor(j)), sp.R);
+        const m33 dhp = mul3(mul3_AtB(sp.N, dh), sp.N);                     // eigenframe
+        const m33 dC = mul3_ABt(mul3(sp.N, m33(G_h_inv % dhp)), sp.N);      // inverse of d(1/2 ln C)
         box_apply(DSDE_, dC, y);
-        const m33 dS = v2t_stress_arr(y);
-        const m33 dinvU = mmt(mm(sp.N, m33(G_comp % dhp)), sp.N);
-        const m33 inner = dS - mm(mm(dinvU, sp.tau_hat), sp.invU) - mm(invU_tau_hat, dinvU);
-        const m33 dtau_hat = mm(mm(sp.U, inner), sp.U);
-        set_stress_col(Lt, j, mmt(mm(sp.R, dtau_hat), sp.R));
+        const m33 dS = mat_from_voigt(y, 1.);
+        const m33 dinvU = mul3_ABt(mul3(sp.N, m33(G_comp % dhp)), sp.N);
+        const m33 inner = dS - mul3(mul3(dinvU, sp.tau_hat), sp.invU) - mul3(invU_tau_hat, dinvU);
+        const m33 dtau_hat = mul3(mul3(sp.U, inner), sp.U);
+        voigt_from_mat(Lt.colptr(j), mul3_ABt(mul3(sp.R, dtau_hat), sp.R), 0.5);
     }
     return Lt;
 }
@@ -1313,8 +1267,8 @@ mat Dtau_LieDD_2_DtauDe_stretch(const mat &Dtau_LieDD, const vec::fixed<3> &e, c
     for (int j = 0; j < 6; ++j) {
         const m33 dt = spectral_congruence(N, H, unit_strain_tensor(j));
         box_apply(Jc, dt, y);
-        const m33 dtau = v2t_stress_arr(y) + mm(dt, tau_) + mm(tau_, dt);
-        set_stress_col(Lt, j, dtau);
+        const m33 dtau = mat_from_voigt(y, 1.) + mul3(dt, tau_) + mul3(tau_, dt);
+        voigt_from_mat(Lt.colptr(j), dtau, 0.5);
     }
     return Lt;
 }
@@ -1403,17 +1357,17 @@ mat DSDE_DBiotStressDU(const mat &DSDE, const mat &U, const mat &S) {
     const mat::fixed<3,3> U_t = mat::fixed<3,3>(U).t(), S_t = mat::fixed<3,3>(S).t();
     double C[6][3][3];
     for (int I = 0; I < 6; ++I) {
-        const int s = vi[I], j = vj[I];
+        const int s = voigt_i[I], j = voigt_j[I];
         for (int p = 0; p < 3; ++p) {
             for (int r = 0; r < 3; ++r) {
                 double sum = 0.0;
                 for (int l = 0; l < 3; ++l) {
                     for (int m = 0; m < 3; ++m) {
                         // term1 (n = r) always; term2 for every n when m = r
-                        sum += 0.5 * U_t(l,j) * U_t(m,p) * D(vm[s][l], vm[m][r]);
+                        sum += 0.5 * U_t(l,j) * U_t(m,p) * D(voigt_index[s][l], voigt_index[m][r]);
                         if (m != r) continue;
                         for (int n = 0; n < 3; ++n) {
-                            sum += 0.5 * U_t(l,j) * U_t(n,p) * D(vm[s][l], vm[m][n]);
+                            sum += 0.5 * U_t(l,j) * U_t(n,p) * D(voigt_index[s][l], voigt_index[m][n]);
                         }
                     }
                 }
@@ -1427,7 +1381,7 @@ mat DSDE_DBiotStressDU(const mat &DSDE, const mat &U, const mat &S) {
     mat L(6,6);
     for (int I = 0; I < 6; ++I)
         for (int J = 0; J < 6; ++J)
-            L(I, J) = 0.5 * (C[I][vi[J]][vj[J]] + C[I][vj[J]][vi[J]]);
+            L(I, J) = 0.5 * (C[I][voigt_i[J]][voigt_j[J]] + C[I][voigt_j[J]][voigt_i[J]]);
     return L;
 
 }

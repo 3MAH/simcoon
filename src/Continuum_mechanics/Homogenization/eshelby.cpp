@@ -31,6 +31,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/lanes.hpp>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 using namespace std;
@@ -200,9 +201,6 @@ void calG(const double &pt, const double &a1, const double &a2, const double &a3
 
 }
 
-//Voigt index of the pair (i,j)
-static const int Voigt_index[3][3] = {{0,3,4},{3,1,5},{4,5,2}};
-
 // two rows of G per operation: lane2 of lanes.hpp, each lane runs the scalar expressions
 
 // sum of calG in the per-entry operation order of the point loop (bitwise); sin/cos hoisted, two rows of G at a time
@@ -246,10 +244,10 @@ void Gauss(const mat &Lt, mat &G, const double &a1, const double &a2, const doub
             double rk[3][3] = {{0.,0.,0.},{0.,0.,0.},{0.,0.,0.}};
             for (int i=0; i<3; i++) {
                 for (int j=0; j<3; j++) {
-                    const int m = Voigt_index[i][j];
+                    const int m = voigt_index[i][j];
                     for (int k=i; k<3; k++) {
                         for (int ll=0; ll<3; ll++) {
-                            rk[i][k] += L[m][Voigt_index[k][ll]]*Xp[j]*Xp[ll];
+                            rk[i][k] += L[m][voigt_index[k][ll]]*Xp[j]*Xp[ll];
                         }
                     }
                 }
@@ -321,14 +319,14 @@ static mat contract_G(const mat &M, const mat &G)
     double Sl[6][6] = {};
     for (int i=0; i<3; i++) {
         for (int j=i; j<3; j++) {
-            const int ij = Voigt_index[i][j];
+            const int ij = voigt_index[i][j];
             for (int m=0; m<3; m++) {
                 for (int n=m; n<3; n++) {
-                    const int mn = Voigt_index[m][n];
+                    const int mn = voigt_index[m][n];
                     for (int p=0; p<3; p++) {
                         for (int q=0; q<3; q++) {
-                            const int pq = Voigt_index[p][q];
-                            Sl[ij][mn] = Sl[ij][mn]+Ml[pq][mn]*(Gl[Voigt_index[i][p]][Voigt_index[j][q]]+Gl[Voigt_index[j][p]][Voigt_index[i][q]]);
+                            const int pq = voigt_index[p][q];
+                            Sl[ij][mn] = Sl[ij][mn]+Ml[pq][mn]*(Gl[voigt_index[i][p]][voigt_index[j][q]]+Gl[voigt_index[j][p]][voigt_index[i][q]]);
                         }
                     }
                 }

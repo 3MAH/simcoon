@@ -28,6 +28,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/parameter.hpp>
 #include <algorithm>
@@ -40,24 +41,6 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon {
 
-namespace {
-
-/// approx_equal(DR, eye(3, 3), "absdiff", 0.0) without building the identity (NaN or wrong size: false)
-bool is_identity_rotation(const arma::mat& DR) {
-    if (DR.n_rows != 3 || DR.n_cols != 3) {
-        return false;
-    }
-    for (arma::uword j = 0; j < 3; ++j) {
-        for (arma::uword i = 0; i < 3; ++i) {
-            if (DR(i, j) != ((i == j) ? 1.0 : 0.0)) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-}  // namespace
 
 // ========== Constructor ==========
 

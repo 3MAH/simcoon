@@ -23,6 +23,7 @@
 #include <armadillo>
 #include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -54,17 +55,6 @@ inline void shear_scaled(const vec &v, const double &s_shear, double *v1, double
         v1[i] = v(i);
         v2[i] = (i < 3) ? v1[i] : s_shear*v1[i];
     }
-}
-
-// sum(a % b) on 6 entries, in the accumulation order of Armadillo's accu (two interleaved partial sums)
-inline double dot_voigt(const double *a, const double *b) {
-    double val1 = 0.;
-    double val2 = 0.;
-    for (int i=0; i<6; i+=2) {
-        val1 += (a[i] * b[i]);
-        val2 += (a[i+1] * b[i+1]);
-    }
-    return (val1 + val2);
 }
 
 } // namespace
@@ -124,7 +114,7 @@ double Mises_stress(const vec &v) {
 	double vdev[6], vdev2[6];
 	dev_voigt(v, 2., vdev, vdev2);
 
-	return sqrt(3./2.*dot_voigt(vdev, vdev2));
+	return sqrt(3./2.*dot6(vdev, vdev2));
 }
 
 vec eta_stress(const vec &v) {
@@ -133,7 +123,7 @@ vec eta_stress(const vec &v) {
 	double vdev[6], vdev2[6];
 	dev_voigt(v, 2., vdev, vdev2);
 		
-	double n = sqrt(3./2.*dot_voigt(vdev, vdev2));
+	double n = sqrt(3./2.*dot6(vdev, vdev2));
 
 	if (n > 0.) {
 		// (3/2) vdev2 (1/n), evaluated as the expression template did
@@ -154,7 +144,7 @@ mat deta_stress(const vec &v) {
 
 	double vdev[6], vdev2[6];
 	dev_voigt(v, 2., vdev, vdev2);
-	double sigeq = sqrt(3./2.*dot_voigt(vdev, vdev2));
+	double sigeq = sqrt(3./2.*dot6(vdev, vdev2));
 	if (sigeq < simcoon::iota) {
 		return zeros(6,6);
 	}
@@ -187,7 +177,7 @@ vec eta_norm_stress(const vec &v) {
     double v1[6], v2[6];
     shear_scaled(v, 2., v1, v2);
     
-    double n = sqrt(dot_voigt(v1, v2));
+    double n = sqrt(dot6(v1, v2));
     
     if (n > 0.) {
         const double inv_n = 1./n;
@@ -207,7 +197,7 @@ vec eta_norm_strain(const vec &v) {
     double v1[6], v2[6];
     shear_scaled(v, 0.5, v1, v2);
     
-    double n = sqrt(dot_voigt(v1, v2));
+    double n = sqrt(dot6(v1, v2));
     
     if (n > 0.) {
         const double inv_n = 1./n;
@@ -228,7 +218,7 @@ double norm_stress(const vec &v) {
     double v1[6], v2[6];
     shear_scaled(v, 2., v1, v2);
     
-    return sqrt(dot_voigt(v1, v2));
+    return sqrt(dot6(v1, v2));
 }
 
 double norm_strain(const vec &v) {
@@ -238,7 +228,7 @@ double norm_strain(const vec &v) {
     double v1[6], v2[6];
     shear_scaled(v, 0.5, v1, v2);
     
-    return sqrt(dot_voigt(v1, v2));
+    return sqrt(dot6(v1, v2));
 }
 
 double Mises_strain(const vec &v) {
@@ -247,7 +237,7 @@ double Mises_strain(const vec &v) {
 	double vdev[6], vdev2[6];
 	dev_voigt(v, 0.5, vdev, vdev2);
 
-	return sqrt(2./3.*dot_voigt(vdev, vdev2));
+	return sqrt(2./3.*dot6(vdev, vdev2));
 }
 
 vec eta_strain(const vec &v) {
@@ -256,7 +246,7 @@ vec eta_strain(const vec &v) {
 	double vdev[6], vdev2[6];
 	dev_voigt(v, 0.5, vdev, vdev2);
 		
-	double n = sqrt(2./3.*dot_voigt(vdev, vdev2));
+	double n = sqrt(2./3.*dot6(vdev, vdev2));
 
 	if (n > 0.) {
 		// (2/3) vdev (1/n), evaluated as the expression template did
@@ -278,7 +268,7 @@ double J2_stress(const vec &v) {
 	double vdev[6], vdev2[6];
 	dev_voigt(v, 2., vdev, vdev2);
 
-	return 0.5*dot_voigt(vdev, vdev2);
+	return 0.5*dot6(vdev, vdev2);
 }
 
 
@@ -288,7 +278,7 @@ double J2_strain(const vec &v) {
 	double vdev[6], vdev2[6];
 	dev_voigt(v, 0.5, vdev, vdev2);
 
-	return 0.5*dot_voigt(vdev, vdev2);
+	return 0.5*dot6(vdev, vdev2);
 }
 
 double J3_stress(const vec &v) {
@@ -413,21 +403,10 @@ mat p_ikjl(const vec &a) {
 	return F;
 }
 
-// rank-one product by hand: no BLAS dispatch for 36 multiplications
-static mat outer_voigt(const vec &a, const vec &b) {
-    mat C(6, 6, fill::none);
-    for (int j=0; j<6; j++) {
-        for (int i=0; i<6; i++) {
-            C(i,j) = a(i)*b(j);
-        }
-    }
-    return C;
-}
-
 mat auto_sym_dyadic(const mat &A) {
     vec A_v = t2v_sym(A);
 
-	return outer_voigt(A_v, A_v);
+	return outer6(A_v.memptr(), A_v.memptr());
 }
 
 mat sym_dyadic(const mat &A, const mat &B) {
@@ -435,7 +414,7 @@ mat sym_dyadic(const mat &A, const mat &B) {
     vec A_v = t2v_sym(A);
     vec B_v = t2v_sym(B);
 
-	return outer_voigt(A_v, B_v);
+	return outer6(A_v.memptr(), B_v.memptr());
 }
 
 mat auto_dyadic(const mat &A) {
