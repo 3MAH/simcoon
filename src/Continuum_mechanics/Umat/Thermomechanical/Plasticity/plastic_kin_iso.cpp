@@ -60,9 +60,8 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
-    //Elastic stiffness tensor and thermal tensor
+    //Elastic stiffness tensor
     mat L = L_iso(E, nu, "Enu");
-    mat M = M_iso(E, nu, "Enu");
     
     ///@brief Temperature initialization
     double T_init = statev(0);
@@ -151,7 +150,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     
     //Compute the explicit flow direction
     vec Lambdap = eta_stress(sigma-X);
-    vec Lambdaa = eta_stress(sigma-X);
+    vec Lambdaa = Lambdap;
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
@@ -199,15 +198,16 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
         p = s_j(0);
         Hp = hardening.R(p);
         dHpdp = hardening.dR_dp(p);
+        // associated J2 flow on sigma - X, shared by the criterion gradient and both flows
         dPhidsigma = eta_stress(sigma-X);
         dPhidp = -1.*dHpdp;
-        dPhida = -1.*kX*(eta_stress(sigma - X)%Ir05());
+        dPhida = -1.*kX*(dPhidsigma%Ir05());
         
         //compute Phi and the derivatives
         Phi(0) = Mises_stress(sigma-X) - Hp - sigmaY;
         
-        Lambdap = eta_stress(sigma-X);
-        Lambdaa = eta_stress(sigma-X);
+        Lambdap = dPhidsigma;
+        Lambdaa = dPhidsigma;
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp + sum(dPhida%Lambdaa);

@@ -164,7 +164,7 @@ TEST(Teshelby, Gauss_is_the_weighted_sum_of_calG)
     for (const mat &L : media) {
         for (const vec &a : shapes) {
             mat G = zeros(6, 6);
-            Gauss(Id, L, G, a(0), a(1), a(2), x, wx, y, wy, mp, np);
+            Gauss(L, G, a(0), a(1), a(2), x, wx, y, wy, mp, np);
             mat G_ref = zeros(6, 6);
             mat H = zeros(6, 6);
             for (int l = 0; l < mp; l++) {

@@ -30,6 +30,8 @@
 #include <vector>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Simulation/Maths/lanes.hpp>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 using namespace std;
@@ -199,21 +201,22 @@ void calG(const double &pt, const double &a1, const double &a2, const double &a3
 
 }
 
-//Voigt index of the pair (i,j): the table that Eshelby and T_II hand to Gauss as Id
-static const int Voigt_index[3][3] = {{0,3,4},{3,1,5},{4,5,2}};
+// two rows of G per operation: lane2 of lanes.hpp, each lane runs the scalar expressions
 
-// sum of calG in the per-entry operation order of the point loop (bitwise); sin/cos hoisted
-void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
+// sum of calG in the per-entry operation order of the point loop (bitwise); sin/cos hoisted, two rows of G at a time
+void Gauss(const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
-    (void)Id;   //always the Voigt table (Voigt_index)
     double L[6][6];
     for (int i=0; i<6; i++)
         for (int j=0; j<6; j++)
             L[i][j] = Lt(i,j);
-    double Gl[6][6];
-    for (int i=0; i<6; i++)
-        for (int j=0; j<6; j++)
-            Gl[i][j] = G(i,j);
+    //rows ij of G in pairs, (00, 01), (02, 11), (12, 22); columns kl in the same order 00, 01, 02, 11, 12, 22
+    static const int row_ij[6] = {0, 3, 4, 1, 5, 2};
+    const int *col_kl = row_ij;
+    lane2 Gp[3][6];
+    for (int q=0; q<3; q++)
+        for (int c=0; c<6; c++)
+            Gp[q][c] = lanes(G(row_ij[2*q],col_kl[c]), G(row_ij[2*q+1],col_kl[c]));
 
     std::vector<double> cos_y(np), sin_y(np);
     for (int i=0; i<np; i++) {
@@ -223,13 +226,14 @@ void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &
     const double inv_a1 = 1./a1;
     const double inv_a2 = 1./a2;
     const double inv_a3 = 1./a3;
+    const double *wy_ = wy.memptr();
 
     //per point of the ring: X and the upper triangle of inv(K), K_ik = L_ijkl X_j X_l
     std::vector<double> ring(9*np);
     double *X[3] = {&ring[0], &ring[np], &ring[2*np]};
     double *R00 = &ring[3*np], *R01 = &ring[4*np], *R02 = &ring[5*np];
     double *R11 = &ring[6*np], *R12 = &ring[7*np], *R22 = &ring[8*np];
-    const double *R[3][3] = {{R00, R01, R02}, {nullptr, R11, R12}, {nullptr, nullptr, R22}};
+    const double *R[6] = {R00, R01, R02, R11, R12, R22};   //rows in the order of row_ij
 
     for (int l=0; l<mp; l++) {
         const double x3 = x(l);
@@ -240,10 +244,10 @@ void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &
             double rk[3][3] = {{0.,0.,0.},{0.,0.,0.},{0.,0.,0.}};
             for (int i=0; i<3; i++) {
                 for (int j=0; j<3; j++) {
-                    const int m = Voigt_index[i][j];
+                    const int m = voigt_index[i][j];
                     for (int k=i; k<3; k++) {
                         for (int ll=0; ll<3; ll++) {
-                            rk[i][k] += L[m][Voigt_index[k][ll]]*Xp[j]*Xp[ll];
+                            rk[i][k] += L[m][voigt_index[k][ll]]*Xp[j]*Xp[ll];
                         }
                     }
                 }
@@ -267,91 +271,83 @@ void Gauss(Mat<int> &Id, const mat &Lt, mat &G, const double &a1, const double &
             R22[p] = rn22*inv_D;
         }
 
-        const double wx_l = wx(l);
+        const lane2 wx_l = lanes(wx(l), wx(l));
+        const lane2 zero = lanes(0., 0.);
+        //a sequential sum per entry: an ordered vectorised reduction over p could split the
+        //contracted multiply-adds
+#if defined(__clang__)
+        #pragma clang loop vectorize(disable)
+#endif
         for (int p=0; p<np; p++) {
-            const double wy_p = wy(p);
-            for (int i=0; i<3; i++) {
-                for (int j=i; j<3; j++) {
-                    const int ij = Voigt_index[i][j];
-                    const double rn_ij = R[i][j][p];
-                    for (int k=0; k<3; k++) {
-                        for (int ll=k; ll<3; ll++) {
-                            const int kl = Voigt_index[k][ll];
-                            const double H = rn_ij*X[ll][p]*X[k][p];      //calG
-                            const double rg = H*wy_p+0.;                  //azimuthal weight
-                            Gl[ij][kl] = Gl[ij][kl] + wx_l*rg;            //polar weight
+            const lane2 wy_p = lanes(wy_[p], wy_[p]);
+            const lane2 X0_p = lanes(X[0][p], X[0][p]);
+            const lane2 X1_p = lanes(X[1][p], X[1][p]);
+            const lane2 X2_p = lanes(X[2][p], X[2][p]);
+            for (int q=0; q<3; q++) {
+                const lane2 rn_ij = lanes(R[2*q][p], R[2*q+1][p]);
+                //calG, H_ijkl = rn_ij X_l X_k, for kl = 00, 01, 02, 11, 12, 22
+                const lane2 rX0 = mul(rn_ij, X0_p), rX1 = mul(rn_ij, X1_p), rX2 = mul(rn_ij, X2_p);
+                const lane2 H[6] = {mul(rX0, X0_p), mul(rX1, X0_p), mul(rX2, X0_p), mul(rX1, X1_p), mul(rX2, X1_p), mul(rX2, X2_p)};
+                for (int c=0; c<6; c++) {
+                    const lane2 rg = mul_add(H[c], wy_p, zero);         //azimuthal weight
+                    Gp[q][c] = mul_add(wx_l, rg, Gp[q][c]);             //polar weight
+                }
+            }
+        }
+    }
+
+    for (int q=0; q<3; q++) {
+        for (int c=0; c<6; c++) {
+            G(row_ij[2*q],col_kl[c]) = Gp[q][c][0];
+            G(row_ij[2*q+1],col_kl[c]) = Gp[q][c][1];
+        }
+    }
+}
+
+//Contraction of the integral G with M: S_ijmn = sum_pq M_pqmn (G_ipjq + G_jpiq), the rows 0-2
+//scaled by 1/(8 pi) and the rows 3-5 by 1/(4 pi). M = Lt gives the Eshelby tensor, M = I the
+//tensor T_II. Plain arrays; every entry receives the same terms in the same order.
+static mat contract_G(const mat &M, const mat &G)
+{
+    double Ml[6][6], Gl[6][6];
+    for (int i=0; i<6; i++) {
+        for (int j=0; j<6; j++) {
+            Ml[i][j] = M(i,j);
+            Gl[i][j] = G(i,j);
+        }
+    }
+    double Sl[6][6] = {};
+    for (int i=0; i<3; i++) {
+        for (int j=i; j<3; j++) {
+            const int ij = voigt_index[i][j];
+            for (int m=0; m<3; m++) {
+                for (int n=m; n<3; n++) {
+                    const int mn = voigt_index[m][n];
+                    for (int p=0; p<3; p++) {
+                        for (int q=0; q<3; q++) {
+                            const int pq = voigt_index[p][q];
+                            Sl[ij][mn] = Sl[ij][mn]+Ml[pq][mn]*(Gl[voigt_index[i][p]][voigt_index[j][q]]+Gl[voigt_index[j][p]][voigt_index[i][q]]);
                         }
                     }
                 }
             }
         }
     }
-
-    for (int i=0; i<6; i++)
+    mat S(6,6);
+    for (int i=0; i<3; i++)
         for (int j=0; j<6; j++)
-            G(i,j) = Gl[i][j];
+            S(i,j) = Sl[i][j]*(1./(8.*simcoon::pi));
+    for (int i=3; i<6; i++)
+        for (int j=0; j<6; j++)
+            S(i,j) = Sl[i][j]*(1./(4.*simcoon::pi));
+    return S;
 }
-    
+
 mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
     mat G = zeros(6,6);
-	Mat<int> Id(6,6);
-    Id.zeros();
-
-    mat S = zeros(6,6);
-	int ij=0;
-	int mn=0;
-	int pq=0;
-	int ip=0;
-	int jq=0;
-	int jp=0;
-	int iq=0;
-		
-    Id(0,0) = 0;
-    Id(0,1) = 3;
-    Id(0,2) = 4;
-    Id(1,0) = 3;
-    Id(1,1) = 1;
-    Id(1,2) = 5;
-    Id(2,0) = 4;
-    Id(2,1) = 5;
-    Id(2,2) = 2;
-    
-	Gauss(Id, Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
-	    
-	for (int i=0; i<3; i++) {
-		for (int j=i; j<3; j++) {
-			ij = Id(i,j);
-			for (int m=0; m<3; m++) {
-				for (int n=m; n<3; n++) {
-					mn = Id(m,n);
-					for (int p=0; p<3; p++) {
-						for (int q=0; q<3; q++) {
-							pq = Id(p,q);
-							ip = Id(i,p);
-							jq = Id(j,q);
-							jp = Id(j,p);
-							iq = Id(i,q);
-							S(ij,mn) = S(ij,mn)+Lt(pq,mn)*(G(ip,jq)+G(jp,iq));
-						}
-					}
-				}
-			}
-		}
-	}
-	
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<6; j++) {
-			S(i,j) = S(i,j)*(1./(8.*simcoon::pi));
-		}
-	}
-
-	for (int i=3; i<6; i++) {
-		for (int j=0; j<6; j++) {
-			S(i,j) = S(i,j)*(1./(4.*simcoon::pi));
-		}
-	}   
-    return S;
+    Gauss(Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
+    return contract_G(Lt, G);
 }
 
 mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3, const int &mp, const int &np) {
@@ -362,67 +358,10 @@ mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3,
     
 
 mat T_II(const mat &Lt, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
-{   
-	mat G = zeros(6,6);
-	Mat<int> Id(6,6);
-    Id.zeros();
-    
-    mat T_II = zeros(6,6);
-    mat I = eye(6,6);
-    
-	int ij=0;
-	int mn=0;
-	int pq=0;
-	int ip=0;
-	int jq=0;
-	int jp=0;
-	int iq=0;
-    
-    Id(0,0) = 0;
-    Id(0,1) = 3;
-    Id(0,2) = 4;
-    Id(1,0) = 3;
-    Id(1,1) = 1;
-    Id(1,2) = 5;
-    Id(2,0) = 4;
-    Id(2,1) = 5;
-    Id(2,2) = 2;
-        
-	Gauss(Id, Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
-		
-	for (int i=0; i<3; i++) {
-		for (int j=i; j<3; j++) {
-			ij = Id(i,j);
-			for (int m=0; m<3; m++) {
-				for (int n=m; n<3; n++) {
-					mn = Id(m,n);
-					for (int p=0; p<3; p++) {
-						for (int q=0; q<3; q++) {
-							pq = Id(p,q);
-							ip = Id(i,p);
-							jq = Id(j,q);
-							jp = Id(j,p);
-							iq = Id(i,q);
-							T_II(ij,mn) = T_II(ij,mn)+I(pq,mn)*(G(ip,jq)+G(jp,iq));
-						}
-					}
-				}
-			}
-		}
-	}
-	
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<6; j++) {
-			T_II(i,j) = T_II(i,j)*(1./(8.*simcoon::pi));
-		}
-	}
-    
-	for (int i=3; i<6; i++) {
-		for (int j=0; j<6; j++) {
-			T_II(i,j) = T_II(i,j)*(1./(4.*simcoon::pi));
-		}
-	}    
-    return T_II;
+{
+    mat G = zeros(6,6);
+    Gauss(Lt, G, a1, a2, a3, x, wx, y, wy, mp, np);
+    return contract_G(eye(6,6), G);
 }
 
 mat T_II(const mat &Lt, const double &a1, const double &a2, const double &a3, const int &mp, const int &np) {

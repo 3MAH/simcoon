@@ -111,12 +111,12 @@ ReturnMappingResult closest_point_return_mapping(
 
     // Tangent ingredients at the converged iterate from the pieces the Newton just built
     // (kappa_eff = kappa + c: the multiplier-side state chain enters through the flux).
-    auto fill_tangent_pieces = [&](const mat &K, const std::vector<mat> &D, const std::vector<vec> &c) {
+    auto fill_tangent_pieces = [&](const mat &K, std::vector<mat> &&D, const std::vector<vec> &c) {
         r.Bhat_continuum.set_size(N, N);
         r.kappa_j.assign(kappa.begin(), kappa.end());
         for (int j = 0; j < N; j++) r.kappa_j[j] += c[j];
         r.dPhidsigma_l.assign(n_l.begin(), n_l.end());
-        r.dLambda_dsigma_l = D;
+        r.dLambda_dsigma_l = std::move(D);
         for (int l = 0; l < N; l++) {
             for (int j = 0; j < N; j++) {
                 r.Bhat_continuum(l, j) = sum(n_l[l] % r.kappa_j[j]) - K(l, j);
@@ -133,6 +133,7 @@ ReturnMappingResult closest_point_return_mapping(
     }
 
     const int snap_niter = 20;   // plain Newton gets this many iterations before the snap may act
+    r.error_history.reserve(8);  // a converging solve takes a handful of iterations
 
     // buffers sized once; M factorized on the stack (small_lu)
     std::vector<vec> c(N, zeros(6));
@@ -183,7 +184,7 @@ ReturnMappingResult closest_point_return_mapping(
         r.error_history.push_back(err);
         r.error = err;
         if (err < precision) {
-            fill_tangent_pieces(K, D_j, c);
+            fill_tangent_pieces(K, std::move(D_j), c);
             r.converged = true;
             return r;
         }

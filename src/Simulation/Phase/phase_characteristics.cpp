@@ -192,18 +192,11 @@ void phase_characteristics::to_start()
 {
     
     switch (sv_type) {
-        case 1: {
-            auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
-            auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_g->to_start();
-            sv_M_l->to_start();
-            break;
-        }
+        case 1:
         case 2: {
-            auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
-            auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_g->to_start();
-            sv_T_l->to_start();
+            //virtual: the rollback of state_variables_M or state_variables_T
+            sptr_sv_global->to_start();
+            sptr_sv_local->to_start();
             break;
         }
         default: {
@@ -223,18 +216,11 @@ void phase_characteristics::set_start(const int &corate_type)
 //----------------------------------------------------------------------
 {
     switch (sv_type) {
-        case 1: {
-            auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
-            auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_g->set_start(corate_type);
-            sv_M_l->set_start(corate_type);
-            break;
-        }
+        case 1:
         case 2: {
-            auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
-            auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_g->set_start(corate_type);
-            sv_T_l->set_start(corate_type);
+            //virtual: the acceptance of state_variables_M or state_variables_T
+            sptr_sv_global->set_start(corate_type);
+            sptr_sv_local->set_start(corate_type);
             break;
         }
         default: {
@@ -255,15 +241,12 @@ void phase_characteristics::local2global()
     //Switch case for the state_variables type of the phase
     switch (sv_type) {
         case 1: {
-            auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
-            auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_g->rotate_l2g(*sv_M_l, sptr_matprops->frame());
+            //casts of the references: no shared_ptr copies (atomic counts) on this per-call path
+            dynamic_cast<state_variables_M&>(*sptr_sv_global).rotate_l2g(dynamic_cast<const state_variables_M&>(*sptr_sv_local), sptr_matprops->frame());
             break;
         }
         case 2: {
-            auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
-            auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_g->rotate_l2g(*sv_T_l, sptr_matprops->frame());
+            dynamic_cast<state_variables_T&>(*sptr_sv_global).rotate_l2g(dynamic_cast<const state_variables_T&>(*sptr_sv_local), sptr_matprops->frame());
             break;
         }
         default: {
@@ -281,15 +264,12 @@ void phase_characteristics::global2local()
     //Switch case for the state_variables type of the phase
     switch (sv_type) {
         case 1: {
-            auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
-            auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_l->rotate_g2l(*sv_M_g, sptr_matprops->frame());
+            //casts of the references: no shared_ptr copies (atomic counts) on this per-call path
+            dynamic_cast<state_variables_M&>(*sptr_sv_local).rotate_g2l(dynamic_cast<const state_variables_M&>(*sptr_sv_global), sptr_matprops->frame());
             break;
         }
         case 2: {
-            auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
-            auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_l->rotate_g2l(*sv_T_g, sptr_matprops->frame());
+            dynamic_cast<state_variables_T&>(*sptr_sv_local).rotate_g2l(dynamic_cast<const state_variables_T&>(*sptr_sv_global), sptr_matprops->frame());
             break;
         }
         default: {
@@ -589,7 +569,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
         }
         *sptr_out_global << endl;
         
-        for(auto r : sub_phases) {
+        for(auto &r : sub_phases) {
             r.output(so, kblock, kcycle, kstep, kinc, Time, "global");
         }
     }
@@ -796,7 +776,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
         }
         *sptr_out_local << endl;
         
-        for(auto r : sub_phases) {
+        for(auto &r : sub_phases) {
             r.output(so, kblock, kcycle, kstep, kinc, Time, "local");
         }
         
@@ -821,7 +801,7 @@ ostream& operator << (ostream& s, const phase_characteristics& pc)
     s << "Display local state variables:\n";
     s << *pc.sptr_sv_local;
     
-    for(auto r : pc.sub_phases) {
+    for(const auto &r : pc.sub_phases) {
         s << r;
     }
     

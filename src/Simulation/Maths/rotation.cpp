@@ -731,8 +731,7 @@ vec Rotation::apply_stress(const vec& sigma, bool active) const {
     if (sigma.n_elem != 6) {
         throw invalid_argument("Stress vector must have 6 elements");
     }
-    mat R = as_matrix();
-    mat vs = fill_voigt_stress(R, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(as_matrix(), active);
     return vs * sigma;
 }
 
@@ -747,8 +746,7 @@ vec Rotation::apply_strain(const vec& epsilon, bool active) const {
     if (epsilon.n_elem != 6) {
         throw invalid_argument("Strain vector must have 6 elements");
     }
-    mat R = as_matrix();
-    mat ve = fill_voigt_strain(R, active);
+    const mat::fixed<6,6> ve = fill_voigt_strain(as_matrix(), active);
     return ve * epsilon;
 }
 
@@ -763,9 +761,10 @@ mat Rotation::apply_stiffness(const mat& L, bool active) const {
     if (L.n_rows != 6 || L.n_cols != 6) {
         throw invalid_argument("Stiffness matrix must be 6x6");
     }
-    mat R = as_matrix();
-    mat vs = fill_voigt_stress(R, active);
-    return vs * (L * trans(vs));
+    // fixed-size operator and inner product (no heap temporaries), same association
+    const mat::fixed<6,6> vs = fill_voigt_stress(as_matrix(), active);
+    const mat::fixed<6,6> tmp = L * trans(vs);
+    return vs * tmp;
 }
 
 mat::fixed<6,6> Rotation::apply_compliance(const mat::fixed<6,6>& M, bool active) const {
@@ -779,9 +778,9 @@ mat Rotation::apply_compliance(const mat& M, bool active) const {
     if (M.n_rows != 6 || M.n_cols != 6) {
         throw invalid_argument("Compliance matrix must be 6x6");
     }
-    mat R = as_matrix();
-    mat ve = fill_voigt_strain(R, active);
-    return ve * (M * trans(ve));
+    const mat::fixed<6,6> ve = fill_voigt_strain(as_matrix(), active);
+    const mat::fixed<6,6> tmp = M * trans(ve);
+    return ve * tmp;
 }
 
 mat::fixed<6,6> Rotation::apply_strain_concentration(const mat::fixed<6,6>& A, bool active) const {
@@ -796,10 +795,11 @@ mat Rotation::apply_strain_concentration(const mat& A, bool active) const {
     if (A.n_rows != 6 || A.n_cols != 6) {
         throw invalid_argument("Strain concentration tensor must be 6x6");
     }
-    mat R = as_matrix();
-    mat ve = fill_voigt_strain(R, active);
-    mat vs = fill_voigt_stress(R, active);
-    return ve * (A * trans(vs));
+    const mat::fixed<3,3> R = as_matrix();
+    const mat::fixed<6,6> ve = fill_voigt_strain(R, active);
+    const mat::fixed<6,6> vs = fill_voigt_stress(R, active);
+    const mat::fixed<6,6> tmp = A * trans(vs);
+    return ve * tmp;
 }
 
 mat::fixed<6,6> Rotation::apply_stress_concentration(const mat::fixed<6,6>& B, bool active) const {
@@ -814,10 +814,11 @@ mat Rotation::apply_stress_concentration(const mat& B, bool active) const {
     if (B.n_rows != 6 || B.n_cols != 6) {
         throw invalid_argument("Stress concentration tensor must be 6x6");
     }
-    mat R = as_matrix();
-    mat vs = fill_voigt_stress(R, active);
-    mat ve = fill_voigt_strain(R, active);
-    return vs * (B * trans(ve));
+    const mat::fixed<3,3> R = as_matrix();
+    const mat::fixed<6,6> vs = fill_voigt_stress(R, active);
+    const mat::fixed<6,6> ve = fill_voigt_strain(R, active);
+    const mat::fixed<6,6> tmp = B * trans(ve);
+    return vs * tmp;
 }
 
 // =============================================================================

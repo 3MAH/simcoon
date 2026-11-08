@@ -131,7 +131,7 @@ void get_L_elastic(phase_characteristics &rve)
                 }
                 Lt_Self_Consistent(rve, n_matrix, false, self_consistent_start(rve));
                 umat_M->Lt = zeros(6,6);
-                for (auto r : rve.sub_phases) {
+                for (auto &r : rve.sub_phases) {
                     umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
                     umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
                 }
@@ -190,7 +190,7 @@ void get_L_elastic(phase_characteristics &rve)
 
             // Compute the effective tangent modulus, and the effective stress
             umat_M->Lt = zeros(6,6);
-            for (auto r : rve.sub_phases) {
+            for (auto &r : rve.sub_phases) {
                 umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
                 umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
             }

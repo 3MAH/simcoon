@@ -544,6 +544,24 @@ def test_closest_point_integrator_is_accepted_everywhere():
     np.testing.assert_allclose(out[1][0], out[0][0], rtol=1e-7, atol=1e-7)
 
 
+def test_too_few_statev_names_the_law():
+    """A statev index past nstatev in a legacy kernel is reported as ValueError naming the law and
+    the likely cause, not as Armadillo's bare bounds error (the modular adapter checks upfront);
+    small-strain and finite-strain dispatch, and a sub-phase of a mean-field scheme."""
+    step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
+    with pytest.raises(ValueError, match="umat EPICP: .*nstatev = 1 "):
+        solve(step, "EPICP", EPICP_PROPS, 1, T_init=290.0)
+    with pytest.raises(ValueError, match="umat EPICP: .*nstatev = 1 "):
+        solve(Block(steps=[step], control_type="logarithmic"), "EPICP", EPICP_PROPS, 1, T_init=290.0)
+    from simcoon.solver.micromechanics import Ellipsoid
+    phases = [Ellipsoid(number=0, umat_name="ELISO", concentration=0.7, nstatev=1, props=np.array([2250.0, 0.19, 8.8e-5])),
+              Ellipsoid(number=1, umat_name="EPICP", concentration=0.3, nstatev=1, props=np.array(EPICP_PROPS), a1=2.0)]
+    with pytest.raises(ValueError, match="umat EPICP: .*nstatev = 1 "):
+        solve(step, "MIMTN", [20, 20, 0], 1, T_init=290.0, phases=phases)
+    # the right count runs
+    assert_ran_and_responded(solve(step, "EPICP", EPICP_PROPS, EPICP_NSTATEV, T_init=290.0))
+
+
 def test_integrator_and_tangent_choices_are_checked():
     step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
     args = (step, "EPICP", EPICP_PROPS, EPICP_NSTATEV)

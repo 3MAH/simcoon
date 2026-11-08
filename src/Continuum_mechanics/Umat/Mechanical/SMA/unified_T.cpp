@@ -266,9 +266,9 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
     vec lambdaTR = -1.*ETMean;
 
-    //Definition of the modified Y function
-    double YtF = Y0t + D*Hcur*Mises_stress(stress);
-    double YtR = Y0t + D*sum(stress%ETMean);
+    //Modified Y functions, Lagrange multipliers and criteria: set by the transformation loop before any use
+    double YtF = 0.;
+    double YtR = 0.;
 
     double HfF = 0.;
     double HfR = 0.;
@@ -304,9 +304,9 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         }
     }
 
-    //Set the Lagrange multiplliers due to Physical limitations
-    double lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-    double lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    //Lagrange multiplliers due to Physical limitations
+    double lambda0 = 0.;
+    double lambda1 = 0.;
 
     //Define the value of DM_sig
     vec DM_sig = (DM*stress_start);
@@ -320,14 +320,8 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     double A_xiR_start = -1.*rhoDs0*(T) + rhoDE0 - 0.5*sum(stress_start%DM_sig) - sum(stress_start%Dalpha)*(T-T_init) + HfR;
 
     //Transformation criteria
-    double PhihatF;
-    if (aniso_criteria) {
-        PhihatF = Hcur*Drucker_ani_stress(stress, DFA_params, prager_b, prager_n);
-    }
-    else {
-        PhihatF = Hcur*Drucker_stress(stress, prager_b, prager_n);
-    }
-    double PhihatR = sum(stress%ETMean);
+    double PhihatF = 0.;
+    double PhihatR = 0.;
 
     //Variables required for the loop
     vec s_j = zeros(2);
@@ -541,14 +535,22 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         L = inv_cubic(M_eff);
 
         DM_sig = DM*stress;
-        Dalpha_T = Dalpha*(T+DT-T_init);
 
+        // equivalent stresses and gradients at the current stress, shared below (Dalpha_T is loop-invariant)
+        const double sig_eq = Mises_stress(stress);
+        const vec eta_sig = eta_stress(stress);
+        double Dr_sig;
+        vec dDr_sig;
         if (aniso_criteria) {
-            lambdaTF = Hcur * dDrucker_ani_stress(stress, DFA_params, prager_b, prager_n);
+            Dr_sig = Drucker_ani_stress(stress, DFA_params, prager_b, prager_n);
+            dDr_sig = dDrucker_ani_stress(stress, DFA_params, prager_b, prager_n);
         }
         else {
-            lambdaTF = Hcur * dDrucker_stress(stress, prager_b, prager_n);
+            Dr_sig = Drucker_stress(stress, prager_b, prager_n);
+            dDr_sig = dDrucker_stress(stress, prager_b, prager_n);
         }
+
+        lambdaTF = Hcur * dDr_sig;
         lambdaTR = -1. * ETMean;
 
         kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
@@ -586,23 +588,18 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         }
 
         // Find Hcur explicit
-        if (Mises_stress(stress) > sigmacrit)
-            sigmastar = Mises_stress(stress) - sigmacrit;
+        if (sig_eq > sigmacrit)
+            sigmastar = sig_eq - sigmacrit;
         else
             sigmastar = 0.;
 
         Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
 
         //Forward transformation thermodynamic force
-        if (aniso_criteria) {
-            PhihatF = Hcur*Drucker_ani_stress(stress, DFA_params, prager_b, prager_n);
-        }
-        else {
-            PhihatF = Hcur*Drucker_stress(stress, prager_b, prager_n);
-        }
+        PhihatF = Hcur*Dr_sig;
         A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%DM_sig) + sum(stress%Dalpha)*(T + DT - T_init) - HfF;
         lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        const double DHM = D*Hcur*Mises_stress(stress);
+        const double DHM = D*Hcur*sig_eq;
         YtF = Y0t + DHM;
         Phi(0) = PhihatF + A_xiF - lambda1 - YtF;
 
@@ -644,27 +641,22 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             }
         }
 
-        dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_stress(stress);
+        dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_sig;
 
         //Related to forward transformation
-        if (aniso_criteria) {
-            dPhihatFdsigma = dHcurdsigma * Drucker_ani_stress(stress, DFA_params, prager_b, prager_n) + Hcur * dDrucker_ani_stress(stress, DFA_params, prager_b, prager_n);
-        }
-        else {
-            dPhihatFdsigma = dHcurdsigma * Drucker_stress(stress, prager_b, prager_n) + Hcur * dDrucker_stress(stress, prager_b, prager_n);
-        }
+        dPhihatFdsigma = dHcurdsigma * Dr_sig + Hcur * dDr_sig;
         dPhihatFdxiF = 0.;
         dPhihatFdxiR = 0.;
 
-        dA_xiFdsigma = DM_sig + Dalpha*(T+DT-T_init);
+        dA_xiFdsigma = DM_sig + Dalpha_T;
         dA_xiFdxiF = -dHfF;
         dA_xiFdxiR = dHfF;
 
         dlambda1dsigma = zeros(6);
         dlambda1dxiF = dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        dlambda1dxiR = -1.*dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+        dlambda1dxiR = -1.*dlambda1dxiF;
 
-        dYtFdsigma = D*(dHcurdsigma * Mises_stress(stress) + Hcur * eta_stress(stress));
+        dYtFdsigma = D*(dHcurdsigma * sig_eq + Hcur * eta_sig);
         dYtFdxiF = 0.;
         dYtFdxiR = 0.;
 
@@ -674,13 +666,13 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
         //Relative to reverse transformation
         dPhihatRdsigma = ETMean;
-        dA_xiRdsigma = -1.*DM_sig -1.*Dalpha*(T+DT-T_init);
+        dA_xiRdsigma = -1.*DM_sig - Dalpha_T;
         dA_xiRdxiF =  dHfR;
         dA_xiRdxiR = -dHfR;
 
         dlambda0dsigma = zeros(6);
-        dlambda0dxiF = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        dlambda0dxiR =     dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+        dlambda0dxiR = dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+        dlambda0dxiF = -1.*dlambda0dxiR;
 
         dYtRdsigma = D*ETMean;
         dPhiRdsigma = -1.*dPhihatRdsigma + dA_xiRdsigma + dlambda0dsigma - dYtRdsigma;
