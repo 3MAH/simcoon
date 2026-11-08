@@ -30,6 +30,7 @@
 #include <vector>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Simulation/Maths/lanes.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 using namespace std;
@@ -202,21 +203,7 @@ void calG(const double &pt, const double &a1, const double &a2, const double &a3
 //Voigt index of the pair (i,j)
 static const int Voigt_index[3][3] = {{0,3,4},{3,1,5},{4,5,2}};
 
-// two rows of G per operation (vector type on GCC/Clang, else a pair); each lane runs the scalar expressions
-#if defined(__GNUC__) || defined(__clang__)
-typedef double lane2 __attribute__((vector_size(16)));
-static inline lane2 lanes(const double &a, const double &b) { lane2 r = {a, b}; return r; }
-static inline lane2 mul(const lane2 &a, const lane2 &b) { return a*b; }
-static inline lane2 mul_add(const lane2 &a, const lane2 &b, const lane2 &c) { return a*b + c; }
-#else
-struct lane2 {
-    double v[2];
-    double operator[](int i) const { return v[i]; }
-};
-static inline lane2 lanes(const double &a, const double &b) { lane2 r = {{a, b}}; return r; }
-static inline lane2 mul(const lane2 &a, const lane2 &b) { lane2 r = {{a.v[0]*b.v[0], a.v[1]*b.v[1]}}; return r; }
-static inline lane2 mul_add(const lane2 &a, const lane2 &b, const lane2 &c) { lane2 r = {{a.v[0]*b.v[0] + c.v[0], a.v[1]*b.v[1] + c.v[1]}}; return r; }
-#endif
+// two rows of G per operation: lane2 of lanes.hpp, each lane runs the scalar expressions
 
 // sum of calG in the per-entry operation order of the point loop (bitwise); sin/cos hoisted, two rows of G at a time
 void Gauss(const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)

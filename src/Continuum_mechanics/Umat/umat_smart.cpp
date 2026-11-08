@@ -23,6 +23,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <stdexcept>
 #include <fstream>
 #include <assert.h>
 #include <string.h>
@@ -931,30 +932,46 @@ bool select_condensed(phase_characteristics &rve, const condensed_state &cs, boo
 
 }  // namespace
 
+// A statev index past nstatev surfaces as Armadillo's bounds error: name the law and the likely cause
+[[noreturn]] static void rethrow_statev_bounds(const std::out_of_range &e, const phase_characteristics &rve)
+{
+    throw std::invalid_argument("umat " + rve.sptr_matprops->umat_name + ": " + e.what() + " (nstatev = "
+                                + std::to_string(rve.sptr_sv_global->nstatev)
+                                + " is most likely too small for this law: see the statev layout in its header)");
+}
+
 void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
-    if (ndi == 3) {
-        select_umat_M_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-        return;
+    try {
+        if (ndi == 3) {
+            select_umat_M_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            return;
+        }
+        const condensed_state cs = make_condensed_state(ndi, nshr);
+        auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
+        if (select_condensed(rve, cs, start, tnew_dt, sv->Lt,
+                             [&](bool &st, double &tn) { select_umat_M_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
+            condense_tangent(cs, sv->Lt);
+    } catch (const std::out_of_range &e) {
+        rethrow_statev_bounds(e, rve);
     }
-    const condensed_state cs = make_condensed_state(ndi, nshr);
-    auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
-    if (select_condensed(rve, cs, start, tnew_dt, sv->Lt,
-                         [&](bool &st, double &tn) { select_umat_M_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
-        condense_tangent(cs, sv->Lt);
 }
 
 void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
-    if (ndi == 3) {
-        select_umat_T_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-        return;
+    try {
+        if (ndi == 3) {
+            select_umat_T_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            return;
+        }
+        const condensed_state cs = make_condensed_state(ndi, nshr);
+        auto sv = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
+        if (select_condensed(rve, cs, start, tnew_dt, sv->dSdE,
+                             [&](bool &st, double &tn) { select_umat_T_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
+            condense_tangent_T(cs, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT);
+    } catch (const std::out_of_range &e) {
+        rethrow_statev_bounds(e, rve);
     }
-    const condensed_state cs = make_condensed_state(ndi, nshr);
-    auto sv = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
-    if (select_condensed(rve, cs, start, tnew_dt, sv->dSdE,
-                         [&](bool &st, double &tn) { select_umat_T_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
-        condense_tangent_T(cs, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT);
 }
 
 void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt)
@@ -971,7 +988,11 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
             break;
         }
         case 2: case 3: case 4: case 5: case 6: {
-            select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt);
+            try {
+                select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt);
+            } catch (const std::out_of_range &e) {
+                rethrow_statev_bounds(e, rve);
+            }
             break;
         }
         default: {
@@ -994,7 +1015,11 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
             break;
         }
         case 2: case 3: case 4: case 5: case 6: {
-            select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt, material_tangent);
+            try {
+                select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt, material_tangent);
+            } catch (const std::out_of_range &e) {
+                rethrow_statev_bounds(e, rve);
+            }
             break;
         }
         default: {

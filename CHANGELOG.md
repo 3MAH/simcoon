@@ -31,6 +31,20 @@ Known gaps and planned work, not yet in a release. An item moves to
   (kappa, dPhi/dsigma, dLambda/dsigma): every MODUL tangent copies the 6x6 flow Hessians to the heap, the
   largest remaining allocation source in MODUL plasticity. Fixed-size or view-based arguments
   need an API change of `assemble_*_tangent`.
+- The perf kernels of 2.3 reproduce Armadillo's rounding so that the solver dumps stay
+  bit-for-bit (`dot_voigt` with the two interleaved partial sums of `accu` in `contimech.cpp`;
+  `trace`, `powmat(X, 2)` and the I2 block split around `gamma_11` in `hyperelastic.cpp`;
+  `a*Ivol + b*X` entry by entry in `constitutive.cpp`; the `calG` summation order in
+  `eshelby.cpp`). Once the perf pull requests are merged, these get their natural form: the
+  invariants of `contimech.cpp` (Mises, J2, norms, eta flows) and `batch_mises` share one scalar
+  kernel on the engineering-Voigt self-contraction, dispatched on `Tensor2Type` (shear weight 2
+  for a stress, 1/2 for a strain, declared once next to `mandel_factors`), without building a
+  `tensor2`; the `vdev`/`vdev2` pair disappears. The gate becomes `dump_results.py compare` /
+  `regression_baseline.py --compare` with an absolute tolerance scaled to each table (Q and r
+  of the SMA_T laws are differences of large terms), the zero-tolerance pass staying available
+  to pin a defect. The Fastor to Armadillo rewrite starts
+  under this relaxed policy. `mul6`/`mul66` keep their fixed order: they replace the BLAS, they
+  do not imitate it.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
@@ -143,6 +157,10 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Fixed
 
+- A legacy kernel given too few state variables (`EPICP` with `nstatev = 1`, alone or as the
+  sub-phase of a mean-field scheme) failed with Armadillo's bare `Mat::operator(): index out of
+  bounds`: the UMAT dispatch now raises `std::invalid_argument` (`ValueError`) naming the law and
+  its `nstatev`, as the modular adapter already did upfront.
 - An invalid elastic convention ended the process with `exit(0)` (`M_iso`, `L_cubic`, `M_cubic`,
   `L_ortho`, `M_ortho`, `L_isotrans`, `M_isotrans`; from Python the interpreter quit with a success
   code) or, in `L_iso`, returned a zero stiffness: they now throw `std::invalid_argument`

@@ -785,19 +785,6 @@ inline m33 unit_strain_tensor(const int j) {
     return e;
 }
 
-<<<<<<< Updated upstream
-=======
-// Q^T e_j Q for the unit strain e_j of unit_strain_tensor, from two rows of Q (e_j has one or two entries)
-inline m33 congruence_unit_strain(const m33 &Q, const int j) {
-    const int a = vi[j], b = vj[j];
-    m33 D;
-    for (int l = 0; l < 3; ++l)
-        for (int k = 0; k < 3; ++k)
-            D(k, l) = (j < 3) ? Q(a, k)*Q(a, l) : 0.5*(Q(a, k)*Q(b, l) + Q(b, k)*Q(a, l));
-    return D;
-}
-
->>>>>>> Stashed changes
 // y = Lt t2v_strain(e)
 inline void box_apply(const arma::mat::fixed<6,6> &Lt, const m33 &e, double y[6]) {
     const double x[6] = {e(0,0), e(1,1), e(2,2), e(0,1) + e(1,0), e(0,2) + e(2,0), e(1,2) + e(2,1)};

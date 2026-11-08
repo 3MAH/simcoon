@@ -36,7 +36,7 @@ namespace simcoon{
 namespace {
 
 // dev(vec) of a Voigt 6-vector and its partner with shears scaled by s_shear (2 stress, 0.5 strain)
-inline void dev_voigt(const vec &v, const double &s_shear, double d[6], double d2[6]) {
+inline void dev_voigt(const vec &v, const double &s_shear, double *d, double *d2) {
     const double sph = (1./3.)*(v(0) + v(1) + v(2));
     for (int i=0; i<3; i++) {
         d[i] = v(i) - sph;
@@ -49,15 +49,15 @@ inline void dev_voigt(const vec &v, const double &s_shear, double d[6], double d
 }
 
 // v and its partner with shears scaled by s_shear (2 stress, 0.5 strain)
-inline void shear_scaled(const vec &v, const double &s_shear, double v1[6], double v2[6]) {
+inline void shear_scaled(const vec &v, const double &s_shear, double *v1, double *v2) {
     for (int i=0; i<6; i++) {
         v1[i] = v(i);
         v2[i] = (i < 3) ? v1[i] : s_shear*v1[i];
     }
 }
 
-// sum(a % b) with the two interleaved partial sums of Armadillo's dot (same rounding as sum())
-inline double dot_voigt(const double a[6], const double b[6]) {
+// sum(a % b) on 6 entries, in the accumulation order of Armadillo's accu (two interleaved partial sums)
+inline double dot_voigt(const double *a, const double *b) {
     double val1 = 0.;
     double val2 = 0.;
     for (int i=0; i<6; i+=2) {
@@ -413,7 +413,7 @@ mat p_ikjl(const vec &a) {
 	return F;
 }
 
-// outer product entry by entry: one rounded product per entry, as the rank-one BLAS call
+// rank-one product by hand: no BLAS dispatch for 36 multiplications
 static mat outer_voigt(const vec &a, const vec &b) {
     mat C(6, 6, fill::none);
     for (int j=0; j<6; j++) {

@@ -26,7 +26,6 @@
 #include <assert.h>
 #include <armadillo>
 #include <memory>
-#include <cstring>
 #include <vector>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
@@ -56,26 +55,6 @@ static const eshelby_quadrature &scheme_quadrature(const phase_characteristics &
                                      opt.rule, opt.closed_form == 1);
 }
 
-//inv(sumT) memoised per thread on the bits of the last sumT: the localization and tangent passes of an
-//unchanged medium share it (inv throws on a singular sumT, nothing stored then)
-static void inv_sumT_memoized(const mat &sumT, mat &inv_sumT)
-{
-    thread_local bool valid = false;
-    thread_local double key[36];
-    thread_local double value[36];
-    if (valid && sumT.n_elem == 36 && std::memcmp(key, sumT.memptr(), sizeof(key)) == 0) {
-        inv_sumT.set_size(6,6);
-        std::memcpy(inv_sumT.memptr(), value, sizeof(value));
-        return;
-    }
-    inv_sumT = inv(sumT);
-    if (sumT.n_elem == 36) {
-        std::memcpy(key, sumT.memptr(), sizeof(key));
-        std::memcpy(value, inv_sumT.memptr(), sizeof(value));
-        valid = true;
-    }
-}
-
 void Lt_Homogeneous_E(phase_characteristics &phase) {
     
     //Compute the strain concentration tensor A
@@ -97,8 +76,10 @@ void DE_Homogeneous_E(phase_characteristics &phase) {
     }
 }
 
-void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
-    
+// Mori-Tanaka localization: T of each sub-phase (identity for the matrix, one Eshelby integration
+// per distinct geometry: eshelby_memo), A = T inv(sum c_r T_r); with_DEtot also sets DEtot = A DEtot_eff
+static void Mori_Tanaka_localization(phase_characteristics &phase, const int &n_matrix, const bool iso, const bool with_DEtot, const char *where) {
+
     mat::fixed<6,6> sumT(fill::zeros);
     mat::fixed<6,6> inv_sumT(fill::zeros);
 
@@ -106,183 +87,59 @@ void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
     std::shared_ptr<ellipsoid> elli;
     //ptr on the matrix properties
     std::shared_ptr<state_variables_M> sv_0 = std::dynamic_pointer_cast<state_variables_M>(phase.sub_phases[n_matrix].sptr_sv_global);
-    std::shared_ptr<state_variables_M> sv_eff = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local);
     std::shared_ptr<state_variables_M> sv_r;
-    
-    //Compute the Eshelby tensor and the interaction tensor for each phase
-    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
+
+    //Note The tangent modulus are turned in the coordinate system of the ellipsoid in the fillT function
     eshelby_memo memo;
     const eshelby_quadrature &quad = scheme_quadrature(phase);
     for(auto &r : phase.sub_phases) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
         elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
         sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-        
-        //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
-        //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
+
         if (r.sptr_matprops->number == n_matrix)
             elli_multi->T.eye(6,6);
+        else if (iso)
+            elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
         else
             elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
 
-        //Compute the normalization interaction tensir sumT
-		sumT += elli->concentration*elli_multi->T;
+        sumT += elli->concentration*elli_multi->T;
     }
 
     try {
-        inv_sumT_memoized(sumT, inv_sumT);
-      } catch (const std::runtime_error &e) {
+        inv_sumT = inv(sumT);
+    } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside Lt_Mori_Tanaka.");
-      }    
+        throw simcoon::exception_inv(std::string("Error in inv function inside ") + where + ".");
+    }
 
     //Compute the strain concentration tensor A
+    std::shared_ptr<state_variables_M> sv_eff = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local);
     for(auto &r : phase.sub_phases) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
         elli_multi->A = elli_multi->T*inv_sumT;
+        if (with_DEtot) {
+            sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
+            sv_r->DEtot = elli_multi->A*sv_eff->DEtot; //Recall that the global coordinates of subphases is the local coordinates of the generic phase
+        }
     }
+}
+
+void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
+    Mori_Tanaka_localization(phase, n_matrix, false, false, "Lt_Mori_Tanaka");
 }
 
 void Lt_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
-    
-    mat::fixed<6,6> sumT(fill::zeros);
-    mat::fixed<6,6> inv_sumT(fill::zeros);
-    
-    std::shared_ptr<ellipsoid_multi> elli_multi;
-    std::shared_ptr<ellipsoid> elli;
-    //ptr on the matrix properties
-    std::shared_ptr<state_variables_M> sv_0 = std::dynamic_pointer_cast<state_variables_M>(phase.sub_phases[n_matrix].sptr_sv_global);
-    std::shared_ptr<state_variables_M> sv_eff = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local);
-    std::shared_ptr<state_variables_M> sv_r;
-    
-    //Compute the Eshelby tensor and the interaction tensor for each phase
-    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
-    eshelby_memo memo;
-    const eshelby_quadrature &quad = scheme_quadrature(phase);
-    for(auto &r : phase.sub_phases) {
-        elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
-        elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
-        sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-        
-        //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
-        //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
-        if (r.sptr_matprops->number == n_matrix)
-            elli_multi->T.eye(6,6);
-        else
-            elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
-        
-        //Compute the normalization interaction tensir sumT
-        sumT += elli->concentration*elli_multi->T;
-    }
-
-    try {
-        inv_sumT_memoized(sumT, inv_sumT);
-      } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside Lt_Mori_Tanaka_iso.");
-      }        
-    
-    //Compute the strain concentration tensor A
-    for(auto &r : phase.sub_phases) {
-        elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
-        elli_multi->A = elli_multi->T*inv_sumT;
-    }
+    Mori_Tanaka_localization(phase, n_matrix, true, false, "Lt_Mori_Tanaka_iso");
 }
-    
-void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
-    
-    mat::fixed<6,6> sumT(fill::zeros);
-    mat::fixed<6,6> inv_sumT(fill::zeros);
-    
-    std::shared_ptr<ellipsoid_multi> elli_multi;
-    std::shared_ptr<ellipsoid> elli;
-    //ptr on the matrix properties
-    std::shared_ptr<state_variables_M> sv_0 = std::dynamic_pointer_cast<state_variables_M>(phase.sub_phases[n_matrix].sptr_sv_global);
-    std::shared_ptr<state_variables_M> sv_eff = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local);
-    std::shared_ptr<state_variables_M> sv_r;
-    
-    //Compute the Eshelby tensor and the interaction tensor for each phase
-    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
-    eshelby_memo memo;
-    const eshelby_quadrature &quad = scheme_quadrature(phase);
-    for(auto &r : phase.sub_phases) {
-        elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
-        elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
-        sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-        
-        //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
-        if (r.sptr_matprops->number == n_matrix)
-            elli_multi->T.eye(6,6);
-        else
-            elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
 
-        //Compute the normalization interaction tensir sumT
-        sumT += elli->concentration*elli_multi->T;
-    }
-    
-    try {
-        inv_sumT_memoized(sumT, inv_sumT);
-      } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside DE_Mori_Tanaka.");
-      }   
-    
-    //Compute the strain concentration tensor A
-    for(auto &r : phase.sub_phases) {
-        elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
-        sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-        
-        elli_multi->A = elli_multi->T*inv_sumT;
-        sv_r->DEtot = elli_multi->A*sv_eff->DEtot; //Recall that the global coordinates of subphases is the local coordinates of the generic phase
-    }
+void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
+    Mori_Tanaka_localization(phase, n_matrix, false, true, "DE_Mori_Tanaka");
 }
 
 void DE_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
-    
-    mat::fixed<6,6> sumT(fill::zeros);
-    mat::fixed<6,6> inv_sumT(fill::zeros);
-    
-    std::shared_ptr<ellipsoid_multi> elli_multi;
-    std::shared_ptr<ellipsoid> elli;
-    //ptr on the matrix properties
-    std::shared_ptr<state_variables_M> sv_0 = std::dynamic_pointer_cast<state_variables_M>(phase.sub_phases[n_matrix].sptr_sv_global);
-    std::shared_ptr<state_variables_M> sv_eff = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local);
-    std::shared_ptr<state_variables_M> sv_r;
-    
-    //Compute the Eshelby tensor and the interaction tensor for each phase
-    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
-    eshelby_memo memo;
-    const eshelby_quadrature &quad = scheme_quadrature(phase);
-    for(auto &r : phase.sub_phases) {
-        elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
-        elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
-        sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-        
-        //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
-        if (r.sptr_matprops->number == n_matrix)
-            elli_multi->T.eye(6,6);
-        else
-            elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli, quad, &memo);
-        
-        //Compute the normalization interaction tensir sumT
-        sumT += elli->concentration*elli_multi->T;
-    }
-    
-    try {
-        inv_sumT_memoized(sumT, inv_sumT);
-      } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside DE_Mori_Tanaka_iso.");
-      }   
-    
-    //Compute the strain concentration tensor A
-    for(auto &r : phase.sub_phases) {
-        elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
-        sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-        
-        elli_multi->A = elli_multi->T*inv_sumT;
-        sv_r->DEtot = elli_multi->A*sv_eff->DEtot; //Recall that the global coordinates of subphases is the local coordinates of the generic phase
-    }
+    Mori_Tanaka_localization(phase, n_matrix, true, true, "DE_Mori_Tanaka_iso");
 }
     
 void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const bool &start, const int &option_start) {
