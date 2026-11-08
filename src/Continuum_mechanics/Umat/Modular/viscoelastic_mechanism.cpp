@@ -47,6 +47,7 @@ ViscoelasticMechanism::ViscoelasticMechanism(int N_prony)
     , kappa_t_(N_prony, tensor2::zeros(Tensor2Type::stress))
     , dEVtilde_dE_(arma::zeros(6, 6))
 {
+    L_0_.zeros(6, 6);   // until set_reference_stiffness: an unset reference spring is zero
 }
 
 void ViscoelasticMechanism::configure(const arma::vec& props, int& offset) {
@@ -142,9 +143,7 @@ void ViscoelasticMechanism::predict(const arma::vec& E_total_end, double DTime) 
     for (int i = 0; i < N_prony_; ++i) {
         EV_start[i] = ivc_.at(ev_index_[i]).raw_voigt_start();
     }
-    static const arma::mat zero_L0(6, 6, arma::fill::zeros);
-    const arma::mat& L0 = L_0_.is_empty() ? zero_L0 : L_0_;   // a reference: no 6x6 copy per call
-    const LinearViscoStep st = maxwell_parallel_step(L0, L_i_, H_i_, EV_start, E_total_end, arma::zeros(6), DTime);
+    const LinearViscoStep st = maxwell_parallel_step(L_0_, L_i_, H_i_, EV_start, E_total_end, arma::zeros(6), DTime);
     dEVtilde_dE_.zeros();
     for (int i = 0; i < N_prony_; ++i) {
         InternalVariable& ev = ivc_.at(ev_index_[i]);

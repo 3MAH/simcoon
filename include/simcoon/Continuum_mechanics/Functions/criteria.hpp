@@ -43,7 +43,10 @@ namespace simcoon
             \sigma^{P} = \sigma^{VM} \left(\frac{1 + b \cdot J_3 \left(\mathbf{\sigma} \right)}{\left(J_2 \left(\mathbf{\sigma} \right) \right)^{3/2} } \right)^{m}
         \f]
         considering the input stress \f$ \mathbf{\sigma} \f$, \f$ \mathbf{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
-        Note that if n > 10, the Drucker criteria is sufficiently close to the Mises that the Mises norm is used to avoid numerical instabilities from high-power computations
+        Two guards: below the floor \f$ \sigma^{VM} \le \f$ `iota` the invariants are roundoff and
+        \f$ 1 + b J_3 / J_2^{3/2} \f$ can leave its bounds (NaN), so the function returns 0; for
+        \f$ n \ge 10 \f$ the Drucker surface is close enough to von Mises that the Mises norm is
+        returned, avoiding the high-power evaluation.
      * @code
             vec sigma = randu(6);
             double b = 1.2;
@@ -65,7 +68,8 @@ namespace simcoon
             + b \, m \left( 6 J_2^2 \right) \left( 6 J_2 \mathbf{\sigma}' \cdot \mathbf{\sigma}' - 4 J_2^2 \mathbf{I} + \frac{3}{m-9} J_3 \mathbf{\sigma}' \right)
         \f]
      *   considering the input stress \f$ \mathbf{\sigma} \f$, \f$ \mathbf{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
-     *   Note that if n > 10, the Drucker criteria is sufficiently close to the Mises that the derivative of the Mises norm is used to avoid numerical instabilities from high-power computations
+     *   Two guards, as Drucker_stress(): below the floor \f$ \sigma^{VM} \le \f$ `iota` the function
+     *   returns zeros; for \f$ n \ge 10 \f$ it returns the gradient of the Mises norm (eta_stress()).
      * @code
             vec sigma = randu(6);
             double b = 1.2;

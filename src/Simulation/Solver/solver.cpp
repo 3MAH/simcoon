@@ -175,14 +175,9 @@ void restore_box_tangent(material_tangent_state &mt, simcoon::state_variables_M 
     mt.held = false;
 }
 
-// The rollback the Newton loops skip on their first trial (see the to_start calls below) relies
-// on this invariant: every attempt of an increment begins at the start state, the current fields
-// that to_start restores (PKII, tau, sigma, statev, and per type sigma_in, Wm, Wt; recursively in
-// the sub-phases) being bit for bit their *_start copies. set_start (the previous increment
-// accepted, or the priming call of a block) and assess_inc (set_start, or to_start on a cut, also
-// after a caught exception) both end there, and nothing in between writes those fields: the solver
-// only sets DEtot, Detot, DT, DR, F0, F1, U1 and Lt, and the sinks read. Debug check on the
-// global state variables.
+// Invariant behind the rollback the Newton loops skip on their first trial: every attempt begins at
+// the start state (set_start and assess_inc both end there, and the solver writes only the driving
+// fields in between), i.e. the fields to_start restores equal their *_start copies. Debug check.
 [[maybe_unused]] bool at_start_state(const simcoon::state_variables &sv) {
     auto same = [](const arma::mat &a, const arma::mat &b) {
         return a.n_elem == b.n_elem
@@ -609,8 +604,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         DTime = Dtinc*sptr_meca->times(inc);
                                         finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
                                     }
-                                    // no rve.to_start(): the single kernel call of this path is the first trial of the
-                                    // attempt, which begins at the start state (invariant: see at_start_state)
+                                    // no rve.to_start(): the single trial of this path begins at the start state (at_start_state)
                                     assert(at_start_state(*rve.sptr_sv_global));
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                                     if (!sv_M->tau.is_finite()) {   // non-finite answer: cut, or give up at Dn_mini
@@ -675,9 +669,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         else {
                                             finite_kinematics(*sv_M, blocks[i].control_type, sptr_meca->BC_w, sptr_meca->BC_R, DTime, corate_type, DR);
                                         }
-                                        // compteur counts the trials of this attempt (0 on entry, see the end of the
-                                        // attempt and step_cut_or_rethrow): the first one is already at the start
-                                        // state (invariant: see at_start_state), the next ones roll back
+                                        // first trial of the attempt (compteur 0): already at the start state (at_start_state)
                                         if (compteur > 0) {
                                             rve.to_start();
                                         }
@@ -1105,8 +1097,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         if (finite_ct)
                                             finite_kinematics(*sv_T, blocks[i].control_type, sptr_thermomeca->BC_w, sptr_thermomeca->BC_R, DTime, corate_type, DR);
                                         
-                                        // as the mechanical loop: the first trial of the attempt is at the start state
-                                        // (invariant: see at_start_state), the next ones roll back
+                                        // first trial of the attempt (compteur 0): already at the start state (at_start_state)
                                         if (compteur > 0) {
                                             rve.to_start();
                                         }

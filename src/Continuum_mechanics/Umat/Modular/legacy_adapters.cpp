@@ -202,11 +202,12 @@ void umat_legacy_modular(
     const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
     const int& tangent_mode, const int& ncp) {
 
-    // per-thread memo of the last (name, props) translation; the key is written last so a throw leaves no stale pair
+    // per-thread memo of the last (name, props) translation (plain std containers: no arma object
+    // outlives the call); the key is written last so a throw leaves no stale pair
     struct translation {
         std::string name;
         std::vector<double> props;
-        vec props_mod;
+        std::vector<double> props_mod;
     };
     thread_local translation last;
     const bool hit = !last.name.empty() && umat_name == last.name && props.n_elem == last.props.size()
@@ -218,13 +219,13 @@ void umat_legacy_modular(
             throw std::invalid_argument("umat_legacy_modular: no adapter registered for '"
                                      + umat_name + "'");
         }
-        vec props_mod = it->second(props);
+        const vec translated = it->second(props);
         last.name.clear();
         last.props.assign(props.begin(), props.end());
-        last.props_mod = std::move(props_mod);
+        last.props_mod.assign(translated.begin(), translated.end());
         last.name = umat_name;
     }
-    const vec& props_mod = last.props_mod;
+    const vec props_mod(const_cast<double*>(last.props_mod.data()), last.props_mod.size(), false, true);   // a view
     try {
         umat_modular(umat_name, Etot, DEtot, sigma, Lt, L, DR,
                      static_cast<int>(props_mod.n_elem), props_mod,

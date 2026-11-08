@@ -38,17 +38,12 @@ namespace {
 constexpr double drift_scale_floor = 1.0e-4;
 
 // HT = H.each_row() % T.t(), A = I + gamma HT in the expressions' order: bit-identical unless FMA crosses statements
-void fill_HT(const arma::mat& H, const arma::vec& T, arma::mat::fixed<6,6>& HT) {
-    for (arma::uword j = 0; j < 6; ++j) {
-        for (arma::uword i = 0; i < 6; ++i) {
-            HT(i, j) = H(i, j) * T(j);
-        }
-    }
-}
+constexpr double T_shear[6] = {1.0, 1.0, 1.0, 0.5, 0.5, 0.5};   // Ir05(): engineering -> tensorial shear
 
-void fill_I_plus_gamma(const arma::mat::fixed<6,6>& HT, double gamma, arma::mat::fixed<6,6>& A) {
+void fill_HT_and_A(const arma::mat& H, double gamma, arma::mat::fixed<6,6>& HT, arma::mat::fixed<6,6>& A) {
     for (arma::uword j = 0; j < 6; ++j) {
         for (arma::uword i = 0; i < 6; ++i) {
+            HT(i, j) = H(i, j) * T_shear[j];
             const double g = HT(i, j) * gamma;
             A(i, j) = ((i == j) ? 1.0 : 0.0) + g;
         }
@@ -254,7 +249,6 @@ bool PlasticityMechanism::refresh_state(
     const arma::vec& Ds_total,
     int offset) {
     const double dp = std::max(Ds_total(offset), 0.0);   // the integrator projects Ds >= 0 too
-    static const arma::vec T = Ir05();   // engineering -> tensorial shear
     const bool has_kin = kin_hard_->num_backstresses() > 0;
 
     auto& p_var = ivc_.at(p_index_);
@@ -265,7 +259,7 @@ bool PlasticityMechanism::refresh_state(
     double gamma = 0.0;
     arma::vec beta = arma::zeros(6);
     double sigma_eq = 0.0;
-    arma::mat H;
+    arma::mat::fixed<6,6> H;
     if (!has_kin) {
         xi = sigma;
         yield_->equivalent_stress_flow_hessian(xi, sigma_eq, n, H);
@@ -287,8 +281,7 @@ bool PlasticityMechanism::refresh_state(
             }
             kin_hard_->backward_euler_factors(dp, n, ivc_, gamma, beta);
             arma::mat::fixed<6,6> HT, A;
-            fill_HT(H, T, HT);
-            fill_I_plus_gamma(HT, gamma, A);   // I + gamma H T
+            fill_HT_and_A(H, gamma, HT, A);   // I + gamma H T
             small_lu<6> lu_A;   // on the stack: a LAPACK 6x6 solve per step otherwise
             if (!lu_A.factor(A)) {
                 return false;
@@ -317,13 +310,13 @@ bool PlasticityMechanism::refresh_state(
         return true;
     }
     arma::mat::fixed<6,6> HT, A;
-    fill_HT(H, T, HT);
-    fill_I_plus_gamma(HT, gamma, A);
+    fill_HT_and_A(H, gamma, HT, A);
     small_lu<6> lu_A;   // A = I + gamma H T on the stack: solves instead of a LAPACK inverse
     if (!lu_A.factor(A)) {
         return false;
     }
-    const arma::vec Tn = T % n;
+    arma::vec::fixed<6> Tn;
+    for (arma::uword i = 0; i < 6; ++i) Tn(i) = T_shear[i] * n(i);
     out.dLambda_dsigma = lu_A.solve(H);
     out.dPhi_dsigma = n - gamma * (out.dLambda_dsigma.t() * Tn);
     out.K = -arma::dot(Tn, lu_A.solve(beta)) - dR_dp;
@@ -441,18 +434,17 @@ void PlasticityMechanism::compute_work(
     double Dp = ivc_.at(p_index_).delta_scalar();
     const auto& EP_var = ivc_.at(EP_index_);
     if (Dp == 0.0) {
-        // DEP.is_zero() on the differences, before building DEP (a NaN difference is not zero)
+        // in place, before building DEP: a NaN difference counts as a move (as is_zero would)
         bool moved = false;
         for (arma::uword i = 0; i < 6 && !moved; ++i) {
-            const double d = EP_var.raw_voigt()(i) - EP_var.raw_voigt_start()(i);
-            moved = (d != 0.0);
+            moved = (EP_var.raw_voigt()(i) - EP_var.raw_voigt_start()(i)) != 0.0;
         }
         if (!moved) {
             Wm_r = Wm_ir = Wm_d = 0.0;   // both dots below would be (signed) zeros
             return;
         }
     }
-    arma::vec DEP = EP_var.delta_vec();
+    const arma::vec DEP = EP_var.delta_vec();
 
     // Average stress during increment
     arma::vec sigma_avg = 0.5 * (sigma_start + sigma);

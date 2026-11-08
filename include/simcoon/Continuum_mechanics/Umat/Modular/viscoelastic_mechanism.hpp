@@ -63,10 +63,9 @@ private:
     std::vector<arma::mat> H_i_;        ///< Branch viscosity tensors
     std::vector<arma::mat> M0_L_i_;     ///< Cached M_0 · L_i (for inelastic_strain)
 
-    arma::mat L_0_;                     ///< Reference stiffness, set by orchestrator
+    arma::mat L_0_;                     ///< Reference stiffness, set by orchestrator (zero until then)
 
-    // IVC keys, cached at register_variables (avoids string concatenation
-    // inside the FB hot loop).
+    // IVC keys of register_variables; the hot loop reads the variables by index
     std::vector<std::string> ev_key_;   ///< "EV_<i>" per branch
     std::vector<std::string> v_key_;    ///< "v_<i>" per branch
     std::vector<size_t> ev_index_;      ///< ivc_ index of "EV_<i>", resolved by register_variables

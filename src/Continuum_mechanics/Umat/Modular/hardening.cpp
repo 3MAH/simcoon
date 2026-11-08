@@ -41,33 +41,11 @@ auto& back_strain(Collection& ivc, size_t index, const std::string& key) {
     return ivc.at(index);
 }
 
-// tensor2::from_voigt(v, Tensor2Type::strain).mat()
-inline arma::mat::fixed<3,3> strain_mat(const arma::vec& v) {
-    if (v.n_elem != 6) {
-        throw std::invalid_argument("tensor2: expected 6-element vector, got " + std::to_string(v.n_elem));
-    }
-    arma::mat::fixed<3,3> m;
-    m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
-    m(0,1) = 0.5 * v(3); m(1,0) = 0.5 * v(3);
-    m(0,2) = 0.5 * v(4); m(2,0) = 0.5 * v(4);
-    m(1,2) = 0.5 * v(5); m(2,1) = 0.5 * v(5);
-    return m;
-}
-
-// tensor2(m, Tensor2Type::strain).voigt()
-inline void store_strain(const arma::mat::fixed<3,3>& m, arma::vec& v) {
-    v.set_size(6);
-    v(0) = m(0,0); v(1) = m(1,1); v(2) = m(2,2);
-    v(3) = m(0,1) + m(1,0);
-    v(4) = m(0,2) + m(2,0);
-    v(5) = m(1,2) + m(2,1);
-}
-
 // X = (2/3) C alpha, re-tagged STRESS through the 3x3: alpha is strain-typed (factor-2 shear),
 // so a strain-typed X would double-count the shear terms in sigma - X and X:n
 inline tensor2 backstress_of(double C, const arma::vec& a) {
     const double k = (2.0 / 3.0) * C;
-    arma::mat::fixed<3,3> X = strain_mat(a);
+    arma::mat::fixed<3,3> X = voigt_to_mat(a, Tensor2Type::strain);
     for (arma::uword i = 0; i < 9; ++i) {
         X(i) = X(i) * k;
     }
@@ -76,18 +54,18 @@ inline tensor2 backstress_of(double C, const arma::vec& a) {
 
 // alpha <- alpha_from + dp n
 inline void add_flow(const arma::vec& alpha_from, double dp, const tensor2& n, arma::vec& alpha) {
-    arma::mat::fixed<3,3> a = strain_mat(alpha_from);
+    arma::mat::fixed<3,3> a = voigt_to_mat(alpha_from, Tensor2Type::strain);
     const arma::mat::fixed<3,3>& nm = n.mat();
     for (arma::uword i = 0; i < 9; ++i) {
         const double t = nm(i) * dp;
         a(i) = a(i) + t;
     }
-    store_strain(a, alpha);
+    mat_to_voigt(a, Tensor2Type::strain, alpha);
 }
 
 // alpha <- alpha + dp (n - D alpha)
 inline void add_flow_recovery(InternalVariable& a_var, double dp, double D, const tensor2& n) {
-    arma::mat::fixed<3,3> a = strain_mat(a_var.raw_voigt());
+    arma::mat::fixed<3,3> a = voigt_to_mat(a_var.raw_voigt(), Tensor2Type::strain);
     const arma::mat::fixed<3,3>& nm = n.mat();
     for (arma::uword i = 0; i < 9; ++i) {
         const double t1 = a(i) * D;
@@ -95,19 +73,19 @@ inline void add_flow_recovery(InternalVariable& a_var, double dp, double D, cons
         const double t3 = t2 * dp;
         a(i) = a(i) + t3;
     }
-    store_strain(a, a_var.raw_voigt());
+    mat_to_voigt(a, Tensor2Type::strain, a_var.raw_voigt());
 }
 
 // alpha <- s (alpha_n + dp n), the Armstrong-Frederick backward-Euler closed form
 inline void refresh_from_start(InternalVariable& a_var, double dp, double s, const tensor2& n) {
-    arma::mat::fixed<3,3> a = strain_mat(a_var.raw_voigt_start());
+    arma::mat::fixed<3,3> a = voigt_to_mat(a_var.raw_voigt_start(), Tensor2Type::strain);
     const arma::mat::fixed<3,3>& nm = n.mat();
     for (arma::uword i = 0; i < 9; ++i) {
         const double t = nm(i) * dp;
         const double u = a(i) + t;
         a(i) = u * s;
     }
-    store_strain(a, a_var.raw_voigt());
+    mat_to_voigt(a, Tensor2Type::strain, a_var.raw_voigt());
 }
 }  // namespace
 

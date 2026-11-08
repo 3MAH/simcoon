@@ -135,16 +135,10 @@ py::array_t<T> scalars_to_arr(const std::vector<T> &v) {
     return a;
 }
 
-//History of one recorded vector or matrix, as the (N, n_comp) Fortran-ordered array it is
-//returned as: one column per component (a matrix flattened row by row), one row per record,
-//filled in place. The buffer is sized at once for the expected count of records, which every
-//complete run reaches exactly, so that it becomes the array itself: no copy, no growth peak
-//(a doubling buffer cost 60 % more peak memory and 25 % more time on a 1e6-increment run). Its
-//untouched pages cost address space only, so a run planned long that stops early stays small;
-//beyond 1 GiB per field the buffer starts smaller and doubles instead. It grows on if need be
-//and is cut to the records of an aborted run. A std::vector of arma objects constructed (and later destroyed)
-//one object per field and record, with a heap block for each 6x6 tangent, and its
-//conversion into arrays, were a quarter of an elastic increment.
+//History of one recorded vector or matrix as the (N, n_comp) Fortran-ordered array it is returned
+//as (one column per component, a matrix flattened row by row), filled in place. Sized at once for the
+//expected count of records (untouched pages cost address space only), doubling from a smaller start
+//beyond 1 GiB per field; grown if need be, cut to the records of an aborted run.
 class flat_history {
 public:
     void set_capacity(const std::size_t &n_records) { capacity_ = n_records; }
@@ -232,10 +226,8 @@ public:
     void record(simcoon::phase_characteristics &rve, const simcoon::solver_output &, const int &kblock,
                 const int &kcycle, const int &kstep, const int &kinc, const double &Time) override {
         simcoon::state_variables *sv = rve.sptr_sv_global.get();
-        // defensive re-detection of the state-variable type, as solver_memory_sink
-        auto *sv_T = dynamic_cast<simcoon::state_variables_T *>(sv);
-        auto *sv_M = (sv_T == nullptr) ? dynamic_cast<simcoon::state_variables_M *>(sv) : nullptr;
-        sv_type = (sv_T != nullptr) ? 2 : ((sv_M != nullptr) ? 1 : 0);
+        auto *sv_T = (sv_type == 2) ? static_cast<simcoon::state_variables_T *>(sv) : nullptr;
+        auto *sv_M = (sv_type == 1) ? static_cast<simcoon::state_variables_M *>(sv) : nullptr;
 
         blocks_i.push_back(kblock);
         cycles_i.push_back(kcycle);
