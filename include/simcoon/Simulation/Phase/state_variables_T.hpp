@@ -124,9 +124,15 @@ namespace simcoon{
 		/** @brief Destructor. */
 		virtual ~state_variables_T();
 		
-		/** @brief Copy assignment. */
-		virtual state_variables_T& operator = (const state_variables_T&);
+		/** @brief Copy assignment: state_variables::operator= (tangent_mode, ncp and statev included), then the thermomechanical members. */
+		state_variables_T& operator = (const state_variables_T&);
 		
+        /**
+         * @brief Copy the field values from another state_variables_T object.
+         * The common fields of state_variables::copy_fields (U0, U1, R and DR included), then
+         * sigma_in, sigma_in_start, the operators dSdE, dSdEt, dSdT, drdE, drdT, Wm, Wt, Wm_start,
+         * Wt_start, Q, r and r_in; tangent_mode, ncp and statev untouched.
+         */
 		virtual state_variables_T& copy_fields_T (const state_variables_T&);
 		
 		using state_variables::update;

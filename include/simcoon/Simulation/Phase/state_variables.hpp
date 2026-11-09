@@ -139,7 +139,7 @@ class state_variables
 		virtual ~state_variables();
 		
         /**
-         * @brief Assignment operator: copies every member, tangent_mode and the statev arrays included.
+         * @brief Assignment operator: copies every member, tangent_mode, ncp and the statev arrays included.
          * Not virtual: the derived classes assign through their own operator=, which calls this one.
          * @param sv State variables to assign
          * @return Reference to this object
@@ -148,7 +148,7 @@ class state_variables
 		
         /**
          * @brief Copy the field values from another state_variables object.
-         * Copies the strains, stresses, F0, F1, U0, U1, R, DR, T and DT; leaves tangent_mode,
+         * Copies the strains, stresses, F0, F1, U0, U1, R, DR, T and DT; leaves tangent_mode, ncp,
          * nstatev, statev and statev_start untouched.
          * @param sv Source state variables
          * @return Reference to this object

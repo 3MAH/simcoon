@@ -38,6 +38,7 @@ template <class SV>
 void fill_common(SV &sv)
 {
     sv.tangent_mode = 3;
+    sv.ncp = 1;
     sv.Etot = {1., 2., 3., 4., 5., 6.};
     sv.DEtot = sv.Etot + 0.1;
     sv.etot = sv.Etot + 0.2;
@@ -66,6 +67,7 @@ void expect_common(const SV &a, const SV &b, bool full)
 {
     if (full) {
         EXPECT_EQ(a.tangent_mode, b.tangent_mode);
+        EXPECT_EQ(a.ncp, b.ncp);
         EXPECT_EQ(a.nstatev, b.nstatev);
         EXPECT_TRUE(approx_equal(a.statev, b.statev, "absdiff", 0.));
         EXPECT_TRUE(approx_equal(a.statev_start, b.statev_start, "absdiff", 0.));
@@ -93,7 +95,7 @@ void expect_common(const SV &a, const SV &b, bool full)
 }
 
 // The copy constructor and the assignment operators copy every common field, U0, U1, R, DR,
-// tangent_mode and statev included; copy_fields_M/T copy the same fields as copy_fields.
+// tangent_mode, ncp and statev included; copy_fields_M/T copy the same fields as copy_fields.
 TEST(Tstate_variables, copies_keep_every_common_field)
 {
     state_variables s;
