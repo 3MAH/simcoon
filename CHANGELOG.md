@@ -165,6 +165,12 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Fixed
 
+- The copies of the phase state variables: the copy constructor of `state_variables` skipped
+  `tangent_mode` and `ncp` (a phase copy fell back to the default tangent and to
+  Fischer-Burmeister), `state_variables_M/T::operator=` and `copy_fields_M/T` re-listed the
+  common fields instead of calling the base operations, and `construct()` fell through from
+  `sv_type = 0` into the mechanical case: `sv_type` is now 1 (mechanical) or 2 (thermomechanical),
+  any other value throws. The dead `isv.hpp` is removed. Test `Tstate_variables` (#149).
 - A legacy kernel given too few state variables (`EPICP` with `nstatev = 1`, alone or as the
   sub-phase of a mean-field scheme) failed with Armadillo's bare `Mat::operator(): index out of
   bounds`: the UMAT dispatch now raises `std::invalid_argument` (`ValueError`) naming the law and

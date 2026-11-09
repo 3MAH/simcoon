@@ -156,6 +156,7 @@ state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6),
 //------------------------------------------------------
 {
 	tangent_mode = sv.tangent_mode;
+	ncp = sv.ncp;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
