@@ -104,7 +104,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
 
     const std::vector<vec> EV_i_start = EV_i;
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
-    const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
+    const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime, false);
     vec EV = zeros(6);
     for (int i=0; i<N_kelvin; i++) {
         EV_i[i] = st.EV_i[i];

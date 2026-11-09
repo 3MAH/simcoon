@@ -29,6 +29,7 @@
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/Simulation/Maths/small_voigt.hpp>
+#include <simcoon/Simulation/Maths/eig_sym3.hpp>
 #include <stdexcept>
 
 using namespace std;
@@ -279,6 +280,28 @@ vec isochoric_invariants(const vec &lambda, const double &mJ) {
     return I;
 }
 
+namespace {
+
+// arma::eig_sym interface (ascending eigenvalues, eigenvectors in columns, false on failure) on the fixed-size solver
+bool eig_pairs_3x3(vec &lambda, mat &n_pvectors, const mat &input) {
+    vec::fixed<3> l;
+    mat::fixed<3,3> n;
+    if (!simcoon::eig_sym_3x3(l, n, mat::fixed<3,3>(input))) return false;
+    lambda = l;
+    n_pvectors = n;
+    return true;
+}
+
+bool eig_values_3x3(vec &lambda, const mat &input) {
+    vec::fixed<3> l;
+    mat::fixed<3,3> n;
+    if (!simcoon::eig_sym_3x3(l, n, mat::fixed<3,3>(input))) return false;
+    lambda = l;
+    return true;
+}
+
+}  // namespace
+
 vec isochoric_pstretch_from_V(const mat &V, const double &mJ) {
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
@@ -290,10 +313,7 @@ vec isochoric_pstretch_from_V(const mat &V, const double &mJ) {
         }    
     }
     vec lambda;
-    try {
-        lambda = eig_sym(V);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in eig_sym: " << e.what() << endl;
+    if (!eig_values_3x3(lambda, V)) {
         throw simcoon::exception_eig_sym("Failed to compute eigenvalues in isochoric_pstretch_from_V.");
     }
     vec lambda_bar = pow(J,-1./3.)*lambda;
@@ -312,10 +332,7 @@ vec isochoric_pstretch_from_b(const mat &b, const double &mJ) {
         }    
     }
     vec lambda;
-    try {
-        lambda = eig_sym(b);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in eig_sym: " << e.what() << endl;
+    if (!eig_values_3x3(lambda, b)) {
         throw simcoon::exception_eig_sym("Failed to compute eigenvalues in isochoric_pstretch_from_b.");
     }
     lambda.transform( [](double val) { return (sqrt(val)); } );
@@ -345,7 +362,7 @@ void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &inpu
                 throw simcoon::exception_det("Error in det function inside pstretch.");
             }    
         }
-        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
+        bool success_eig_sym = eig_pairs_3x3(lambda, n_pvectors, input);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside pstretch.");
         }
@@ -360,7 +377,7 @@ void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &inpu
                 throw simcoon::exception_det("Error in det function inside pstretch.");
             }   
         }
-        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);        
+        bool success_eig_sym = eig_pairs_3x3(lambda, n_pvectors, input);        
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside pstretch.");
         }
@@ -390,7 +407,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
                 throw simcoon::exception_det("Error in det function inside isochoric_pstretch.");
             }   
         }        
-        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
+        bool success_eig_sym = eig_pairs_3x3(lambda, n_pvectors, input);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside isochoric_pstretch.");
         }        
@@ -405,7 +422,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
                 throw simcoon::exception_det("Error in det function inside isochoric_pstretch.");
             }   
         }
-        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
+        bool success_eig_sym = eig_pairs_3x3(lambda, n_pvectors, input);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside isochoric_pstretch.");
         }        

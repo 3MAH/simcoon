@@ -66,7 +66,7 @@ void branch_operators(const mat &L, const mat &H, const vec &EV_start, const dou
 
 LinearViscoStep kelvin_series_step(const mat &L0, const vector<mat> &L_i, const vector<mat> &H_i,
                                    const vector<vec> &EV_i_start, const vec &eps_e,
-                                   const vec &alpha, const double &DTime) {
+                                   const vec &alpha, const double &DTime, const bool &state_derivatives) {
     const size_t N = L_i.size();
     vector<mat::fixed<6,6>> C(N);
     vector<vec> EV_relaxed(N);   // B_i^-1 EV_i,n
@@ -84,42 +84,52 @@ LinearViscoStep kelvin_series_step(const mat &L0, const vector<mat> &L_i, const 
     st.sigma = S_inv*(L0*rhs);
     const mat::fixed<6,6> dSdE = S_inv*L0;
     st.dSdE = 0.5*(dSdE + dSdE.t());   // (L0^-1 + sum C)^-1: symmetric up to round-off
-    st.dSdT = -st.dSdE*alpha;
     st.EV_i.resize(N);
-    st.dEVdE_i.resize(N);
-    st.dEVdT_i.resize(N);
     for (size_t i=0; i<N; i++) {
         st.EV_i[i] = EV_relaxed[i] + C[i]*st.sigma;
-        st.dEVdE_i[i] = C[i]*st.dSdE;
-        st.dEVdT_i[i] = C[i]*st.dSdT;
+    }
+    if (state_derivatives) {
+        st.dSdT = -st.dSdE*alpha;
+        st.dEVdE_i.resize(N);
+        st.dEVdT_i.resize(N);
+        for (size_t i=0; i<N; i++) {
+            st.dEVdE_i[i] = C[i]*st.dSdE;
+            st.dEVdT_i[i] = C[i]*st.dSdT;
+        }
     }
     return st;
 }
 
 LinearViscoStep maxwell_parallel_step(const mat &L0, const vector<mat> &L_i, const vector<mat> &H_i,
                                       const vector<vec> &EV_i_start, const vec &eps_e,
-                                      const vec &alpha, const double &DTime) {
+                                      const vec &alpha, const double &DTime, const bool &state_derivatives) {
     const size_t N = L_i.size();
     LinearViscoStep st;
     st.sigma = L0*eps_e;
     st.dSdE = L0;
     st.EV_i.resize(N);
-    st.dEVdE_i.resize(N);
-    st.dEVdT_i.resize(N);
+    if (state_derivatives) {
+        st.dEVdE_i.resize(N);
+        st.dEVdT_i.resize(N);
+    }
     for (size_t i=0; i<N; i++) {
         vec EV_relaxed;
         mat::fixed<6,6> C;
         branch_operators(L_i[i], H_i[i], EV_i_start[i], DTime, EV_relaxed, C);
         const mat::fixed<6,6> G = C*L_i[i];
         st.EV_i[i] = EV_relaxed + G*eps_e;
-        st.dEVdE_i[i] = G;
-        st.dEVdT_i[i] = -G*alpha;
+        if (state_derivatives) {
+            st.dEVdE_i[i] = G;
+            st.dEVdT_i[i] = -G*alpha;
+        }
         st.sigma -= L_i[i]*st.EV_i[i];
         st.dSdE -= L_i[i]*G;
     }
     const mat::fixed<6,6> dSdE = st.dSdE;
     st.dSdE = 0.5*(dSdE + dSdE.t());   // L0 - sum L C L: symmetric up to round-off
-    st.dSdT = -st.dSdE*alpha;
+    if (state_derivatives) {
+        st.dSdT = -st.dSdE*alpha;
+    }
     return st;
 }
 

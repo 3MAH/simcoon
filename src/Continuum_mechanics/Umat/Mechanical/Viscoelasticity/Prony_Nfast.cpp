@@ -108,7 +108,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     for (int i=0; i<N_prony; i++) sigma_EV += L_i[i]*EV_i_start[i];
     const vec eps_e_start = M0*sigma_EV;   // sigma = L0 (eps_e - EV_tilde), EV_tilde = M0 sum L_i EV_i
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
-    const LinearViscoStep st = maxwell_parallel_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
+    const LinearViscoStep st = maxwell_parallel_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime, false);
     vec EV_tilde = zeros(6);
     double Dgamma_loc = 0.;
     for (int i=0; i<N_prony; i++) {
