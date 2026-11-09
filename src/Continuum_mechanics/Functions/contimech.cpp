@@ -23,6 +23,7 @@
 #include <armadillo>
 #include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -33,10 +34,50 @@ using namespace arma;
 
 namespace simcoon{
 
-mat dev(const mat &m) {
-    assert((m.n_cols==3)&&(m.n_rows==3));
+namespace {
 
-    return m - sph(m);
+// dev(vec) of a Voigt 6-vector and its partner with shears scaled by s_shear (2 stress, 0.5 strain)
+inline void dev_voigt(const vec &v, const double &s_shear, double *d, double *d2) {
+    const double sph = (1./3.)*(v(0) + v(1) + v(2));
+    for (int i=0; i<3; i++) {
+        d[i] = v(i) - sph;
+        d2[i] = d[i];
+    }
+    for (int i=3; i<6; i++) {
+        d[i] = v(i);
+        d2[i] = s_shear*v(i);
+    }
+}
+
+// v and its partner with shears scaled by s_shear (2 stress, 0.5 strain)
+inline void shear_scaled(const vec &v, const double &s_shear, double *v1, double *v2) {
+    for (int i=0; i<6; i++) {
+        v1[i] = v(i);
+        v2[i] = (i < 3) ? v1[i] : s_shear*v1[i];
+    }
+}
+
+} // namespace
+
+mat dev(const mat &m) {
+    if ((m.n_rows != 3) || (m.n_cols != 3)) {
+        return m - sph(m);
+    }
+    // m - sph(m) entry by entry; off-diagonals subtract 0*tr/3 to keep signed zeros and non-finite traces
+    double val1 = 0.;
+    double val2 = 0.;
+    val1 += m(0,0);
+    val2 += m(1,1);
+    val1 += m(2,2);
+    const double k = (1./3.)*(val1 + val2);
+    const double zero_k = 0.*k;
+    mat d(3, 3, fill::none);
+    for (int j=0; j<3; j++) {
+        for (int i=0; i<3; i++) {
+            d(i,j) = m(i,j) - ((i == j) ? k : zero_k);
+        }
+    }
+    return d;
 }
 
 mat sph(const mat &m) {
@@ -70,26 +111,27 @@ vec dev(const vec &v) {
 double Mises_stress(const vec &v) {
 	assert(v.size()==6);
 
-	vec vdev = dev(v);
-	vec vdev2 = vdev;
-	for (int i=3; i<6; i++)
-		vdev2(i) = 2.*vdev2(i);	
+	double vdev[6], vdev2[6];
+	dev_voigt(v, 2., vdev, vdev2);
 
-	return sqrt(3./2.*sum(vdev%vdev2));
+	return sqrt(3./2.*dot6(vdev, vdev2));
 }
 
 vec eta_stress(const vec &v) {
 	assert(v.size()==6);
 	
-	vec vdev = dev(v);
-	vec vdev2 = vdev;	
-	for (int i=3; i<6; i++)
-		vdev2(i) = 2.*vdev2(i);	
+	double vdev[6], vdev2[6];
+	dev_voigt(v, 2., vdev, vdev2);
 		
-	double n = sqrt(3./2.*sum(vdev%vdev2));
+	double n = sqrt(3./2.*dot6(vdev, vdev2));
 
-	if (n > 0.) {		
-		return (3./2.)*vdev2*(1./n);
+	if (n > 0.) {
+		// (3/2) vdev2 (1/n), evaluated as the expression template did
+		const double inv_n = 1./n;
+		vec eta(6, fill::none);
+		for (int i=0; i<6; i++)
+			eta(i) = ((3./2.)*vdev2[i])*inv_n;
+		return eta;
 	}
 	else {
 		return zeros(6);
@@ -100,34 +142,49 @@ vec eta_stress(const vec &v) {
 mat deta_stress(const vec &v) {
 	assert(v.size()==6);
 
-	double sigeq = Mises_stress(v);
+	double vdev[6], vdev2[6];
+	dev_voigt(v, 2., vdev, vdev2);
+	double sigeq = sqrt(3./2.*dot6(vdev, vdev2));
 	if (sigeq < simcoon::iota) {
 		return zeros(6,6);
 	}
-	vec eta = eta_stress(v);
+	double eta[6];
+	const double inv_n = 1./sigeq;
+	for (int i=0; i<6; i++)
+		eta[i] = ((3./2.)*vdev2[i])*inv_n;
 	// P_Mises in simcoon's engineering-shear Voigt basis: normal block = (3/2) dev,
 	// shear diagonal = 3 (the factor 2 is already embedded, as in eta_stress / Mises_stress).
-	mat Pm = { {  1., -0.5, -0.5, 0., 0., 0.},
-	           {-0.5,   1., -0.5, 0., 0., 0.},
-	           {-0.5, -0.5,   1., 0., 0., 0.},
-	           {  0.,   0.,   0., 3., 0., 0.},
-	           {  0.,   0.,   0., 0., 3., 0.},
-	           {  0.,   0.,   0., 0., 0., 3.} };
-	return (Pm - eta*eta.t())/sigeq;
+	// the product stays its own statement: rounded before the subtraction, as in the matrix temporary
+	static const double Pm[6][6] = { {  1., -0.5, -0.5, 0., 0., 0.},
+	                                 {-0.5,   1., -0.5, 0., 0., 0.},
+	                                 {-0.5, -0.5,   1., 0., 0., 0.},
+	                                 {  0.,   0.,   0., 3., 0., 0.},
+	                                 {  0.,   0.,   0., 0., 3., 0.},
+	                                 {  0.,   0.,   0., 0., 0., 3.} };
+	mat deta(6, 6, fill::none);
+	for (int j=0; j<6; j++) {
+		for (int i=0; i<6; i++) {
+			const double eta_ij = eta[i]*eta[j];
+			deta(i,j) = (Pm[i][j] - eta_ij)/sigeq;
+		}
+	}
+	return deta;
 }
 
-//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 vec eta_norm_stress(const vec &v) {
     assert(v.size()==6);
     
-    vec v2 = v;
-    for (int i=3; i<6; i++)
-    v2(i) = 2.*v2(i);
+    double v1[6], v2[6];
+    shear_scaled(v, 2., v1, v2);
     
-    double n = sqrt(sum(v%v2));
+    double n = sqrt(dot6(v1, v2));
     
     if (n > 0.) {
-        return v2*(1./n);
+        const double inv_n = 1./n;
+        vec eta(6, fill::none);
+        for (int i=0; i<6; i++)
+            eta(i) = v2[i]*inv_n;
+        return eta;
     }
     else {
         return zeros(6);
@@ -137,14 +194,17 @@ vec eta_norm_stress(const vec &v) {
 vec eta_norm_strain(const vec &v) {
     assert(v.size()==6);
     
-    vec v2 = v;
-    for (int i=3; i<6; i++)
-        v2(i) = 0.5*v2(i);
+    double v1[6], v2[6];
+    shear_scaled(v, 0.5, v1, v2);
     
-    double n = sqrt(sum(v%v2));
+    double n = sqrt(dot6(v1, v2));
     
     if (n > 0.) {
-        return v*(1./n);
+        const double inv_n = 1./n;
+        vec eta(6, fill::none);
+        for (int i=0; i<6; i++)
+            eta(i) = v1[i]*inv_n;
+        return eta;
     }
     else {
         return zeros(6);
@@ -155,47 +215,46 @@ double norm_stress(const vec &v) {
     
     assert(v.size()==6);
     
-    vec v2 = v;
-    for (int i=3; i<6; i++)
-    v2(i) = 2.*v2(i);
+    double v1[6], v2[6];
+    shear_scaled(v, 2., v1, v2);
     
-    return sqrt(sum(v%v2));
+    return sqrt(dot6(v1, v2));
 }
 
 double norm_strain(const vec &v) {
     
     assert(v.size()==6);
     
-    vec v2 = v;
-    for (int i=3; i<6; i++)
-        v2(i) = 0.5*v2(i);
+    double v1[6], v2[6];
+    shear_scaled(v, 0.5, v1, v2);
     
-    return sqrt(sum(v%v2));
+    return sqrt(dot6(v1, v2));
 }
 
 double Mises_strain(const vec &v) {
 	assert(v.size()==6);
 
-	vec vdev = dev(v);
-	vec vdev2 = vdev;
-	for (int i=3; i<6; i++)
-		vdev2(i) = 0.5*vdev2(i);	
+	double vdev[6], vdev2[6];
+	dev_voigt(v, 0.5, vdev, vdev2);
 
-	return sqrt(2./3.*sum(vdev%vdev2));
+	return sqrt(2./3.*dot6(vdev, vdev2));
 }
 
 vec eta_strain(const vec &v) {
 	assert(v.size()==6);
 	
-	vec vdev = dev(v);
-	vec vdev2 = vdev;	
-	for (int i=3; i<6; i++)
-		vdev2(i) = 0.5*vdev2(i);	
+	double vdev[6], vdev2[6];
+	dev_voigt(v, 0.5, vdev, vdev2);
 		
-	double n = sqrt(2./3.*sum(vdev%vdev2));
+	double n = sqrt(2./3.*dot6(vdev, vdev2));
 
 	if (n > 0.) {
-		return (2./3.)*vdev*(1./n);
+		// (2/3) vdev (1/n), evaluated as the expression template did
+		const double inv_n = 1./n;
+		vec eta(6, fill::none);
+		for (int i=0; i<6; i++)
+			eta(i) = ((2./3.)*vdev[i])*inv_n;
+		return eta;
 	}
 	else {
 		return zeros(6);
@@ -206,24 +265,20 @@ vec eta_strain(const vec &v) {
 double J2_stress(const vec &v) {
 	assert(v.size()==6);
 
-	vec vdev = dev(v);
-	vec vdev2 = vdev;
-	for (int i=3; i<6; i++)
-		vdev2(i) = 2.*vdev2(i);	
+	double vdev[6], vdev2[6];
+	dev_voigt(v, 2., vdev, vdev2);
 
-	return 0.5*sum(vdev%vdev2);
+	return 0.5*dot6(vdev, vdev2);
 }
 
 
 double J2_strain(const vec &v) {
 	assert(v.size()==6);
 
-	vec vdev = dev(v);
-	vec vdev2 = vdev;
-	for (int i=3; i<6; i++)
-		vdev2(i) = 0.5*vdev2(i);	
+	double vdev[6], vdev2[6];
+	dev_voigt(v, 0.5, vdev, vdev2);
 
-	return 0.5*sum(vdev%vdev2);
+	return 0.5*dot6(vdev, vdev2);
 }
 
 double J3_stress(const vec &v) {
@@ -351,15 +406,15 @@ mat p_ikjl(const vec &a) {
 mat auto_sym_dyadic(const mat &A) {
     vec A_v = t2v_sym(A);
 
-	return A_v * A_v.t();
+	return outer6(A_v.memptr(), A_v.memptr());
 }
 
 mat sym_dyadic(const mat &A, const mat &B) {
 
     vec A_v = t2v_sym(A);
     vec B_v = t2v_sym(B);
-	
-	return A_v * B_v.t();
+
+	return outer6(A_v.memptr(), B_v.memptr());
 }
 
 mat auto_dyadic(const mat &A) {
@@ -494,37 +549,22 @@ mat sym_dyadic_operator(const mat &A, const mat &B) {
 	return C;
 }
 
+void add_linearop_eigsym(mat::fixed<6,6> &acc, const double &c, const vec::fixed<3> &b_i, const vec::fixed<3> &b_j) {
+	static const int Id[3][3] = {{0, 3, 4}, {3, 1, 5}, {4, 5, 2}};
+	double Bij[3][3];
+	for (int i=0; i<3; i++)
+		for (int j=0; j<3; j++)
+			Bij[i][j] = b_i(i)*b_j(j);
+	for (int i=0; i<3; i++)
+		for (int j=i; j<3; j++)
+			for (int k=0; k<3; k++)
+				for (int l=k; l<3; l++)
+					acc(Id[i][j], Id[k][l]) += c*(0.5*(Bij[i][j]*Bij[k][l] + Bij[i][j]*Bij[l][k]));
+}
+
 mat linearop_eigsym(const vec &b_i, const vec &b_j) {
-
-	mat Bij = b_i*b_j.t();
-	mat BBBB = zeros(6,6);
-
-	int ij=0;
-	int kl=0;
-    
-    umat Id(3,3);
-    Id(0,0) = 0;
-    Id(0,1) = 3;
-    Id(0,2) = 4;
-    Id(1,0) = 3;
-    Id(1,1) = 1;
-    Id(1,2) = 5;
-    Id(2,0) = 4;
-    Id(2,1) = 5;
-    Id(2,2) = 2;
-	
-	for (int i=0; i<3; i++) {
-		for (int j=i; j<3; j++) {
-			ij = Id(i,j);
-			for (int k=0; k<3; k++) {
-				for (int l=k; l<3; l++) {
-					kl = Id(k,l);
-					BBBB(ij,kl) = 0.5*(Bij(i,j)*Bij(k,l) + Bij(i,j)*Bij(l,k));
-				}
-			}
-		}
-	}
-	
+	mat::fixed<6,6> BBBB(fill::zeros);
+	add_linearop_eigsym(BBBB, 1., b_i, b_j);
 	return BBBB;
 }
 

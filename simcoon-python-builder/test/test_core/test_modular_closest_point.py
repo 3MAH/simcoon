@@ -1,4 +1,4 @@
-"""tangent_mode = 3 (closest-point projection) on the modular UMAT.
+"""integrator="closest_point" (closest-point projection) on the modular UMAT.
 
 The cutting-plane loop (modes 1/2) accumulates the plastic strain along the flow direction of
 each iterate; the closest-point branch solves stress, multipliers and backward-Euler state
@@ -14,6 +14,7 @@ from simcoon.modular import (ModularMaterial, IsotropicElasticity, NeoHookeanEla
                              LinearIsotropicHardening, PragerHardening, ArmstrongFrederickHardening,
                              ChabocheHardening, Viscoelasticity, Damage)
 from simcoon.solver import StepMeca, solve
+from solver_harness import tangent_kwargs
 
 _UNIAXIAL = ["strain"] + ["stress"] * 5
 HILL = dict(F=0.5, G=0.7, H=0.4, L=1.6, M=1.3, N=1.8)
@@ -48,7 +49,7 @@ def _material(*mechs):
 
 def _plastic_state(mat, mode, ninc=10):
     r = solve(StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=ninc, time=0.5),
-              "MODUL", mat.props, mat.nstatev, T_init=290., tangent_mode=mode)
+              "MODUL", mat.props, mat.nstatev, T_init=290., **tangent_kwargs(mode))
     assert r.status == 0
     return r
 
@@ -56,7 +57,7 @@ def _plastic_state(mat, mode, ninc=10):
 def _umat(mat, e, s, sv, De, mode, time=0.5, dtime=0.3):
     """One increment of the modular UMAT from state (e, s, sv): (sigma, statev, Wm, Lt)."""
     return sim.umat("MODUL", col(e), col(De), I3, I3, col(s), I3, col(mat.props), col(sv),
-                    time, dtime, np.zeros((4, 1), order="F"), n_threads=1, tangent_mode=mode)
+                    time, dtime, np.zeros((4, 1), order="F"), n_threads=1, **tangent_kwargs(mode))
 
 
 def _tangent_and_fd(mat, e, s, sv, mode, De0=None, h=1e-8):
@@ -175,7 +176,7 @@ def test_two_mechanisms_reload_converges_without_step_cut():
     steps = [StepMeca(control=_UNIAXIAL, value=[0.02, 0, 0, 0, 0, 0], ninc=10, time=1.),
              StepMeca(control=_UNIAXIAL, value=[-0.02, 0, 0, 0, 0, 0], ninc=4, time=1.),
              StepMeca(control=_UNIAXIAL, value=[0.02, 0, 0, 0, 0, 0], ninc=4, time=1.)]
-    r3 = solve(steps, "MODUL", mat.props, mat.nstatev, T_init=290., tangent_mode=3)
+    r3 = solve(steps, "MODUL", mat.props, mat.nstatev, T_init=290., integrator="closest_point")
     assert r3.status == 0 and len(r3) == 18
     s = r3["Stress"][0]
     assert s[9] > 20. and s[13] < -20. and s[-1] > 20.      # loads, reverses, reloads
@@ -198,7 +199,7 @@ def test_two_active_rows_closest_point_tangent_is_exact():
                     isotropic_hardening=LinearIsotropicHardening(H=100.))
     mat = _material(p1, p2)
     r = solve(StepMeca(control=_UNIAXIAL, value=[0.06, 0, 0, 0, 0, 0], ninc=20, time=1.),
-              "MODUL", mat.props, mat.nstatev, T_init=290., tangent_mode=3)
+              "MODUL", mat.props, mat.nstatev, T_init=290., integrator="closest_point")
     assert r.status == 0
     e, s, sv = r["Strain"][:, -1], r["Stress"][:, -1], r["Statev"][:, -1]
     assert sv[1] > 1e-3 and sv[14] > 1e-3     # both rows carried multipliers

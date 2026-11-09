@@ -93,6 +93,16 @@ namespace simcoon{
  * \dot{p} = \sqrt{\frac{2}{3} \dot{\boldsymbol{\varepsilon}}^p : \dot{\boldsymbol{\varepsilon}}^p} = \dot{\lambda}
  * \f]
  *
+ * The Gibbs free energy of the single (lead) mechanism, with internal variables
+ * \f$ p \f$ and \f$ \boldsymbol{\varepsilon}^p \f$, reads
+ * \f[
+ * G = -\frac{1}{2}\,\boldsymbol{\sigma} : \mathbf{S} : \boldsymbol{\sigma}
+ * - \boldsymbol{\sigma} : \boldsymbol{\varepsilon}^p
+ * - \boldsymbol{\sigma} : \boldsymbol{\alpha}\,(\theta - \theta_0)
+ * + c_0\left[(\theta - \theta_0) - \theta \ln\frac{\theta}{\theta_0}\right]
+ * - \eta_0\,\theta + E_0 + F(\theta, p)
+ * \f]
+ *
  * **Convex Cutting Plane Algorithm:**
  *
  * The CCP algorithm solves the return mapping problem by reformulating it as a complementarity problem:
@@ -149,6 +159,20 @@ namespace simcoon{
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
+ * @param tangent_mode tangent_* constant (parameter.hpp); under tangent_mode 2 the consistent tangent
+ *        of the radial return is taken in closed form (Simo and Taylor 1985; de Souza Neto et al.
+ *        2008, box 7.4), exact at the converged return:
+ *        \f[
+ *        \mathbf{L}_t = 3K\,\mathbf{I}_{vol} + 2G\,\theta\,\mathbf{I}_{dev}
+ *        - 2G\,\bar{\theta}\,\mathbf{N}\otimes\mathbf{N},\quad
+ *        \mathbf{N} = \frac{\mathbf{s}}{\|\mathbf{s}\|},\quad
+ *        \theta = 1 - \frac{3G\,\Delta p}{q^{tr}},\quad
+ *        \bar{\theta} = \frac{1}{1 + H/(3G)} - (1 - \theta)
+ *        \f]
+ *        with \f$ q^{tr} = q + 3G\,\Delta p \f$ the trial von Mises stress and
+ *        \f$ H = \mathrm{d}H_p/\mathrm{d}p \f$ at the converged \f$ p \f$
+ * @param ncp complementarity function of the cutting plane (NCPMethod code, state_variables::ncp):
+ *        0 Fischer-Burmeister (default), 1 min-NCP with a Fischer-Burmeister fallback
  *
  * @note Voigt notation convention: [11, 22, 33, 12, 13, 23] with engineering shear strains (\f$\gamma = 2\varepsilon\f$)
  * @note The consistent tangent modulus Lt ensures quadratic convergence in implicit Newton-Raphson schemes
@@ -174,7 +198,7 @@ namespace simcoon{
  *                         3, 3, true, tnew_dt);
  * @endcode
  */
-void umat_plasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
+void umat_plasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default, const int &ncp = 0);
     
 
 /** @} */ // end of umat_mechanical group

@@ -93,9 +93,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
         Wm_d = 0.;
     }
 
-    // Thermal softening factor f_T = 1 - g(T*), g = T*^m C2-regularized near T* = 0 for m < 2
-    // (johnson_cook_softening, the same law as the thermomechanical kernel), T* clamped to [0, 1)
-    // (defined below T_ref, never at the singular melting point), at the start and end temperatures
+    // f_T = 1 - g(T*), T* clamped to [0, 1): defined below T_ref, never at the melting point
     auto homologous = [&](const double &theta) {
         double Tstar = (theta - T_ref) / (T_melt - T_ref);
         if (Tstar < 0.) Tstar = 0.;
@@ -110,8 +108,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
     const double thermal_factor_start = 1. - softening(T);
     const double thermal_factor = 1. - softening(T + DT);
 
-    // Strain hardening Hp = B p^n, C1-regularized at the onset for n < 1 (the modular
-    // power-law block carries the blend; same law, no second implementation)
+    // Hp = B p^n through PowerLawHardening (C1 onset blend for n < 1)
     PowerLawHardening hardening;
     int hardening_offset = 0;
     hardening.configure(vec{B_jc, n_jc}, hardening_offset);
@@ -134,7 +131,8 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
     vec ds_j = zeros(1);
 
     //Elastic prediction - Accounting for the thermal prediction
-    vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
+    const vec Eel_0 = Etot + DEtot - alpha*(T+DT-T_init);
+    vec Eel = Eel_0 - EP;
     sigma = el_pred(L, Eel);
 
     //Define the plastic function and the stress
@@ -150,12 +148,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
     std::vector<vec> kappa_j(1);
     mat K = zeros(1,1);
 
-    // Branch selection at the rate kink x0 = edot0*DTime, where Phi(Dp) changes from the
-    // quasi-static branch (rate factor 1) to the convex logarithmic one. A Newton started at
-    // Dp = 0 with the quasi-static slope overshoots the kink and the log branch throws it back
-    // below zero: a 2-cycle to maxiter_umat at small DTime. So the branch is decided first from
-    // Phi at the kink (radial estimate), the loop starts AT the kink on the log branch with the
-    // right derivative of the rate factor, and Newton is then monotone (convex branch).
+    // branch decided from Phi at the rate kink x0 = edot0*DTime, else Newton 2-cycles (header)
     bool log_branch = false;
     if (DTime > simcoon::iota) {
         const double x0 = edot0*DTime;
@@ -167,7 +160,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
             Ds_j(0) = x0;
             s_j(0) += x0;
             EP = EP + x0*Lambda_trial;
-            Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
+            Eel = Eel_0 - EP;
             sigma = el_pred(L, Eel);
         }
     }
@@ -223,18 +216,16 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
         EP = EP + ds_j(0)*Lambdap;
 
         //the stress is now computed using the relationship sigma = L(E-Ep)
-        Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
+        Eel = Eel_0 - EP;
         sigma = el_pred(L, Eel);
     }
 
-    // The loop reads p at the top and corrects s_j at the bottom: bring p and the hardening to
-    // the converged iterate (EP and sigma already are)
+    // the loop reads p at the top and corrects s_j at the bottom
     p = s_j(0);
     Hp = hardening.R(p);
     dHpdp = hardening.dR_dp(p);
 
-    // A loop that leaves at maxiter_umat has not met the yield surface: the state would be
-    // committed off-surface, so ask the solver for a step cut instead
+    // unconverged at maxiter_umat: step cut rather than commit off-surface
     if (error > simcoon::precision_umat) {
         tnew_dt = 0.5;
     }
@@ -249,9 +240,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
         edot_p_out = Dp / DTime;
     }
 
-    //Computation of the tangent modulus via the shared leading-mechanism helper (doc 7.4).
-    //The rate term sits in K, hence in Bhat: the algorithmic operator is the exact Jacobian of
-    //the discrete map at fixed DTime. tangent_none returns L (explicit integration).
+    // the rate term sits in K, hence in Bhat (exact Jacobian at fixed DTime)
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
@@ -259,15 +248,14 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
     const ContinuumTangent ct = compute_tangent_operator(
         tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // J2 associated flow: dLambda/dsigma = deta_stress(sigma), the complete
-            // Simo-Hughes correction for a single isotropic mechanism
-            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
+            // J2 associated flow: dLambda/dsigma = deta_stress, complete for one isotropic mechanism
+            std::vector<mat> dLambda_dsigma_l(1);
+            dLambda_dsigma_l[0] = deta_stress(sigma);
             return dLambda_dsigma_l;
         });
     Lt = ct.Lt;
 
-    // Energy split: stored G^ir = f_T B p^(n+1)/(n+1), so A_p = -f_T B p^n and the dissipation
-    // f_T [A f_rate + B p^n (f_rate - 1)] Dp stays non-negative at every temperature and rate
+    // A_p = -f_T B p^n (not -B p^n): keeps the dissipation non-negative at every temperature
     double A_p = -thermal_factor*Hp;
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
 

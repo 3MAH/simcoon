@@ -41,9 +41,6 @@ namespace simcoon{
 
 //=====Public methods for cylinder_multi====================================
 
-/*!
-  \brief default constructor
-*/
     
 //-------------------------------------------------------------
 cylinder_multi::cylinder_multi() : phase_multi(), T_loc(6,6), T(6,6), A_loc(6,6), B_loc(6,6)
@@ -53,9 +50,6 @@ cylinder_multi::cylinder_multi() : phase_multi(), T_loc(6,6), T(6,6), A_loc(6,6)
     
 }
 
-/*!
-  \brief Constructor with parameters
-*/
 
 //-------------------------------------------------------------
 cylinder_multi::cylinder_multi(const mat &mA, const mat &mA_start, const mat &mB, const mat &mB_start, const vec &mA_in, const mat &mA_loc, const mat &mB_loc, const mat &mT_loc, const mat &mT) : phase_multi(mA, mA_start, mB, mB_start, mA_in), T_loc(6,6), T(6,6), A_loc(6,6), B_loc(6,6)
@@ -68,10 +62,6 @@ cylinder_multi::cylinder_multi(const mat &mA, const mat &mA_start, const mat &mB
     B_loc = mB_loc;
 }
 
-/*!
-  \brief Copy constructor
-  \param s cylinder_multi object to duplicate
-*/
     
 //------------------------------------------------------
 cylinder_multi::cylinder_multi(const cylinder_multi& pc) : phase_multi(pc), T_loc(6,6), T(6,6), A_loc(6,6), B_loc(6,6)
@@ -84,19 +74,11 @@ cylinder_multi::cylinder_multi(const cylinder_multi& pc) : phase_multi(pc), T_lo
     B_loc = pc.B_loc;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes phase_multi (the arma::mat).
-*/
 
 //-------------------------------------
 cylinder_multi::~cylinder_multi() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for phase_multi
-*/
 
         
 //----------------------------------------------------------------------

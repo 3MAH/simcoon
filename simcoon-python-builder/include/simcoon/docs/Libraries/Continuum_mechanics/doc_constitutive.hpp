@@ -684,12 +684,13 @@ constexpr auto umat = R"pbdoc(
         (2, 1) plane stress, (2, 3) plane stress with transverse shears;
         any other ndi < 3 combination raises ValueError.
     n_threads : int
-        Point-loop threads: 1 runs serially on every platform; otherwise it
-        caps the worker threads on Windows (0 = all hardware threads), while
-        macOS (GCD) and Linux (OpenMP) size the pool themselves. Batches of
-        100 points or fewer always run serially.
+        Point-loop threads, at most (the calling thread included): 1 runs
+        serially, 0 lets the runtime use the whole machine (GCD on macOS,
+        OpenMP on Linux, one thread per hardware thread on Windows). Batches
+        of 100 points or fewer always run serially.
     tangent_mode : int
-        0 none, 1 continuum, 2 algorithmic (default).
+        Operator returned as Lt: 0 none (the elastic L), 1 continuum, 2 algorithmic
+        (default), the consistent operator of the integrator that ran.
     corate : int or str, optional
         Former name of ``kinematic_form``: the same value under either name.
         As an objective rate, it is the one the returned tangent is expressed
@@ -780,6 +781,19 @@ constexpr auto umat = R"pbdoc(
         sees T = temp at the start and T + DT at the end of the increment, as
         umat_T does: thermal expansion and temperature-dependent properties
         follow the prescribed temperature. Zero when not given.
+    ncp : str
+        Complementarity function of the local cutting plane:
+        'fischer_burmeister' (default), or 'min', the classic cutting-plane step on a
+        single surface with a Fischer-Burmeister fallback, about half the local
+        iterations for isotropic or linear (Prager) kinematic hardening. Read by
+        EPICP, EPKCP and MODUL (refused for an Armstrong-Frederick back stress);
+        any other law, and the closest-point integrator, raise ValueError for 'min'.
+        See the UMAT catalog.
+    integrator : str
+        Local integrator of the laws with a return mapping: 'cutting_plane'
+        (default) or 'closest_point' (backward Euler, a different discrete
+        update, with its exact operator; it takes tangent_mode=2). A law or a
+        row without a closest-point update keeps the cutting plane.
 
     Returns
     -------
@@ -797,8 +811,8 @@ constexpr auto umat = R"pbdoc(
     and F1 given, sigma is multiplied by det(F0) on the way in and divided by
     det(F1) on the way out, so the caller always exchanges Cauchy. Without F0/F1
     (or with a degenerate F) no conversion is applied, which is exact at small
-    strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
-    through unconverted.
+    strain. The external plugins (UMEXT, UMABA, UMANS) are not served here: they run
+    through the solver (simcoon.solver.solve), small-strain route only.
 
     Wm is the work per reference volume. The kernel alone accumulates
     1/2 (tau_start + tau_end) : Detot on the strain increment it is handed,
@@ -849,7 +863,7 @@ constexpr auto umat_T = R"pbdoc(
     T, DT : numpy.ndarray
         Temperature at the start of the increment and its increment, one entry
         per point.
-    ndi, nshr, n_threads, tangent_mode, start, condense
+    ndi, nshr, n_threads, tangent_mode, start, condense, integrator
         As umat. Under condense='material_face' (finite strain, ndi < 3) dSdE, dSdT and
         drdE are the material derivatives dS/dE, dS/dtheta and dr/dE, condensed
         on the kept components (tangent_output='material').

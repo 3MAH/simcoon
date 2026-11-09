@@ -86,13 +86,45 @@ int sub_phase_shape(const std::string &umat_name);
 /**
  * @brief Check the sub-phases and the props of a mean-field phase.
  *
- * The props hold the scheme's settings only: MIHEN [mp, np], MIMTN [mp, np, n_matrix],
- * MISCN [mp, np, n_matrix, (start)], MIPLN []. Checked: at least one sub-phase, the
- * exact props length, mp and np >= 1, n_matrix among the phases given.
+ * The props hold the scheme's settings only: MIHEN [mp, np],
+ * MIMTN [mp, np, n_matrix, (closed_form, rule)],
+ * MISCN [mp, np, n_matrix, (start, closed_form, rule, anderson, rtol)], MIPLN []; the
+ * optional slots are trailing (giving one gives the ones before it) and default to 0, the
+ * historical behaviour (see mean_field_options). Checked: at least one sub-phase, the props
+ * length, mp and np >= 1, n_matrix among the phases given, the option values.
  * @param phase the mean-field phase
  * @throws std::invalid_argument on any of the above
  */
 void check_sub_phases(const phase_characteristics &phase);
+
+/**
+ * @brief Numerical options of the ellipsoidal mean-field schemes, read from their props.
+ *
+ * All default to 0, which is the historical behaviour.
+ * - closed_form (MIMTN props(3), MISCN props(4)): 1 takes the Eshelby tensor in closed form
+ *   (Eshelby_closed_form) when the reference medium is isotropic and the inclusion a sphere or
+ *   a spheroid of axis 1, and integrates it otherwise.
+ * - rule (MIMTN props(4), MISCN props(5)): quadrature of the Eshelby integrals,
+ *   0 Gauss-Legendre on the sphere (mp x np points), 1 half sphere with a trapezoidal rule in phi
+ *   ((mp+1)/2 x np points), see eshelby_quadrature.
+ * - anderson (MISCN props(6)): depth m of the Anderson acceleration of the self-consistent
+ *   fixed point of the elastic homogenization (get_L_elastic, L_eff); 0 plain iterations.
+ *   The solver does one self-consistent sweep per localization iteration and ignores it.
+ * - rtol (MISCN props(7)): stopping criterion of that fixed point, 0 the absolute
+ *   ||Lt - Lt_prev||_F <= precision_micro, > 0 the relative ||Lt - Lt_prev||_F <= rtol ||Lt||_F
+ *   (independent of the stiffness unit).
+ */
+struct mean_field_options {
+    int closed_form = 0;
+    int rule = 0;
+    int anderson = 0;
+    double rtol = 0.;
+};
+
+/**
+ * @brief The numerical options of a mean-field phase (defaults for the slots it omits).
+ */
+mean_field_options mean_field_options_of(const phase_characteristics &phase);
 
 /**
  * @brief First guess of the self-consistent scheme: props(3) when given, else 1.

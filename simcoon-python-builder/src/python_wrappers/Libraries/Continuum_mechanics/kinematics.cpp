@@ -5,7 +5,10 @@
 #include <string>
 #include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <armadillo>
+#include <simcoon/slice_view.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -61,8 +64,33 @@ py::array_t<double> L_Cauchy_Green(const py::array_t<double> &F, const bool &cop
     return simpy::arma_to_numpy::mat_to_arr(L_Cauchy_Green, copy);
 }
 
-//Provides the RU decomposition of the transformation gradient F
+namespace {
+
+// A polar decomposition per 3x3 slice of F (3,3,N), in parallel with the GIL released: the two
+// factors as (3,3,N) cubes, in the order of the single-matrix call
+template <typename Decomposition>
+py::tuple polar_batch(const py::array_t<double> &F, Decomposition decompose) {
+    const cube F_cpp = simpy::numpy_to_arma::arr_to_cube_view(F);
+    if (F_cpp.n_rows != 3 || F_cpp.n_cols != 3) {
+        throw std::invalid_argument("F must be a 3x3 matrix or a (3,3,N) array of them");
+    }
+    const int nb_points = F_cpp.n_slices;
+    cube A(3, 3, nb_points), B(3, 3, nb_points);   // every slice written below
+    parallel_for_nogil(nb_points, [&](int pt) {
+        const mat F_pt(const_cast<double *>(F_cpp.slice_memptr(pt)), 3, 3, false, true);
+        mat A_pt(A.slice_memptr(pt), 3, 3, false, true), B_pt(B.slice_memptr(pt), 3, 3, false, true);
+        decompose(A_pt, B_pt, F_pt);
+    });
+    return py::make_tuple(simpy::arma_to_numpy::cube_to_arr(A, false), simpy::arma_to_numpy::cube_to_arr(B, false));
+}
+
+}  // namespace
+
+//Provides the RU decomposition of the transformation gradient F (or of each slice of a (3,3,N) array)
 py::tuple RU_decomposition(const pybind11::array_t<double> &F, const bool &copy) {
+    if (F.ndim() == 3) {
+        return polar_batch(F, [](mat &R, mat &U, const mat &F_pt) { simcoon::RU_decomposition(R, U, F_pt); });
+    }
     mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F);
     mat R_cpp = zeros(3,3);
     mat U_cpp = zeros(3,3);
@@ -70,8 +98,11 @@ py::tuple RU_decomposition(const pybind11::array_t<double> &F, const bool &copy)
     return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(R_cpp, copy), simpy::arma_to_numpy::mat_to_arr(U_cpp, copy));
 }
 
-//Provides the VR decomposition of the transformation gradient F
+//Provides the VR decomposition of the transformation gradient F (or of each slice of a (3,3,N) array)
 py::tuple VR_decomposition(const pybind11::array_t<double> &F, const bool &copy) {
+    if (F.ndim() == 3) {
+        return polar_batch(F, [](mat &V, mat &R, const mat &F_pt) { simcoon::VR_decomposition(V, R, F_pt); });
+    }
     mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F);
     mat V_cpp = zeros(3,3);
     mat R_cpp = zeros(3,3);    
@@ -108,7 +139,7 @@ py::array_t<double> Euler_Almansi(const py::array_t<double> &F, const bool &copy
 }
 
 //This function computes the logarithmic strain ln[V] = 1/2 ln[b] (b is the left Cauchy-Green Tensor)
-py::array_t<double> Log_strain(const py::array_t<double> &F, const bool &voigt_form, const bool &copy) {
+py::array_t<double> Log_strain(const py::array_t<double> &F, const bool &voigt_form, const bool &copy, const unsigned int &n_threads) {
     if (F.ndim()==2){
         mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F);
         if (voigt_form) {
@@ -123,19 +154,26 @@ py::array_t<double> Log_strain(const py::array_t<double> &F, const bool &voigt_f
     else if (F.ndim() == 3){
         cube F_cpp = simpy::numpy_to_arma::arr_to_cube_view(F);
         int nb_points = F_cpp.n_slices;
+        if (F_cpp.n_rows != 3 || F_cpp.n_cols != 3) {
+            throw std::invalid_argument("Log_strain: a batch F must be a (3, 3, N) array");
+        }
+        // one point per item, own output column/slice: parallel, GIL released, through
+        // lock-free slice aliases (slice_view.hpp); outputs left unfilled, every point is written
         if (voigt_form){
-            mat Log_strain(6,nb_points); 
-            for (int pt = 0; pt < nb_points; pt++) {
-                Log_strain.col(pt) = simcoon::t2v_strain(simcoon::Log_strain(F_cpp.slice(pt)));
-            }
-            return simpy::arma_to_numpy::mat_to_arr(Log_strain, copy);  
+            mat Log_strain(6, nb_points, fill::none);
+            parallel_for_nogil(nb_points, [&](int pt) {
+                vec out = Log_strain.unsafe_col(pt);
+                out = simcoon::t2v_strain(simcoon::Log_strain(simcoon::slice_view(F_cpp, pt)));
+            }, n_threads);
+            return simpy::arma_to_numpy::mat_to_arr(Log_strain, copy);
         }
         else{
-            cube Log_strain(3,3,nb_points); 
-            for (int pt = 0; pt < nb_points; pt++) {
-                Log_strain.slice(pt) = simcoon::Log_strain(F_cpp.slice(pt));
-            }
-            return simpy::arma_to_numpy::cube_to_arr(Log_strain, copy);  
+            cube Log_strain(3, 3, nb_points, fill::none);
+            parallel_for_nogil(nb_points, [&](int pt) {
+                mat out = simcoon::slice_view(Log_strain, pt);
+                out = simcoon::Log_strain(simcoon::slice_view(F_cpp, pt));
+            }, n_threads);
+            return simpy::arma_to_numpy::cube_to_arr(Log_strain, copy);
         }
     }
     else{

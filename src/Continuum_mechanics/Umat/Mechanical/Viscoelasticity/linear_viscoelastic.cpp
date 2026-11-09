@@ -18,6 +18,7 @@
 ///@file linear_viscoelastic.cpp
 ///@brief Closed-form backward-Euler step of the linear viscoelastic rheologies (see the header)
 
+#include <cstring>
 #include <vector>
 #include <armadillo>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
@@ -29,10 +30,34 @@ namespace simcoon {
 
 namespace {
 
-// B_i^-1 EV = (H + dt L)^-1 H EV and C_i = dt (H + dt L)^-1; dt = 0 gives EV and 0 (inactive branch)
+// per-thread memo of the step inverses keyed on the matrix bits: inv() is deterministic, a hit is exact
+struct inverse_memo {
+    static constexpr int size = 8;
+    double key[size][36];
+    double value[size][36];
+    int used;
+    int next;
+};
+thread_local inverse_memo memo;
+
+mat::fixed<6,6> memo_inv(const mat::fixed<6,6> &M) {
+    for (int k = 0; k < memo.used; k++) {
+        if (std::memcmp(memo.key[k], M.memptr(), sizeof(memo.key[k])) == 0)
+            return mat::fixed<6,6>(memo.value[k]);
+    }
+    const mat::fixed<6,6> M_inv = inv(M);   // throws on a singular matrix: nothing is stored
+    std::memcpy(memo.key[memo.next], M.memptr(), sizeof(memo.key[memo.next]));
+    std::memcpy(memo.value[memo.next], M_inv.memptr(), sizeof(memo.value[memo.next]));
+    memo.next = (memo.next + 1) % inverse_memo::size;
+    if (memo.used < inverse_memo::size) memo.used++;
+    return M_inv;
+}
+
+// B_i^-1 EV = (H + dt L)^-1 H EV and C_i = dt (H + dt L)^-1; dt = 0 gives EV and 0 (inactive branch).
 void branch_operators(const mat &L, const mat &H, const vec &EV_start, const double &DTime,
                       vec &EV_relaxed, mat &C) {
-    const mat HdtL_inv = inv(H + DTime*L);
+    const mat::fixed<6,6> HdtL = H + DTime*L;
+    const mat::fixed<6,6> HdtL_inv = memo_inv(HdtL);
     EV_relaxed = HdtL_inv*(H*EV_start);
     C = DTime*HdtL_inv;
 }
@@ -43,21 +68,22 @@ LinearViscoStep kelvin_series_step(const mat &L0, const vector<mat> &L_i, const 
                                    const vector<vec> &EV_i_start, const vec &eps_e,
                                    const vec &alpha, const double &DTime) {
     const size_t N = L_i.size();
-    vector<mat> C(N);
+    vector<mat::fixed<6,6>> C(N);
     vector<vec> EV_relaxed(N);   // B_i^-1 EV_i,n
-    mat sumC = zeros(6,6);
+    mat::fixed<6,6> sumC = zeros(6,6);
     vec rhs = eps_e;
     for (size_t i=0; i<N; i++) {
         branch_operators(L_i[i], H_i[i], EV_i_start[i], DTime, EV_relaxed[i], C[i]);
         sumC += C[i];
         rhs -= EV_relaxed[i];
     }
-    const mat S_inv = inv(eye(6,6) + L0*sumC);
+    const mat::fixed<6,6> S = eye(6,6) + L0*sumC;
+    const mat::fixed<6,6> S_inv = memo_inv(S);
 
     LinearViscoStep st;
     st.sigma = S_inv*(L0*rhs);
-    st.dSdE = S_inv*L0;
-    st.dSdE = 0.5*(st.dSdE + st.dSdE.t());   // (L0^-1 + sum C)^-1: symmetric up to round-off
+    const mat::fixed<6,6> dSdE = S_inv*L0;
+    st.dSdE = 0.5*(dSdE + dSdE.t());   // (L0^-1 + sum C)^-1: symmetric up to round-off
     st.dSdT = -st.dSdE*alpha;
     st.EV_i.resize(N);
     st.dEVdE_i.resize(N);
@@ -82,16 +108,17 @@ LinearViscoStep maxwell_parallel_step(const mat &L0, const vector<mat> &L_i, con
     st.dEVdT_i.resize(N);
     for (size_t i=0; i<N; i++) {
         vec EV_relaxed;
-        mat C;
+        mat::fixed<6,6> C;
         branch_operators(L_i[i], H_i[i], EV_i_start[i], DTime, EV_relaxed, C);
-        const mat G = C*L_i[i];
+        const mat::fixed<6,6> G = C*L_i[i];
         st.EV_i[i] = EV_relaxed + G*eps_e;
         st.dEVdE_i[i] = G;
         st.dEVdT_i[i] = -G*alpha;
         st.sigma -= L_i[i]*st.EV_i[i];
         st.dSdE -= L_i[i]*G;
     }
-    st.dSdE = 0.5*(st.dSdE + st.dSdE.t());   // L0 - sum L C L: symmetric up to round-off
+    const mat::fixed<6,6> dSdE = st.dSdE;
+    st.dSdE = 0.5*(dSdE + dSdE.t());   // L0 - sum L C L: symmetric up to round-off
     st.dSdT = -st.dSdE*alpha;
     return st;
 }

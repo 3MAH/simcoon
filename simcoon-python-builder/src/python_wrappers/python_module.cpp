@@ -171,7 +171,7 @@ PYBIND11_MODULE(_core, m)
     m.def("Cauchy", &Cauchy, "F"_a, "copy"_a = true, simcoon_docs::Cauchy);
     m.def("Green_Lagrange", &Green_Lagrange, "F"_a, "copy"_a = true, simcoon_docs::Green_Lagrange);
     m.def("Euler_Almansi", &Euler_Almansi, "F"_a, "copy"_a = true, simcoon_docs::Euler_Almansi);
-    m.def("Log_strain", &Log_strain, "F"_a, "voigt_form"_a = false, "copy"_a = true, simcoon_docs::Log_strain);
+    m.def("Log_strain", &Log_strain, "F"_a, "voigt_form"_a = false, "copy"_a = true, "n_threads"_a = 4, simcoon_docs::Log_strain);
     m.def("finite_L", &finite_L, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_L);
     m.def("finite_D", &finite_D, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_D);
     m.def("finite_W", &finite_W, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_W);
@@ -185,7 +185,7 @@ PYBIND11_MODULE(_core, m)
     m.def("A_F", &A_F, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^F (convected / log_F), 6x6 Voigt (De = A^F:D)");
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a = true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a, "F0"_a, "F1"_a, "dtime"_a, "return_de"_a = false, "n_threads"_a = 4, "Rate of deformation D, frame increment DR and spin Omega of the named objective rate between F0 and F1 (DR is the increment DF of the transformation gradient and Omega the velocity gradient under truesdell and logarithmic_F). With return_de=True the strain increment of that rate comes first: it is the increment the solver integrates, and it accumulates to ln V under the logarithmic rates and to the Almansi strain under truesdell once the stored strain is transported with DR (rotation; lower-convected under truesdell; symmetrised similarity under logarithmic_F).");
-    m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
+    m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a, "n_threads"_a = 4);
 
     // register the hyperelastic library
     m.def("isochoric_invariants", &isochoric_invariants, "input"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::isochoric_invariants);
@@ -239,8 +239,8 @@ PYBIND11_MODULE(_core, m)
     // 0 Jaumann, 1 Green-Naghdi, 2 XBM/log, 3 log_R, 4 Truesdell, 5 log_F). Default 3 = log_R,
     // the framework's route. The small-strain/in-rate kernels ignore it, since
     // their tangent is already in the solver's frame.
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "nshr"_a = pybind11::none(), "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "corate"_a = pybind11::none(), "work_correction"_a = true, "tangent_output"_a = "box", "start"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "DT"_a = pybind11::none(), "condense"_a = "spatial_face", simcoon_docs::umat);
-    m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "nshr"_a = pybind11::none(), "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "start"_a = pybind11::none(), "F0"_a = pybind11::none(), "F1"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "condense"_a = "spatial_face", "tangent_output"_a = "box", simcoon_docs::umat_T);
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "nshr"_a = pybind11::none(), "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "corate"_a = pybind11::none(), "work_correction"_a = true, "tangent_output"_a = "box", "start"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "DT"_a = pybind11::none(), "condense"_a = "spatial_face", "ncp"_a = "fischer_burmeister", "integrator"_a = "cutting_plane", simcoon_docs::umat);
+    m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "nshr"_a = pybind11::none(), "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "start"_a = pybind11::none(), "F0"_a = pybind11::none(), "F1"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "condense"_a = "spatial_face", "tangent_output"_a = "box", "integrator"_a = "cutting_plane", simcoon_docs::umat_T);
 
     // Register the from-python converters for read and solver
     // tangent_mode named constants (see parameter.hpp): 0 = none/explicit,
@@ -250,6 +250,8 @@ PYBIND11_MODULE(_core, m)
     m.attr("tangent_algorithmic") = simcoon::tangent_algorithmic;
     m.attr("tangent_closest_point") = simcoon::tangent_closest_point;
     m.attr("tangent_default") = simcoon::tangent_default;
+    m.attr("integrator_cutting_plane") = simcoon::integrator_cutting_plane;
+    m.attr("integrator_closest_point") = simcoon::integrator_closest_point;
     m.attr("corate_type_total") = simcoon::corate_type_total;
     m.def("total_formulation_serves", &simcoon::total_formulation_serves, "umat_name"_a, "Whether the named law can run under kinematic_form='total' (ln U and its dual stress T): the log-strain box laws, MODUL among them, and the hyperelastic laws built on F; not HYPOO nor a law whose stress is not the Kirchhoff stress.");
     m.def("condensation_serves", &condensation_serves, "umat_name"_a, "ndi"_a, "nshr"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), "Whether sim.umat(umat_name, ..., ndi=ndi, nshr=nshr, kinematic_form=kinematic_form) serves the condensed state, under condense='spatial_face' or 'material_face' alike: the law runs 3D, the stress the condition is written on vanishes at convergence on the stress-free components, and the tangent is the Schur complement of the law's own, exact whenever that one is. Under condense='spatial_face' that stress is the law's own (tau_hat under the rate form, T under the total one): it coincides with the traction-free condition only when the free directions are principal, otherwise the second Piola-Kirchhoff S_C is of second order in the shears coupling kept and free directions (first order for anisotropy axes tilted out of the free planes); condense='material_face' sets S_C = 0. True for ndi = 3 (nothing condensed); False for a law not validated in that form, an invalid (ndi, nshr), or an objective rate other than log_R. Raises ValueError on an unknown kinematic_form.");

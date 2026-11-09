@@ -35,14 +35,32 @@ namespace simcoon{
  */
 
     
-    ///@brief The elastic UMAT requires 2 constants:
-    ///@brief props[0] : Young modulus
-    ///@brief props[1] : Poisson ratio
-    ///@brief props[2] : CTE
-    
-    ///@brief No statev is required for thermoelastic constitutive law
-    
-    void umat_elasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
+/**
+ * @brief Thermomechanical isotropic linear elasticity (ELISO, thermomechanical).
+ *
+ * The stress is \f$ \boldsymbol{\sigma} = \mathbf{L} : \left( \boldsymbol{\varepsilon} - \boldsymbol{\alpha}\,(T - T_{init}) \right) \f$,
+ * the tangents \f$ \partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon} = \mathbf{L} \f$ and
+ * \f$ \partial\boldsymbol{\sigma}/\partial T = -\mathbf{L} : \boldsymbol{\alpha} \f$; the reversible entropy is
+ * \f$ \eta_r = \rho c_p \ln(T/T_{init}) + \boldsymbol{\alpha} : \boldsymbol{\sigma} \f$ (no dissipation),
+ * with \f$ \mathbf{L} = \mathbf{L}_{iso}(E, \nu) \f$ and \f$ \boldsymbol{\alpha} = \alpha\,\mathbf{I} \f$.
+ *
+ * Voigt order [11, 22, 33, 12, 13, 23], engineering shear strains; MPa, K.
+ *
+ * **Material properties** (5):
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | props[0] | \f$ \rho \f$ | density |
+ * | props[1] | \f$ c_p \f$ | specific heat capacity |
+ * | props[2] | \f$ E \f$ | Young modulus |
+ * | props[3] | \f$ \nu \f$ | Poisson ratio |
+ * | props[4] | \f$ \alpha \f$ | coefficient of thermal expansion |
+ *
+ * **State variables** (1):
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | statev[0] | \f$ T_{init} \f$ | initial (reference) temperature |
+ */
+void umat_elasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
     
 
 /** @} */ // end of umat_thermomechanical group

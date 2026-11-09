@@ -1,4 +1,21 @@
-///@file Prony.hpp
+/* This file is part of simcoon.
+ 
+ simcoon is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ simcoon is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ */
+
+///@file Prony_Nfast.cpp
 ///@brief User subroutine for Prony series viscoelastic model in 3D case
 ///@author Chemisky, Chatzigeorgiou
 ///@version 1.0
@@ -15,19 +32,6 @@
 
 using namespace std;
 using namespace arma;
-
-///@brief The viscoelastic Prony series model requires 4+N*4 constants:
-//      -------------------
-///@brief      props(0) = E0                - Thermoelastic Young's modulus
-///@brief      props(1) = nu0               - Thermoelastic Poisson's ratio
-///@brief      props(2) = alpha_iso         - Thermoelastic CTE
-///@brief      props(3) = N_prony           - Number of Prony series
-///@brief      props(4+i*4) = E_visco(i)    - Viscoelastic Young modulus of Prony branch i
-///@brief      props(4+i*4+1) = nu_visco(i) - Viscoelastic Poisson ratio of Prony branch i
-///@brief      props(4+i*4+2) = etaB_visco  - Viscoelastic Bulk viscosity of Prony branch i
-///@brief      props(4+i*4+3) = etaS_visco  - Viscoelastic Bulk viscosity of Prony branch i
-
-///@brief Number of statev required for thermoelastic constitutive law : 7+N*7
 
 namespace simcoon {
     
@@ -98,8 +102,6 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         Wm_d = 0.;
     }
 
-    // Implicit (backward-Euler) step of the Maxwell branches in closed form: the exact solution of
-    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
     const std::vector<vec> EV_i_start = EV_i;
     // start strain from the start state, not Etot: condensed callers do not know every component
     vec sigma_EV = stress_start;
@@ -126,7 +128,6 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
-    //Return the statev;
     statev(0) = T_init;
     //From the statev to the internal variables
     statev(1) = EV_tilde(0);

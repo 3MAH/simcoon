@@ -47,8 +47,12 @@ py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double
     //get_L_elastic checks them against the props of the model (check_sub_phases).
     rve.sub_phases = make_sub_phases(phases, umat_name, T_init);
 
-    //Second we call a recursive method that find all the elastic moduli iof the phases
-    simcoon::get_L_elastic(rve);
+    //Second we call a recursive method that find all the elastic moduli iof the phases.
+    //Pure C++ from here (the phases are converted above): other Python threads may run.
+    {
+        py::gil_scoped_release release;
+        simcoon::get_L_elastic(rve);
+    }
 
     return simpy::arma_to_numpy::mat_to_arr(sv_M->Lt);
 }

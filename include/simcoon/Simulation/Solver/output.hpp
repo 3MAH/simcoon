@@ -68,11 +68,19 @@ public :
     arma::Col<int> o_nfreq;
     arma::vec o_tfreq;
     
-    solver_output(); 	//default constructor
-    solver_output(const int &o_nb_strain); 	//Constructor with parameters
-    solver_output(const solver_output &so); 	//Copy constructor
+    /** @brief Default constructor: no output requested, all types set to 0. */
+    solver_output();
+    /**
+     * @brief Constructor with parameters; zero-sized output types and frequencies per block.
+     * @param nblock number of blocks (size of o_type, o_nfreq, o_tfreq)
+     */
+    solver_output(const int &nblock);
+    /** @brief Copy constructor. */
+    solver_output(const solver_output &so);
+    /** @brief Destructor. */
     ~solver_output();
     
+    /** @brief Copy assignment. */
     virtual solver_output& operator = (const solver_output &so);
 
     friend  std::ostream& operator << (std::ostream& os, const solver_output &so);

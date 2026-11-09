@@ -1,3 +1,20 @@
+/* This file is part of simcoon.
+ 
+ simcoon is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ simcoon is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ */
+
 ///@file Zener_fast.cpp
 ///@brief User subroutine for Zener viscoelastic model in 3D case, with thermoelastic effect(Poynting-Thomson model)
 ///@brief This implementation uses a single scalar internal variable for the evaluation of the viscoelastic strain increment
@@ -15,20 +32,6 @@
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 using namespace std;
 using namespace arma;
-
-///@brief The viscoelastic Zener model requires 10 constants:
-//      -------------------
-///@brief      props(0) = rho           - density
-///@brief      props(1) = c_p           - specific heat capacity
-///@brief      props(2) = E0            - Thermoelastic Young's modulus
-///@brief      props(3) = nu0           - Thermoelastic Poisson's ratio
-///@brief      props(4) = alpha_iso     - Thermoelastic CTE
-///@brief      props(5) = E1            - Viscoelastic Young modulus of Zener branch
-///@brief      props(6) = nu0           - Viscoelastic Poisson ratio of Zener branch
-///@brief      props(7) = etaB1         - Viscoelastic Bulk viscosity of Zener branch
-///@brief      props(8) = etaS1         - Viscoelastic shear viscosity of Zener branch
-
-///@brief Number of statev required for thermoelastic constitutive law
 
 namespace simcoon {
     
@@ -100,8 +103,6 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     //Variables at the start of the increment
     const vec EV1_start = EV1;
 
-    // Implicit (backward-Euler) step of the Kelvin branch in closed form: the exact solution of
-    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
     const LinearViscoStep st = kelvin_series_step(L0, {L1}, {H1}, {EV1_start}, eps_e, alpha, DTime);
     EV1 = st.EV_i[0];
@@ -154,7 +155,6 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     Wt_r += (T+DT)*Deta_r;
     Wt_ir += (T+DT)*Deta_ir;
         
-    //Return the statev;
     statev(0) = T_init;
     statev(1) = v;
     statev(2) = EV1(0);

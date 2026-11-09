@@ -549,6 +549,27 @@ arma::vec rotate_vec(const arma::vec &v, const arma::mat &R);
 arma::vec rotate_vec(const arma::vec &v, const double &angle, const int &axis);
 
 /**
+ * @brief Exact test of @p DR against the 3x3 identity, without building it.
+ *
+ * approx_equal(DR, eye(3,3), "absdiff", 0.): a rotation increment at 1e-17 of the identity is
+ * not the identity and is applied. A wrong size or a non-finite entry gives false (the caller
+ * then rotates, the safe side). Lets a kernel skip the rotation of its state on a still frame.
+ */
+inline bool is_identity_rotation(const arma::mat &DR) {
+    if (DR.n_rows != 3 || DR.n_cols != 3) {
+        return false;
+    }
+    for (arma::uword j = 0; j < 3; ++j) {
+        for (arma::uword i = 0; i < 3; ++i) {
+            if (DR(i, j) != ((i == j) ? 1.0 : 0.0)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/**
  * @brief Rotates a 3x3 matrix using a rotation matrix.
  * @param m The input 3x3 matrix (arma::mat)
  * @param R The 3x3 rotation matrix (arma::mat)

@@ -2,6 +2,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <cstdint>
 #include <string>
 #include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
@@ -38,8 +39,14 @@ namespace {
                 to_string(cols) + "), got (" + to_string(shape[0]) + ", " + to_string(shape[1]) + ")");
         }
     }
-    // Helper: numpy (N,6) → arma mat (6,N)  — copy + transpose
+    // Helper: numpy (N,6) → arma mat (6,N), read only. A C-ordered (N,6) buffer is the
+    // column-major (6,N) matrix itself: borrowed (the caller keeps it alive for the call);
+    // any other layout is copied and transposed
     mat np2d_to_mat6N(const py::array_t<double>& arr) {
+        if (arr.ndim() == 2 && arr.size() > 0 && (arr.flags() & py::array::c_style) && arr.writeable()
+                && reinterpret_cast<std::uintptr_t>(arr.data()) % alignof(double) == 0) {
+            return mat(const_cast<double*>(arr.data()), arr.shape(1), arr.shape(0), false, true);
+        }
         mat m = simpy::numpy_to_arma::arr_to_mat(arr);   // numpy (N,6) → arma (N,6)
         return m.t();                      // → arma (6,N)
     }
@@ -330,8 +337,8 @@ void register_tensor(py::module_& m) {
     // ================================================================
     // Batch operations
     // Python side prepares:
-    //   voigt as (N,6) C-order → converted via np2d_to_mat6N (copy + .t())
-    //   cubes as (R,C,N) F-order → zero-copy via simpy::numpy_to_arma::arr_to_cube
+    //   voigt as (N,6) C-order → borrowed as (6,N) by np2d_to_mat6N
+    //   cubes as (R,C,N) F-order → borrowed via simpy::numpy_to_arma::arr_to_cube_view
     // Each name is a pybind overload set (tensor2 + tensor4 variants), mirroring
     // the C++ batch_* overloads; dispatch is disambiguated by the enum argument.
 
@@ -340,7 +347,7 @@ void register_tensor(py::module_& m) {
            py::array_t<double> voigt, simcoon::Tensor2Type vtype,
            py::array_t<double> rot_matrices, bool active) {
             mat v_cpp = np2d_to_mat6N(voigt);
-            cube r_cpp = simpy::numpy_to_arma::arr_to_cube<double>(rot_matrices);
+            cube r_cpp = simpy::numpy_to_arma::arr_to_cube_view(rot_matrices);
             mat result;
             {
                 py::gil_scoped_release release;
@@ -355,7 +362,7 @@ void register_tensor(py::module_& m) {
            py::array_t<double> voigt, simcoon::Tensor2Type vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
-            cube f_cpp = simpy::numpy_to_arma::arr_to_cube<double>(F_arr);
+            cube f_cpp = simpy::numpy_to_arma::arr_to_cube_view(F_arr);
             mat result;
             {
                 py::gil_scoped_release release;
@@ -370,7 +377,7 @@ void register_tensor(py::module_& m) {
            py::array_t<double> voigt, simcoon::Tensor2Type vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
-            cube f_cpp = simpy::numpy_to_arma::arr_to_cube<double>(F_arr);
+            cube f_cpp = simpy::numpy_to_arma::arr_to_cube_view(F_arr);
             mat result;
             {
                 py::gil_scoped_release release;
@@ -400,7 +407,7 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> t2_arr, simcoon::Tensor2Type t2_vtype) {
-            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube<double>(t4_arr);
+            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube_view(t4_arr);
             mat t2_cpp = np2d_to_mat6N(t2_arr);
             mat result;
             {
@@ -416,8 +423,8 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> rot_matrices, bool active) {
-            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube<double>(t4_arr);
-            cube r_cpp = simpy::numpy_to_arma::arr_to_cube<double>(rot_matrices);
+            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube_view(t4_arr);
+            cube r_cpp = simpy::numpy_to_arma::arr_to_cube_view(rot_matrices);
             cube result;
             {
                 py::gil_scoped_release release;
@@ -431,8 +438,8 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> F_arr, bool metric) {
-            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube<double>(t4_arr);
-            cube f_cpp = simpy::numpy_to_arma::arr_to_cube<double>(F_arr);
+            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube_view(t4_arr);
+            cube f_cpp = simpy::numpy_to_arma::arr_to_cube_view(F_arr);
             cube result;
             {
                 py::gil_scoped_release release;
@@ -446,8 +453,8 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> F_arr, bool metric) {
-            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube<double>(t4_arr);
-            cube f_cpp = simpy::numpy_to_arma::arr_to_cube<double>(F_arr);
+            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube_view(t4_arr);
+            cube f_cpp = simpy::numpy_to_arma::arr_to_cube_view(F_arr);
             cube result;
             {
                 py::gil_scoped_release release;
@@ -460,7 +467,7 @@ void register_tensor(py::module_& m) {
     m.def("_batch_inverse",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type) {
-            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube<double>(t4_arr);
+            cube t4_cpp = simpy::numpy_to_arma::arr_to_cube_view(t4_arr);
             cube result;
             {
                 py::gil_scoped_release release;

@@ -62,14 +62,33 @@ constexpr double precision_umat = 1E-9;
 constexpr int tangent_none = 0;          ///< skip tangent assembly, Lt = elastic L (explicit integration)
 constexpr int tangent_continuum = 1;     ///< continuum operator (pre-2.0 mode 0)
 constexpr int tangent_algorithmic = 2;   ///< Simo-Hughes consistent operator (pre-2.0 mode 1)
-constexpr int tangent_closest_point = 3; ///< closest-point-projection integrator with its exact operator (return_mapping.hpp)
+constexpr int tangent_closest_point = 3; ///< kernel code: closest-point-projection integrator with its exact operator (return_mapping.hpp; kernel_tangent_mode)
 constexpr int tangent_default = tangent_algorithmic;
+
+// Local integrator of the laws with a return mapping (the integrator option of solve / sim.umat).
+// Not a kernel argument: kernel_tangent_mode() folds it with the tangent choice into the code
+// the kernels read, where the closest point is tangent_closest_point (a kernel code, not a
+// choice the Python API takes as tangent_mode).
+constexpr int integrator_cutting_plane = 0;   ///< convex cutting plane (default)
+constexpr int integrator_closest_point = 1;   ///< closest-point projection, backward Euler (return_mapping.hpp)
 
 /// Finite-strain formulation carried in the corate_type slot. Rate formulation: corate_type 0..5
 /// (corate_kinematics), the law works on \f$ \ln\mathbf{V} \f$ and the Kirchhoff stress
 /// \f$ \boldsymbol{\tau} \f$. Total formulation (no rate): the law works on \f$ \ln\mathbf{U} \f$,
 /// a state function of \f$ \mathbf{F} \f$, and on its dual stress \f$ \mathbf{T} \f$.
 constexpr int corate_type_total = 6;
+
+/// Tangent form carried in the corate_type slot of a finite-strain kernel CALL: the kernel returns
+/// its tangent as the material tangent \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ instead of the box
+/// tangent of a rate. Not a kinematic choice and never a solver corate: the caller runs its own
+/// kinematics and passes this value only to a kernel built on \f$ \mathbf{F} \f$ that declares it
+/// (umat_convention::material_tangent, material_tangent_serves()), whose stress and work do not
+/// depend on the corate. \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ is the form those kernels close
+/// on (a pull-back of their spatial tangent), so a caller that needs it (the solver under
+/// Green-Lagrange or Biot control, sim.umat with tangent_output 'material' or 'spatial') skips the
+/// box map and its inverse, two spectral maps per call. The corate dispatchers of
+/// objective_rates.hpp accept it (identity on \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$).
+constexpr int corate_type_material_tangent = 7;
 
 /// Kinematic form of the finite-strain constitutive update, for the interfaces that name it:
 /// @c rate (objective rates, \f$ \ln\mathbf{V} \f$ and \f$ \boldsymbol{\tau} \f$) or @c total

@@ -96,7 +96,8 @@ TEST(Ttutorial_umat, matches_EPICP_reference) {
     const auto path = cyclic_path(0.02, 25);
     const Out tut = run(umat_tutorial_J2, PROPS_TUTORIAL, 8, path,
                         tangent_continuum);
-    const Out ref = run(umat_plasticity_iso, PROPS_EPICP, 8, path,
+    // EPICP's trailing ncp option keeps its default through the forwarding lambda
+    const Out ref = run([](auto&&... a) { umat_plasticity_iso(a...); }, PROPS_EPICP, 8, path,
                         tangent_continuum);
     const double peak = std::max(std::abs(ref.sigma.max()),
                                  std::abs(ref.sigma.min()));

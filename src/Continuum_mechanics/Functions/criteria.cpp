@@ -38,7 +38,6 @@ using namespace arma;
 namespace simcoon
 {
 
-    // This function returns the Drucker equivalent stress.
     double Drucker_stress(const vec &v, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -46,19 +45,20 @@ namespace simcoon
         assert(n > 0.);
         double temp;
         double m;
+        const double Mises = Mises_stress(v);
 
         // Below iota the invariants are roundoff and 1 + b J3/J2^1.5 can leave its bounds: NaN
-        if (Mises_stress(v) > simcoon::iota)
+        if (Mises > simcoon::iota)
         {
             if (n < 10.)
             {
                 m = 1. / n;
-                temp = Mises_stress(v) * pow((1. + b * J3_stress(v) / pow(J2_stress(v), 1.5)), m);
+                temp = Mises * pow((1. + b * J3_stress(v) / pow(J2_stress(v), 1.5)), m);
             }
             else
             {
                 m = 0.;
-                temp = Mises_stress(v);
+                temp = Mises;
             }
         }
         else
@@ -69,7 +69,6 @@ namespace simcoon
         return temp;
     }
 
-    // This function returns the derivative of the Drucker equivalent stress.
     vec dDrucker_stress(const vec &v, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -77,19 +76,6 @@ namespace simcoon
         assert(n > 0.);  
 
         double Mises = Mises_stress(v);
-        vec dMises = eta_stress(v);
-
-        double J2 = J2_stress(v);
-        double J3 = J3_stress(v);
-        double J2_3_2 = pow(J2, 1.5);
-        double J2_5_2 = pow(J2, 2.5);
-        
-        mat sigma = v2t_stress(v);
-
-        mat dJ2_mat=dJ2DS(sigma);
-        mat dJ3_mat=dJ3DS(sigma);
-        vec dJ2 = t2v_strain(dJ2_mat);
-        vec dJ3 = t2v_strain(dJ3_mat);
 
         double m;
         vec temp;
@@ -99,6 +85,17 @@ namespace simcoon
             if (n < 10.)
             {
                 m = 1. / n;
+
+                vec dMises = eta_stress(v);
+                double J2 = J2_stress(v);
+                double J3 = J3_stress(v);
+                double J2_3_2 = pow(J2, 1.5);
+                double J2_5_2 = pow(J2, 2.5);
+                mat sigma = v2t_stress(v);
+                mat dJ2_mat=dJ2DS(sigma);
+                mat dJ3_mat=dJ3DS(sigma);
+                vec dJ2 = t2v_strain(dJ2_mat);
+                vec dJ3 = t2v_strain(dJ3_mat);
 
                 temp = pow((1. + b * J3 / J2_3_2), m) * dMises + Mises * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
             }
@@ -116,7 +113,6 @@ namespace simcoon
         return temp;
     }
 
-    // This function returns the Drucker equivalent stress.
     double Tresca_stress(const vec &v)
     {
         mat sigma = v2t_stress(v);
@@ -126,16 +122,13 @@ namespace simcoon
         return lambda(2) - lambda(0);
     }
 
-    // This function returns the Tresca equivalent stress.
     vec dTresca_stress(const vec &v)
     {
         return eta_stress(v);
     }
 
     namespace {
-    // Hessian of f(sigma) (1 + b J3/J2^1.5)^(1/n) for a base equivalent stress f with gradient
-    // df and Hessian ddf (von Mises or DFA). Rows strain-typed, columns per stress component
-    // (the convention of deta_stress / ddEq_stress_P).
+    // rows strain-typed, columns per stress component (as deta_stress / ddEq_stress_P)
     mat drucker_hessian(const vec &v, const double &f, const vec &df, const mat &ddf, const double &b, const double &n)
     {
         if (f <= simcoon::iota) return zeros(6, 6);   // same floor as the value and the gradient
@@ -194,7 +187,6 @@ namespace simcoon
         return drucker_hessian(v, DFA_stress(v, params), dDFA_stress(v, params), ddDFA_stress(v, params), b, n);
     }
 
-    // This function returns the combination of the Drucker equivalent stress by replacing VM by DFA
     double Drucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -227,7 +219,6 @@ namespace simcoon
         return temp;
     }
 
-    // This function returns the derivative of the Drucker equivalent stress.
     vec dDrucker_ani_stress(const vec &v,  const vec &params, const double &b, const double &n)
     {
         assert(v.size() == 6);
@@ -235,20 +226,6 @@ namespace simcoon
         assert(n > 0.);  
 
         double Dfa_stress = DFA_stress(v, params);
-        vec dDfa_stress = dDFA_stress(v,params);
-
-        double J2 = J2_stress(v);
-        double J3 = J3_stress(v);
-        double J2_3_2 = pow(J2, 1.5);
-        double J2_5_2 = pow(J2, 2.5);
-
-        mat sigma = v2t_stress(v);
-
-        mat dJ2_mat=dJ2DS(sigma);
-        mat dJ3_mat=dJ3DS(sigma);
-        vec dJ2 = t2v_strain(dJ2_mat);
-        vec dJ3 = t2v_strain(dJ3_mat);
-        
 
         double m;
         vec temp;
@@ -258,6 +235,17 @@ namespace simcoon
             if (n < 10.)
             {
                 m = 1. / n;
+
+                vec dDfa_stress = dDFA_stress(v,params);
+                double J2 = J2_stress(v);
+                double J3 = J3_stress(v);
+                double J2_3_2 = pow(J2, 1.5);
+                double J2_5_2 = pow(J2, 2.5);
+                mat sigma = v2t_stress(v);
+                mat dJ2_mat=dJ2DS(sigma);
+                mat dJ3_mat=dJ3DS(sigma);
+                vec dJ2 = t2v_strain(dJ2_mat);
+                vec dJ3 = t2v_strain(dJ3_mat);
 
                 temp = pow((1. + b * J3 / J2_3_2), m) * dDfa_stress + Dfa_stress * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
             }
@@ -275,10 +263,12 @@ namespace simcoon
         return temp;
     }
 
-    mat P_Ani(const vec &params)
+    namespace {
+    // anisotropy operators into a caller-provided 6x6 (stack in the criteria, heap in P_Ani/P_Hill/P_DFA)
+    void fill_P_Ani(const vec &params, mat &P)
     {
         assert(params.n_elem == 9); // P_11,P_22,P_33,P_12,P_13,P_23,P_44,P_55,P_66
-        mat P = zeros(6, 6);
+        P.zeros();
         P(0, 0) = params(0);      // P_11
         P(1, 1) = params(1);      // P_22
         P(2, 2) = params(2);      // P_33
@@ -291,20 +281,13 @@ namespace simcoon
         P(3, 3) = 2. * params(6); // P_44 = P_1212
         P(4, 4) = 2. * params(7); // P_55 = P_1313
         P(5, 5) = 2. * params(8); // P_66 = P_2323
-
-        return P;
     }
 
-    mat P_Hill(const vec &params)
+    void fill_P_Hill(const vec &params, mat &P)
     {
         assert(params.n_elem == 6); // F,G,H,L,M,N
-        mat P = zeros(6, 6);
-        // param(0) = F
-        // param(1) = G
-        // param(2) = H
-        // param(3) = L
-        // param(4) = M
-        // param(5) = N
+        P.zeros();
+        // params = (F, G, H, L, M, N)
         P(0, 0) = params(1) + params(2); // P_11 = G+H
         P(1, 1) = params(0) + params(2); // P_22 = F+H
         P(2, 2) = params(0) + params(1); // P_33 = F+G
@@ -317,21 +300,13 @@ namespace simcoon
         P(3, 3) = 2. * params(5);        // P_44 = N
         P(4, 4) = 2. * params(4);        // P_55 = M
         P(5, 5) = 2. * params(3);        // P_66 = L
-
-        return P;
     }
 
-    mat P_DFA(const vec &params)
+    void fill_P_DFA(const vec &params, mat &P)
     {                               // Deshpande–Fleck–Ashby
         assert(params.n_elem == 7); // F,G,H,L,M,N,K
-        mat P = zeros(6, 6);
-        // param(0) = F
-        // param(1) = G
-        // param(2) = H
-        // param(3) = L
-        // param(4) = M
-        // param(5) = N
-        // param(6) = K
+        P.zeros();
+        // params = (F, G, H, L, M, N, K)
         P(0, 0) = params(1) + params(2) + params(6) / 9.; // P_11 = G+H+K/9
         P(1, 1) = params(0) + params(2) + params(6) / 9.; // P_22 = F+H+K/9
         P(2, 2) = params(0) + params(1) + params(6) / 9.; // P_33 = F+G+K/9
@@ -344,7 +319,27 @@ namespace simcoon
         P(3, 3) = 2. * params(5);                         // P_44 = N
         P(4, 4) = 2. * params(4);                         // P_55 = M
         P(5, 5) = 2. * params(3);                         // P_66 = L
+    }
+    }
 
+    mat P_Ani(const vec &params)
+    {
+        mat P(6, 6);
+        fill_P_Ani(params, P);
+        return P;
+    }
+
+    mat P_Hill(const vec &params)
+    {
+        mat P(6, 6);
+        fill_P_Hill(params, P);
+        return P;
+    }
+
+    mat P_DFA(const vec &params)
+    {
+        mat P(6, 6);
+        fill_P_DFA(params, P);
         return P;
     }
 
@@ -366,7 +361,8 @@ namespace simcoon
 
         if (norm(v, 2) > simcoon::iota)
         {
-            return (H * v) / Eq_stress_P(v, H);
+            const vec Hv = H * v;   // shared by the gradient and the norm (Eq_stress_P)
+            return Hv / pow(sum(v % Hv), 0.5);
         }
         else
         {
@@ -380,63 +376,76 @@ namespace simcoon
         {
             return zeros(6, 6);
         }
-        double sigeq = Eq_stress_P(v, H);
+        const vec Hv = H * v;
+        double sigeq = pow(sum(v % Hv), 0.5);   // Eq_stress_P(v, H)
         if (sigeq < simcoon::iota)
         {
             return zeros(6, 6);
         }
-        vec Lambda = (H * v) / sigeq; // == dEq_stress_P(v, H)
+        vec Lambda = Hv / sigeq; // == dEq_stress_P(v, H)
         return (H - Lambda * Lambda.t()) / sigeq;
     }
 
     mat ddHill_stress(const vec &v, const vec &params)
     {
-        return ddEq_stress_P(v, P_Hill(params));
+        mat::fixed<6, 6> P;
+        fill_P_Hill(params, P);
+        return ddEq_stress_P(v, P);
     }
 
     mat ddDFA_stress(const vec &v, const vec &params)
     {
-        return ddEq_stress_P(v, P_DFA(params));
+        mat::fixed<6, 6> P;
+        fill_P_DFA(params, P);
+        return ddEq_stress_P(v, P);
     }
 
     mat ddAni_stress(const vec &v, const vec &params)
     {
-        return ddEq_stress_P(v, P_Ani(params));
+        mat::fixed<6, 6> P;
+        fill_P_Ani(params, P);
+        return ddEq_stress_P(v, P);
     }
 
     double Hill_stress(const vec &v, const vec &params)
     {
-        mat P = P_Hill(params);
+        mat::fixed<6, 6> P;
+        fill_P_Hill(params, P);
         return Eq_stress_P(v, P);
     }
 
     vec dHill_stress(const vec &v, const vec &params)
     {
-        mat P = P_Hill(params);
+        mat::fixed<6, 6> P;
+        fill_P_Hill(params, P);
         return dEq_stress_P(v, P);
     }
 
     double DFA_stress(const vec &v, const vec &params)
     {
-        mat P = P_DFA(params);
+        mat::fixed<6, 6> P;
+        fill_P_DFA(params, P);
         return Eq_stress_P(v, P);
     }
 
     vec dDFA_stress(const vec &v, const vec &params)
     {
-        mat P = P_DFA(params);
+        mat::fixed<6, 6> P;
+        fill_P_DFA(params, P);
         return dEq_stress_P(v, P);
     }
 
     double Ani_stress(const vec &v, const vec &params)
     {
-        mat P = P_Ani(params);
+        mat::fixed<6, 6> P;
+        fill_P_Ani(params, P);
         return Eq_stress_P(v, P);
     }
 
     vec dAni_stress(const vec &v, const vec &params)
     {
-        mat P = P_Ani(params);
+        mat::fixed<6, 6> P;
+        fill_P_Ani(params, P);
         return dEq_stress_P(v, P);
     }
 
@@ -468,9 +477,7 @@ namespace simcoon
         }
         else
         {
-            // throw, do NOT exit(0): an invalid criterion string must be
-            // reportable by the caller (an exit kills the host process,
-            // e.g. the Python interpreter).
+            // throw, not exit(0): an exit kills the host process (e.g. Python)
             throw std::invalid_argument("Eq_stress: unknown criterion '"
                                         + eq_type + "'");
         }

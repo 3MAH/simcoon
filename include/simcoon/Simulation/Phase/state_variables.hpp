@@ -84,6 +84,7 @@ class state_variables
         arma::vec statev; ///< Internal state variables vector
         arma::vec statev_start; ///< Internal state variables at start of increment; crosses both ways
 
+        int ncp = 0; ///< complementarity function of the local cutting plane (NCPMethod code): 0 Fischer-Burmeister (default), 1 min-NCP; served by EPICP, EPKCP and MODUL
         int tangent_mode = tangent_default; // tangent_* constants (parameter.hpp): 0 = none/explicit, 1 = continuum, 2 = algorithmic/Simo-Hughes (default), 3 = closest-point (exact operator of the closest-point integrator where a kernel has one, else the algorithmic operator).
     
     

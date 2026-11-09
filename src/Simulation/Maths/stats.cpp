@@ -46,10 +46,6 @@ double normal_distrib(const double &x, const double &mean, const double &dev){
 }
 
 double proba_distrib_weibull(const double &x, const double &alpha, const double &beta) {
-    //This is the implementation of a Wibull cumulative distribution function, where
-    // alpha > 0 is the shape parameter and λ > 0 is the scale parameter of the distribution.
-    // Its complementary cumulative distribution function is a stretched exponential function. The Weibull distribution is related to a number of other probability distributions; in particular, it interpolates between the exponential distribution (alpha = 1) and the Rayleigh distribution (alpha = 2 and \beta = \sqrt{2}\sigma)
-    
     assert(alpha > 0.);
     assert(beta > 0.);
     
@@ -57,10 +53,6 @@ double proba_distrib_weibull(const double &x, const double &alpha, const double 
 }
     
 double cumul_distrib_weibull(const double &x, const double &alpha, const double &beta) {
-    //This is the implementation of a Wibull cumulative distribution function, where
-    // alpha > 0 is the shape parameter and λ > 0 is the scale parameter of the distribution.
-    // Its complementary cumulative distribution function is a stretched exponential function. The Weibull distribution is related to a number of other probability distributions; in particular, it interpolates between the exponential distribution (alpha = 1) and the Rayleigh distribution (alpha = 2 and \beta = \sqrt{2}\sigma)
-    
     assert(alpha > 0.);
     assert(beta > 0.);
     

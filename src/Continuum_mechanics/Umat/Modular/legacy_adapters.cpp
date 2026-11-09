@@ -22,8 +22,10 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
+#include <cstring>
 #include <map>
 #include <stdexcept>
+#include <vector>
 
 using namespace arma;
 
@@ -31,11 +33,7 @@ namespace simcoon {
 
 namespace {
 
-// Modular props stream (configure_from_props):
-//   [el_type, conv, el params..., alphas..., n_mech, mech blocks...]
-// Plasticity block: [0, yield, iso, kin, N_iso, N_kin, sigma_Y,
-//                    yield params, iso params, kin params]
-// Viscoelastic block: [1, N, (E_i, nu_i, etaB_i, etaS_i) x N]
+// MODUL props stream: see ModularUMAT::configure_from_props (modular_umat.hpp)
 
 vec translate_ELISO(const vec& p) {
     // legacy: E nu alpha
@@ -115,11 +113,7 @@ vec translate_EPCHG(const vec& p) {
     const int n_crit = n_crit_map[crit_legacy];
     const uword legacy_crit_off = 8 + 2 * static_cast<uword>(N_iso + N_kin);
 
-    // The legacy N-term isotropic hardening couples every term through a
-    // SINGLE Hp (dHp/dp = sum_i b_i (Q_i - Hp)) — mathematically ONE
-    // effective Voce with b_eff = sum(b_i), Q_eff = sum(b_i Q_i)/sum(b_i),
-    // NOT the standard combined-Voce sum (proven by the Phase-1 equivalence
-    // test at 2.6e-4). Map accordingly.
+    // legacy N-term hardening shares ONE Hp: an effective Voce, b_eff = sum b_i, Q_eff = sum(b_i Q_i)/b_eff
     double b_eff = 0.0, bq = 0.0;
     for (int i = 0; i < N_iso; ++i) {
         const double Q_i = p(8 + 2 * static_cast<uword>(i));
@@ -206,20 +200,38 @@ void umat_legacy_modular(
     const double& T, const double& DT, const double& Time, const double& DTime,
     double& Wm, double& Wm_r, double& Wm_ir, double& Wm_d,
     const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
-    const int& tangent_mode) {
+    const int& tangent_mode, const int& ncp) {
 
-    const auto it = registry().find(umat_name);
-    if (it == registry().end()) {
-        throw std::invalid_argument("umat_legacy_modular: no adapter registered for '"
-                                 + umat_name + "'");
+    // per-thread memo of the last (name, props) translation (plain std containers: no arma object
+    // outlives the call); the key is written last so a throw leaves no stale pair
+    struct translation {
+        std::string name;
+        std::vector<double> props;
+        std::vector<double> props_mod;
+    };
+    thread_local translation last;
+    const bool hit = !last.name.empty() && umat_name == last.name && props.n_elem == last.props.size()
+        && (last.props.empty()
+            || std::memcmp(last.props.data(), props.memptr(), last.props.size() * sizeof(double)) == 0);
+    if (!hit) {
+        const auto it = registry().find(umat_name);
+        if (it == registry().end()) {
+            throw std::invalid_argument("umat_legacy_modular: no adapter registered for '"
+                                     + umat_name + "'");
+        }
+        const vec translated = it->second(props);
+        last.name.clear();
+        last.props.assign(props.begin(), props.end());
+        last.props_mod.assign(translated.begin(), translated.end());
+        last.name = umat_name;
     }
-    const vec props_mod = it->second(props);
+    const vec props_mod(const_cast<double*>(last.props_mod.data()), last.props_mod.size(), false, true);   // a view
     try {
         umat_modular(umat_name, Etot, DEtot, sigma, Lt, L, DR,
                      static_cast<int>(props_mod.n_elem), props_mod,
                      nstatev, statev,
                      T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d,
-                     ndi, nshr, start, tnew_dt, tangent_mode);
+                     ndi, nshr, start, tnew_dt, tangent_mode, KinematicForm::rate, ncp);
     } catch (const std::logic_error& e) {
         // a configuration error, named after the legacy law; numerical failures pass through
         // with their own type (the step-cut policy)

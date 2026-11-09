@@ -41,30 +41,8 @@ using namespace arma;
 
 namespace simcoon {
 
-//=============================================================================
-// ABAQUS UMAT TRANSFER FUNCTIONS
-//=============================================================================
+// ==== FE component maps (fea_transfer.hpp) ====
 
-namespace {
-
-// FE arrays hold the element's ntens components: entry i is the simcoon component K(i). The
-// others have zero strain (ndi = 3) or are stress-free, solved by the material point (ndi < 3,
-// condensed_state.hpp)
-struct fea_components {
-    int ntens;
-    int K[6];
-    int operator()(const int &i) const { return K[i]; }
-};
-
-// Abaqus: ndi direct, then the nshr shears 12, 13, 23, the kept set of the condensed state
-fea_components abaqus_components(const condensed_state &cs) {
-    fea_components c{static_cast<int>(cs.K.n_elem), {0, 0, 0, 0, 0, 0}};
-    for (int i = 0; i < c.ntens; i++) c.K[i] = static_cast<int>(cs.K(i));
-    return c;
-}
-
-// Ansys: 11, 22, 33, 12, 23, 13 in 3D (13 and 23 swapped), 11, 22, 33, 12 in plane strain and
-// axisymmetry, 11, 22, 12 in plane stress, 11 in 1D
 fea_components ansys_components(const int &nDirect, const int &nShear) {
     if (nDirect == 3 && nShear == 3) return {6, {0, 1, 2, 3, 5, 4}};
     if (nDirect == 3 && nShear == 1) return {4, {0, 1, 2, 3, 0, 0}};
@@ -75,17 +53,6 @@ fea_components ansys_components(const int &nDirect, const int &nShear) {
                                 "axisymmetric, plane stress and 1D are)");
 }
 
-// FE vector -> simcoon 6 entries (vec, 6x1 or 1x6 mat), zero outside K
-template <class V> void fe2vec(const double *a, const fea_components &K, V &v) {
-    v.zeros();
-    for (int i = 0; i < K.ntens; i++) v(K(i)) = a[i];
-}
-
-template <class V> void vec2fe(const V &v, const fea_components &K, double *a) {
-    for (int i = 0; i < K.ntens; i++) a[i] = v(K(i));
-}
-
-// column-major ntens x ntens <-> the K x K block of a 6x6
 void fe2mat(const double *a, const fea_components &K, mat &M) {
     M.zeros(6, 6);
     for (int j = 0; j < K.ntens; j++)
@@ -97,10 +64,19 @@ void mat2fe(const mat &M, const fea_components &K, double *a) {
         for (int i = 0; i < K.ntens; i++) a[j*K.ntens + i] = M(K(i), K(j));
 }
 
-// STATEV after the bridge's nheader entries: the stress-free strain (ndi < 3, condensed_state.hpp)
-// in simcoon order, then the law. The free strain is read at the start of the increment, rotated
-// with it (DR) as the FE code rotates the strain: the material point then solves its change, not
-// the whole value
+// ==== ABAQUS UMAT TRANSFER FUNCTIONS ====
+
+namespace {
+
+// Abaqus: ndi direct, then the nshr shears 12, 13, 23, the kept set of the condensed state
+fea_components abaqus_components(const condensed_state &cs) {
+    fea_components c{static_cast<int>(cs.K.n_elem), {0, 0, 0, 0, 0, 0}};
+    for (int i = 0; i < c.ntens; i++) c.K[i] = static_cast<int>(cs.K(i));
+    return c;
+}
+
+// STATEV after nheader: the stress-free strain (simcoon order), then the law; it is rotated with DR
+// like the FE strain, so the material point solves its change, not its whole value
 void unpack_statev(const double *statev, const int &nstatev, const int &nheader, const uvec &C, const mat &DR, vec &Etot, vec &statev_smart) {
     if (!C.is_empty()) {
         vec E_C = zeros(6);
@@ -218,16 +194,23 @@ bool abaqus_nlgeom(const double *dfgrd1) {
 }
 
 mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
-    // symmetric part of sigma (x) I: what Abaqus's default (symmetric) solver keeps
-    const vec I = {1., 1., 1., 0., 0., 0.};
-    const mat sigma_I = sigma * I.t();
-    return Lt + 0.5*(sigma_I + sigma_I.t());
+    // symmetric part of sigma (x) I: what Abaqus's default (symmetric) solver keeps, built in
+    // place (the products and sums of Lt + 0.5*(sigma I^T + I sigma^T), without the temporaries)
+    static const double I[6] = {1., 1., 1., 0., 0., 0.};
+    mat J(6, 6);
+    for (int j = 0; j < 6; j++) {
+        for (int i = 0; i < 6; i++) {
+            const double s1 = sigma(i)*I[j];
+            const double s2 = sigma(j)*I[i];
+            const double h = (s1 + s2)*0.5;
+            J(i, j) = Lt(i, j) + h;
+        }
+    }
+    return J;
 }
 
 int abaqus_kinematic_form(const char *cmname) {
-    // CMNAME is a space-padded CHARACTER*80 (no terminator); a C caller's string stops at '\0'
-    // and is read up to it only. `_R` must be the whole suffix: any other tail (EPICP_REF, ...)
-    // is ignored, as before the suffix existed
+    // CMNAME: space-padded CHARACTER*80 (a C string stops at '\0'); '_R' must be the whole suffix
     if (std::find(cmname, cmname + 7, '\0') != cmname + 7)
         return corate_type_total;
     return (cmname[5] == '_' && (cmname[6] == 'R' || cmname[6] == 'r') && (cmname[7] == ' ' || cmname[7] == '\0'))
@@ -261,7 +244,7 @@ bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int
         return corate_type != corate_type_total || total_formulation_serves_T(umat_name);
     const auto &names = finite_umat_names();
     auto it = names.find(umat_name);
-    if (it == names.end() || it->second <= 1)   // UMEXT, UMABA: foreign plugins keep their own convention
+    if (it == names.end())   // small-strain only, the external plugins included
         return false;
     return corate_type != corate_type_total || total_formulation_serves(umat_name);
 }
@@ -403,9 +386,7 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
     pack_statev(Etot_end, statev_smart, 7, cs.C, statev);
 }
 
-//=============================================================================
-// ANSYS USERMAT TRANSFER FUNCTIONS
-//=============================================================================
+// ==== ANSYS USERMAT TRANSFER FUNCTIONS ====
 
 void ansys2smart_M(const double *stress, const double *dsdePl, const double *strain, const double *dstrain,
     const double &Time, const double &Temp, const double &dTemp,

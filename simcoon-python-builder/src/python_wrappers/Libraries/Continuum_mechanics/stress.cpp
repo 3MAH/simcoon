@@ -5,6 +5,7 @@
 #include <string>
 #include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <armadillo>
 #include <assert.h>
 
@@ -21,10 +22,9 @@ namespace simpy {
 
 py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::array_t<double> &F, const string &converter_key, const double &J, const bool & copy) {
 
-    std::map<string, int> list_stress_convert;    
     // NOTE: Be strict about keys. Using operator[] would insert unknown keys
     // with a default value (0), silently mapping to Cauchy2PKI.
-    list_stress_convert = {
+    static const std::map<string, int> list_stress_convert = {
         {"Cauchy2PKI",0},
         {"Cauchy2PKII",1},
         // Historically misspelled as Kirchoff in simcoon
@@ -159,6 +159,37 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
         }
     };*/
 
+    // F of a batch of N stresses: (3,3,N), or (N,3,3) transposed to it
+    auto batch_F = [&F](const unsigned int N) -> py::array_t<double> {
+        if ((int)F.ndim() == 3) {
+            if ((unsigned int)F.shape(0) == N && F.shape(1) == 3 && F.shape(2) == 3) {
+                return F.attr("transpose")(py::make_tuple(1,2,0)).cast<py::array_t<double>>();
+            }
+            if ((unsigned int)F.shape(0) == 3 && F.shape(1) == 3 && (unsigned int)F.shape(2) == N) {
+                return F;
+            }
+        }
+        throw std::invalid_argument("For a batch of N stresses, F must be shaped (3,3,N) or (N,3,3) with matching N");
+    };
+
+    if(sigma.ndim() == 3) {
+        // Batch of 3x3 stresses (3,3,N): per point, GIL released, through the slice memory
+        if ((sigma.shape(0) != 3) || (sigma.shape(1) != 3)) {
+            throw std::invalid_argument("Invalid shape of the three-dimensional array. Expected (3,3,N): one 3x3 stress per slice");
+        }
+        const unsigned int N = sigma.shape(2);
+        const py::array_t<double> F_in = batch_F(N);
+        const cube sigma_cpp_list = simpy::numpy_to_arma::arr_to_cube_view(sigma);
+        const cube F_cpp_list = simpy::numpy_to_arma::arr_to_cube_view(F_in);
+        cube stress(3, 3, N);   // every slice written below
+        parallel_for_nogil(static_cast<int>(N), [&](int i) {
+            const mat sigma_cpp(const_cast<double *>(sigma_cpp_list.slice_memptr(i)), 3, 3, false, true);
+            const mat F_cpp(const_cast<double *>(F_cpp_list.slice_memptr(i)), 3, 3, false, true);
+            mat out(stress.slice_memptr(i), 3, 3, false, true);
+            out = functor_stress_converter(sigma_cpp, F_cpp, J);
+        });
+        return simpy::arma_to_numpy::cube_to_arr(stress, copy);
+    }
     if(sigma.ndim() == 1) {
         if(sigma.size() == 6) {
             mat sigma_cpp = simcoon::v2t_stress(simpy::numpy_to_arma::arr_to_col(sigma));
@@ -231,15 +262,15 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
             }
 
             assert(N == (unsigned int)F_in.shape(2));
-            mat stress = zeros(6,N);
-            mat sigma_cpp_list = simpy::numpy_to_arma::arr_to_mat_view(sigma);
-            cube F_cpp_list = simpy::numpy_to_arma::arr_to_cube_view(F_in);
+            mat stress(6, N);   // every column written below
+            const mat sigma_cpp_list = simpy::numpy_to_arma::arr_to_mat_view(sigma);
+            const cube F_cpp_list = simpy::numpy_to_arma::arr_to_cube_view(F_in);
 
-            for (unsigned int i=0; i < sigma_cpp_list.n_cols; i++) {
-                vec sigma_cpp = sigma_cpp_list.unsafe_col(i);
-                mat F_cpp = F_cpp_list.slice(i);
-                stress.col(i) = simcoon::t2v_stress(functor_stress_converter(simcoon::v2t_stress(sigma_cpp), F_cpp, J));
-            }
+            // per point, GIL released, through the slice memory (no Cube::slice() header)
+            parallel_for_nogil(static_cast<int>(sigma_cpp_list.n_cols), [&](int i) {
+                const mat F_cpp(const_cast<double *>(F_cpp_list.slice_memptr(i)), 3, 3, false, true);
+                stress.col(i) = simcoon::t2v_stress(functor_stress_converter(simcoon::v2t_stress(sigma_cpp_list.col(i)), F_cpp, J));
+            });
 
             return simpy::arma_to_numpy::mat_to_arr(stress, copy);
         }
@@ -248,7 +279,7 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
         }
     }
     else {
-        throw std::invalid_argument("Invalid number of dimensions for input 'sigma'. Expected 1 or 2.");
+        throw std::invalid_argument("Invalid number of dimensions for input 'sigma'. Expected 1, 2 or 3.");
     }    
 }
 

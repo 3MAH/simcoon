@@ -15,7 +15,7 @@
  
  */
 
-///@file sma_mono.cpp
+///@file SMA_mono.cpp
 ///@brief User subroutine for monocrystalline SMA with multiple elastic symmetry options
 ///@author Chemisky
 
@@ -179,13 +179,10 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 	vec ET_start = ET;
     
 	double xi = statev(nvariants+7);
-    double xi_start = xi;
     double dxi = 0.;
     
 	//Rotation of internal variables (tensors)
     ET = rotate_strain(ET, DR);
-
-    // Note: Elastic stiffness tensor L is already constructed based on umat_name
 
     ///@brief Initialization
     if(start)
@@ -213,7 +210,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 	vec PhiR(nvariants);
 	vec PhiR_start(nvariants);
    	
-   	std::vector<int> transfo_actif(24);
+   	std::vector<int> transfo_actif(nvariants);
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
@@ -301,6 +298,8 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 			lambda1 = lagrange_pow_1(xi, c_lambda1, p0_lambda1, n_lambda1, alpha_lambda1);        
 			dlambda1dxin = dlagrange_pow_1(xi, c_lambda1, p0_lambda1, n_lambda1, alpha_lambda1);    
 
+			Hnmxim = Hnm*xin;
+
 			for(int i=0; i<nactive; i++) {
 
 				lambda0(active[i]) = -1.*lagrange_pow_0(xin(active[i]), c_lambda0, p0_lambda0, n_lambda0, alpha_lambda0);
@@ -308,7 +307,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
                 
 				if(tactive[i] == 1) {
 
-                    Hnmxim = Hnm*xin;
 					Phi(i) = sum(stress%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 - Y0;
 
                     for (int j=0; j<nactive; j++) {
@@ -317,7 +315,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				}
 				else if(tactive[i] == -1) {
 					
-                    Hnmxim = Hnm*xin;
 					Phi(i) = sum(stress%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 + Y0;
                   
                     for (int j=0; j<nactive; j++) {
@@ -344,8 +341,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				if(fabs(det(dPhidxi)) > 0.)
                 dxin = -1.*inv(dPhidxi)*Phi;
             else {
-                //pnewdt = 0.1;
-//                Phi = zeros(nactive);
                 dxin = zeros(nactive);
             }
 			} catch (const std::runtime_error &e) {
@@ -359,7 +354,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				dxi += dxin(i);
 
                 xin(active[i]) += dxin(i);
-//				Amortissement(xin(active[i]), dxin(i), xin_start(active[i]));
                 
             }       
             
@@ -375,7 +369,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
                 xi += xin(i);
             }
 			
-//			Amortissement(xi, dxi, xi_start);            
             for(int i=0; i<nvariants; i++) {
                 ET += var[i].ETn*xin(i);
             }
@@ -385,37 +378,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
             stress = el_pred(L, Eel);
         }
                        
-		vec lambda_eff = zeros(6);
-		mat Lt_eff = zeros(6,6);
-		double xi_path = 0.;		
-		double H_eff = 0.;
-		
-		vec B1(6);
-		vec B2(6);
-		double At2;		
-		
-		if(fabs(xi - xi_start) > 1.E-8) {
-			
-			xi_path = xi - xi_start;
-			
-	        for(int i=0; i<nactive; i++) {
-				lambda_eff +=  1./(xi_path)*(xin(active[i])-xin_start(active[i]))*var[i].ETn;
-				for(int j=0; j<nactive; j++) {
-					H_eff +=  1./pow(xi_path,2.)*(fabs(xin(active[i])-xin_start(active[i])))*(Hnm(active[i], active[j]) + dlambda0dxin(active[i],active[j]) + dlambda1dxin)*fabs((xin(active[j])-xin_start(active[j])));
-				}
-	        }
-
-			B1 = L*lambda_eff;
-			B2 = L*lambda_eff;
-			At2 = -1.*H_eff - sum(lambda_eff%B1);
-		
-			Lt_eff = L + (B1*trans(B2))/At2;        
-		}
-		else
-			Lt_eff = L;
-		
-        //Computation of the tangent modulus !
-        //Computation of the tangent modulus !
+        //Computation of the tangent modulus
 		try {
 			if(fabs(det(dPhidxi)) > 0.) {
 				Lt = L + ((L*lambda)*(inv(dPhidxi))*(dPhidsigma*L));
@@ -427,13 +390,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 			throw simcoon::exception_inv("Error in inv function inside umat_sma_mono.");
 		}   
 
-		
-/*		///Note : To use with Self-consistent micromechanics only!
-		vec eigval = eig_sym(Lt);
-		while(eigval(0) < 0.) {
-				Lt = 0.99*Lt + 0.01*Lt_eff;
-				eigval = eig_sym(Lt);			
-		}*/
         
     }
 	else {

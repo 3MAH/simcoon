@@ -8,6 +8,7 @@
 #include <armadillo>
 
 #include <simcoon/python_wrappers/parallel_nogil.hpp>
+#include <simcoon/slice_view.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/parameter.hpp>
@@ -85,10 +86,14 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         mat DR = zeros(3,3);
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
-        simcoon::corate_kinematics(corate, DR, D, Omega, F0_cpp, F1_cpp, DTime);
+        mat De;
+        if (return_de)   // one spectral pass for the kinematics and the increment
+            simcoon::corate_kinematics(corate, DR, D, Omega, De, F0_cpp, F1_cpp, DTime);
+        else
+            simcoon::corate_kinematics(corate, DR, D, Omega, F0_cpp, F1_cpp, DTime);
 
         if (return_de) {
-            vec de = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_cpp, F1_cpp, DR, D, Omega, DTime, corate));
+            vec de = simcoon::t2v_strain(De);
             return py::make_tuple(simpy::arma_to_numpy::col_to_arr(de,false), simpy::arma_to_numpy::mat_to_arr(D, false), simpy::arma_to_numpy::mat_to_arr(DR, false), simpy::arma_to_numpy::mat_to_arr(Omega, false));
         }
         else{
@@ -120,13 +125,27 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             }
         }
         const bool F0_per_point = F0_one.is_empty();
+        // checked here, in serial context, instead of aliasing past the numpy buffers
+        if (F1_cpp.n_rows != 3 || F1_cpp.n_cols != 3
+                || (F0_per_point && (F0_cpp.n_rows != 3 || F0_cpp.n_cols != 3 || F0_cpp.n_slices != F1_cpp.n_slices))
+                || (!F0_per_point && (F0_one.n_rows != 3 || F0_one.n_cols != 3))) {
+            throw std::invalid_argument("objective_rate: F1 must be (3, 3, N) and F0 (3, 3), (3, 3, 1) or (3, 3, N)");
+        }
 
         parallel_for_nogil(nb_points, [&](int pt) {
-            const mat &F0_pt = F0_per_point ? F0_cpp.slice(pt) : F0_one;
-            simcoon::corate_kinematics(corate, DR.slice(pt), D.slice(pt), Omega.slice(pt), F0_pt, F1_cpp.slice(pt), DTime);
-            if (return_de) {
+            // slice aliases: never Cube::slice in the parallel region (slice_view.hpp)
+            const mat F0_s = F0_per_point ? simcoon::slice_view(F0_cpp, pt) : mat();
+            const mat &F0_pt = F0_per_point ? F0_s : F0_one;
+            const mat F1_pt = simcoon::slice_view(F1_cpp, pt);
+            mat DR_pt = simcoon::slice_view(DR, pt), D_pt = simcoon::slice_view(D, pt), Omega_pt = simcoon::slice_view(Omega, pt);
+            if (return_de) {   // one spectral pass for the kinematics and the increment
+                mat De;
+                simcoon::corate_kinematics(corate, DR_pt, D_pt, Omega_pt, De, F0_pt, F1_pt, DTime);
                 vec de_col = de.unsafe_col(pt);
-                de_col = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_pt, F1_cpp.slice(pt), DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, corate));
+                de_col = simcoon::t2v_strain(De);
+            }
+            else {
+                simcoon::corate_kinematics(corate, DR_pt, D_pt, Omega_pt, F0_pt, F1_pt, DTime);
             }
         }, n_threads);
         if (return_de){	                     
@@ -147,7 +166,7 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
-py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
+py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key, const unsigned int &n_threads) {
     static const std::map<string, int> list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}, {"DTDH_2_DSDE",11}};
     // guarded lookup: operator[] would default-insert 0 = Dsigma_LieDD_2_DSDE, so a
     // misspelled or renamed key silently performed a DIFFERENT conversion and returned a
@@ -211,12 +230,13 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         if (F_cpp.n_slices != Lt_cpp.n_slices || stress_cpp.n_cols != Lt_cpp.n_slices) {
             throw std::invalid_argument("Lt_convert: Lt, F and stress must carry one entry per point");
         }
-        cube Lt_converted(6, 6, nb_points);
+        cube Lt_converted(6, 6, nb_points, fill::none);   // every slice written below
         // one point per item, own output slice: parallel, GIL released (6x6 allocations)
         parallel_for_nogil(nb_points, [&](int pt) {
-            Lt_converted.slice(pt) = convert_pt(Lt_cpp.slice(pt), F_cpp.slice(pt),
-                                                simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
-        });
+            mat out_pt = simcoon::slice_view(Lt_converted, pt);
+            out_pt = convert_pt(simcoon::slice_view(Lt_cpp, pt), simcoon::slice_view(F_cpp, pt),
+                                simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
+        }, n_threads);
         return simpy::arma_to_numpy::cube_to_arr(Lt_converted, false);
     }
     throw std::invalid_argument("Lt.ndim() must be 2 or 3");

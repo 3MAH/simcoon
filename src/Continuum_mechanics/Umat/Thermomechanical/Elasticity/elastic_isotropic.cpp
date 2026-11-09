@@ -32,13 +32,6 @@ using namespace arma;
 
 namespace simcoon{
 
-///@brief The elastic UMAT requires 2 constants:
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
-
-///@brief No statev is required for thermoelastic constitutive law
-
 void umat_elasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {  	
 

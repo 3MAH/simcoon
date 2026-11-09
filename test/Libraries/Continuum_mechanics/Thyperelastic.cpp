@@ -24,7 +24,13 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
+#include <simcoon/Simulation/Maths/eig_sym3.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 
 using namespace std;
 using namespace arma;
@@ -304,4 +310,98 @@ TEST(Thyperelastic, L_iso_hyper_pstretch_symmetry)
 
     // Tangent modulus should have major symmetry
     EXPECT_LT(norm(L_iso - L_iso.t(), 2), 1.E-6);
+}
+namespace {
+
+// L_iso_hyper_invariants as the full expression of all five gamma terms (before the zero terms
+// were skipped)
+mat L_iso_hyper_invariants_full(const double &d1, const double &d2, const double &d11, const double &d12, const double &d22, const mat &b, const double &J) {
+    const mat b_bar = pow(J,-2./3.)*b;
+    const mat b_bar2 = powmat(b_bar,2);
+    const mat dev_b_bar = dev(b_bar);
+    const mat dev_b_bar2 = dev(b_bar2);
+    const vec I_bar = isochoric_invariants(b,J);
+    const mat Id = eye(3,3);
+    const mat H_bar = auto_sym_dyadic_operator(b_bar);
+    const mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
+    const mat gamma_1 = (4./3.)*(I_bar(0)*Idev() - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
+    const mat gamma_2 = (8./3.)*(I_bar(1)*(Ireal() - 2.*Ivol()) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
+                    + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
+    const mat gamma_11 = 4.*auto_sym_dyadic(dev_b_bar);
+    const mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
+    const mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
+    return (1./J)*(gamma_1*d1+gamma_2*d2+gamma_11*d11+gamma_12*d12+gamma_22*d22);
+}
+
+}  // namespace
+
+TEST(Thyperelastic, L_iso_hyper_invariants_skips_only_zero_terms)
+{
+    arma_rng::set_seed(23);
+    const mat F = eye(3,3) + 0.2*randn<mat>(3,3);
+    const mat b = F*F.t();
+    const double J = det(F);
+    const std::vector<std::vector<double>> coefs = {
+        {0.5, 0., 0., 0., 0.},           // Neo-Hookean: gamma_1 alone
+        {0.26, -0.045, 0., 0., 0.},       // Mooney-Rivlin
+        {0.4, 0., 0.03, 0., 0.},          // Yeoh-like: a second derivative in I_1
+        {0.4, 0.1, 0.03, 0.02, 0.01}};    // every term
+    for (const auto &c : coefs) {
+        const mat L = L_iso_hyper_invariants(c[0], c[1], c[2], c[3], c[4], b, J);
+        const mat L_ref = L_iso_hyper_invariants_full(c[0], c[1], c[2], c[3], c[4], b, J);
+        EXPECT_LT(abs(L - L_ref).max(), 1.E-15*abs(L_ref).max());
+    }
+}
+
+TEST(Thyperelastic, pure_stretch_box_tangent_closed_form)
+{
+    // Dtau_LieDD_2_DtauDe_stretch (Hencky block of the modular engine) against the pull-back +
+    // exact spectral map of corate 3 at F = V, on an isotropic potential
+    arma_rng::set_seed(29);
+    const vec props = {0.5, 0.02, 0.003, 500.};   // YEOHH
+    for (int t = 0; t < 10; t++) {
+        mat e = 0.3*randn<mat>(3,3);
+        e = 0.5*(e + e.t());
+        if (t == 0) e = diagmat(vec({0.1, 0.1, -0.05}));   // repeated eigenvalue
+        vec::fixed<3> ev;
+        mat::fixed<3,3> N;
+        ASSERT_TRUE(eig_sym_3x3(ev, N, e));
+        const mat V = spectral_compose_3x3(N, exp(vec(ev)));
+        const mat b = V*V;
+        const double J = det(V);
+        const hyper_invariants_dW dW = hyper_potential_derivatives(HyperPotential::YEOHH, props, isochoric_invariants(b, J), J);
+        vec tau_v;
+        mat Lt_ref, Lt_Lie;
+        hyper_invariants_response(dW, b, J, V, 3, tau_v, Lt_ref, {});
+        hyper_invariants_response(dW, b, J, V, 4, tau_v, Lt_Lie, {});
+        const mat Lt = Dtau_LieDD_2_DtauDe_stretch(Lt_Lie, ev, N, v2t_stress(tau_v));
+        EXPECT_LT(abs(Lt - Lt_ref).max(), 1.E-12*abs(Lt_ref).max());
+    }
+}
+
+TEST(Thyperelastic, material_tangent_form)
+{
+    // corate_type_material_tangent: a kernel built on F returns dS/dE, the pull-back of its box
+    // tangent in any corate, with the same stress and work
+    arma_rng::set_seed(31);
+    const mat F0 = eye(3,3);
+    const mat F1 = eye(3,3) + 0.15*randn<mat>(3,3);
+    const vec props = {0.26, -0.045, 10000.};   // MOORI
+    const vec etot = zeros(6), Detot = t2v_strain(Log_strain(F1));
+    for (int corate : {0, 1, 2, 3, 4, 5, corate_type_total}) {
+        vec sig_box = zeros(6), sig_mat = zeros(6), sv_box = zeros(1), sv_mat = zeros(1);
+        mat Lt_box(6,6), Lt_mat(6,6), L(6,6);
+        double Wm_b = 0., Wr_b = 0., Wir_b = 0., Wd_b = 0., Wm_m = 0., Wr_m = 0., Wir_m = 0., Wd_m = 0., tnew = 1.;
+        umat_generic_hyper_invariants("MOORI", etot, Detot, F0, F1, sig_box, Lt_box, L, eye(3,3), 3, props, 1, sv_box, 293., 0., 0., 1.,
+                                      Wm_b, Wr_b, Wir_b, Wd_b, 3, 3, false, tnew, corate, tangent_default);
+        umat_generic_hyper_invariants("MOORI", etot, Detot, F0, F1, sig_mat, Lt_mat, L, eye(3,3), 3, props, 1, sv_mat, 293., 0., 0., 1.,
+                                      Wm_m, Wr_m, Wir_m, Wd_m, 3, 3, false, tnew, corate_type_material_tangent, tangent_default);
+        EXPECT_TRUE(approx_equal(sig_box, sig_mat, "absdiff", 0.));
+        EXPECT_EQ(Wm_b, Wm_m);
+        const mat DSDE_ref = DtauDe_corate_2_DSDE(Lt_box, corate, F1, v2t_stress(sig_box));
+        EXPECT_LT(abs(Lt_mat - DSDE_ref).max(), 1.E-12*abs(DSDE_ref).max());
+        // and the dispatchers are the identity on that form
+        EXPECT_TRUE(approx_equal(DtauDe_corate_2_DSDE(Lt_mat, corate_type_material_tangent, F1, v2t_stress(sig_mat)), Lt_mat, "absdiff", 0.));
+        EXPECT_TRUE(approx_equal(DSDE_2_DtauDe_corate(Lt_mat, corate_type_material_tangent, F1, v2t_stress(sig_mat)), Lt_mat, "absdiff", 0.));
+    }
 }

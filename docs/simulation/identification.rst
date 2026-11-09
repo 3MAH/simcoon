@@ -45,7 +45,7 @@ Parameter class
 
 .. code-block:: python
 
-   from simcoon.parameter import Parameter, read_parameters, copy_parameters, apply_parameters
+   from simcoon.parameter import Parameter, read_parameters
 
    # Create parameters programmatically
    params = [
@@ -78,7 +78,7 @@ A template is any text file, so the JSON inputs of the solver work as they are:
 ``keys/material.json`` with ``"props": [70000.0, 0.3, 1.0e-5, @sigmaY, @k, @m]``
 is not valid JSON until the substitution and is valid after it. The
 ``identification/json_keys_identification.py`` example runs this chain end to
-end (copy, apply, ``load_simulation_json``, ``solve``, ``calc_cost``,
+end (``KeyTemplate``, ``load_simulation_json``, ``solve``, ``calc_cost``,
 ``identification``).
 
 Constant class
@@ -88,23 +88,52 @@ Constants are fixed values (not optimized) that also use the key system:
 
 .. code-block:: python
 
-   from simcoon.constant import Constant, read_constants, copy_constants, apply_constants
+   from simcoon.constant import Constant, read_constants
 
 The ``Constant`` class is a ``NamedTuple`` with fields: ``number``, ``key``,
 ``input_values``, ``value``, ``sim_input_files``.
 
-File operations
-^^^^^^^^^^^^^^^
+A constant holds **one value per test** in ``input_values``, e.g. the fibre
+angle of each specimen of a composite identification. ``read_constants(n, ...)``
+reads ``n`` values per constant from ``constants.inp``:
+
+.. code-block:: none
+
+   #Number  #key     #test_0  #test_1  #test_2  #number_of_files  #files
+   0        @theta   0        45       90       1                 ply.json
+
+``value`` is the first one; ``KeyTemplate.write(dst, test=i)`` (below)
+substitutes the value of test ``i``. A constant with a single value is the same
+in every test: it is not a constant of the identification but a fixed parameter
+of the simulation, to write in the template rather than as a key, and
+``write(..., test=i)`` warns about it.
+
+Writing the working files
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A ``KeyTemplate`` reads the template files of ``keys/`` once and keeps them in
+memory. Each ``write`` replaces the keys of the parameters, then those of the
+constants, by their current values and writes every working file once:
 
 .. code-block:: python
 
-   # 1. Copy template files from keys/ to data/
-   copy_parameters(params, src_path="keys", dst_path="data")
+   from simcoon.parameter import KeyTemplate
 
-   # 2. Replace keys with current values
-   params[0].value = 200.0  # set by optimizer
-   params[1].value = 0.3
-   apply_parameters(params, dst_path="data")
+   template = KeyTemplate("keys", params, consts)   # consts may be omitted
+
+   def cost(x):
+       for p, v in zip(params, x):   # values set by the optimizer
+           p.value = v
+       template.write("data")
+       ...
+
+With several tests, each one is written in its own directory with the
+constants of that test:
+
+.. code-block:: python
+
+   for i in range(3):                       # one fibre angle per specimen
+       template.write(f"data/test_{i}", test=i)
 
 This works with **any** file format — simcoon input files, FE meshes, JSON
 configs, etc. The key system is deliberately simple: it performs string
@@ -136,8 +165,8 @@ identified values are written back to each ``Parameter.value``.
 ``job.inp`` here is a placeholder: a template input deck of an **external**,
 file-driven solver, supplied by the user in the ``keys`` folder (it is not part
 of simcoon). ``sim_input_files`` is the bridge to such solvers: the keys are
-substituted into their decks before each evaluation (``copy_parameters`` +
-``apply_parameters``, called from ``my_cost_function``). Simcoon's own models
+substituted into their decks before each evaluation (``KeyTemplate.write``,
+called from ``my_cost_function``). Simcoon's own models
 no longer need it — pass ``props``, and for mean-field models the ``phases``,
 straight to :func:`~simcoon.solver.solve`, and leave ``sim_input_files`` out.
 
@@ -149,6 +178,52 @@ straight to :func:`~simcoon.solver.solve`, and leave ``sim_input_files`` out.
   ``popsize``, ``tol``, ``seed``, ``polish=True``, ``disp``, etc.)
 
 **Returns:** ``scipy.optimize.OptimizeResult``
+
+Bounded least squares
+^^^^^^^^^^^^^^^^^^^^^
+
+Most identification costs are sums of squared differences between a model and
+experiments. ``method="least_squares"`` minimizes them with the bounded
+trust-region reflective algorithm of ``scipy.optimize.least_squares``, which
+exploits that structure and typically needs 7 to 20 times fewer model
+evaluations than differential evolution. The cost function then returns the
+**vector of residuals**; ``calc_residuals`` builds it with the arguments of
+``calc_cost`` (its sum of squares is the ``"mse"``, ``"nmse"`` or
+``"nmse_per_response"`` cost):
+
+.. code-block:: python
+
+   from simcoon.identify import identification, calc_residuals
+
+   def residuals(x):
+       y_num = run_model(x)
+       return calc_residuals(y_exp, y_num, metric="nmse_per_response")
+
+   result = identification(residuals, params, method="least_squares",
+                           n_starts=3, seed=0)
+   cost = np.sum(result.fun ** 2)   # the calc_cost value at the solution
+
+- The parameters are mapped onto [0, 1] (``scale="auto"``: logarithmically when
+  the lower bound is positive, linearly otherwise; or ``"linear"``/``"log"``,
+  per parameter if needed). The Jacobian is computed by finite differences in
+  these coordinates (``diff_step``, relative step, default ``sqrt(eps)``).
+- The first start is ``Parameter.value`` where set, the middle of the scaled
+  range otherwise; ``n_starts - 1`` more are drawn by Latin hypercube sampling
+  (``seed``), and the best result is kept (``result.starts`` lists them all).
+- A model failure is best returned as NaN residuals: the trial step is rejected
+  and the trust region shrunk.
+- Other ``least_squares`` options (``xtol``, ``ftol``, ``gtol``, ``max_nfev``,
+  ``loss``…) are forwarded.
+
+Parallel evaluations
+^^^^^^^^^^^^^^^^^^^^
+
+``n_threads`` (default 1, serial) evaluates the cost function in a pool of
+threads: the finite-difference columns of the Jacobian for
+``"least_squares"`` (the result does not depend on the number of threads), a
+whole generation for differential evolution (``updating="deferred"``). It
+pays off because :func:`~simcoon.solver.solve` and ``L_eff`` release the GIL,
+and requires a thread-safe cost function.
 
 For more control (other optimizers, constraints, custom initialization),
 call ``scipy.optimize`` directly — the ``Parameter`` objects provide the
@@ -231,10 +306,11 @@ Built-in metrics (numpy only, no extra dependency):
 - ``"mse"`` — Mean Squared Error (default)
 - ``"nmse"`` — Normalized MSE (divided by variance of all experimental data)
 - ``"nmse_per_response"`` — NMSE computed independently per response column,
-  then averaged. Each column is divided by its own ``sum(y_exp^2)``,
-  balancing responses of different magnitudes (e.g., force in N vs
-  displacement in mm). This is the recommended metric for multi-response
-  identification.
+  then averaged. Each column is divided by its own ``sum(y_exp^2)``, summed
+  over the tests, balancing responses of different magnitudes (e.g., force in
+  N vs displacement in mm). This is the recommended metric for multi-response
+  identification. The tests are pooled within a column, not normalised one by
+  one: a test with larger values weighs more (use ``w_test`` to rebalance).
 - ``"rmse"`` — Root Mean Squared Error
 - ``"mae"`` — Mean Absolute Error
 - ``"mape"`` — Mean Absolute Percentage Error (scikit-learn definition)
@@ -260,18 +336,18 @@ The key system works with any simulation tool. For example, with fedoo
 .. code-block:: python
 
    import subprocess
-   from simcoon.parameter import Parameter, copy_parameters, apply_parameters
+   from simcoon.parameter import KeyTemplate, Parameter
    from simcoon.identify import identification, calc_cost
 
    params = [
        Parameter(0, bounds=(100e3, 300e3), key="@E",
                  sim_input_files=["material.json"]),
    ]
+   template = KeyTemplate("keys", params)
 
    def cost(x):
        params[0].value = x[0]
-       copy_parameters(params, "keys", "data")
-       apply_parameters(params, "data")
+       template.write("data")
 
        # Run external solver
        subprocess.run(["python", "run_fedoo_simulation.py"])

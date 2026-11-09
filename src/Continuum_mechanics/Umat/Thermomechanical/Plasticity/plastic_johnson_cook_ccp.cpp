@@ -102,9 +102,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     //Additional parameters
     double c_0 = rho*c_p;
 
-    // Thermal softening factor f_T = 1 - g(T*), g = T*^m C2-regularized near T* = 0 for m < 2
-    // (johnson_cook_softening), and its temperature derivatives; T* clamped to [0, 1) (defined
-    // below T_ref, never at the singular melting point), flat at the melting clamp
+    // f_T = 1 - g(T*), T* clamped to [0, 1); derivatives zero at the melting clamp
     const double DTm = T_melt - T_ref;
     auto homologous = [&](const double &theta) {
         double Tstar = (theta - T_ref) / DTm;
@@ -124,15 +122,13 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     const double dthermal_dT_end = melt ? 0. : -dg / DTm;
     const double d2thermal_dT2_end = melt ? 0. : -d2g / (DTm * DTm);
 
-    // Strain hardening Hp = B p^n, C1-regularized at the onset for n < 1 (the modular
-    // power-law block carries the blend; same law, no second implementation)
+    // Hp = B p^n through PowerLawHardening (C1 onset blend for n < 1)
     PowerLawHardening hardening;
     int hardening_offset = 0;
     hardening.configure(vec{B_jc, n_jc}, hardening_offset);
     double Hp = hardening.R(p);
     double dHpdp = hardening.dR_dp(p);
-    // Stored energy of the hardening, G^ir = f_T B p^(n+1)/(n+1) (the blend below p_reg
-    // contributes O(p_reg^(n+1)), neglected in the integral)
+    // G^ir / f_T = B p^(n+1)/(n+1); the onset blend's O(p_reg^(n+1)) share is neglected
     auto stored_hardening = [&](const double &pp) {
         return (pp > 0.) ? B_jc * pow(pp, n_jc + 1.) / (n_jc + 1.) : 0.;
     };
@@ -171,12 +167,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     std::vector<vec> kappa_j(1);
     mat K = zeros(1,1);
 
-    // Branch selection at the rate kink x0 = edot0*DTime, where Phi(Dp) changes from the
-    // quasi-static branch (rate factor 1) to the convex logarithmic one. A Newton started at
-    // Dp = 0 with the quasi-static slope overshoots the kink and the log branch throws it back
-    // below zero: a 2-cycle to maxiter_umat at small DTime. So the branch is decided first from
-    // Phi at the kink (radial estimate), the loop starts AT the kink on the log branch with the
-    // right derivative of the rate factor, and Newton is then monotone (convex branch).
+    // branch decided from Phi at the rate kink x0 = edot0*DTime, else Newton 2-cycles (mechanical header)
     bool log_branch = false;
     if (DTime > simcoon::iota) {
         const double x0 = edot0*DTime;
@@ -246,14 +237,12 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
         sigma = el_pred(L, Eel);
     }
 
-    // The loop reads p at the top and corrects s_j at the bottom: bring p and the hardening to
-    // the converged iterate (EP and sigma already are)
+    // the loop reads p at the top and corrects s_j at the bottom
     p = s_j(0);
     Hp = hardening.R(p);
     dHpdp = hardening.dR_dp(p);
 
-    // A loop that leaves at maxiter_umat has not met the yield surface: the state would be
-    // committed off-surface, so ask the solver for a step cut instead
+    // unconverged at maxiter_umat: step cut rather than commit off-surface
     if (error > simcoon::precision_umat) {
         tnew_dt = 0.5;
     }
@@ -271,21 +260,18 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     // dPhi/dT = -(A + Hp) f_rate df_T/dT > 0 (softening); zero where the clamped factor is flat
     dPhidtheta = -(A_jc + Hp) * rate_factor * dthermal_dT_end;
 
-    //Computation of the tangent modulus via the shared leading-mechanism helper (doc 7.4).
+    // tangent via the shared leading-mechanism helper (doc §7.4)
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    // tangent_none must NOT zero P_epsilon/invBhat here: these sensitivities feed the
-    // PHYSICAL heat source r and its linearization, not just the Newton operator
-    // (same rule as the other thermomechanical kernels).
+    // tangent_none -> continuum: P_epsilon / invBhat feed the physical heat source r
     const int tangent_mode_eff = (tangent_mode == tangent_none)
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // J2 associated flow: dLambda/dsigma = deta_stress(sigma). Only dSdE is
-            // algorithmically corrected; the thermal cross-tangents keep the continuum form.
+            // J2: dLambda/dsigma = deta_stress; only dSdE is corrected, thermal blocks stay continuum
             const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
             return dLambda_dsigma_l;
         });
@@ -293,8 +279,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
-    // P_theta = invBhat (dPhi/dtheta - dPhi/dsigma:L:alpha); invBhat is active-set masked,
-    // so elastic steps give P_theta = 0
+    // P_theta = invBhat (dPhi/dtheta - dPhi/dsigma:L:alpha); invBhat masked so elastic gives 0
     P_theta[0] = ct.invBhat(0, 0) * (dPhidtheta - sum(dPhidsigma%(L*alpha)));
 
     dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0]);
@@ -315,16 +300,13 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
 
-    // Hardening force A_p = -f_T B p^n (the dissipation f_T [A f_rate + B p^n (f_rate - 1)] Dp
-    // is then non-negative at every temperature and rate) and its derivatives
+    // A_p = -f_T B p^n (energy split of the mechanical header)
     double A_p = -thermal_factor*Hp;
     double dA_pdp = -thermal_factor*dHpdp;
     double dA_pdtheta = -dthermal_dT_end*Hp;
 
-    // Dissipation increment over the step (the quantity Wm_d accumulates)
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
-    // its derivatives through dDp = P and dDEP = Lambdap P (flow direction held fixed over the
-    // increment), plus the explicit softening of A_p
+    // flow direction held fixed over the increment, plus the explicit softening of A_p
     const double f_p = 0.5*(sum((sigma_start+sigma)%Lambdap) + A_p_start + A_p + dA_pdp*Dp);
     const vec dDgamma_dE = 0.5*dSdE.t()*DEP + f_p*P_epsilon[0];
     const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0] + 0.5*dA_pdtheta*Dp;

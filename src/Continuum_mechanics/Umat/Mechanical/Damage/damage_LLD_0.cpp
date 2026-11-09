@@ -43,21 +43,20 @@ namespace {
 // d22 at transverse failure (Y_t > Y_22_u): held there, d12 keeps its own law
 constexpr double d_broken = 0.99;
 
-// The fibre frame (fibres along 1), damaged: the compliance of the 22-33 block and of G23 scaled
-// by 1/(1 - d22), of G12 and G13 by 1/(1 - d12); nuTL is the minor Poisson ratio, as in L_isotrans.
-// The stiffness is the inverse of the 11-22-33 block plus the reciprocal shears.
+// fibre frame (fibres along 1); nuTL is the minor Poisson ratio, as in L_isotrans
 struct damaged_elasticity {
     double EL, ET, nuTL, nuTT, GLT;
 
-    mat L(const double &d22, const double &d12) const {
+    mat::fixed<6, 6> L(const double &d22, const double &d12) const {
         const double ET_d = ET*(1. - d22);
         mat::fixed<3, 3> S;
         S(0, 0) = 1./EL;
         S(0, 1) = S(1, 0) = S(0, 2) = S(2, 0) = -nuTL/ET;
         S(1, 1) = S(2, 2) = 1./ET_d;
         S(1, 2) = S(2, 1) = -nuTT/ET_d;
-        mat L = zeros(6, 6);
-        L.submat(0, 0, 2, 2) = inv(S);
+        mat::fixed<6, 6> L = zeros(6, 6);
+        const mat::fixed<3, 3> S_inv = inv(S);
+        L.submat(0, 0, 2, 2) = S_inv;
         L(3, 3) = L(4, 4) = GLT*(1. - d12);
         L(5, 5) = ET_d/(2.*(1. + nuTT));
         return L;
@@ -177,7 +176,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
         sigma = zeros(6);
     }
 
-    const mat L0 = C.L(0., 0.);   // undamaged: the effective-stress plasticity
+    const mat::fixed<6, 6> L0 = C.L(0., 0.);   // undamaged: the effective-stress plasticity
     vec alpha = alphaT*Ith();
     alpha(0) += alphaL - alphaT;
 
@@ -195,7 +194,8 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     const vec theta = {0., A_ts, A_ts, 1., 1., 0.};   // the diagonal of Theta
 
     // ---- 1. Plasticity in effective stress (independent of the damage) ----
-    vec Eel = Etot_f + DEtot_f - alpha*(T + DT - Tinit) - EP;
+    const vec Eel_0 = Etot_f + DEtot_f - alpha*(T + DT - Tinit);   // the strain minus its thermal part
+    vec Eel = Eel_0 - EP;
     vec Lambda_p = zeros(6);
     vec Phi_p = zeros(1), Dp = zeros(1), dp = zeros(1);
     const vec Y_pcrit = {sigma_ts_0};
@@ -210,7 +210,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
         Fischer_Burmeister_m(Phi_p, Y_pcrit, denom_p, Dp, dp, error);
         p_ts += dp(0);
         EP += dp(0)*Lambda_p;
-        Eel = Etot_f + DEtot_f - alpha*(T + DT - Tinit) - EP;
+        Eel = Eel_0 - EP;
     }
     if (compteur == simcoon::maxiter_umat)
         tnew_dt = 0.2;
@@ -221,12 +221,12 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     const double Y0[2] = {Y_22_0, Y_12_0};
     vec d = {d_22, d_12};
     vec Dd_all = zeros(2);
-    mat L_t = C.L(d(0), d(1));
+    mat::fixed<6, 6> L_t = C.L(d(0), d(1));
     sigma = L_t*Eel;
-    // dPhi_l/dd_j at fixed strain: through sigma = L~(d) Eel and explicitly through Y_ts
-    auto dPhi_dd = [&](const driving_force &Y, const std::array<vec::fixed<6>, 2> &Lambda_d, const int &l, const int &j) {
+    // dPhi_l/dd_j at fixed strain, via sigma = L~(d) Eel and explicitly via Y_ts; LLambda_d[j] = L~ Lambda_j
+    auto dPhi_dd = [&](const driving_force &Y, const std::array<vec::fixed<6>, 2> &LLambda_d, const int &l, const int &j) {
         const double dYts_dd = (j == 0) ? Y.dYts_dd22 : Y.dYts_dd12;
-        double J = ((Y.Y_ts > Y0[l]) ? (-sum(Y.dYts_dsigma % (L_t*Lambda_d[j])) + dYts_dd)/Yc[l] : 0.);
+        double J = ((Y.Y_ts > Y0[l]) ? (-sum(Y.dYts_dsigma % LLambda_d[j]) + dYts_dd)/Yc[l] : 0.);
         if (l == j)
             J -= dlagrange_pow_1(d(l), c_lambda, p0_lambda, n_lambda, alpha_lambda) + 1.;
         return J;
@@ -242,9 +242,18 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
             sigma = L_t*Eel;
             continue;
         }
-        const std::vector<int> mech = broken_22 ? std::vector<int>{1} : std::vector<int>{0, 1};
-        const int n = mech.size();
+        const int mech[2] = {broken_22 ? 1 : 0, 1};
+        const int n = broken_22 ? 1 : 2;
         const std::array<vec::fixed<6>, 2> Lambda_d = {C.Lambda_22(sigma, d(0)), C.Lambda_12(sigma, d(1))};
+        // L~ Lambda_j enters a row only above its damage threshold (dPhi_dd)
+        bool above = false;
+        for (int a = 0; a < n; a++)
+            above = above || (Y.Y_ts > Y0[mech[a]]);
+        std::array<vec::fixed<6>, 2> LLambda_d;
+        if (above) {
+            for (int a = 0; a < n; a++)
+                LLambda_d[mech[a]] = L_t*Lambda_d[mech[a]];
+        }
         vec Phi_d(n), Y_dcrit = ones(n), Dd(n), dd(n);
         mat denom_d(n, n);
         for (int a = 0; a < n; a++) {
@@ -252,7 +261,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
             Phi_d(a) = Macaulay_p(Y.Y_ts - Y0[l])/Yc[l] - lagrange_pow_1(d(l), c_lambda, p0_lambda, n_lambda, alpha_lambda) - d(l);
             Dd(a) = Dd_all(l);
             for (int c = 0; c < n; c++)
-                denom_d(a, c) = dPhi_dd(Y, Lambda_d, l, mech[c]);
+                denom_d(a, c) = dPhi_dd(Y, LLambda_d, l, mech[c]);
         }
         Fischer_Burmeister_m(Phi_d, Y_dcrit, denom_d, Dd, dd, error);
         for (int a = 0; a < n; a++) {
@@ -268,10 +277,8 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     d_12 = d(1);
 
     // ---- 3. Tangent of the two-stage update (plasticity, then damage) ----
-    // dEel/deps = I - Lambda_p (x) L0 Lambda_p / h_p when plasticity is active (the direction held
-    // fixed: continuum); the active damage mechanisms then solve dPhi_l = 0 with
-    // dsigma = L~ dEel - L~ Lambda_j dd_j
-    mat A = eye(6, 6);
+    // plastic flow direction held fixed (continuum), then the active damage set linearized exactly
+    mat::fixed<6, 6> A = eye(6, 6);
     if (Dp(0) > simcoon::iota) {
         const double h_p = sum(Lambda_p % (L0*Lambda_p)) + dhardening(p_ts);
         A -= Lambda_p*(L0*Lambda_p).t()/h_p;
@@ -286,15 +293,19 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
                 act.push_back(l);
         const int n = act.size();
         if (n > 0) {
+            std::array<vec::fixed<6>, 2> LLambda_d;
+            for (int a = 0; a < n; a++)
+                LLambda_d[act[a]] = L_t*Lambda_d[act[a]];
+            const rowvec dYts_deps = (A.t()*(L_t*Y.dYts_dsigma)).t();   // the same for every row
             mat J(n, n), G(n, 6);
             for (int a = 0; a < n; a++) {
                 for (int c = 0; c < n; c++)
-                    J(a, c) = dPhi_dd(Y, Lambda_d, act[a], act[c]);
-                G.row(a) = (A.t()*(L_t*Y.dYts_dsigma)).t()/Yc[act[a]];
+                    J(a, c) = dPhi_dd(Y, LLambda_d, act[a], act[c]);
+                G.row(a) = dYts_deps/Yc[act[a]];
             }
             const mat dd_deps = -solve(J, G);
             for (int a = 0; a < n; a++)
-                Lt -= (L_t*Lambda_d[act[a]])*dd_deps.row(a);
+                Lt -= LLambda_d[act[a]]*dd_deps.row(a);
         }
     }
 

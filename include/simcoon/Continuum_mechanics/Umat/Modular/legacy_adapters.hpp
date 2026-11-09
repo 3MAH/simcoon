@@ -21,7 +21,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  *
  * The legacy UMATs whose physics ModularUMAT replicates exactly (proven by
  * the equivalence tests in test_modular.py and gated by
- * bench/bench_legacy_vs_modular.py) keep their NAME and PROPS ABI: a
+ * benchmark/bench_legacy_vs_modular.py) keep their NAME and PROPS ABI: a
  * per-name translator turns the legacy props vector into the MODUL props
  * stream and the call is forwarded to umat_modular. statev: the modular
  * engine claims the FIRST required slots of the caller's array (legacy
@@ -49,7 +49,8 @@ bool has_legacy_adapter(const std::string& umat_name);
 /**
  * @brief UMAT-shaped entry for adapter-served legacy names: translate the
  * props for @p umat_name, then run umat_modular. All other arguments are
- * forwarded untouched (signature identical to umat_modular).
+ * forwarded untouched (umat_modular's signature, without its kinematic form). @p ncp, the
+ * NCPMethod code of the run, is the complementarity function of the cutting plane (EPKCP).
  *
  * @throws std::invalid_argument (with the legacy name prefixed) if the name has
  * no registered translator or if the caller's nstatev is smaller than the
@@ -79,7 +80,8 @@ void umat_legacy_modular(
     const int& nshr,
     const bool& start,
     double& tnew_dt,
-    const int& tangent_mode = tangent_default
+    const int& tangent_mode = tangent_default,
+    const int& ncp = 0
 );
 
 } // namespace simcoon

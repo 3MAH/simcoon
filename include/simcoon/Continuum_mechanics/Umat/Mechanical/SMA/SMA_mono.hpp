@@ -16,7 +16,7 @@
  */
 
 /**
- * @file sma_mono.hpp
+ * @file SMA_mono.hpp
  * @brief Micromechanical monocrystal model for shape memory alloys based on Patoor et al. (1996)
  * @author Y. Chemisky, D. Chatziathanasiou
  * @version 1.0
@@ -49,8 +49,6 @@ namespace simcoon{
  * |-----------|----------|-------------------|
  * | SMAMO | Isotropic | E, nu |
  * | SMAMC | Cubic | C11, C12, C44 |
- * | SMAOT | Orthotropic | E1, E2, E3, nu12, nu13, nu23, G12, G13, G23 |
- * | SMATI | Transverse Isotropic | EL, ET, nuTL, nuTT, GLT |
  *
  * **Key Features:**
  * - Explicit tracking of N martensite variant volume fractions \f$ f_n \f$ (n = 1, ..., N)
@@ -175,6 +173,19 @@ namespace simcoon{
  * | props[8] | nvariants | Number of martensite variants |
  * | props[9-16] | c_lambda0, p0_lambda0, ... | Lagrange multiplier parameters |
  *
+ * The 8 Lagrange parameters are \f$ (c, p_0, n, \alpha) \f$ of the per-variant penalty
+ * \f$ \lambda_0(f_n) \f$, then of the total-fraction penalty \f$ \lambda_1(\xi) \f$.
+ *
+ * **Crystallography (props, after the parameters above, offset \f$ o \f$ = 16 for SMAMO, 17 for SMAMC):**
+ *
+ * | Index | Description |
+ * |-------|-------------|
+ * | \f$ o + 6i \f$ .. \f$ o + 6i + 2 \f$ | habit plane normal \f$ \mathbf{n}_i \f$ of variant \f$ i \f$ |
+ * | \f$ o + 6i + 3 \f$ .. \f$ o + 6i + 5 \f$ | transformation direction \f$ \mathbf{m}_i \f$ of variant \f$ i \f$ |
+ * | \f$ o + 6N + iN + j \f$ | interaction matrix \f$ H_{ij} \f$, \f$ N \times N \f$, row by row |
+ *
+ * Nothing is read from a file; a shorter props vector throws `std::invalid_argument`.
+ *
  * **State Variables (statev):**
  *
  * Total state variables required: \f$ n_{statev} = 1 + N + 7 \f$ (for N variants)
@@ -192,7 +203,7 @@ namespace simcoon{
  * The macroscopic transformation strain is computed as:
  * \f$ \boldsymbol{\varepsilon}^{tr} = \sum_{n=1}^{N} f_n \boldsymbol{\varepsilon}^{tr}_n \f$
  *
- * @param umat_name Name of the constitutive model (SMAMO, SMAMC, SMAOT, SMATI)
+ * @param umat_name Name of the constitutive model (SMAMO or SMAMC)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
  * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
  * @param stress Cauchy stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
@@ -223,8 +234,6 @@ namespace simcoon{
  *
  * @see L_iso() for isotropic stiffness tensor (SMAMO)
  * @see L_cubic() for cubic stiffness tensor (SMAMC)
- * @see L_ortho() for orthotropic stiffness tensor (SMAOT)
- * @see L_isotrans() for transverse isotropic stiffness tensor (SMATI)
  *
  * **References:**
  * - Patoor, E., Eberhardt, A., & Berveiller, M. (1996). "Micromechanical modelling of

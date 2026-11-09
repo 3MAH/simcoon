@@ -147,3 +147,93 @@ TEST(Tnum_solve, Fischer_Burmeister_zeros)
 
     EXPECT_LT(fabs(error), 1.E-9);
 }
+
+TEST(Tnum_solve, Fischer_Burmeister_m_small_systems)
+{
+    // the closed-form steps of one and two mechanisms against the LAPACK solve of the same
+    // Newton system (n = 3 still takes the general path: the third, decoupled, row checks it)
+    arma_rng::set_seed(5);
+    for (int t = 0; t < 50; t++) {
+        const vec Phi3 = randn<vec>(3), Dp3 = abs(randn<vec>(3)), Y3 = {1., 2., 0.5};
+        mat B3 = -3.*eye(3, 3) - 0.2*abs(randn<mat>(3, 3));
+        B3(0, 2) = B3(1, 2) = B3(2, 0) = B3(2, 1) = 0.;
+        for (int n : {1, 2}) {
+            const vec Phi = Phi3.head(n), Y = Y3.head(n);
+            const mat B = B3.submat(0, 0, n - 1, n - 1);
+            vec Dp = Dp3.head(n), dp;
+            double error;
+            Fischer_Burmeister_m(Phi, Y, B, Dp, dp, error);
+            vec Dp_g = Dp3, dp_g;
+            double error_g;
+            Fischer_Burmeister_m(Phi3, Y3, B3, Dp_g, dp_g, error_g);
+            const mat J = denom_FB_m(Phi, B, Dp3.head(n));
+            vec FB(n);
+            for (int i = 0; i < n; i++) {
+                const double Dps = Dp3(i)*fabs(B(i, i));
+                FB(i) = sqrt(Phi(i)*Phi(i) + Dps*Dps) + Phi(i) - Dps;
+            }
+            const vec dp_ref = -solve(J, FB);
+            EXPECT_LT(norm(dp - dp_ref, "inf"), 1.E-12*(1. + norm(dp_ref, "inf")));
+            if (n == 2) {   // the 2x2 block is the leading block of the block-diagonal 3x3 system
+                EXPECT_LT(norm(dp - dp_g.head(n), "inf"), 1.E-12*(1. + norm(dp_ref, "inf")));
+            }
+        }
+    }
+}
+
+TEST(Tnum_solve, min_ncp_step)
+{
+    // linear single surface Phi(Dp) = Phi0 + B Dp: the min-NCP step from Dp = 0 is the exact
+    // return, where Fischer-Burmeister takes two thirds of it
+    const vec Phi = {30.}, Y = {300.};
+    mat B(1, 1);
+    B(0, 0) = -2000.;
+    vec Dp = zeros(1), dp;
+    double error;
+    ncp_step step(NCPMethod::min_fb_fallback);
+    step(Phi, Y, B, Dp, dp, error);
+    EXPECT_NEAR(Dp(0), 30./2000., 1.e-15);
+    EXPECT_FALSE(step.fell_back());
+    vec Dp_fb = zeros(1);
+    Fischer_Burmeister_m(Phi, Y, B, Dp_fb, dp, error);
+    EXPECT_NEAR(Dp_fb(0), (2./3.)*30./2000., 1.e-15);
+    // default method: Fischer_Burmeister_m itself, bit for bit
+    vec Dp_d = zeros(1), dp_d;
+    double error_d;
+    ncp_step def;
+    def(Phi, Y, B, Dp_d, dp_d, error_d);
+    EXPECT_EQ(Dp_d(0), Dp_fb(0));
+    // a growing error switches to Fischer-Burmeister for the rest of the solve
+    vec Dp2 = zeros(1);
+    ncp_step step2(NCPMethod::min_fb_fallback);
+    step2(Phi, Y, B, Dp2, dp, error);
+    const vec Phi_up = {60.};
+    step2(Phi_up, Y, B, Dp2, dp, error);
+    EXPECT_TRUE(step2.fell_back());
+    // uncoupled rows (diagonal B): a surface next to an always-satisfied row (Phi = -Y_crit,
+    // the viscoelastic / damage rows of MODUL) takes the full step, the inert row stays at zero
+    const vec Phi2 = {30., -1.}, Y2 = {300., 1.};
+    mat B2 = zeros(2, 2);
+    B2(0, 0) = -2000.;
+    B2(1, 1) = -1.;
+    vec Dp3 = zeros(2), dp3;
+    double error3;
+    ncp_step step3(NCPMethod::min_fb_fallback);
+    step3(Phi2, Y2, B2, Dp3, dp3, error3);
+    EXPECT_EQ(Dp3(0), Dp(0));
+    EXPECT_EQ(Dp3(1), 0.);
+    EXPECT_FALSE(step3.fell_back());
+    // coupled rows keep Fischer-Burmeister, bit for bit
+    B2(0, 1) = B2(1, 0) = -10.;
+    vec Dp4 = zeros(2), dp4, Dp5 = zeros(2), dp5;
+    double error4, error5;
+    ncp_step step4(NCPMethod::min_fb_fallback);
+    step4(Phi2, Y2, B2, Dp4, dp4, error4);
+    Fischer_Burmeister_m(Phi2, Y2, B2, Dp5, dp5, error5);
+    EXPECT_EQ(Dp4(0), Dp5(0));
+    EXPECT_EQ(Dp4(1), Dp5(1));
+    // option values
+    EXPECT_EQ(ncp_method_of(0, "t"), NCPMethod::fischer_burmeister);
+    EXPECT_EQ(ncp_method_of(1, "t"), NCPMethod::min_fb_fallback);
+    EXPECT_THROW(ncp_method_of(2, "t"), std::invalid_argument);
+}

@@ -19,8 +19,10 @@
 #include <cmath>
 #include <armadillo>
 #include <string>
+#include <stdexcept>
 #include <optional>
 #include <Fastor/Fastor.h>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 
 /**
  * @file tensor.hpp
@@ -56,6 +58,31 @@ enum class Tensor2Type {
 /// rather than the tensor rank (asymmetric with Tensor4Type). Kept for
 /// external users (e.g. fedoo); prefer Tensor2Type.
 using VoigtType = Tensor2Type;
+
+/**
+ * @brief Shear weights of the engineering Voigt notation per Tensor2Type, for the stack
+ * conversions mat_from_voigt / voigt_from_mat (small_voigt.hpp): a strain carries
+ * \f$ \gamma_{ij} = 2\varepsilon_{ij} \f$ (0.5 on the way to the 3x3, a sum on the way back),
+ * a stress or a symmetric tensor its true shears (1, then the average). The only place
+ * where the type decides the factor.
+ */
+inline double voigt_shear_in(Tensor2Type t)  { return (t == Tensor2Type::strain) ? 0.5 : 1.0; }
+/// See voigt_shear_in.
+inline double voigt_shear_out(Tensor2Type t) { return (t == Tensor2Type::strain) ? 1.0 : 0.5; }
+
+/// tensor2::from_voigt(v, t).mat() on the stack, without the object; @p v must hold 6 values.
+inline arma::mat::fixed<3,3> voigt_to_mat(const arma::vec &v, Tensor2Type t) {
+    if (v.n_elem != 6) {
+        throw std::invalid_argument("voigt_to_mat: expected 6-element vector, got " + std::to_string(v.n_elem));
+    }
+    return mat_from_voigt(v.memptr(), voigt_shear_in(t));
+}
+
+/// tensor2(m, t).voigt() into @p v (resized to 6), without the object.
+inline void mat_to_voigt(const arma::mat::fixed<3,3> &m, Tensor2Type t, arma::vec &v) {
+    v.set_size(6);
+    voigt_from_mat(v.memptr(), m, voigt_shear_out(t));
+}
 
 /**
  * @brief Type tag for 4th-order tensors: selects the engineering<->Mandel congruence,
@@ -608,8 +635,10 @@ tensor4 auto_sym_dyadic(const tensor2 &a);
 // rot/F with n_slices==1 are broadcast to all N points.
 
 /// Batch rotate N tensor2 objects. voigt:(6,N), rot:(3,3,N_r).
+/// @p n_threads caps the threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp).
 arma::mat batch_rotate(const arma::mat &voigt, Tensor2Type vtype,
-                       const arma::cube &rot_matrices, bool active = true);
+                       const arma::cube &rot_matrices, bool active = true,
+                       unsigned int n_threads = 0);
 
 /// Batch push-forward N tensor2. voigt:(6,N), F:(3,3,N_f).
 arma::mat batch_push_forward(const arma::mat &voigt, Tensor2Type vtype,
@@ -633,7 +662,8 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
 
 /// Batch rotate N tensor4 (overload of the tensor2 version). t4:(6,6,N), rot:(3,3,N_r).
 arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
-                        const arma::cube &rot_matrices, bool active = true);
+                        const arma::cube &rot_matrices, bool active = true,
+                        unsigned int n_threads = 0);
 
 /// Batch push-forward N tensor4 (overload of the tensor2 version). t4:(6,6,N), F:(3,3,N_f).
 arma::cube batch_push_forward(const arma::cube &t4, Tensor4Type t4type,

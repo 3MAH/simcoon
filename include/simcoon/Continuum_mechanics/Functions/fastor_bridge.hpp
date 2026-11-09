@@ -21,6 +21,7 @@
 #include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 
 namespace simcoon {
 
@@ -98,8 +99,8 @@ inline arma::mat::fixed<3,3> fastor2_to_arma(const Fastor::Tensor<double,3,3> &T
  * or the type-free Mandel pair mandel_to_fastor4 / fastor4_to_mandel.
  */
 inline Fastor::Tensor<double,3,3,3,3> voigt_to_fastor4(const arma::mat::fixed<6,6> &L) {
+    // The four minor-symmetric writes below cover all 81 entries: no zero fill.
     Fastor::Tensor<double,3,3,3,3> C;
-    C.zeros();
 
     for (int i = 0; i < 3; ++i) {
         for (int j = i; j < 3; ++j) {
@@ -127,15 +128,11 @@ inline Fastor::Tensor<double,3,3,3,3> voigt_to_fastor4(const arma::mat::fixed<6,
  * or the type-free Mandel pair mandel_to_fastor4 / fastor4_to_mandel.
  */
 inline arma::mat::fixed<6,6> fastor4_to_voigt(const Fastor::Tensor<double,3,3,3,3> &C) {
-    // Voigt index -> (i,j) pair
-    static constexpr int vi[6] = {0, 1, 2, 0, 0, 1};
-    static constexpr int vj[6] = {0, 1, 2, 1, 2, 2};
-
     arma::mat::fixed<6,6> L;
     for (int I = 0; I < 6; ++I) {
-        int i = vi[I], j = vj[I];
+        int i = voigt_i[I], j = voigt_j[I];
         for (int J = 0; J < 6; ++J) {
-            int k = vi[J], l = vj[J];
+            int k = voigt_i[J], l = voigt_j[J];
             L(I, J) = 0.5 * (C(i,j,k,l) + C(i,j,l,k));
         }
     }
@@ -210,9 +207,9 @@ inline Fastor::Tensor<double,3,3,3,3> push_forward_4(
     const Fastor::Tensor<double,3,3,3,3> &C,
     const Fastor::Tensor<double,3,3> &F)
 {
+    // Every entry of each pass is written exactly once: no zero fill.
     // Pass 1: T1(i,J,M,N) = sum_L F(i,L) * C(L,J,M,N)
     Fastor::Tensor<double,3,3,3,3> T1;
-    T1.zeros();
     for (int i = 0; i < 3; ++i)
     for (int J = 0; J < 3; ++J)
     for (int M = 0; M < 3; ++M)
@@ -225,7 +222,6 @@ inline Fastor::Tensor<double,3,3,3,3> push_forward_4(
 
     // Pass 2: T2(i,s,M,N) = sum_J F(s,J) * T1(i,J,M,N)
     Fastor::Tensor<double,3,3,3,3> T2;
-    T2.zeros();
     for (int i = 0; i < 3; ++i)
     for (int s = 0; s < 3; ++s)
     for (int M = 0; M < 3; ++M)
@@ -238,7 +234,6 @@ inline Fastor::Tensor<double,3,3,3,3> push_forward_4(
 
     // Pass 3: T3(i,s,r,N) = sum_M F(r,M) * T2(i,s,M,N)
     Fastor::Tensor<double,3,3,3,3> T3;
-    T3.zeros();
     for (int i = 0; i < 3; ++i)
     for (int s = 0; s < 3; ++s)
     for (int r = 0; r < 3; ++r)
@@ -251,7 +246,6 @@ inline Fastor::Tensor<double,3,3,3,3> push_forward_4(
 
     // Pass 4: result(i,s,r,p) = sum_N F(p,N) * T3(i,s,r,N)
     Fastor::Tensor<double,3,3,3,3> result;
-    result.zeros();
     for (int i = 0; i < 3; ++i)
     for (int s = 0; s < 3; ++s)
     for (int r = 0; r < 3; ++r)

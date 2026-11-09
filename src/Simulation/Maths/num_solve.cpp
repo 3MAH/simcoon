@@ -10,23 +10,22 @@
  */
 
 ///@file num_solve.cpp
-///@brief random number generators
+///@brief Newton and Fischer-Burmeister solvers of the local return-mapping systems
 ///@author Chemisky & Anagnostou
 ///@version 1.0
 ///@date 10/23/2014
 
 #include <iostream>
 #include <assert.h>
+#include <stdexcept>
+#include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/num_solve.hpp>
 
 using namespace std;
 using namespace arma;
-
-/* Notice*/
-// Recall that these methods are intended to solve an problem by means of the Kuhn-Tucker conditions
-//This means : Phi <= 0 ; Dp >= 0; Phi*Dp = 0, with Dp = pdot * Dt, a non-zero time state
 
 namespace simcoon{
 
@@ -66,7 +65,7 @@ void Fischer_Burmeister(const vec &Phi, const vec &Y_crit, const mat &denom, vec
     int n=Phi.n_elem;
     
     for (int i=0; i<n; i++) {
-        assert(fabs(Y_crit(n)) > 0);
+        assert(fabs(Y_crit(i)) > 0);
     }
     
     vec FB = zeros(n);
@@ -132,7 +131,7 @@ void Fischer_Burmeister_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_
     int n=Phi_p.n_elem;
     
     for (int i=0; i<n; i++) {
-        assert(fabs(Y_crit(n)) > 0);
+        assert(fabs(Y_crit(i)) > 0);
     }
     
     vec Phi_1 = zeros(n);
@@ -250,6 +249,40 @@ void Fischer_Burmeister_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_
     
 }
     
+namespace {
+
+// row i of the normalised FB system (Dp* = Dp |B_ii|): residual and Jacobian entry, bit for bit
+inline double fb_m_value(const double &Phi, const double &Dpstar)
+{
+    if ((fabs(Phi) > 0.)&&(fabs(Dpstar) > 0.)) {
+        return sqrt(pow(Phi,2.) + pow(Dpstar,2.)) + Phi - Dpstar;
+    }
+    else if(fabs(Phi) > 0.) {
+        return sqrt(pow(Phi,2.)) + Phi;
+    }
+    else if(fabs(Dpstar) > 0.) {
+        return sqrt(pow(Dpstar,2.)) - Dpstar;
+    }
+    return 0.;
+}
+
+inline double fb_m_jacobian(const double &Phi, const double &Dpstar, const double &dDpstar, const double &denom_ij, const bool &diag)
+{
+    const double delta = diag ? 1. : 0.;
+    if ((fabs(Phi) > 0.)&&(fabs(Dpstar) > 0.)) {
+        return (Phi/(sqrt(pow(Phi,2.) + pow(Dpstar,2.)))+1.)*denom_ij + delta*dDpstar*(Dpstar/(sqrt(pow(Phi,2.) + pow(Dpstar,2.))) - 1.);
+    }
+    else if(fabs(Phi) > 0.) {
+        return (Phi/(sqrt(pow(Phi,2.)))+1.)*denom_ij - delta*dDpstar;
+    }
+    else if(fabs(Dpstar) > 0.) {
+        return denom_ij + delta*dDpstar*(Dpstar/(sqrt(pow(Dpstar,2.))) - 1.);
+    }
+    return diag ? 1.E12 : 0.;
+}
+
+} // namespace
+
 double Fischer_Burmeister_residual(const vec &Phi, const vec &Y_crit, const mat &denom, const vec &Dp)
 {
     // Same branches and expressions as the FB vector of Fischer_Burmeister_m below.
@@ -282,11 +315,46 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
         assert(fabs(Y_crit(i)) > 0);
     }
     
+    // one or two mechanisms: system on the stack, closed forms, no LAPACK call
+    if (n == 1 || n == 2) {
+        double FB[2], denomFB[2][2];
+        for (int i=0; i<n; i++) {
+            //factor_denom(i): the eigenvalue estimate of denom used to normalise Dp
+            const double dDpstar = fabs(denom(i,i));
+            const double Dpstar = Dp(i)*dDpstar;
+            FB[i] = fb_m_value(Phi(i), Dpstar);
+            for (int j=0; j<n; j++) {
+                denomFB[i][j] = fb_m_jacobian(Phi(i), Dpstar, dDpstar, denom(i,j), i == j);
+            }
+        }
+        dp.zeros(n);
+        if (n == 1) {
+            const double a = denomFB[0][0];
+            if (fabs(a) > simcoon::limit) {
+                dp(0) = -FB[0]/a;
+            }
+        }
+        else {
+            const double det_FB = denomFB[0][0]*denomFB[1][1] - denomFB[0][1]*denomFB[1][0];
+            if (fabs(det_FB) > simcoon::limit) {
+                dp(0) = -(denomFB[1][1]*FB[0] - denomFB[0][1]*FB[1])/det_FB;   // Cramer
+                dp(1) = -(denomFB[0][0]*FB[1] - denomFB[1][0]*FB[0])/det_FB;
+            }
+        }
+        //New update of the transformation/orientation multipliers
+        Dp += dp;
+        // the entering iterate's residual: Fischer_Burmeister_residual, kept in step
+        error = 0.;
+        for (int i=0; i<n; i++) {
+            error+= fabs(FB[i])/fabs(Y_crit(i));
+        }
+        return;
+    }
+
     vec FB = zeros(n);
     mat denomFB = zeros(n,n);
-    mat delta = eye(n,n);
     
-    //Determine the eigenvalues of denom
+    // row scaling: |diagonal of denom|
     vec factor_denom = zeros(n);
     for (int i=0; i<n; i++) {
         factor_denom(i) = fabs(denom(i,i));
@@ -297,38 +365,10 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     
     //Normalized Fischer-Burmeister set of equations
     for (int i=0; i<n; i++) {
-        
-        if ((fabs(Phi(i)) > 0.)&&(fabs(Dpstar(i)) > 0.)) {
-            FB(i) = sqrt(pow(Phi(i),2.) + pow(Dpstar(i),2.)) + Phi(i) - Dpstar(i);
-        }
-        else if(fabs(Phi(i)) > 0.) {
-            FB(i) = sqrt(pow(Phi(i),2.)) + Phi(i);
-        }
-        else if(fabs(Dpstar(i)) > 0.) {
-            FB(i) = sqrt(pow(Dpstar(i),2.)) - Dpstar(i);
-        }
-        else {
-            FB(i) = 0.;
-        }
-        
+        FB(i) = fb_m_value(Phi(i), Dpstar(i));
         for (int j=0; j<n; j++) {
-            if ((fabs(Phi(i)) > 0.)&&(fabs(Dpstar(i)) > 0.)) {
-                denomFB(i,j) = (Phi(i)/(sqrt(pow(Phi(i),2.) + pow(Dpstar(i),2.)))+1.)*denom(i,j) + delta(i,j)*dDpstar(i)*(Dpstar(i)/(sqrt(pow(Phi(i),2.) + pow(Dpstar(i),2.))) - 1.);
-            }
-            else if(fabs(Phi(i)) > 0.) {
-                denomFB(i,j) = (Phi(i)/(sqrt(pow(Phi(i),2.)))+1.)*denom(i,j) - delta(i,j)*dDpstar(i);
-            }
-            else if(fabs(Dpstar(i)) > 0.) {
-                denomFB(i,j) = denom(i,j) + delta(i,j)*dDpstar(i)*(Dpstar(i)/(sqrt(pow(Dpstar(i),2.))) - 1.);
-            }
-            else {
-                if (i==j)
-                    denomFB(i,j) = 1.E12;
-                else
-                    denomFB(i,j) = 0.;
-            }
+            denomFB(i,j) = fb_m_jacobian(Phi(i), Dpstar(i), dDpstar(i), denom(i,j), i == j);
         }
-        
     }
     
     try {
@@ -341,8 +381,8 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     } catch (const std::runtime_error &e) {
         cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_m.");
-    }  
-    
+    }
+
     //New update of the transformation/orientation multipliers
     Dp = Dp + dp;
 
@@ -351,9 +391,58 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
     for (int i=0; i<n; i++) {
         error+= fabs(FB(i))/fabs(Y_crit(i));
     }
-    
+
 }
                      
+NCPMethod ncp_method_of(const int &code, const string &where)
+{
+    if (code == 0) return NCPMethod::fischer_burmeister;
+    if (code == 1) return NCPMethod::min_fb_fallback;
+    throw std::invalid_argument(where + ": ncp must be 0 (Fischer-Burmeister) or 1 "
+                                "(min-NCP with a Fischer-Burmeister fallback); got " + std::to_string(code));
+}
+
+void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp, vec &dp, double &error)
+{
+    const uword n = Phi.n_elem;
+    // coupled rows: Fischer-Burmeister (a plain semi-smooth Newton cycles); uncoupled rows: scalar min steps
+    bool uncoupled = (method_ != NCPMethod::fischer_burmeister) && !fallback_;
+    for (uword i = 0; uncoupled && i < n; i++)
+        for (uword j = 0; j < n; j++)
+            if (i != j && denom(i, j) != 0.) { uncoupled = false; break; }
+    if (!uncoupled) {
+        Fischer_Burmeister_m(Phi, Y_crit, denom, Dp, dp, error);
+        return;
+    }
+    // min(Dp*, -Phi) = 0 row by row, Dp* = Dp |B|: an active row solves Phi + B dp = 0 (classic
+    // cutting plane), an inactive one resets its multiplier
+    vec r(n), J(n);
+    double err = 0.;
+    bool singular = false;
+    for (uword i = 0; i < n; i++) {
+        const double B = denom(i, i);
+        const double f = fabs(B);
+        const bool active = (Phi(i) > 0.) || (-Phi(i) < Dp(i)*f);
+        r(i) = active ? -Phi(i) : Dp(i)*f;
+        J(i) = active ? -B : ((f > 0.) ? f : 1.);
+        err += 2.*fabs(r(i))/fabs(Y_crit(i));
+        singular = singular || !(fabs(J(i)) > simcoon::iota);
+    }
+    // a growing error: the semi-smooth Newton overshoots or cycles, Fischer-Burmeister from here
+    if ((prev_error_ >= 0. && err > prev_error_) || singular) {
+        fallback_ = true;
+        Fischer_Burmeister_m(Phi, Y_crit, denom, Dp, dp, error);
+        return;
+    }
+    prev_error_ = err;
+    dp.set_size(n);
+    for (uword i = 0; i < n; i++) {
+        dp(i) = -r(i)/J(i);
+        Dp(i) += dp(i);
+    }
+    error = err;
+}
+
 void Fischer_Burmeister_m_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_crit, const mat &denom, const mat &denom_l, vec &Dp, vec &dp, double &error)
 {
     int n=Phi_p.n_elem;
@@ -368,7 +457,7 @@ void Fischer_Burmeister_m_limits(const vec &Phi_p, const vec &Phi_l, const vec &
     mat denomFB = zeros(n,n);
     mat delta = eye(n,n);
     
-    //Determine the eigenvalues of denom
+    // row scaling: |diagonal of denom|
     vec factor_denom = zeros(n);
     for (int i=0; i<n; i++) {
         factor_denom(i) = fabs(denom(i,i));
@@ -498,7 +587,7 @@ mat denom_FB_m(const vec &Phi, const mat &denom, const vec &Dp)
     mat denomFB = zeros(n,n);
     mat delta = eye(n,n);
     
-    //Determine the eigenvalues of denom
+    // row scaling: |diagonal of denom|
     vec factor_denom = zeros(n);
     for (int i=0; i<n; i++) {
         factor_denom(i) = fabs(denom(i,i));

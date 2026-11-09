@@ -784,6 +784,47 @@ TEST(Tobjective_rates, total_formulation_increment_is_a_state_function)
     EXPECT_FALSE(work_correction_applies(6));
 }
 
+TEST(Tobjective_rates, corate_kinematics_with_increment_matches_the_two_calls)
+{
+    // the one-pass overload returns the same DR, D, Omega as corate_kinematics and the increment
+    // of Delta_log_strain_corate, for every rate and the total form
+    arma_rng::set_seed(17);
+    for (int t = 0; t < 20; t++) {
+        const mat F0 = eye(3, 3) + 0.12*randn<mat>(3, 3);
+        const mat F1 = (eye(3, 3) + 0.02*randn<mat>(3, 3))*F0;
+        const double dt = 0.1;
+        for (int corate : {0, 1, 2, 3, 4, 5, corate_type_total}) {
+            mat DR, D, Omega, DR2, D2, Omega2, De;
+            corate_kinematics(corate, DR, D, Omega, F0, F1, dt);
+            const mat De_ref = Delta_log_strain_corate(F0, F1, DR, D, Omega, dt, corate);
+            corate_kinematics(corate, DR2, D2, Omega2, De, F0, F1, dt);
+            EXPECT_LT(abs(DR2 - DR).max(), 1.E-15);
+            EXPECT_LT(abs(D2 - D).max(), 1.E-15*(1. + abs(D).max()));
+            EXPECT_LT(abs(Omega2 - Omega).max(), 1.E-15*(1. + abs(Omega).max()));
+            EXPECT_LT(abs(De - De_ref).max(), 1.E-15*(1. + abs(De_ref).max()));
+        }
+    }
+}
+
+TEST(Tobjective_rates, log_R_increment_is_A_R_D)
+{
+    // De = A^R:D by congruence on the eigenbasis of B1, transported by DR, equals the 6x6 A_R route
+    arma_rng::set_seed(19);
+    for (int t = 0; t < 20; t++) {
+        const mat F0 = eye(3, 3) + 0.15*randn<mat>(3, 3);
+        const mat F1 = (eye(3, 3) + 0.05*randn<mat>(3, 3))*F0;
+        const double dt = 0.5;
+        mat DR, D, Omega;
+        corate_kinematics(3, DR, D, Omega, F0, F1, dt);
+        const mat De = Delta_log_strain_corate(F0, F1, DR, D, Omega, dt, 3);
+        const mat Dh = v2t_strain(A_R(F1)*t2v_strain(D));
+        const mat De_ref = 0.5*(Dh + DR*Dh*DR.t())*dt;
+        EXPECT_LT(abs(De - De_ref).max(), 1.E-13*abs(De_ref).max());
+        // DR is the inverse Cayley image of Omega
+        EXPECT_LT(abs(Hughes_Winget(Omega, dt) - DR).max(), 1.E-12);
+    }
+}
+
 TEST(Tobjective_rates, dH_dE_close_eigenvalues)
 {
     // dH/dE is continuous in C: two eigenvalues a relative 3e-12 apart, just past the coincident

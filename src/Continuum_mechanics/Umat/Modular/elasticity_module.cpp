@@ -20,12 +20,15 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * @brief Implementation of ElasticityModule class
  */
 
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/eig_sym3.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <stdexcept>
 
@@ -121,9 +124,7 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
             + std::to_string(static_cast<int>(conv)) + " (valid: 0)");
     }
 
-    // Validate BEFORE calling the library builders: L_isotrans terminates the
-    // process (exit(0)!) on an invalid axis — a throw here keeps the failure
-    // catchable and attributable.
+    // validate first, with the module's own message
     if (axis < 1 || axis > 3) {
         throw std::invalid_argument(
             "ElasticityModule: transverse-isotropic axis must be 1, 2 or 3, got "
@@ -188,19 +189,7 @@ void ElasticityModule::configure_hyper_invariants(HyperPotential potential, cons
 
     alpha_ = alpha_scalar * Ith();
 
-    // At the stress-free ground state (b = I, J = 1, U'(1) = 0) the invariant
-    // builders reduce to the isotropic K = U''(1), mu = 2 (W_1 + W_2). Closed
-    // form rather than a full evaluate(): the module is rebuilt on every UMAT
-    // call. refresh_tensors() rejects a ground state that is not positive
-    // definite, a genuine admissibility check on the parameters.
-    // A fibre family is unstretched at the ground state: tr(A) = 3 kappa_d + (1 - 3 kappa_d)
-    // = 1, so its derivatives vanish there (the tension-only switch) and mu0 is the matrix
-    // one. L_ is therefore the ISOTROPIC ground state even for an anisotropic potential --
-    // a fact, not an approximation, and exact for the fibre-inactive state it describes.
-    // Nothing consumes it as an anisotropic stiffness: plasticity and damage are handed
-    // L_cur_, the current tangent. (The Prony branches ARE isotropic for an anisotropic
-    // potential, but because viscoelastic_mechanism.cpp builds each as L_iso(E_i, nu_i),
-    // not because of this L_ -- it enters there only as the compliance inv(L_0).)
+    // closed-form ground state, isotropic and exact even for an anisotropic potential (see header)
     const arma::mat I3 = arma::eye(3, 3);
     an_ = hyper_potential_anisotropy(potential, params);   // parsed ONCE, read by evaluate()
     const hyper_invariants_dW dW0 = hyper_potential_derivatives(
@@ -216,9 +205,7 @@ void ElasticityModule::configure_hyper_invariants(HyperPotential potential, cons
 }
 
 void ElasticityModule::configure(ElasticityType type, const arma::vec& props, int& offset) {
-    // Every linear block starts with the convention slot; the conv_string
-    // helpers (and the isotrans guard) validate the code inside the
-    // configure_* call.
+    // the conv_string helpers validate the convention slot inside configure_*
     switch (type) {
         case ElasticityType::ISOTROPIC: {
             // props: conv, C1, C2, alpha
@@ -304,7 +291,11 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
         throw std::invalid_argument("ElasticityModule: not configured");
     }
     if (type_ != ElasticityType::HYPER_INVARIANTS) {
-        sigma = L_ * eps_el;
+        if (L_.n_rows == 6 && L_.n_cols == 6 && eps_el.n_elem == 6 ) {
+            mul6(L_, eps_el, sigma);
+        } else {
+            sigma = L_ * eps_el;
+        }
         Lt = L_;
         return;
     }
@@ -313,12 +304,16 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
             "ElasticityModule: a hyperelastic block supports ndi = 3 only (got "
             + std::to_string(ndi) + ")");
     }
-    // eps_el -> V_el = exp(eps_el) -> b_el = exp(2 eps_el). Passing V_el where
-    // the response expects F is what makes the returned box tangent
-    // d(tau)/d(eps_el): the frame is corotational here, so R = I.
+    // V_el = exp(eps_el) passed where F is expected: the returned box tangent is d(tau)/d(eps_el), R = I
     const arma::mat eps_t = v2t_strain(eps_el);
-    const arma::mat V_el = eR_to_F(eps_t, arma::eye(3, 3));
-    const arma::mat b_el = V_el * V_el;
+    arma::vec::fixed<3> e;
+    arma::mat::fixed<3,3> N;
+    if (!eig_sym_3x3(e, N, eps_t)) {
+        throw simcoon::exception_expmat_sym("Error in expmat_sym function inside ElasticityModule::evaluate.");
+    }
+    const arma::vec::fixed<3> exp_e = arma::exp(e);
+    const arma::mat V_el = spectral_compose_3x3(N, exp_e);
+    const arma::mat b_el = spectral_compose_3x3(N, exp_e % exp_e);
     const double J_el = std::exp(arma::trace(eps_t));
 
     // An anisotropic potential carries reference fibre directions: push them forward with
@@ -331,6 +326,13 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
                                     isochoric_invariants(b_el, J_el), J_el, A);
     // tau = dpsi/deps_el per reference volume (isotropic psi); corate 3, never the solver's.
     const bool total = (kinematic_form_ == KinematicForm::total);
+    if (!total && A.empty()) {
+        // isotropic: closed-form box from the Lie tangent (one decomposition); Truesdell box = Lie tangent
+        arma::mat Lt_Lie;
+        hyper_invariants_response(dW, b_el, J_el, V_el, 4, sigma, Lt_Lie, A);
+        Lt = Dtau_LieDD_2_DtauDe_stretch(Lt_Lie, e, N, v2t_stress(sigma));
+        return;
+    }
     hyper_invariants_response(dW, b_el, J_el, V_el, total ? corate_type_total : 3, sigma, Lt, A);
     if (total) {
         // dual stress of H_el: equal to tau when coaxial, and what makes a fibre potential exact

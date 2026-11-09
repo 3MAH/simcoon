@@ -15,7 +15,7 @@
  
  */
 
-///@file ellipsoid.hpp
+///@file cylinder.hpp
 ///@brief Characteristics of an ellipsoidal phase, which hereditates from:
 ///-phase characteristics
 ///@version 1.0
@@ -58,12 +58,27 @@ class cylinder : public geometry
         double theta_geom;  //geometric orientation of the cylinder theta
         double phi_geom;    //geometric orientation of the cylinder phi
     
-		cylinder(); 	//default constructor
-    		cylinder(const double &Lval, const int &coatingof, const int &coatedby, const double &Rval, const double &psi_geom, const double &theta_geom, const double &phi_geom, const double &dummy);
+		/** @brief Default constructor: zero concentration, dimensions and angles, no coating. */
+		cylinder();
+        /**
+         * @brief Constructor with parameters.
+         * @param concentration volume fraction of the phase
+         * @param coatingof index of the phase this cylinder is coating (0 if none)
+         * @param coatedby index of the phase coating this cylinder (0 if none)
+         * @param L length of the cylinder
+         * @param R radius of the cylinder
+         * @param psi_geom first Euler angle of the geometric orientation (radians)
+         * @param theta_geom second Euler angle of the geometric orientation (radians)
+         * @param phi_geom third Euler angle of the geometric orientation (radians)
+         */
+    		cylinder(const double &concentration, const int &coatingof, const int &coatedby, const double &L, const double &R, const double &psi_geom, const double &theta_geom, const double &phi_geom);
 
-		cylinder(const cylinder&);	//Copy constructor
+		/** @brief Copy constructor. */
+		cylinder(const cylinder&);
+        /** @brief Destructor. */
         virtual ~cylinder();
     
+		/** @brief Copy assignment. */
 		virtual cylinder& operator = (const cylinder&);
 		
         friend std::ostream& operator << (std::ostream& os, const cylinder &cyl);

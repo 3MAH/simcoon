@@ -59,12 +59,34 @@ protected:
     arma::vec Ts;
     arma::vec BC_Ts;
     
-    step_meca(); 	//default constructor
-    step_meca(const unsigned int &size); 	//constructor that allocates BC_meca and cBC_meca
-    step_meca(const int &number, const double &Dn_init, const double &Dn_mini, const double &Dn_inc, const int &mode, const unsigned int &control_type, const arma::Col<int>& cBC_meca, const arma::vec& BC_meca, const arma::mat& mecas, const arma::mat& BC_mecas, const double& BC_T, const int& cBC_T, const arma::vec& Ts, const arma::vec& BC_Ts, const arma::mat& BC_w, const arma::mat& BC_R); //Constructor with parameters
+    /** @brief Default constructor: BC_T = 0, cBC_T = 0. */
+    step_meca();
+    /**
+     * @brief Constructor that allocates cBC_meca and BC_meca (size 9 for control_type 5/6, else 6), BC_w = 0, BC_R = I.
+     * @param control_type control type of the step
+     */
+    step_meca(const unsigned int &control_type);
+    /**
+     * @brief Constructor with parameters.
+     * @param number step identification number
+     * @param Dn_init initial time increment fraction
+     * @param Dn_mini minimum time increment fraction
+     * @param Dn_inc maximum time increment fraction
+     * @param mode loading mode
+     * @param control_type control type
+     * @param cBC_meca type of each mechanical boundary condition (1 stress, 0 strain)
+     * @param BC_meca target values of the mechanical boundary conditions
+     * @param mecas mechanical increments, one row per increment
+     * @param BC_mecas cumulated mechanical boundary values, one row per increment
+     * @param BC_T target temperature
+     * @param cBC_T type of the thermal boundary condition
+     * @param Ts temperature increments, one per increment
+     * @param BC_Ts cumulated thermal boundary values, one per increment
+     * @param BC_w spin of the step (3x3)
+     * @param BC_R rotation of the step (3x3)
+     */
+    step_meca(const int &number, const double &Dn_init, const double &Dn_mini, const double &Dn_inc, const int &mode, const unsigned int &control_type, const arma::Col<int>& cBC_meca, const arma::vec& BC_meca, const arma::mat& mecas, const arma::mat& BC_mecas, const double& BC_T, const int& cBC_T, const arma::vec& Ts, const arma::vec& BC_Ts, const arma::mat& BC_w, const arma::mat& BC_R);
 
-    step_meca(const step_meca &s); 	//Copy constructor
-    virtual ~step_meca();
     
     using step::generate;
     virtual void generate(const double&, const arma::vec &, const arma::vec&, const double&);
@@ -79,7 +101,6 @@ protected:
     virtual void generate_kin(const double&, const arma::mat &, const double &);
     virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &, const arma::mat &, const int &);
     
-    virtual step_meca& operator = (const step_meca &s);
 
     friend  std::ostream& operator << (std::ostream& os, const step_meca &s);
 };

@@ -91,6 +91,8 @@ private:
     std::unique_ptr<IsotropicHardening> iso_hard_;
     std::unique_ptr<KinematicHardening> kin_hard_;
     double sigma_Y_;  ///< Initial yield stress
+    size_t p_index_ = 0;   ///< ivc_ index of "p", resolved by register_variables()
+    size_t EP_index_ = 0;  ///< ivc_ index of "EP", resolved by register_variables()
 
     // Per-iteration caches populated by compute_constraints. dPhi_dsigma() and
     // kappa() return const-refs into these single-element buffers to avoid
@@ -111,6 +113,9 @@ private:
                                                 ///< for sigma_eff + hardening_modulus
     mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
     std::vector<ClosestPointIngredients> cpp_cache_{ClosestPointIngredients{}};  ///< built by refresh_state, read by closest_point_ingredients
+
+    /// Total backstress (engineering stress Voigt), summed in the X_branches_ buffer it overwrites (no allocation)
+    [[nodiscard]] arma::vec total_backstress_voigt() const;
 
 public:
     /**
@@ -152,6 +157,11 @@ public:
 
     // ========== Configuration ==========
 
+    /**
+     * @brief Reads, from @p props at @p offset (advanced past them): \f$ \sigma_Y \f$, then the
+     * yield criterion parameters (unless the criterion is already configured: von Mises and Tresca
+     * need none and are set in the constructor), the isotropic and the kinematic hardening parameters.
+     */
     void configure(const arma::vec& props, int& offset) override;
     void register_variables() override;
 
@@ -288,6 +298,15 @@ public:
 
     arma::vec inelastic_strain() const override;
 
+    /**
+     * @brief Applies the FB correction \f$ \Delta s \f$, PROJECTED onto \f$ p \ge p_{start} \f$.
+     *
+     * Negative per-iteration corrections are kept, so an overshoot can walk back, but the
+     * multiplier never drops below its start-of-increment value. Without the projection a tiny
+     * negative \f$ \Delta p \f$ is a spurious Fischer-Burmeister root whenever \f$ \Phi > 0 \f$ is
+     * large (\f$ \phi(\Phi, \Delta p) \approx \Delta p \f$ for \f$ |\Delta p| \ll \Phi \f$), reached for
+     * near-singular hardening slopes such as \f$ R = k p^m \f$, \f$ m < 1 \f$, at first yield.
+     */
     void update(
         const arma::vec& ds,
         int offset

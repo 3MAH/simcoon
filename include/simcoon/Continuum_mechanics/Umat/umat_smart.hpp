@@ -146,6 +146,19 @@ void size_statev(phase_characteristics &rve, unsigned int &size);
     
 /**
  * @brief From mechanical variables stored in a statev vector, parse a rve object that contains all information about the phases. 
+ *
+ * Layout, per sub-phase and recursively (depth first), \f$ 57 + n_{statev} \f$ slots from @p pos:
+ * | Slots | Content |
+ * |-------|---------|
+ * | 0-5 | Etot |
+ * | 6-11 | DEtot |
+ * | 12-17 | sigma |
+ * | 18 | unused |
+ * | 19 | T |
+ * | 20 | DT |
+ * | 21-56 | Lt (6x6, column by column) |
+ * | 57 ... | the statev of the phase, then its own sub-phases |
+ * phases_2_statev writes the same layout; size_statev counts it.
  * @param rve Reference to the phase characteristics object.
  * @param pos Reference to the position in the statev vector that contain subphase information
  * @param statev Reference to the statev vector that hold the information.
@@ -454,10 +467,16 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const 
  * Every NATIVE simcoon kernel is @c kirchhoff: in the logarithmic framework the potential
  * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume. It is the default route 
  * stress, and \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed at the output
- * boundaries only. @c cauchy is reserved for the plugin adapters (UMEXT, UMABA), whose
- * contract belongs to the host code.
+ * boundaries only. @c cauchy is the contract of a kernel whose convention belongs to a host code
+ * (none on the finite route today: the external plugins serve the small-strain route only).
  */
 enum class StressMeasure { kirchhoff, cauchy };
+
+/**
+ * @brief True for the external plugin names (UMEXT, UMABA, UMANS): laws loaded from a library at
+ *        run time, served by the solver's small-strain route only.
+ */
+bool is_external_plugin(const std::string &umat_name);
 
 // Declared in Functions/tensor.hpp (kept out of this widely included header).
 enum class Tensor2Type;
@@ -491,6 +510,13 @@ struct StatevTensor {
  * @c layout_declared says the list is complete (an empty list: no tensorial state); a material
  * frame kernel that has not declared it is refused under corates 4 and 5.
  *
+ * @c material_tangent marks a kernel built on \f$ \mathbf{F} \f$ whose native tangent is the
+ * material one, \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ (a pull-back of its spatial tangent):
+ * called with corate_type_material_tangent it returns that tangent instead of a box, and its
+ * stress and work do not depend on the corate it is given. A caller that needs
+ * \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ asks for it (select_umat_M_finite) instead of
+ * converting the box back.
+ *
  * @see output_convention_of
  */
 struct umat_convention {
@@ -498,6 +524,7 @@ struct umat_convention {
     bool material_frame = false;
     bool layout_declared = false;
     std::vector<StatevTensor> statev_tensors = {};
+    bool material_tangent = false;
 };
 
 /**
@@ -537,6 +564,61 @@ bool stress_output_is_kirchhoff(const std::string &umat_name);
  * returns the stress dual to its strain. Never throws.
  */
 bool total_formulation_serves(const std::string &umat_name);
+
+/**
+ * @brief True when the named kernel can return its tangent as \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$
+ *        (umat_convention::material_tangent, corate_type_material_tangent): the kernels built on
+ *        \f$ \mathbf{F} \f$ (hyperelastic potentials, Saint-Venant-Kirchhoff). Never throws.
+ */
+bool material_tangent_serves(const std::string &umat_name);
+
+/**
+ * @brief Checks the complementarity option of a run (solver_params::ncp, the @c ncp of
+ *        @c sim.umat) against the law it drives: the default (0) passes for every law; min-NCP
+ *        (1) only for the mechanical kernels whose cutting plane reads it, EPICP, EPKCP and MODUL
+ *        (MODUL refuses it further for an Armstrong-Frederick back stress, ModularUMAT::set_ncp).
+ * @param umat_name the law of the run
+ * @param ncp the NCPMethod code
+ * @param thermomechanical a thermomechanical run (no thermomechanical kernel reads it)
+ * @throw std::invalid_argument for a code other than 0 or 1, or a law that does not read it
+ */
+void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical,
+                      const int &tangent_mode = tangent_default);
+
+/**
+ * @brief Checks the closest-point integrator (kernel code tangent_closest_point) against the law it
+ *        drives, so that it is never ignored silently and the code 3 never reaches a law that does
+ *        not read it (a Python law, PYEXT, receives 0, 1 or 2 only).
+ *
+ * Accepted: the mechanical EPICP, EPCHA, MODUL and the names routed to its adapters (code 201),
+ * the SMA kernels SMADI/SMADC/SMAAI/SMAAC and SMRDI/SMRDC/SMRAI/SMRAC, and EPJCK, whose radial
+ * cutting plane is the closest-point projection by construction; the thermomechanical EPICP and
+ * EPKCP. Every other code passes.
+ * @param umat_name the law of the run
+ * @param tangent_mode the kernel code (kernel_tangent_mode)
+ * @param thermomechanical a thermomechanical run or block
+ * @throw std::invalid_argument for the closest point on a law without one
+ */
+void check_integrator_serves(const std::string &umat_name, const int &tangent_mode, const bool &thermomechanical);
+
+/**
+ * @brief The tangent code the kernels read for a choice of local integrator and tangent operator.
+ *
+ * The run chooses three things apart: the local integrator (@p integrator, integrator_* constants),
+ * the complementarity function inside it (ncp) and the operator handed to the global Newton
+ * (@p tangent_mode: none, continuum or algorithmic, the consistent operator of the integrator that
+ * ran). The kernels read one code, tangent_closest_point standing for the closest-point integrator
+ * with its exact operator:
+ * - integrator_cutting_plane: @p tangent_mode none, continuum or algorithmic, as given;
+ * - integrator_closest_point: tangent_closest_point, for the algorithmic tangent only (its
+ *   continuum operator and the explicit form are not provided).
+ * @p tangent_mode = tangent_closest_point is refused: the closest point is chosen by @p integrator.
+ * Which laws accept the result is check_integrator_serves; inside one of them, a row without a
+ * closest-point update (a Tresca or Drucker row of MODUL) keeps the cutting plane (see the UMAT
+ * catalogue).
+ * @throw std::invalid_argument for an unknown code or a combination outside the above
+ */
+int kernel_tangent_mode(const int &integrator, const int &tangent_mode);
 
 /**
  * @brief True when the named thermomechanical kernel can run under the total formulation.
@@ -584,6 +666,10 @@ arma::vec total_formulation_tau(const arma::vec &sigma, const arma::vec &Detot, 
  *        or corate_type_total for the total formulation: the kernel then works on \f$ \ln\mathbf{U} \f$ and its
  *        dual stress \f$ \mathbf{T} \f$ instead of \f$ \ln\mathbf{V} \f$ and \f$ \boldsymbol{\tau} \f$
  * @param tnew_dt New increment of time if the max number of iteration has not converged
+ * @param material_tangent true: Lt is returned as the material tangent \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$
+ *        instead of the box tangent of @p corate_type. Honoured only for a kernel that
+ *        material_tangent_serves() (it is then called with corate_type_material_tangent; the
+ *        stress, the work and statev are unchanged); the caller checks it.
  * @details Under the logarithmic corates (2, 3, 5) the mechanical work is corrected to the true
  * work per reference volume (see Delta_work_conjugacy). Example: 
  * @code 
@@ -617,7 +703,7 @@ arma::vec total_formulation_tau(const arma::vec &sigma, const arma::vec &Detot, 
     select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, pnewdt);
  * @endcode
 */
-void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt);
+void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt, const bool &material_tangent = false);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering small strain assumption
@@ -669,9 +755,23 @@ void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global
 void select_umat_M(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
+/**
+ * @brief Solver entry point of a thermomechanical phase: resets @p tnew_dt to 1, clears @p start once
+ * \f$ t > \f$ simcoon::limit, then dispatches on @p control_type.
+ * @param control_type 1: small strain (select_umat_T); 2-6: finite strain (select_umat_T_finite, with @p corate_type).
+ *        Any other value throws simcoon::exception_solver.
+ * @details The other arguments are those of select_umat_T / select_umat_T_finite.
+ */
 void run_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt);
 
-void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, const int &, double &);
+/**
+ * @brief Solver entry point of a mechanical phase: resets @p tnew_dt to 1, clears @p start once
+ * \f$ t > \f$ simcoon::limit, then dispatches on the control type.
+ * @details Arguments in order: rve, DR, Time, DTime, ndi, nshr, start, solver_type, control_type
+ * (1: select_umat_M; 2-6: select_umat_M_finite with corate_type and material_tangent; any other
+ * value throws simcoon::exception_solver), corate_type, tnew_dt, material_tangent.
+ */
+void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, const int &, double &, const bool &material_tangent = false);
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */    
     
 /**

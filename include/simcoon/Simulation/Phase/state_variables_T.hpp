@@ -15,7 +15,7 @@
  
  */
 
-///@file state_variables.hpp
+///@file state_variables_T.hpp
 ///@brief State variables of a phase, in a defined coordinate system:
 ///@version 1.0
 
@@ -78,11 +78,53 @@ namespace simcoon{
         arma::mat drdE;
         arma::mat drdT; ///< temperature derivative of the heat of the increment r; kernel output, crosses l2g only
 
-		state_variables_T(); 	//default constructor
-    state_variables_T(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &); //Constructor with parameters
-		state_variables_T(const state_variables_T &);	//Copy constructor
+		/** @brief Default constructor (zero strains and stresses, identity F, U, R, DR). */
+		state_variables_T();
+        /**
+         * @brief Constructor with parameters; asserts the Voigt and matrix sizes.
+         * @param Etot Green-Lagrange strain
+         * @param DEtot increment of Green-Lagrange strain
+         * @param etot logarithmic strain
+         * @param Detot increment of logarithmic strain
+         * @param PKII 2nd Piola-Kirchhoff stress
+         * @param PKII_start 2nd Piola-Kirchhoff stress at start
+         * @param tau Kirchhoff stress
+         * @param tau_start Kirchhoff stress at start
+         * @param sigma Cauchy stress
+         * @param sigma_start Cauchy stress at start
+         * @param F0 deformation gradient at start
+         * @param F1 deformation gradient at end
+         * @param U0 stretch tensor at start
+         * @param U1 stretch tensor at end
+         * @param R rotation tensor
+         * @param DR rotation increment
+         * @param sigma_in inelastic stress (size 6)
+         * @param sigma_in_start inelastic stress at start (size 6)
+         * @param T temperature
+         * @param DT temperature increment
+         * @param nstatev number of internal state variables
+         * @param statev internal state variables
+         * @param statev_start internal state variables at start
+         * @param Q heat flux (rate)
+         * @param r heat of the increment
+         * @param r_in stored as is (read by nobody in-tree)
+         * @param Wm mechanical works (size 4)
+         * @param Wt thermal works (size 3)
+         * @param Wm_start mechanical works at start (size 4)
+         * @param Wt_start thermal works at start (size 3)
+         * @param dSdE mechanical tangent (6x6)
+         * @param dSdEt stored as is (6x6, read by nobody)
+         * @param dSdT thermal stress tangent (1x6)
+         * @param drdE strain derivative of r (1x6)
+         * @param drdT temperature derivative of r (1x1)
+         */
+        state_variables_T(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const arma::vec &sigma_in, const arma::vec &sigma_in_start, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const double &Q, const double &r, const double &r_in, const arma::vec &Wm, const arma::vec &Wt, const arma::vec &Wm_start, const arma::vec &Wt_start, const arma::mat &dSdE, const arma::mat &dSdEt, const arma::mat &dSdT, const arma::mat &drdE, const arma::mat &drdT);
+		/** @brief Copy constructor. */
+		state_variables_T(const state_variables_T &);
+		/** @brief Destructor. */
 		virtual ~state_variables_T();
 		
+		/** @brief Copy assignment. */
 		virtual state_variables_T& operator = (const state_variables_T&);
 		
 		virtual state_variables_T& copy_fields_T (const state_variables_T&);

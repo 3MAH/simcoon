@@ -37,9 +37,6 @@ namespace simcoon{
 
 //=====Public methods for material_characteristics============================================
 
-/*!
-  \brief default constructor
-*/
 
 //-------------------------------------------------------------
 material_characteristics::material_characteristics()
@@ -55,14 +52,6 @@ material_characteristics::material_characteristics()
 	nprops=0;
 }
 
-/*!
-  \brief Constructor
-  \param nprops : size of the table statev 
-  \param nstatev : size of the table statev 
-  \param init boolean that indicates if the constructor has to initialize the state variables vectors and statev table (default value is true) \n
-  \n\n
-  \f$ \textbf{Examples :} \f$ \n
-*/
 
 //-------------------------------------------------------------
 material_characteristics::material_characteristics(const int &n, const bool &init, const double &value)
@@ -87,13 +76,6 @@ material_characteristics::material_characteristics(const int &n, const bool &ini
     }
 }
 
-/*!
-  \brief Constructor with parameters
-  \param nstatev : size of the table statev 
-  \param init boolean that indicates if the constructor has to initialize the state variables vectors and statev table (default value is true) \n
-  \n\n
-  \f$ \textbf{Examples :} \f$ \n
-*/
 
 //-------------------------------------------------------------
 material_characteristics::material_characteristics(const int &mnumber, const string &mumat_name, const int &msave, const double &mpsi_mat, const double &mtheta_mat, const double &mphi_mat, const int &mnprops, const vec &mprops)
@@ -114,10 +96,6 @@ material_characteristics::material_characteristics(const int &mnumber, const str
 	props = mprops;
 }
 
-/*!
-  \brief Copy constructor
-  \param s phase_characteristics object to duplicate
-*/
 
 //------------------------------------------------------
 material_characteristics::material_characteristics(const material_characteristics& sv)
@@ -136,11 +114,6 @@ material_characteristics::material_characteristics(const material_characteristic
 	props = sv.props;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
 
 //-------------------------------------
 material_characteristics::~material_characteristics() {}
@@ -169,9 +142,6 @@ void material_characteristics::resize(const int &n, const bool &init, const doub
     }
 }
 
-/*!
-  \brief Standard operator = for phase_characteristics
-*/
 
 //-------------------------------------------------------------
 void material_characteristics::update(const int &mnumber, const string &mumat_name, const int &msave, const double &mpsi_mat, const double &mtheta_mat, const double &mphi_mat, const int &mnprops, const vec &mprops)

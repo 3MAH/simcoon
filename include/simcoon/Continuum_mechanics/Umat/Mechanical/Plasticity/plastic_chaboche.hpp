@@ -187,12 +187,12 @@ namespace simcoon{
  * | statev[26..31] | \f$ \mathbf{X}_2 = \tfrac{2}{3} C_2 \boldsymbol{a}_2 \f$ | Backstress 2 (Voigt) | Stress |
  * | statev[32] | \f$ H_p \f$ | Voce isotropic hardening stress \f$ R(p) \f$ (output) | Stress |
  *
+ * @param umat_name Name of the law (EPCHA), unused by the kernel
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
  * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
  * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
  * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (\f$6 \times 6\f$ matrix) [output]
  * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (\f$6 \times 1\f$ vector) [output]
  * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
@@ -209,8 +209,9 @@ namespace simcoon{
  * @param ndi Number of direct stress components (typically 3)
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
- * @param solver_type Solver type: 0=implicit, 1=explicit, 2=dynamic implicit
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
+ * @param tangent_mode tangent_* constant (parameter.hpp); the closest point is the kernel code
+ *        tangent_closest_point (integrator='closest_point')
  *
  * @note The Chaboche model excels at capturing ratcheting and cyclic plasticity
  * @note Multiple backstresses are essential for accurate multiaxial loading predictions
@@ -261,8 +262,8 @@ namespace simcoon{
  *                              Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
  *
  * // Check backstress components
- * vec X1 = statev.subvec(8, 13);   // First backstress
- * vec X2 = statev.subvec(14, 19);  // Second backstress
+ * vec X1 = statev.subvec(20, 25);  // First backstress
+ * vec X2 = statev.subvec(26, 31);  // Second backstress
  * @endcode
  *
  * **References:**

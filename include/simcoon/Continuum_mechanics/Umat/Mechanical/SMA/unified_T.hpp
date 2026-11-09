@@ -67,7 +67,7 @@ namespace simcoon{
  *
  * The maximum transformation strain magnitude \f$ H^{cur} \f$ evolves with stress:
  * \f[
- * H^{cur}(\bar{\sigma}) = H_{min} + (H_{max} - H_{min})(1 - e^{-k_1 \bar{\sigma} / \sigma_{crit}})
+ * H^{cur}(\bar{\sigma}) = H_{min} + (H_{max} - H_{min})\left(1 - e^{-k_1 \langle \bar{\sigma} - \sigma_{crit} \rangle}\right),\qquad \langle x \rangle = \max(x, 0)
  * \f]
  *
  * **Material Parameters (props):**
@@ -76,7 +76,7 @@ namespace simcoon{
  *
  * | Index | Symbol | Description | Units |
  * |-------|--------|-------------|-------|
- * | 0 | flagT | Temperature extrapolation (0=linear, 1=smooth) | - |
+ * | 0 | flagT | 0: the given transformation temperatures are those of the measured curve, converted to the model's with n1..n4; 1: used as given | - |
  * | 1 | \f$ E_A \f$ | Young's modulus of Austenite | MPa |
  * | 2 | \f$ E_M \f$ | Young's modulus of Martensite | MPa |
  * | 3 | \f$ \nu_A \f$ | Poisson's ratio of Austenite | - |
@@ -85,8 +85,8 @@ namespace simcoon{
  * | 6 | \f$ \alpha_M \f$ | CTE of Martensite | 1/K |
  * | 7 | \f$ H_{min} \f$ | Minimal transformation strain magnitude | - |
  * | 8 | \f$ H_{max} \f$ | Maximal transformation strain magnitude | - |
- * | 9 | \f$ k_1 \f$ | Exponential evolution parameter for \f$ H^{cur} \f$ | - |
- * | 10 | \f$ \sigma_{crit} \f$ | Critical stress for \f$ H^{cur} \f$ evolution | MPa |
+ * | 9 | \f$ k_1 \f$ | Exponential evolution parameter for \f$ H^{cur} \f$ | 1/MPa |
+ * | 10 | \f$ \sigma_{crit} \f$ | Von Mises stress below which \f$ H^{cur} = H_{min} \f$ | MPa |
  * | 11 | \f$ C_A \f$ | Clausius-Clapeyron slope (M \f$ \rightarrow \f$ A) | MPa/K |
  * | 12 | \f$ C_M \f$ | Clausius-Clapeyron slope (A \f$ \rightarrow \f$ M) | MPa/K |
  * | 13 | \f$ M_{s0} \f$ | Martensite start temperature at zero stress | K |
@@ -109,7 +109,7 @@ namespace simcoon{
  *
  * | Index | Symbol | Description | Units |
  * |-------|--------|-------------|-------|
- * | 0 | flagT | Temperature extrapolation (0=linear, 1=smooth) | - |
+ * | 0 | flagT | 0: the given transformation temperatures are those of the measured curve, converted to the model's with n1..n4; 1: used as given | - |
  * | 1 | \f$ E_A \f$ | Young's modulus of Austenite ([100] direction) | MPa |
  * | 2 | \f$ E_M \f$ | Young's modulus of Martensite ([100] direction) | MPa |
  * | 3 | \f$ \nu_A \f$ | Poisson's ratio of Austenite | - |
@@ -148,8 +148,8 @@ namespace simcoon{
  * | 5 | \f$ \gamma^{tr}_{12} \f$ | Transformation strain component 12 (engineering) | - |
  * | 6 | \f$ \gamma^{tr}_{13} \f$ | Transformation strain component 13 (engineering) | - |
  * | 7 | \f$ \gamma^{tr}_{23} \f$ | Transformation strain component 23 (engineering) | - |
- * | 8 | \f$ \xi_F \f$ | Forward martensitic volume fraction | - |
- * | 9 | \f$ \xi_R \f$ | Reverse martensitic volume fraction | - |
+ * | 8 | \f$ \xi_F \f$ | Cumulated forward transformation, non-decreasing (\f$ \xi = \xi_F - \xi_R \f$) | - |
+ * | 9 | \f$ \xi_R \f$ | Cumulated reverse transformation, non-decreasing | - |
  * | 10 | \f$ \rho \Delta s_0 \f$ | Entropy difference between phases (M - A) | MPa/K |
  * | 11 | \f$ \rho \Delta E_0 \f$ | Internal energy difference between phases (M - A) | MPa |
  * | 12 | \f$ D \f$ | Stress dependence parameter for transformation limits | - |
@@ -183,7 +183,8 @@ namespace simcoon{
  * @param tnew_dt Suggested new time step ratio for adaptive time stepping [output]
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
- * @note The flagT parameter controls temperature extrapolation: 0 for linear, 1 for smooth
+ * @note flagT = 0 converts the given Ms, Mf, As, Af (read on the measured curve) into the model's
+ *       temperatures through the smoothing exponents n1..n4; flagT = 1 uses them as given
  * @note The pre-2.0 aliases SMAUT and SMANI were removed in 2.0: use SMADI and SMAAI.
  * @note **Convergence measure.** The local Fischer-Burmeister solve reports
  * \f$ \sum_j |FB_j| / Y^{crit}_j \f$, so each \f$ Y^{crit}_j \f$ must be a positive scale of
@@ -198,6 +199,59 @@ namespace simcoon{
  * \f$ Y^{crit}_R = |Y_0^t| + |D\,\boldsymbol{\sigma}:\bar{\boldsymbol{\varepsilon}}^{T}| \f$,
  * identical to the thresholds wherever \f$ D \ge 0 \f$. Shared by the thermomechanical
  * twin and by @ref umat_sma_unified_TR.
+ * @note **Reverse row of the local Jacobian.** With
+ * \f$ \bar{\boldsymbol{\varepsilon}}^{T} = \mathrm{dev}(\boldsymbol{\varepsilon}^{T})/\xi \f$
+ * (ETMean), the direct partials \f$ \partial \Phi_R / \partial \xi \f$ and
+ * \f$ \partial \Phi_R / \partial \boldsymbol{\varepsilon}^{T} : \boldsymbol{\Lambda}^F \f$ carry
+ * \f$ \pm(1+D)\,\boldsymbol{\sigma}:\bar{\boldsymbol{\varepsilon}}^{T}/\xi \f$ terms that cancel
+ * analytically but lose about 12 digits at \f$ \xi \approx 10^{-12} \f$. The row is therefore
+ * built through \f$ \bar{\boldsymbol{\varepsilon}}^{T} \f$ as intermediate variable:
+ * \f[
+ * K_{Rj} = \frac{\partial \Phi_R}{\partial \bar{\boldsymbol{\varepsilon}}^{T}} : \boldsymbol{\Lambda}_{\bar{\varepsilon}}^{j}
+ *        + \left.\frac{\partial \Phi_R}{\partial \xi_j}\right|_{finite}, \qquad
+ * \frac{\partial \Phi_R}{\partial \bar{\boldsymbol{\varepsilon}}^{T}} = -(1+D)\,\boldsymbol{\sigma},
+ * \f]
+ * \f[
+ * \boldsymbol{\Lambda}_{\bar{\varepsilon}}^{F} = \frac{\boldsymbol{\Lambda}^{F} - \bar{\boldsymbol{\varepsilon}}^{T}}{\xi}, \qquad
+ * \boldsymbol{\Lambda}_{\bar{\varepsilon}}^{R} = \mathbf{0}, \qquad
+ * \left.\frac{\partial \Phi_R}{\partial \xi_{F}}\right|_{finite} = H_f^{R\prime} - \lambda_0^{\prime}, \quad
+ * \left.\frac{\partial \Phi_R}{\partial \xi_{R}}\right|_{finite} = -H_f^{R\prime} + \lambda_0^{\prime},
+ * \f]
+ * (reverse transformation removes martensite proportionally, so the mean is unchanged;
+ * \f$ \boldsymbol{\Lambda}_{\bar{\varepsilon}}^{F} = \mathbf{0} \f$ when the fallback
+ * \f$ \bar{\boldsymbol{\varepsilon}}^{T} = \boldsymbol{\Lambda}^{F} \f$ is active).
+ * @note **Closest-point mode** (`tangent_mode = tangent_closest_point`). The closest-point
+ * projection replaces the cutting-plane loop, with \f$ \mathbf{L}(\xi) \f$ and
+ * \f$ \boldsymbol{\alpha}(\xi) \f$ frozen at \f$ \xi_n \f$. Since the Reuss mixture
+ * \f$ \mathbf{M}(\xi) \f$ and \f$ \boldsymbol{\alpha}(\xi) \f$ are linear in \f$ \xi \f$, the
+ * effective flows
+ * \f[
+ * \boldsymbol{\Lambda}^{F}_{eff} = \boldsymbol{\Lambda}^{F} + \Delta\mathbf{M}\,\boldsymbol{\sigma} + \Delta\boldsymbol{\alpha}\,(T+\Delta T-T_{init}), \qquad
+ * \boldsymbol{\Lambda}^{R}_{eff} = -\bar{\boldsymbol{\varepsilon}}^{T} - \Delta\mathbf{M}\,\boldsymbol{\sigma} - \Delta\boldsymbol{\alpha}\,(T+\Delta T-T_{init})
+ * \f]
+ * make the frozen-\f$ \mathbf{L} \f$ residual the exact discrete system. The state is rebuilt
+ * from the start values at every iterate, with \f$ \bar{\boldsymbol{\varepsilon}}^{T} \f$ in
+ * closed form (the fixed-point sweep diverges when \f$ \Delta\xi_R > \xi \f$):
+ * \f[
+ * \bar{\boldsymbol{\varepsilon}}^{T}\,(\xi + \Delta\xi_R) = \mathrm{dev}(\boldsymbol{\varepsilon}^{T}_n) + \Delta\xi_F\,\mathrm{dev}(\boldsymbol{\Lambda}^{F}),
+ * \f]
+ * so that
+ * \f$ \partial\bar{\boldsymbol{\varepsilon}}^{T}/\partial\boldsymbol{\sigma} = \frac{\Delta\xi_F}{\xi_n+\Delta\xi_F}\,\mathrm{dev}(\partial\boldsymbol{\Lambda}^{F}/\partial\boldsymbol{\sigma}) \f$,
+ * \f$ \partial\bar{\boldsymbol{\varepsilon}}^{T}/\partial\Delta\xi_F = (\mathrm{dev}(\boldsymbol{\Lambda}^{F}) - \bar{\boldsymbol{\varepsilon}}^{T})/(\xi_n+\Delta\xi_F) \f$,
+ * with \f$ \boldsymbol{\Lambda}^{F} = H^{cur}\,\mathbf{g} \f$,
+ * \f$ \partial\boldsymbol{\Lambda}^{F}/\partial\boldsymbol{\sigma} = \mathbf{g}\otimes\partial H^{cur}/\partial\boldsymbol{\sigma} + H^{cur}\,\partial\mathbf{g}/\partial\boldsymbol{\sigma} \f$
+ * (\f$ \mathbf{g} \f$ the Drucker gradient). The callbacks return the analytic total
+ * derivatives of this composed map; the flux chain of the forward row is
+ * \f$ \mathbf{c}_F = -\Delta\xi_R\,\partial\bar{\boldsymbol{\varepsilon}}^{T}/\partial\Delta\xi_F \f$.
+ * The hardening functions are evaluated at \f$ \xi \f$ clamped to \f$ [0,1] \f$ (fractional
+ * powers are NaN outside), and the FB scales are floored at
+ * \f$ 0.1\max(Y_0^t + D\,H_{max}\,\sigma_{caliber},\,10^{-2}) \f$ since both thresholds vanish in
+ * virgin states. A non-converged projection requests a step cut (`tnew_dt = 0.5`), never a
+ * cutting-plane fallback. The output \f$ \mathbf{L} \f$ is the mixture at the converged
+ * \f$ \xi \f$; the tangent uses the frozen one.
+ * @note `tangent_algorithmic` is clamped to the continuum tangent: its finite-difference flow
+ * Hessian makes the local system near-singular on the transformation plateau
+ * (rcond \f$ \sim 10^{-17} \f$).
  *
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)

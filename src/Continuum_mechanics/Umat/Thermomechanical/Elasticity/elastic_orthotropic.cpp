@@ -15,7 +15,7 @@
  
  */
 
-///@file Elastic_orthotropic.cpp
+///@file elastic_orthotropic.cpp
 ///@brief User subroutine for ortothropic elastic materials in 3D case
 
 #include <iostream>
@@ -30,18 +30,6 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
-///@brief The thermomechanical elastic orthoptropic UMAT requires 13 constants:
-///@brief props[0] : density
-///@brief props[1] : specific heat capacity
-///@brief props[2-4] : 3 Young modulus
-///@brief props[5-7] : 3 Poisson ratio
-///@brief props[8-10] : 3 Shear ratio ??
-///@brief props[11] : CTE x
-///@brief props[12] : CTE y
-///@brief props[13] : CTE z
-
-///@brief No statev is required for thermoelastic constitutive law
 
 void umat_elasticity_ortho_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {  	

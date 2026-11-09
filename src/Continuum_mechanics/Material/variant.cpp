@@ -35,10 +35,6 @@ namespace simcoon{
 
 //=====Public methods for variant====================================
 
-/*!
-  \brief default constructor
-*/
-
 //-------------------------------------------------------------
 variant::variant() : n(3), m(3), R(3,3), ETn(6)
 //-------------------------------------------------------------
@@ -51,12 +47,6 @@ variant::variant() : n(3), m(3), R(3,3), ETn(6)
 	ETn = zeros(6);
 
 }
-
-/*!
-  \brief Constructor with parameters
-  \n\n
-  \f$ \textbf{Examples :} \f$ \n
-*/
 
 //-------------------------------------------------------------
 variant::variant(vec mn, vec mm, double mg) : n(3), m(3), R(3,3), ETn(6)
@@ -72,11 +62,6 @@ variant::variant(vec mn, vec mm, double mg) : n(3), m(3), R(3,3), ETn(6)
 	ETn = g*Schmid_v(n, m);
 }
 
-/*!
-  \brief Copy constructor
-  \param s variant object to duplicate
-*/
-
 //------------------------------------------------------
 variant::variant(const variant& sv) : n(3), m(3), R(3,3), ETn(6)
 //------------------------------------------------------
@@ -88,22 +73,12 @@ variant::variant(const variant& sv) : n(3), m(3), R(3,3), ETn(6)
 	ETn = sv.ETn;
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
-
 //-------------------------------------
 variant::~variant()
 //-------------------------------------
 {
 
 }
-
-/*!
-  \brief Standard operator = for variant
-*/
 
 //-------------------------------------------------------------
 void variant::build(const double& g)
@@ -113,6 +88,7 @@ void variant::build(const double& g)
 	assert (m.size() == 3);	
 	assert (g > 0.);
 	
+	this->g = g;
 	R = Schmid(n, m);
 	ETn = g*Schmid_v(n, m);
 }

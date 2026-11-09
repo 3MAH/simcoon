@@ -37,9 +37,6 @@ namespace simcoon{
 
 //=====Public methods for layer============================================
 
-/*!
-  \brief default constructor
-*/
 
 //-------------------------------------------------------------
 layer::layer() : geometry()
@@ -53,9 +50,6 @@ layer::layer() : geometry()
     phi_geom = 0.;    
 }
 
-/*!
-  \brief Constructor with parameters
-*/
 
 //-------------------------------------------------------------
 layer::layer(const double &mconcentration, const int &mlayerup, const int &mlayerdown, const double &mpsi_geom, const double &mtheta_geom, const double &mphi_geom) : geometry(mconcentration)
@@ -69,10 +63,6 @@ layer::layer(const double &mconcentration, const int &mlayerup, const int &mlaye
     phi_geom = mphi_geom;    
 }
 
-/*!
-  \brief Copy constructor
-  \param s layer characteristics object to duplicate
-*/
 
 //------------------------------------------------------
 layer::layer(const layer& sv) : geometry(sv)
@@ -86,21 +76,11 @@ layer::layer(const layer& sv) : geometry(sv)
     phi_geom = sv.phi_geom;    
 }
 
-/*!
-  \brief Destructor
-
-  Deletes statev_variables, the vectors and matrix, and table statev if nstatev is not null.
-*/
 
 //-------------------------------------
 layer::~layer() {}
 //-------------------------------------
 
-/*!
-  \brief Standard operator = for layer
-*/
-    
-    
 //----------------------------------------------------------------------
 layer& layer::operator = (const layer& sv)
 //----------------------------------------------------------------------

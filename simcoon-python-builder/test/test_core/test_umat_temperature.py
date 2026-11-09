@@ -66,14 +66,14 @@ def test_sma_closest_point_tangent_with_phase_dependent_expansion():
         sigma, statev, wm, _ = sim.umat("SMADI", _col(etot), _col(de), np.empty(0), np.empty(0), sigma, DR,
                                         _col(props), statev, float(i), 0.01, wm,
                                         temp=np.array([T_a + (T_b - T_a) * i / n]), DT=np.array([(T_b - T_a) / n]),
-                                        n_threads=1, start=(i == 0), tangent_mode=3)
+                                        n_threads=1, start=(i == 0), integrator="closest_point")
         etot = etot + de
     assert statev[1, 0] > 0.1                                   # transforming
 
     def call(De):
         s, _, _, Lt = sim.umat("SMADI", _col(etot), _col(De), np.empty(0), np.empty(0), sigma.copy(order="F"),
                                DR, _col(props), statev.copy(order="F"), 1., 0.01, wm.copy(order="F"),
-                               temp=np.array([T_b]), DT=np.array([0.5]), n_threads=1, start=False, tangent_mode=3)
+                               temp=np.array([T_b]), DT=np.array([0.5]), n_threads=1, start=False, integrator="closest_point")
         return s[:, 0], Lt[:, :, 0]
 
     De0, h = np.array([2e-4, -6e-5, -6e-5, 1e-4, 0., 0.]), 1e-7

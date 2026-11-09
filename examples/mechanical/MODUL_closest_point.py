@@ -2,11 +2,11 @@
 Closest-Point Projection — Non-Proportional Loading
 ===================================================
 
-``tangent_mode=3`` replaces the cutting-plane local loop of the ``MODUL`` UMAT by a
+``integrator="closest_point"`` replaces the cutting-plane local loop of the ``MODUL`` UMAT by a
 closest-point projection: the plastic strain uses the flow direction of the converged
 state, and the consistent tangent is the exact Jacobian of the discrete update for every
-criterion with a flow Hessian and every hardening law. The cutting-plane loop (modes 1 and
-2) accumulates the plastic strain along the direction of each Newton iterate; the two
+criterion with a flow Hessian and every hardening law. The cutting-plane loop (the default
+integrator) accumulates the plastic strain along the direction of each Newton iterate; the two
 integrators coincide only when that direction does not rotate within the increment — von
 Mises with isotropic hardening (radial return).
 
@@ -16,7 +16,8 @@ is a figure-eight in the (axial strain, shear strain) plane,
 components free, applied to a ladder of models of growing complexity: J2 + Voce (radial),
 J2 + Armstrong–Frederick, J2 + two-term Chaboche, Hill + Armstrong–Frederick.
 
-Three things are measured, mode 2 against mode 3, and printed as a table:
+Three things are measured, cutting plane (mode 2 below) against closest point (mode 3), and
+printed as a table:
 
 1. the error of the coarse-increment response against a fine reference — both integrators
    are first order in the increment; where the flow direction rotates, the closest-point
@@ -99,11 +100,17 @@ def figure_eight(n_inc):
     return np.column_stack([t, a * np.sin(t), b * np.sin(2.0 * t)])
 
 
+def scheme(mode):
+    """Keyword arguments of the two integrators compared here: mode 2 is the cutting plane with
+    its algorithmic tangent, mode 3 the closest point with its exact one."""
+    return {"integrator": "closest_point"} if mode == 3 else {"tangent_mode": mode}
+
+
 def run(mat, n_inc, mode):
     step = StepMeca(control=["strain", "zero", "zero", "strain", "zero", "zero"],
                     mode="tabular", tabular=figure_eight(n_inc))
     t0 = time.perf_counter()
-    res = solve(step, "MODUL", mat.props, mat.nstatev, T_init=293.0, tangent_mode=mode)
+    res = solve(step, "MODUL", mat.props, mat.nstatev, T_init=293.0, **scheme(mode))
     return res, (time.perf_counter() - t0) / n_inc
 
 
@@ -156,7 +163,7 @@ def umat_point(mat, eps, De, sig, sv, Wm, mode):
     I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
     s, sv_new, Wm_new, Lt = sim.umat("MODUL", col(eps), col(De), I3, I3, col(sig), I3,
                                      col(mat.props), col(sv), 1.0, 1.0, col(Wm),
-                                     temp=np.full(1, 293.0), n_threads=1, tangent_mode=mode,
+                                     temp=np.full(1, 293.0), n_threads=1, **scheme(mode),
                                      start=False)
     return s[:, 0], sv_new[:, 0], Wm_new[:, 0], Lt[:, :, 0]
 

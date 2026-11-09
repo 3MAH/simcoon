@@ -137,7 +137,7 @@ The contract
   tells a caller (a finite-element code) whether that condensed point is
   validated for a law, under either ``condense`` option: the condition holds at
   convergence and the tangent is the Schur complement of the law's own, exact
-  whenever the 3D tangent is (``tangent_mode=3`` for ``EPHIL``, ``EPKCP``,
+  whenever the 3D tangent is (``integrator="closest_point"`` for ``EPHIL``, ``EPKCP``,
   ``EPCHA``). It is ``True`` for ``ndi = 3`` and ``False`` for a law not
   validated in that form; a caller selects its path on it rather than on the
   version number.

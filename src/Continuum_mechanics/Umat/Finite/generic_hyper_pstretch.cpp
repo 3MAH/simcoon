@@ -115,38 +115,26 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
         Wm_d = 0.;
     }
 
-    // Kirchhoff-native: the route stress IS tau, Cauchy is tau/J formed at the output boundary.
-    // The 3-argument tau_iso_hyper_pstretch needs no J at all.
+    // the route stress is tau; tau_iso_hyper_pstretch needs no J
     mat m_tau_iso = tau_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors);
     mat m_tau_vol = tau_vol_hyper(dUdJ, b, J);
     mat m_tau = m_tau_iso + m_tau_vol;
     sigma = t2v_stress(m_tau);
 
-    // These return the spatial elasticity c = (1/J) d(L_v tau)/dD, not d(L_v sigma)/dD (they
-    // differ by sigma (x) I). The J that turns c into the Kirchhoff-Lie tangent is applied once,
-    // below. L_iso carries an explicit 1/J and L_vol is J-free by cancellation, so they must be
-    // scaled as a sum -- see the note on L_vol_hyper.
+    // c = (1/J) d(L_v tau)/dD: J is applied once to the sum (see L_vol_hyper)
     mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
     mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
     mat Lt_spatial = Lt_iso + Lt_vol;
 
     // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) -- see generic_hyper_invariants.
-    Lt = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F1, m_tau);
+    Lt_spatial *= J;   // the Kirchhoff-Lie tangent, in place
+    Lt = Dtau_LieDD_2_DtauDe_corate(Lt_spatial, corate_type, F1, m_tau);
 
     if(start) {
         L = Lt;
     }
 
-/*    cout << "L = " << L << endl;
-    cout << "Lt = " << Lt << endl;
-    cout << "Lt_iso = " << Lt_iso << endl;    
-    cout << "Lt_vol = " << Lt_vol << endl;        
-    cout << "eig(Lt)" << eig_sym(Lt);
-*/
-    
-    //Computation of the mechanical and thermal work quantities.
-    // Kirchhoff work per reference volume: tau:d(lnV). Both ends are ALREADY tau -- the kernel
-    // is Kirchhoff-native and the stored state is tau_n -- so no J enters here any more.
+    // Kirchhoff work per reference volume, tau : d(lnV): no J
     Wm   += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;

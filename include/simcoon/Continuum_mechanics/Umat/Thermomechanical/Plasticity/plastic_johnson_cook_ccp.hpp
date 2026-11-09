@@ -56,7 +56,7 @@ namespace simcoon{
  * \f$ G^{ir} = f_\theta(\theta)\,B p^{n+1}/(n+1) \f$ depends on the temperature, so besides the
  * thermoelastic entropy \f$ \eta_r = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma} \f$
  * the kernel carries \f$ \eta_{ir} = -\partial G^{ir}/\partial\theta = -f'_\theta\, B p^{n+1}/(n+1) \geq 0 \f$
- * (\f$ W_t^{ir} \f$ accumulates \f$ (\theta + \tfrac12\Delta\theta)\,\Delta\eta_{ir} \f$). No
+ * (\f$ W_t^{ir} \f$ accumulates \f$ \theta_{n+1}\,\Delta\eta_{ir} \f$, the \f$ \theta_{n+1} \f$ of \f$ r \f$). No
  * Taylor-Quinney coefficient is introduced: \f$ r \f$ is the heat of the increment
  * \f$ r = \Delta\gamma - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment()), with
  * \f$ \eta = \eta_r + \eta_{ir} \f$ and the dissipation the kernel adds to \f$ W_m^d \f$,

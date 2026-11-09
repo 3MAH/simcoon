@@ -107,6 +107,16 @@ private:
     mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
     mutable arma::mat L_cached_;        ///< Stiffness the cached compliance was inverted from
     std::vector<tensor2> kappa_cache_{tensor2::zeros(Tensor2Type::strain)};   ///< zero: no multiplier carried
+    size_t D_index_ = 0;        ///< ivc_ index of "D", resolved by register_variables
+    size_t Y_max_index_ = 0;    ///< ivc_ index of "Y_max", resolved by register_variables
+
+    // last driving force and the effective stress it was evaluated at, for the cached compliance (reset with it)
+    mutable arma::vec::fixed<6> Y_sigma_;
+    mutable double Y_sigma_value_ = 0.0;
+    mutable bool Y_sigma_valid_ = false;
+
+    /// compute_driving_force(sigma_eff, M_cached_), memoised on the last stress
+    double driving_force(const arma::vec& sigma_eff) const;
 
 public:
     /**
@@ -115,7 +125,15 @@ public:
      */
     explicit DamageMechanism(DamageType type = DamageType::LINEAR);
 
-    // StrainMechanism interface
+    /**
+     * @brief Reads the damage parameters from @p props at @p offset (advanced past them).
+     *
+     * Layout: props[offset] = \f$ Y_0 \f$ (damage threshold), props[offset+1] = \f$ Y_c \f$
+     * (critical driving force, \f$ Y_c > Y_0 \f$), then the parameters of the law: none (LINEAR),
+     * \f$ A \f$ (EXPONENTIAL), \f$ n \f$ (POWER_LAW), \f$ A, n \f$ (WEIBULL). The law itself comes
+     * from the mechanism header, not from these props; \f$ D_c \f$ is fixed at 0.99.
+     * @throw std::invalid_argument when \f$ Y_c \le Y_0 \f$
+     */
     void configure(const arma::vec& props, int& offset) override;
     void register_variables() override;
 

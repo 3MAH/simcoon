@@ -23,6 +23,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
@@ -34,6 +35,17 @@ namespace simcoon {
 namespace {
 int resolved_maxiter(const ReturnMappingControl &c) { return (c.maxiter > 0) ? c.maxiter : simcoon::maxiter_umat; }
 double resolved_precision(const ReturnMappingControl &c) { return (c.precision > 0.) ? c.precision : simcoon::precision_umat; }
+
+// M += a A B for 6x6 operands, in place: no 6x6 temporary on the heap
+void add_scaled_product(mat::fixed<6,6> &M, const double a, const mat &A, const mat &B) {
+    for (int k = 0; k < 6; k++) {
+        for (int m = 0; m < 6; m++) {
+            const double b = a*B(m, k);
+            if (b == 0.) continue;
+            for (int i = 0; i < 6; i++) M(i, k) += A(i, m)*b;
+        }
+    }
+}
 }
 
 ReturnMappingResult closest_point_return_mapping(
@@ -68,10 +80,7 @@ ReturnMappingResult closest_point_return_mapping(
     // Elastic block: Lc is its tangent at the iterate (the given L for a linear block).
     mat Lc = L;
     const bool nonlinear_block = static_cast<bool>(hooks.elastic_response);
-    // Constraints, flows and the stress residual (every trial point); the criterion gradients
-    // are evaluated at the Newton top only (eval_gradients) — with finite-difference callbacks
-    // each gradient is a full set of state re-solves, which the elastic guard and the rejected
-    // line-search trials do not need.
+    // criterion gradients only at the Newton top (eval_gradients): with FD callbacks each is a full state re-solve
     auto eval_basic = [&](const vec &sig, const vec &Dl) {
         for (int j = 0; j < N; j++) {
             Phi(j) = mechanisms[j].Phi(sig);
@@ -102,12 +111,12 @@ ReturnMappingResult closest_point_return_mapping(
 
     // Tangent ingredients at the converged iterate from the pieces the Newton just built
     // (kappa_eff = kappa + c: the multiplier-side state chain enters through the flux).
-    auto fill_tangent_pieces = [&](const mat &K, const std::vector<mat> &D, const std::vector<vec> &c) {
+    auto fill_tangent_pieces = [&](const mat &K, std::vector<mat> &&D, const std::vector<vec> &c) {
         r.Bhat_continuum.set_size(N, N);
         r.kappa_j.assign(kappa.begin(), kappa.end());
         for (int j = 0; j < N; j++) r.kappa_j[j] += c[j];
         r.dPhidsigma_l.assign(n_l.begin(), n_l.end());
-        r.dLambda_dsigma_l = D;
+        r.dLambda_dsigma_l = std::move(D);
         for (int l = 0; l < N; l++) {
             for (int j = 0; j < N; j++) {
                 r.Bhat_continuum(l, j) = sum(n_l[l] % r.kappa_j[j]) - K(l, j);
@@ -115,9 +124,7 @@ ReturnMappingResult closest_point_return_mapping(
         }
     };
 
-    // Elastic guard: admissible trial state -> return it (bit-identical elasticity across
-    // modes). With Dlambda = 0 the tangent assembly masks every mechanism, so the state
-    // callbacks are not needed.
+    // admissible trial: return it; Dlambda = 0 masks every mechanism, so no state callbacks
     if (Phi.max() <= 0.) {
         n_l.assign(N, zeros(6));   // masked by Dlambda = 0 in the assembly: the gradients are not evaluated
         fill_tangent_pieces(zeros(N, N), std::vector<mat>(N, zeros(6, 6)), std::vector<vec>(N, zeros(6)));
@@ -125,32 +132,43 @@ ReturnMappingResult closest_point_return_mapping(
         return r;
     }
 
-    const mat I6 = eye(6, 6);
     const int snap_niter = 20;   // plain Newton gets this many iterations before the snap may act
+    r.error_history.reserve(8);  // a converging solve takes a handful of iterations
+
+    // buffers sized once; M factorized on the stack (small_lu)
+    std::vector<vec> c(N, zeros(6));
+    std::vector<vec> Minv_kc(N, zeros(6));   // M^-1 (kappa_j + c_j), for B_red and the stress step
+    mat::fixed<6,6> M;
+    small_lu<6> lu_M;
 
     for (r.niter = 0; r.niter < maxiter; r.niter++) {
 
         // Newton ingredients at the current (state-consistent) iterate.
         eval_gradients(r.sigma);
         mat K = hooks.K ? hooks.K(r.sigma, r.Dlambda) : zeros(N, N);
-        mat M = I6;
+        M.eye();
         for (int j = 0; j < N; j++) {
-            D_j[j] = mechanisms[j].dLambda_dsigma ? mechanisms[j].dLambda_dsigma(r.sigma)
-                                                  : zeros(6, 6);
-            M += r.Dlambda(j) * (Lc * D_j[j]);
+            if (mechanisms[j].dLambda_dsigma) {
+                D_j[j] = mechanisms[j].dLambda_dsigma(r.sigma);
+            }
+            else {
+                D_j[j].zeros(6, 6);
+            }
+            add_scaled_product(M, r.Dlambda(j), Lc, D_j[j]);
         }
-        mat Minv;
-        if (!inv(Minv, M)) return r;   // condensation breakdown: caller step-cuts
+        if (!lu_M.factor(M)) return r;   // condensation breakdown: caller step-cuts
 
-        std::vector<vec> c(N, zeros(6));
+        for (int j = 0; j < N; j++) c[j].zeros();
         if (hooks.flow_state_coupling) {
             const std::vector<vec> dLambda = hooks.flow_state_coupling(r.sigma, r.Dlambda);
             for (int j = 0; j < N && j < int(dLambda.size()); j++) c[j] = Lc * dLambda[j];
         }
 
-        const vec MinvR = Minv * R_sigma;
-        std::vector<vec> Minv_kc(N);   // M^-1 (kappa_j + c_j), for B_red and the stress step
-        for (int j = 0; j < N; j++) Minv_kc[j] = Minv * (kappa[j] + c[j]);
+        const vec MinvR = lu_M.solve(R_sigma);
+        for (int j = 0; j < N; j++) {
+            Minv_kc[j] = kappa[j] + c[j];
+            lu_M.solve_in_place(Minv_kc[j].memptr());
+        }
         vec Phi_red(N);
         mat B_red(N, N);
         for (int l = 0; l < N; l++) {
@@ -166,15 +184,12 @@ ReturnMappingResult closest_point_return_mapping(
         r.error_history.push_back(err);
         r.error = err;
         if (err < precision) {
-            fill_tangent_pieces(K, D_j, c);
+            fill_tangent_pieces(K, std::move(D_j), c);
             r.converged = true;
             return r;
         }
 
-        // Semi-smooth Newton step on the reduced multiplier system, over the active set: a row
-        // with Phi < 0, no multiplier and a vanishing diagonal (a reorientation surface at zero
-        // effective stress) has an identically zero FB row and would make the solve singular;
-        // its step is zero anyway.
+        // active set excludes rows with Phi < 0, no multiplier and a vanishing diagonal (zero FB row, singular solve)
         const uvec active = find((Phi >= 0.) + (r.Dlambda > 0.) + (abs(B_red.diag()) >= simcoon::iota));
         vec dDl = zeros(N);
         if (active.n_elem > 0) {
@@ -214,9 +229,7 @@ ReturnMappingResult closest_point_return_mapping(
                     }
                 }
             }
-            // A trial point whose inner state solve fails, or that is not finite, is a rejected
-            // step like a merit blow-up: halve it (the inner Newton of a backstress row has no
-            // solution past a dp where the relaxed backstress overtakes the stress).
+            // failed inner state solve or non-finite trial = rejected step: halve it
             bool trial_ok = refresh(r.sigma, r.Dlambda);
             if (trial_ok) {
                 eval_basic(r.sigma, r.Dlambda);
@@ -287,9 +300,10 @@ bool cutting_plane_return_mapping(
     vec ds = zeros(N);
     double error = 1.0;
     int iter = iter0;
+    ncp_step local_step(control.ncp);
     while (iter < maxiter && error > precision) {
         hooks.jacobian(B);
-        Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
+        local_step(Phi, Y_crit, B, Ds_total, ds, error);
         hooks.update(ds);
         hooks.refresh();
         if (hooks.consistency) error += hooks.consistency();

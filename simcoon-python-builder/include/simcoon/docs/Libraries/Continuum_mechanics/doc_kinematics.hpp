@@ -164,12 +164,13 @@ constexpr auto RU_decomposition = R"pbdoc(
     Parameters
     ----------
     F : pybind11::array_t<double>
-        Transformation gradient (3x3 matrix).
+        Transformation gradient (3x3 matrix), or a batch of them (3x3xN array).
 
     Returns
     -------
     tuple
-        Rotation matrix (3x3) and right stretch tensor (3x3).
+        Rotation matrix (3x3) and right stretch tensor (3x3); for a batch, two 3x3xN arrays
+        (computed per point in parallel, the GIL released).
 
     Examples
     --------
@@ -189,12 +190,13 @@ constexpr auto VR_decomposition = R"pbdoc(
     Parameters
     ----------
     F : pybind11::array_t<double>
-        Transformation gradient (3x3 matrix).
+        Transformation gradient (3x3 matrix), or a batch of them (3x3xN array).
 
     Returns
     -------
     tuple
-        Left stretch tensor (3x3) and rotation matrix (3x3).
+        Left stretch tensor (3x3) and rotation matrix (3x3); for a batch, two 3x3xN arrays
+        (computed per point in parallel, the GIL released).
 
     Examples
     --------
@@ -314,12 +316,18 @@ constexpr auto Log_strain = R"pbdoc(
     Parameters
     ----------
     F : pybind11::array_t<double>
-        Transformation gradient (3x3 matrix).
+        Transformation gradient (3x3 matrix), or a batch of them (3, 3, N).
+    voigt_form : bool
+        Return the strain in Voigt notation (6, or (6, N) for a batch).
+    copy : bool
+        Return a copy of the result array.
+    n_threads : int
+        Batch only: 1 runs the points serially; otherwise they run in parallel.
 
     Returns
     -------
     pybind11::array_t<double>
-        Logarithmic strain tensor (3x3 matrix).
+        Logarithmic strain tensor (3x3 matrix), or a batch of them.
 
     Examples
     --------

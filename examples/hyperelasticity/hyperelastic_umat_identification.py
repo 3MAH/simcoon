@@ -11,10 +11,12 @@ rubber data using simcoon "as it ships":
   transverse-equilibrium condition (zero stress on the free faces) is handled
   *inside* the solver through mixed control, so there is no hand-written
   ``fsolve`` loop.
-- **Optimizer**: :func:`simcoon.identification` (a thin wrapper around
-  ``scipy.optimize.differential_evolution``) reading bounds from
+- **Optimizer**: :func:`simcoon.identification` with
+  ``method="least_squares"`` (bounded trust-region reflective least squares
+  from three starting points) reading bounds from
   :class:`simcoon.parameter.Parameter` objects.
-- **Cost**: :func:`simcoon.calc_cost` with the ``"nmse_per_response"`` metric.
+- **Cost**: :func:`simcoon.calc_residuals`, the residuals whose sum of squares
+  is :func:`simcoon.calc_cost` with the ``"nmse_per_response"`` metric.
 
 This is the library-native counterpart of
 ``examples/analysis/hyperelastic_parameter_identification.py``, which solves
@@ -41,7 +43,7 @@ import matplotlib.pyplot as plt
 
 import simcoon as sim
 from simcoon.parameter import Parameter
-from simcoon.identify import identification, calc_cost
+from simcoon.identify import identification, calc_residuals
 
 
 ###############################################################################
@@ -141,26 +143,29 @@ def model_pk1(lambda_exp, props, programme):
 
 
 ###############################################################################
-# Cost function: ``sim.calc_cost`` with NMSE-per-response
-# ------------------------------------------------------
+# Residuals: ``sim.calc_residuals`` with NMSE-per-response
+# --------------------------------------------------------
 #
 # The analytical example
 # (``examples/analysis/hyperelastic_parameter_identification.py``) builds its
 # combined cost *by hand*: for each loading case it takes the
 # ``mean_squared_error`` and divides by the variance of the experimental data
-# (an NMSE), then sums the cases. That normalisation is exactly what
-# :func:`simcoon.calc_cost` provides via ``metric="nmse_per_response"`` — each
-# response (here the stress column of each test) is divided by its own sum of
-# squares before averaging, so UT, PS and ET contribute on an equal footing
-# despite their different stress magnitudes. We hand-rolled it there; we simply
-# call the library here.
+# (an NMSE), then sums the cases. :func:`simcoon.calc_cost` with
+# ``metric="nmse_per_response"`` normalises per response *column* instead: the
+# three tests share one stress column here, so the cost is the summed squared
+# error of UT, PS and ET divided by their summed squared stresses. The tests are
+# pooled, not normalised one by one: the case with the largest stresses weighs
+# most (``w_test`` can rebalance them).
 #
-# ``calc_cost`` expects one 2-D array of shape ``(n_points, n_responses)`` per
-# test; with a single stress response per test the arrays are ``(n_points, 1)``.
+# The least-squares optimizer works on the residuals themselves:
+# :func:`simcoon.calc_residuals` returns, with the same arguments, the vector
+# whose sum of squares is ``calc_cost``. Both expect one 2-D array of shape
+# ``(n_points, n_responses)`` per test; with a single stress response per test
+# the arrays are ``(n_points, 1)``.
 
 
-def cost(x, jobs):
-    """NMSE-per-response cost over the loading cases in *jobs*.
+def residuals(x, jobs):
+    """NMSE-per-response residuals over the loading cases in *jobs*.
 
     *jobs* is a list of ``(name, programme, lambda_exp, P_exp)`` tuples, ``programme``
     the parsed ``(blocks, T_init)`` of the case.
@@ -171,22 +176,22 @@ def cost(x, jobs):
         try:
             P_model = model_pk1(lam_exp, props, programme)
         except Exception:
-            return 1e12
+            # NaN residuals: the optimizer rejects the step and shrinks it
+            return np.full(sum(len(job[3]) for job in jobs), np.nan)
         y_exp.append(P_exp.reshape(-1, 1))
         y_num.append(P_model.reshape(-1, 1))
-    return calc_cost(y_exp, y_num, metric="nmse_per_response")
+    return calc_residuals(y_exp, y_num, metric="nmse_per_response")
 
 
-def identify(jobs, popsize=15, maxiter=25, seed=42):
+def identify(jobs, n_starts=3, seed=42):
     """Run ``sim.identification`` over the given *jobs*; return ``([C10, C01],
     final_cost)``."""
     params = make_params()
     result = identification(
-        cost, params,
-        args=(jobs,),
-        seed=seed, popsize=popsize, maxiter=maxiter, tol=1e-6, disp=False,
+        residuals, params, method="least_squares",
+        args=(jobs,), n_starts=n_starts, seed=seed,
     )
-    return [p.value for p in params], result.fun
+    return [p.value for p in params], float(np.sum(result.fun ** 2))
 
 
 ###############################################################################
@@ -235,14 +240,14 @@ def main():
     print("\n" + "-" * 66)
     print(" INDIVIDUAL FITS (one parameter set per loading case)")
     print("-" * 66)
-    print(f"{'Case':<6}{'C10':>10}{'C01':>10}{'C10 lit.':>12}{'C01 lit.':>12}")
+    print(f"{'Case':<6}{'C10':>10}{'C01':>10}{'C10 lit.':>12}{'C01 lit.':>12}{'NMSE':>12}")
     individual = {}
     for name, _pf, _lc, _pc in CASES:
         lam_exp, P_exp = exp[name]
-        (c10, c01), _fun = identify([(name, programmes[name], lam_exp, P_exp)])
+        (c10, c01), cost_i = identify([(name, programmes[name], lam_exp, P_exp)])
         individual[name] = (c10, c01)
         l10, l01 = LIT[name]
-        print(f"{name:<6}{c10:>10.4f}{c01:>10.4f}{l10:>12.4f}{l01:>12.4f}")
+        print(f"{name:<6}{c10:>10.4f}{c01:>10.4f}{l10:>12.4f}{l01:>12.4f}{cost_i:>12.4e}")
 
     # ----- Combined fit --------------------------------------------------- #
     print("\n" + "-" * 66)

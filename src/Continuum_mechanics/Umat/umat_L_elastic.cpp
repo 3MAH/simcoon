@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <map>
+#include <vector>
 #include <assert.h>
 #include <string.h>
 #include <math.h>
@@ -46,20 +47,11 @@ void get_L_elastic(phase_characteristics &rve)
     const auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
     const int method = (it_umat != list_umat.end()) ? it_umat->second : 0;
     
-    //Mean-field models: the caller gave the sub-phases; the ellipsoidal schemes need the
-    //quadrature points of the Eshelby integrals
+    //Mean-field models: the caller gave the sub-phases (the ellipsoidal schemes read the
+    //quadrature of their Eshelby integrals, [mp, np], from the props at each pass)
     const int shape = sub_phase_shape(rve.sptr_matprops->umat_name);
     if (shape > 0) {
         check_sub_phases(rve);
-    }
-    if (shape == 2) {
-        ellipsoid_multi::mp = rve.sptr_matprops->props(0);
-        ellipsoid_multi::np = rve.sptr_matprops->props(1);
-        ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
-        ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
-        ellipsoid_multi::y.set_size(ellipsoid_multi::np);
-        ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
-        points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
     }
     
     rve.global2local();
@@ -125,21 +117,58 @@ void get_L_elastic(phase_characteristics &rve)
             mat Lt_n = zeros(6,6);
             int nbiter=0;
             double error = 1.;
+            //Options (props of MISCN, see mean_field_options): stopping criterion, absolute by
+            //default, and depth of the Anderson acceleration of the fixed point Lt <- g(Lt)
+            const mean_field_options opt = mean_field_options_of(rve);
+            double tol = simcoon::precision_micro;
+            std::vector<vec> dG, dF;            //differences of the last iterates g and residuals f = g - Lt
+            vec g_prev, f_prev;
             
-            while ((error > simcoon::precision_micro)&&(nbiter <= simcoon::maxiter_micro)) {
+            while ((error > tol)&&(nbiter <= simcoon::maxiter_micro)) {
                 Lt_n = umat_M->Lt;
                 for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                     get_L_elastic(rve.sub_phases[i]);
                 }
                 Lt_Self_Consistent(rve, n_matrix, false, self_consistent_start(rve));
                 umat_M->Lt = zeros(6,6);
-                for (auto r : rve.sub_phases) {
+                for (auto &r : rve.sub_phases) {
                     umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
                     umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
                 }
                 //Frobenius norm: no SVD, and ||.||_2 <= ||.||_F keeps the criterion conservative
                 error = norm(umat_M->Lt - Lt_n, "fro");
+                if (opt.rtol > 0.)
+                    tol = opt.rtol*norm(umat_M->Lt, "fro");
                 nbiter++;
+
+                // Anderson acceleration (type II, depth m); kept as is when the least squares fails
+                if (opt.anderson > 0 && error > tol) {
+                    const vec g = vectorise(umat_M->Lt);
+                    const vec f = g - vectorise(Lt_n);
+                    if (!g_prev.is_empty()) {
+                        dG.push_back(g - g_prev);
+                        dF.push_back(f - f_prev);
+                        if (static_cast<int>(dF.size()) > opt.anderson) {
+                            dG.erase(dG.begin());
+                            dF.erase(dF.begin());
+                        }
+                    }
+                    g_prev = g;
+                    f_prev = f;
+                    if (!dF.empty()) {
+                        const uword k = dF.size();
+                        mat DF(36, k), DG(36, k);
+                        for (uword q=0; q<k; q++) {
+                            DF.col(q) = dF[q];
+                            DG.col(q) = dG[q];
+                        }
+                        mat normal = DF.t()*DF;
+                        normal.diag() += 1.E-10*trace(normal) + 1.E-300;
+                        vec gamma;
+                        if (solve(gamma, normal, DF.t()*f, solve_opts::likely_sympd + solve_opts::no_approx))
+                            umat_M->Lt = reshape(g - DG*gamma, 6, 6);
+                    }
+                }
              }
             break;
         }
@@ -161,7 +190,7 @@ void get_L_elastic(phase_characteristics &rve)
 
             // Compute the effective tangent modulus, and the effective stress
             umat_M->Lt = zeros(6,6);
-            for (auto r : rve.sub_phases) {
+            for (auto &r : rve.sub_phases) {
                 umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
                 umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
             }

@@ -35,12 +35,11 @@ using namespace arma;
 
 namespace simcoon{
 
-//=====Private methods for ellipsoid_characteristics===================================
+//=====Private methods for block===================================
 
-//=====Public methods for ellipsoid_characteristics============================================
+//=====Public methods for block============================================
 
 
-//@brief default constructor
 //-------------------------------------------------------------
 block::block()
 //-------------------------------------------------------------
@@ -52,13 +51,6 @@ block::block()
     control_type=0;
 }
 
-/*!
-  \brief Constructor
-  \param n : number of the block
-  \param m : number of steps
-  \param k : number of cycles
-  \param t : : loading type of steps inside the block
-*/
 
 //-------------------------------------------------------------
 block::block(const unsigned int &n, const unsigned int &m, const unsigned int &k, const unsigned int &t, const unsigned int &c_t)
@@ -75,14 +67,6 @@ block::block(const unsigned int &n, const unsigned int &m, const unsigned int &k
     control_type=c_t;
 }
 
-/*!
-  \brief Constructor with parameters
-  \param mnumber : number of the block
-  \param mnstep : number of steps
-  \param mncycle : number of cycles
-  \param mtype : loading type of steps inside the block
-  msteps : vector of steps (already defined)
- */
 
 //-------------------------------------------------------------
 block::block(const unsigned int &mnumber, const unsigned int &mnstep, const unsigned int &mncycle, const unsigned int &mtype, const unsigned int &mcontrol_type, const vector<shared_ptr<step> > &msteps)
@@ -100,10 +84,6 @@ block::block(const unsigned int &mnumber, const unsigned int &mnstep, const unsi
     steps = msteps;
 }
 
-/*!
-  \brief Copy constructor
-  \param bl block object to duplicate
-*/
 
 //------------------------------------------------------
 block::block(const block &bl)
@@ -114,14 +94,10 @@ block::block(const block &bl)
 	ncycle = bl.ncycle;
     type = bl.type;
     
-//    generate();
     
     steps = bl.steps;
 }
 
-/*!
-  \brief destructor
-*/
 
 block::~block() {}
 
@@ -176,10 +152,6 @@ void block::initialize()
             sptr_meca->generate(sptr_meca);
             break;
         }
-        //        case 2: {
-        //
-        //break;
-        //}
         default: {
             cout << "Please provide a consistent loading type for the block " << number << "\n";
             break;
@@ -187,10 +159,6 @@ void block::initialize()
     }
     
 }*/
-
-/*!
-  \brief Standard operator = for block
-*/
 
 //----------------------------------------------------------------------
 block& block::operator = (const block &bl)
@@ -205,7 +173,6 @@ block& block::operator = (const block &bl)
     type = bl.type;
     control_type = bl.control_type;
     
-//    generate();
     
     steps = bl.steps;
     

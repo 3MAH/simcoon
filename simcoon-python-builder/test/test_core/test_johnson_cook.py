@@ -13,6 +13,7 @@ import pytest
 
 import simcoon as sim
 from simcoon.solver import StepMeca, StepThermomeca, solve
+from solver_harness import tangent_kwargs
 
 # AISI 4340 (Johnson & Cook, 1983): E, nu, alpha, A, B, n, C, edot0, m, T_ref, T_melt
 JC = np.array([200000.0, 0.33, 1.0e-5, 792.0, 510.0, 0.26, 0.014, 1.0, 1.03, 293.0, 1793.0])
@@ -115,7 +116,7 @@ def _point(tangent_mode, DTime=1.0e-3):
     DR = np.asfortranarray(np.eye(3)[:, :, None])
     return sim.umat("EPJCK", col(np.zeros(6)), col(De), np.empty(0), np.empty(0), col(np.zeros(6)), DR,
                     col(JC), col(np.zeros(NSTATEV)), 0.0, DTime, col(np.zeros(4)),
-                    temp=np.array([293.15]), n_threads=1, tangent_mode=tangent_mode, start=True)
+                    temp=np.array([293.15]), n_threads=1, **tangent_kwargs(tangent_mode), start=True)
 
 
 def test_tangent_mode_none_returns_elastic_operator_for_explicit_integration():
@@ -131,8 +132,8 @@ def test_tangent_mode_none_returns_elastic_operator_for_explicit_integration():
 def test_closest_point_mode_is_the_cutting_plane_result_by_construction():
     """Radial J2 flow with isotropic (rate- and temperature-dependent) hardening: the
     cutting-plane update IS the closest-point projection and the algorithmic operator is the
-    exact Jacobian of the discrete map, so mode 3 returns the mode-2 state and tangent
-    bit for bit (no separate branch to maintain)."""
+    exact Jacobian of the discrete map, so integrator='closest_point' returns the cutting-plane
+    state and tangent bit for bit (no separate branch to maintain)."""
     sigma2, statev2, _, Lt2 = _point(2)
     sigma3, statev3, _, Lt3 = _point(3)
     assert statev2[1, 0] > 0.0, "the point must yield"
