@@ -250,13 +250,17 @@ The file ``external/umat_plugin_ans.cpp`` provides a complete example, and ``ext
 Compiling External Plugins
 --------------------------
 
-To compile plugins you can utilize the following commands (using clang as compiler):
+To compile plugins you can utilize the following commands (using clang as compiler). The plugin
+must see the same Armadillo configuration as simcoon: ``-DARMA_MAT_PREALLOC=36`` (the value of the
+CMake cache entry ``SIMCOON_ARMA_MAT_PREALLOC``) changes the layout of ``arma::Mat``, and a plugin
+built without it crashes at the first matrix exchanged with the solver. A plugin built with CMake
+gets it by linking the exported ``simcoon::simcoon`` target.
 
 For UMEXT plugins:
 
 .. code-block:: bash
 
-    clang++ -c -fPIC -std=c++14 umat_plugin_ext.cpp -I/path/to/simcoon/include
+    clang++ -c -fPIC -std=c++14 -DARMA_MAT_PREALLOC=36 umat_plugin_ext.cpp -I/path/to/simcoon/include
     clang++ -std=c++14 -shared -lsimcoon -larmadillo -o libumat_plugin_ext.dylib umat_plugin_ext.o
 
 For UMABA plugins (with Fortran UMAT):
@@ -264,7 +268,7 @@ For UMABA plugins (with Fortran UMAT):
 .. code-block:: bash
 
     gfortran -c -fPIC UMAT_ABAQUS_ELASTIC.f -o umat_fortran.o
-    clang++ -c -fPIC -std=c++14 umat_plugin_aba.cpp -I/path/to/simcoon/include
+    clang++ -c -fPIC -std=c++14 -DARMA_MAT_PREALLOC=36 umat_plugin_aba.cpp -I/path/to/simcoon/include
     clang++ -std=c++14 -shared -lsimcoon -larmadillo -lgfortran -o libumat_plugin_aba.dylib umat_plugin_aba.o umat_fortran.o
 
 For UMANS plugins (with Ansys Fortran USERMAT):
@@ -272,7 +276,7 @@ For UMANS plugins (with Ansys Fortran USERMAT):
 .. code-block:: bash
 
     gfortran -c -fPIC USERMAT_ANSYS_ELASTIC.for -o usermat_fortran.o
-    clang++ -c -fPIC -std=c++14 umat_plugin_ans.cpp -I/path/to/simcoon/include
+    clang++ -c -fPIC -std=c++14 -DARMA_MAT_PREALLOC=36 umat_plugin_ans.cpp -I/path/to/simcoon/include
     clang++ -std=c++14 -shared -lsimcoon -larmadillo -lgfortran -o libumat_plugin_ans.dylib umat_plugin_ans.o usermat_fortran.o
 
 On Linux, replace ``.dylib`` with ``.so``. On Windows, use ``.dll``.

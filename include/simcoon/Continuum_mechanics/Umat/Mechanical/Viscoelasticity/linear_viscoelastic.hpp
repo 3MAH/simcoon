@@ -67,12 +67,15 @@ struct LinearViscoStep {
  * @param eps_e \f$ \boldsymbol{\varepsilon}_{n+1} - \boldsymbol{\alpha}(T_{n+1} - T_{init}) \f$
  * @param alpha thermal expansion tensor (6)
  * @param DTime time increment
+ * @param state_derivatives false: only sigma, EV_i and dSdE are filled (dSdT, dEVdE_i and dEVdT_i,
+ *        which the thermomechanical kernels and the modular mechanism read, are left empty)
  * @return the end state and its consistent derivatives
  */
 LinearViscoStep kelvin_series_step(const arma::mat &L0, const std::vector<arma::mat> &L_i,
                                    const std::vector<arma::mat> &H_i,
                                    const std::vector<arma::vec> &EV_i_start, const arma::vec &eps_e,
-                                   const arma::vec &alpha, const double &DTime);
+                                   const arma::vec &alpha, const double &DTime,
+                                   const bool &state_derivatives = true);
 
 /**
  * @brief Maxwell branches in parallel with the spring \f$ \mathbf{L}_0 \f$ (Prony series).
@@ -91,11 +94,14 @@ LinearViscoStep kelvin_series_step(const arma::mat &L0, const std::vector<arma::
  * @param eps_e \f$ \boldsymbol{\varepsilon}_{n+1} - \boldsymbol{\alpha}(T_{n+1} - T_{init}) \f$
  * @param alpha thermal expansion tensor (6)
  * @param DTime time increment
+ * @param state_derivatives false: only sigma, EV_i and dSdE are filled (dSdT, dEVdE_i and dEVdT_i,
+ *        which the thermomechanical kernels and the modular mechanism read, are left empty)
  * @return the end state and its consistent derivatives
  */
 LinearViscoStep maxwell_parallel_step(const arma::mat &L0, const std::vector<arma::mat> &L_i,
                                       const std::vector<arma::mat> &H_i,
                                       const std::vector<arma::vec> &EV_i_start, const arma::vec &eps_e,
-                                      const arma::vec &alpha, const double &DTime);
+                                      const arma::vec &alpha, const double &DTime,
+                                      const bool &state_derivatives = true);
 
 } //namespace simcoon

@@ -144,6 +144,18 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Changed
 
+- Armadillo keeps matrices of up to 36 elements in local storage (`ARMA_MAT_PREALLOC`, default 16;
+  CMake cache `SIMCOON_ARMA_MAT_PREALLOC`): the 6x6 operators of the kernels no longer allocate.
+  The definition changes the layout of `arma::Mat` and is exported with the `simcoon` CMake target,
+  so everything linked to simcoon (bindings, UMEXT/UMABA/UMANS plugins) must be compiled with it:
+  link the target through CMake, or pass `-DARMA_MAT_PREALLOC=36` by hand. Results bitwise
+  unchanged.
+- `kelvin_series_step` and `maxwell_parallel_step` take a `state_derivatives` flag (default
+  `true`): ZENER, ZENNK and PRONK skip the thermomechanical derivatives they do not read. Results
+  bitwise unchanged; the two exported symbols change.
+- `pstretch`, `isochoric_pstretch` and `isochoric_pstretch_from_V/b` use the fixed-size
+  `eig_sym_3x3` instead of LAPACK: OGDEN and the lazy isochoric stretches differ from the LAPACK
+  result at the 1e-12 relative level.
 - The fixed-size kernels that the perf code had copied file by file live once in
   `Simulation/Maths`: `small_dense.hpp` (3x3 products `mul3`, `mul3_AtB`, `mul3_ABt`, the 6-vector
   `dot6` and rank-one `outer6`, next to `mul6`/`mul66`), the new `small_voigt.hpp` (the Voigt index

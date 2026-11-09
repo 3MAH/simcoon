@@ -327,6 +327,12 @@ target_include_directories(simcoon SYSTEM PUBLIC $<BUILD_INTERFACE:${fastor_SOUR
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
 target_compile_definitions(simcoon PUBLIC restrict=)
 
+# Armadillo keeps matrices of up to this many elements in local storage (default 16): 36 covers the
+# 6x6 operators. It changes the layout of arma::Mat, so every object linked with simcoon (bindings,
+# UMAT plugins) must see the same value: it is exported with the target.
+set(SIMCOON_ARMA_MAT_PREALLOC 36 CACHE STRING "ARMA_MAT_PREALLOC for simcoon and everything linked to it")
+target_compile_definitions(simcoon PUBLIC ARMA_MAT_PREALLOC=${SIMCOON_ARMA_MAT_PREALLOC})
+
 # Platform-specific compile options
 if(APPLE)
   target_compile_options(simcoon PUBLIC -stdlib=libc++)
