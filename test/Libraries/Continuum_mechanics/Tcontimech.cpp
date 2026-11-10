@@ -24,6 +24,8 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 
 using namespace std;
@@ -168,6 +170,54 @@ TEST(Tcontimech, J2_J3)
     EXPECT_LT(fabs(J3_strain1),simcoon::iota);
     EXPECT_LT(fabs(J3_strain2 - 14.5),simcoon::iota);
 
+}
+
+TEST(Tcontimech, invariant_identities)
+{
+    // closed forms and identities of the shared Voigt kernel (engineering shears)
+    const double tol = 1.E-14;
+    vec uni = {300., 0., 0., 0., 0., 0.};
+    EXPECT_NEAR(Mises_stress(uni), 300., tol*300.);
+    EXPECT_NEAR(J2_stress(uni), 300.*300./3., tol*300.*300.);
+    EXPECT_NEAR(J3_stress(uni), 2.*pow(300., 3)/27., tol*pow(300., 3));
+    vec eta_uni = {1., -0.5, -0.5, 0., 0., 0.};
+    EXPECT_LT(norm(eta_stress(uni) - eta_uni, 2), tol);
+    vec shear = {0., 0., 0., 50., 0., 0.};
+    EXPECT_NEAR(Mises_stress(shear), sqrt(3.)*50., tol*100.);
+    EXPECT_NEAR(J2_stress(shear), 50.*50., tol*2500.);
+    EXPECT_LT(fabs(J3_stress(shear)), tol*pow(50., 3));
+    EXPECT_NEAR(norm_stress(shear), sqrt(2.)*50., tol*100.);
+    EXPECT_NEAR(eta_stress(shear)(3), sqrt(3.), tol*10.);
+    vec gamma = {0., 0., 0., 0.02, 0., 0.};
+    EXPECT_NEAR(Mises_strain(gamma), 0.02/sqrt(3.), tol);
+    EXPECT_NEAR(J2_strain(gamma), 1.E-4, tol);
+    EXPECT_NEAR(norm_strain(gamma), 0.02/sqrt(2.), tol);
+
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+    const double seq = Mises_stress(sigma);
+    EXPECT_NEAR(seq, sqrt(3.*J2_stress(sigma)), tol*seq);
+    EXPECT_NEAR(dot(eta_stress(sigma), sigma), seq, tol*seq);          // eta:sigma = sigma_eq
+    EXPECT_NEAR(dot(eta_norm_stress(sigma), sigma), norm_stress(sigma), tol*seq);
+    const mat s3 = v2t_stress(dev(sigma));
+    EXPECT_NEAR(J3_stress(sigma), det(s3), tol*fabs(det(s3)));
+    EXPECT_NEAR(J3_stress(sigma), trace(s3*s3*s3)/3., 1.E-12*fabs(det(s3)));
+    EXPECT_LE(fabs(J3_stress(sigma)), 2./(3.*sqrt(3.))*pow(J2_stress(sigma), 1.5)*(1. + tol));   // Lode bound
+
+    // strain side: sigma_eq eps_eq = dev(sigma):dev(eps) for sigma = L_iso eps
+    vec eps = {1.E-3, -2.E-4, 5.E-4, 3.E-4, -1.E-4, 2.E-4};
+    vec sig = L_iso(70000., 0.3, "Enu")*eps;
+    const double see = Mises_stress(sig)*Mises_strain(eps);
+    EXPECT_NEAR(see, dot(dev(sig), dev(eps)), 1.E-13*see);
+    vec Ir05_v = {1., 1., 1., 0.5, 0.5, 0.5};
+    EXPECT_NEAR(dot(eta_strain(eps) % Ir05_v, eps), Mises_strain(eps), tol);   // eta_strain stays in the strain convention
+
+    // batch_mises uses the same kernel: identical to the per-point call
+    mat V(6, 3, fill::none);
+    V.col(0) = sigma; V.col(1) = uni; V.col(2) = shear;
+    const vec bm = batch_mises(V, Tensor2Type::stress);
+    for (int i = 0; i < 3; ++i) EXPECT_DOUBLE_EQ(bm(i), Mises_stress(V.col(i)));
+    const vec bs = batch_mises(V, Tensor2Type::strain);
+    for (int i = 0; i < 3; ++i) EXPECT_DOUBLE_EQ(bs(i), Mises_strain(V.col(i)));
 }
 
 TEST(Tcontimech, Macaulay)

@@ -93,6 +93,11 @@ public:
         }
     }
 
+    /// X <- A^-1 X column by column, in place (X: n rows), after a successful factor().
+    void solve_columns_in_place(arma::mat &X) const {
+        for (arma::uword c = 0; c < X.n_cols; ++c) solve_in_place(X.colptr(c));
+    }
+
     /// x = A^-1 b
     arma::vec solve(const arma::vec &b) const {
         arma::vec x(b);

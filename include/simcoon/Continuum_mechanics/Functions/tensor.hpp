@@ -23,6 +23,7 @@
 #include <optional>
 #include <Fastor/Fastor.h>
 #include <simcoon/Simulation/Maths/small_voigt.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 
 /**
  * @file tensor.hpp
@@ -69,6 +70,31 @@ using VoigtType = Tensor2Type;
 inline double voigt_shear_in(Tensor2Type t)  { return (t == Tensor2Type::strain) ? 0.5 : 1.0; }
 /// See voigt_shear_in.
 inline double voigt_shear_out(Tensor2Type t) { return (t == Tensor2Type::strain) ? 1.0 : 0.5; }
+/**
+ * @brief Shear weight of the contraction \f$ \mathbf{A}:\mathbf{B} \f$ of two Voigt 6-vectors of types @p a and
+ * @p b, \f$ w = 2\,\kappa_a \kappa_b \f$ with \f$ \kappa \f$ = voigt_shear_in: 2 for two stresses, 1/2 for two
+ * strains, 1 for a stress with a strain (see contract_voigt). Tensor2Type::none reads as a stress, as in
+ * voigt_shear_in.
+ */
+inline double voigt_shear_weight(Tensor2Type a, Tensor2Type b) {
+    return 2.*voigt_shear_in(a)*voigt_shear_in(b);
+}
+/// Self-contraction weight, voigt_shear_weight(t, t).
+inline double voigt_shear_weight(Tensor2Type t) { return voigt_shear_weight(t, t); }
+
+/// Coefficient of the Mises equivalent, \f$ \sigma_{eq} = \sqrt{\tfrac{3}{2}\,\mathbf{s}':\mathbf{s}'} \f$ for a stress,
+/// \f$ \varepsilon_{eq} = \sqrt{\tfrac{2}{3}\,\mathbf{e}':\mathbf{e}'} \f$ for a strain.
+inline double mises_factor(Tensor2Type t) { return (t == Tensor2Type::strain) ? 2./3. : 3./2.; }
+
+/**
+ * @brief Mises equivalent of the Voigt 6-vector @p v of type @p t: \f$ \sqrt{c\,\mathbf{d}:\mathbf{d}} \f$ with
+ * \f$ \mathbf{d} \f$ its deviator (written to @p d), \f$ c \f$ = mises_factor and the contraction weight
+ * voigt_shear_weight. The one kernel behind Mises_stress, Mises_strain, eta_stress, eta_strain and batch_mises.
+ */
+inline double mises_voigt(const double *v, Tensor2Type t, double *d) {
+    dev_voigt(v, d);
+    return std::sqrt(mises_factor(t)*contract_voigt(d, d, voigt_shear_weight(t)));
+}
 
 /// tensor2::from_voigt(v, t).mat() on the stack, without the object; @p v must hold 6 values.
 inline arma::mat::fixed<3,3> voigt_to_mat(const arma::vec &v, Tensor2Type t) {
@@ -108,18 +134,33 @@ enum class Tensor4Type {
     generic
 };
 
-/// Per-type engineering->Mandel shear factors: the congruence multiplies shear rows
-/// (3..5) by @p row and shear cols by @p col (Mandel->engineering divides). Encodes the
-/// Tensor4Type table above; this is the ONLY place the \f$\sqrt2\f$ patterns live.
-inline void mandel_factors(Tensor4Type type, double &row, double &col) {
-    const double s2 = std::sqrt(2.0);
+/// Per-type engineering->Mandel shear exponents: the congruence multiplies shear rows (3..5) by
+/// \f$ 2^{e_r/2} \f$ and shear cols by \f$ 2^{e_c/2} \f$, \f$ e = \pm 1 \f$ (Mandel->engineering divides).
+/// Encodes the Tensor4Type table above; this is the ONLY place the \f$\sqrt2\f$ patterns live.
+inline void mandel_shear_exponents(Tensor4Type type, int &er, int &ec) {
     switch (type) {
         case Tensor4Type::stiffness:
-        case Tensor4Type::generic:               row = s2;     col = s2;     break;
-        case Tensor4Type::compliance:            row = 1.0/s2; col = 1.0/s2; break;
-        case Tensor4Type::strain_concentration:  row = 1.0/s2; col = s2;     break;
-        case Tensor4Type::stress_concentration:  row = s2;     col = 1.0/s2; break;
+        case Tensor4Type::generic:               er = +1; ec = +1; break;
+        case Tensor4Type::compliance:            er = -1; ec = -1; break;
+        case Tensor4Type::strain_concentration:  er = -1; ec = +1; break;
+        case Tensor4Type::stress_concentration:  er = +1; ec = -1; break;
     }
+}
+
+/// The shear factors \f$ 2^{e_r/2}, 2^{e_c/2} \f$ of mandel_shear_exponents.
+inline void mandel_factors(Tensor4Type type, double &row, double &col) {
+    int er, ec; mandel_shear_exponents(type, er, ec);
+    const double s2 = std::sqrt(2.0);
+    row = (er > 0) ? s2 : 1.0/s2;
+    col = (ec > 0) ? s2 : 1.0/s2;
+}
+
+/// The exact product of the two mandel_factors, \f$ 2^{(e_r+e_c)/2} \f$ (2 stiffness, 1/2 compliance, 1
+/// concentration): the engineering shear diagonal of an isotropic operator is its deviatoric coefficient
+/// divided by it.
+inline double mandel_shear_product(Tensor4Type type) {
+    int er, ec; mandel_shear_exponents(type, er, ec);
+    return std::ldexp(1.0, (er + ec)/2);
 }
 
 /// Engineering Voigt 6x6 -> Kelvin-Mandel 6x6, per-type congruence (see Tensor4Type).

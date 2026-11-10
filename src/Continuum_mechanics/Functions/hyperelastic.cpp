@@ -25,6 +25,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Simulation/Maths/small_dense.hpp>
@@ -39,37 +40,12 @@ namespace simcoon{
 
 namespace {
 
-// Fixed-size kernels of the isochoric-invariant functions: the same products summed in the same
-// order as the armadillo expressions they replace, temporaries on the stack (bit-identical under
-// -ffp-contract=on with Armadillo 15.6; the tolerance-based tests remain the guarantee).
+// Fixed-size kernels of the isochoric-invariant functions, temporaries on the stack
 typedef mat::fixed<3,3> m33;
 typedef mat::fixed<6,6> m66;
 
-// powmat(X, 2): X*X as armadillo's tiny-matrix kernel (15.6.0); a diagonal X takes armadillo's own
-// shortcut (a pow call per entry, not always the rounded square)
-inline m33 square3(const m33 &X) {
-    m33 P;
-    if (X.is_diagmat()) {
-        P = powmat(X, 2);
-        return P;
-    }
-    return mul3(X, X);
-}
-
 // t2v_sym of the identity
 const double I_voigt[6] = {1., 1., 1., 0., 0., 0.};
-
-// Idev(), Ivol() and Ireal() entries (constitutive.cpp)
-inline double Idev_at(const int i, const int j) {
-    if (i < 3 && j < 3) return (i == j) ? (1.-1./3.) : (0.-1./3.);
-    return (i == j) ? 0.5 : 0.;
-}
-inline double Ivol_at(const int i, const int j) {
-    return (i < 3 && j < 3) ? (1./3.) : 0.;
-}
-inline double Ireal_at(const int i, const int j) {
-    return (i == j) ? ((i < 3) ? 1. : 0.5) : 0.;
-}
 
 // b_bar = J^(-2/3) b
 inline m33 b_bar_of(const mat &b, const double &J) {
@@ -82,7 +58,7 @@ inline m33 b_bar_of(const mat &b, const double &J) {
 // The first two isochoric invariants of b_bar, as isochoric_invariants
 inline void bar_invariants(const m33 &b_bar, double &I1, double &I2) {
     I1 = trace(b_bar);
-    I2 = 0.5*(pow(trace(b_bar),2.) - trace(square3(b_bar)));
+    I2 = 0.5*(I1*I1 - trace(mul3(b_bar, b_bar)));
 }
 
 double J_of_b(const mat &b, const double &mJ, const char *where) {
@@ -98,150 +74,54 @@ double J_of_b(const mat &b, const double &mJ, const char *where) {
     return J;
 }
 
-// 2 dW/dI1 dev(b_bar) + 2 dW/dI2 (tr(b_bar) dev(b_bar) - dev(b_bar^2)); the I_2 part is skipped
-// when its derivative is zero (an exact zero term)
+// 2 dW/dI1 dev(b_bar) + 2 dW/dI2 (tr(b_bar) dev(b_bar) - dev(b_bar^2)); a zero derivative skips its term
 m33 tau_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, const m33 &b_bar) {
     const m33 dev_b_bar = dev(b_bar);
-    const double c1 = 2.*dWdI_1_bar;
-    m33 tau;
-    for (int e = 0; e < 9; ++e) tau(e) = dev_b_bar(e)*c1;
+    m33 tau = 2.*dWdI_1_bar*dev_b_bar;
     if (dWdI_2_bar != 0.) {
-        const m33 dev_b_bar2 = dev(square3(b_bar));
-        const double tr = trace(b_bar);
-        const double c2 = 2.*dWdI_2_bar;
-        for (int e = 0; e < 9; ++e) {
-            const double p = dev_b_bar(e)*tr;
-            const double d = p - dev_b_bar2(e);
-            const double q = d*c2;
-            tau(e) = tau(e) + q;
-        }
+        tau += 2.*dWdI_2_bar*(trace(b_bar)*dev_b_bar - dev(mul3(b_bar, b_bar)));
     }
     return tau;
 }
 
-// gamma_linear: (4/3) (tr_A I_dev - (dev_A (x) I + I (x) dev_A)), scaled by d1, added to Lt
-// (Lt = that product when first), with dev_A in Voigt form
-void add_gamma_linear(m66 &Lt, const double a[6], const double &tr_A, const double &d1, const bool &first) {
-    for (int j = 0; j < 6; ++j) {
-        for (int i = 0; i < 6; ++i) {
-            const double s1 = a[i]*I_voigt[j];
-            const double s2 = I_voigt[i]*a[j];
-            const double s = s1 + s2;
-            const double x = Idev_at(i,j)*tr_A;
-            const double g = (x - s)*(4./3.);
-            const double t = g*d1;
-            Lt(i,j) = first ? t : Lt(i,j) + t;
-        }
-    }
+// a (x) I + I (x) a of a Voigt vector
+inline m66 sym_I(const double *a) {
+    return outer6(a, I_voigt) + outer6(I_voigt, a);
 }
 
-// Lt += (4 a (x) a) d2, auto_sym_dyadic of the Voigt vector a
-void add_gamma_quadratic(m66 &Lt, const double a[6], const double &d2) {
-    for (int j = 0; j < 6; ++j) {
-        for (int i = 0; i < 6; ++i) {
-            const double g = (a[i]*a[j])*4.;
-            const double t = g*d2;
-            Lt(i,j) = Lt(i,j) + t;
-        }
-    }
-}
-
-// L_iso_hyper_invariants without the 1/J, on the stack
+// L_iso_hyper_invariants without the 1/J, on the stack: the five gamma operators, each skipped with a zero derivative
 m66 L_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const m33 &b_bar) {
-    const m33 dev_b_bar = dev(b_bar);
     double I1, I2;
     bar_invariants(b_bar, I1, I2);
-    double a[6];
-    voigt_from_mat(a, dev_b_bar, 0.5);
-
-    // Only the terms of a non-zero potential derivative are built, summed in the order of the
-    // full expression (a skipped term adds an exact zero): a Neo-Hookean potential needs gamma_1
-    // alone, and the I_2 terms cost b_bar^2 and five more dyadic products.
-    m66 Lt;
-    add_gamma_linear(Lt, a, I1, dWdI_1_bar, true);
-    // the I_2 work is split around the gamma_11 term to keep the summation order of the full expression
-    const bool with_I2 = (dWdI_2_bar != 0.) || (dW2dI_12_bar != 0.) || (dW2dI_22_bar != 0.);
-    double dd[6] = {0., 0., 0., 0., 0., 0.};   // Voigt form of I1 dev(b_bar) - dev(b_bar^2)
-    if (with_I2) {
-        const m33 dev_b_bar2 = dev(square3(b_bar));
-        m33 devdevbb2;
-        for (int e = 0; e < 9; ++e) {
-            const double p = dev_b_bar(e)*I1;
-            devdevbb2(e) = p - dev_b_bar2(e);
-        }
-        voigt_from_mat(dd, devdevbb2, 0.5);
+    double bv[6], a[6], a2[6], dd[6];
+    voigt_from_mat(bv, b_bar, voigt_shear_out(Tensor2Type::stress));
+    dev_voigt(bv, a);
+    m66 Lt(fill::zeros);
+    if (dWdI_1_bar != 0.) {
+        Lt += (4./3.)*dWdI_1_bar*(I1*Idev() - sym_I(a));   // gamma_1
+    }
+    if (dWdI_2_bar != 0. || dW2dI_12_bar != 0. || dW2dI_22_bar != 0.) {
+        double b2v[6];
+        voigt_from_mat(b2v, mul3(b_bar, b_bar), voigt_shear_out(Tensor2Type::stress));
+        dev_voigt(b2v, a2);
+        for (int i = 0; i < 6; ++i) dd[i] = I1*a[i] - a2[i];   // Voigt form of I1 dev(b_bar) - dev(b_bar^2)
         if (dWdI_2_bar != 0.) {
-            double a2[6], bv[6];
-            voigt_from_mat(a2, dev_b_bar2, 0.5);
-            voigt_from_mat(bv, b_bar, 0.5);
-            m66 H_bar;                        // auto_sym_dyadic_operator(b_bar)
-            for (int i=0; i<3; i++) {
-                for (int j=i; j<3; j++) {
-                    for (int k=0; k<3; k++) {
-                        for (int l=k; l<3; l++) {
-                            H_bar(voigt_index[i][j],voigt_index[k][l]) = 0.5*(b_bar(i,k)*b_bar(j,l) + b_bar(i,l)*b_bar(j,k));
-                        }
-                    }
-                }
-            }
-            // gamma_2 = (8/3) (I2 (I_real - 2 I_vol) - I1 (dev(b_bar) (x) I + I (x) dev(b_bar))
-            //         + (dev(b_bar^2) (x) I + I (x) dev(b_bar^2))) + 4 (b_bar (x) b_bar - H_bar)
-            for (int j = 0; j < 6; ++j) {
-                for (int i = 0; i < 6; ++i) {
-                    const double v2 = Ivol_at(i,j)*2.;
-                    const double r = Ireal_at(i,j) - v2;
-                    const double X = r*I2;
-                    const double s1 = a[i]*I_voigt[j];
-                    const double s2 = I_voigt[i]*a[j];
-                    const double Y = (s1 + s2)*I1;
-                    const double z1 = a2[i]*I_voigt[j];
-                    const double z2 = I_voigt[i]*a2[j];
-                    const double Z = z1 + z2;
-                    const double T = ((X - Y) + Z)*(8./3.);
-                    const double bb = bv[i]*bv[j];
-                    const double U = (bb - H_bar(i,j))*4.;
-                    const double g = T + U;
-                    const double t = g*dWdI_2_bar;
-                    Lt(i,j) = Lt(i,j) + t;
-                }
-            }
+            // gamma_2 = (8/3) (I2 (I_real - 2 I_vol) - I1 (a (x) I + I (x) a) + (a2 (x) I + I (x) a2)) + 4 (b (x) b - H(b))
+            Lt += dWdI_2_bar*((8./3.)*(I2*(Ireal() - 2.*Ivol()) - I1*sym_I(a) + sym_I(a2))
+                              + 4.*(outer6(bv, bv) - auto_sym_dyadic_operator(b_bar)));
         }
     }
-    if (dW2dI_11_bar != 0.) {
-        add_gamma_quadratic(Lt, a, dW2dI_11_bar);
-    }
-    if (with_I2) {
-        if (dW2dI_12_bar != 0.) {
-            for (int j = 0; j < 6; ++j) {
-                for (int i = 0; i < 6; ++i) {
-                    const double s1 = a[i]*dd[j];
-                    const double s2 = dd[i]*a[j];
-                    const double g = (s1 + s2)*4.;
-                    const double t = g*dW2dI_12_bar;
-                    Lt(i,j) = Lt(i,j) + t;
-                }
-            }
-        }
-        if (dW2dI_22_bar != 0.) {
-            add_gamma_quadratic(Lt, dd, dW2dI_22_bar);
-        }
-    }
+    if (dW2dI_11_bar != 0.) Lt += 4.*dW2dI_11_bar*outer6(a, a);                       // gamma_11
+    if (dW2dI_12_bar != 0.) Lt += 4.*dW2dI_12_bar*(outer6(a, dd) + outer6(dd, a));    // gamma_12
+    if (dW2dI_22_bar != 0.) Lt += 4.*dW2dI_22_bar*outer6(dd, dd);                     // gamma_22
     return Lt;
 }
 
 // L_vol_hyper on the stack: (dU/dJ + J d2U/dJ2) 3 I_vol - 2 dU/dJ I_real
 m66 L_vol_fixed(const double &dUdJ, const double &dU2dJ2, const double &J) {
-    const double k1 = (dUdJ+dU2dJ2*J)*3.;
+    const double k1 = (dUdJ + dU2dJ2*J)*3.;
     const double k2 = 2.*dUdJ;
-    m66 L;
-    for (int j = 0; j < 6; ++j) {
-        for (int i = 0; i < 6; ++i) {
-            const double p1 = Ivol_at(i,j)*k1;
-            const double p2 = Ireal_at(i,j)*k2;
-            L(i,j) = p1 - p2;
-        }
-    }
-    return L;
+    return iso_operator(k1 - k2, -k2, Tensor4Type::stiffness);   // I_real = I_vol + I_dev
 }
 
 // N_k = n_k n_k^T, the eigenprojectors of the columns of n (n_k(a) n_k(b), as their outer product)

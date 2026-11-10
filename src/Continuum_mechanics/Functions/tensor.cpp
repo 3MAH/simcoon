@@ -941,21 +941,12 @@ arma::mat batch_pull_back(const arma::mat &voigt, Tensor2Type vtype,
 }
 
 arma::vec batch_mises(const arma::mat &voigt, Tensor2Type vtype) {
-    // Stress: sqrt(3/2 * (diag^2 + 2*shear^2))
-    // Strain: sqrt(2/3 * (diag^2 + 0.5*shear^2))  (shear Voigt = 2*eij)
-    arma::mat dev = voigt;
-    arma::rowvec hyd = (voigt.row(0) + voigt.row(1) + voigt.row(2)) / 3.0;
-    dev.row(0) -= hyd;
-    dev.row(1) -= hyd;
-    dev.row(2) -= hyd;
-
-    arma::rowvec diag2 = arma::sum(dev.rows(0,2) % dev.rows(0,2), 0);
-    arma::rowvec shear2 = arma::sum(dev.rows(3,5) % dev.rows(3,5), 0);
-
-    if (vtype == Tensor2Type::strain) {
-        return arma::sqrt((2.0/3.0) * (diag2 + 0.5 * shear2)).t();
-    }
-    return arma::sqrt(1.5 * (diag2 + 2.0 * shear2)).t();
+    if (voigt.n_rows != 6) throw std::invalid_argument("batch_mises: expected a (6,N) Voigt array, got " + std::to_string(voigt.n_rows) + " rows");
+    const int N = voigt.n_cols;
+    arma::vec result(N, arma::fill::none);
+    double d[6];
+    for (int i = 0; i < N; ++i) result(i) = mises_voigt(voigt.colptr(i), vtype, d);
+    return result;
 }
 
 arma::vec batch_trace(const arma::mat &voigt, Tensor2Type /*vtype*/) {

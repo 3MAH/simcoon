@@ -148,7 +148,6 @@ namespace simcoon{
  * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
  * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
  * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (\f$6 \times 1\f$ vector) [output]
  * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)

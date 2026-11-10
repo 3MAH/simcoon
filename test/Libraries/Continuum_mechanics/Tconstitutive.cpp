@@ -372,19 +372,28 @@ TEST(Tconstitutive, Isotropize)
     EXPECT_LT(props(1), 0.5);
 }
 
-TEST(Tconstitutive, isotropic_tensors_are_the_expressions_they_replace)
+TEST(Tconstitutive, isotropic_operators)
 {
-    // L_iso, M_iso, Idev, Idev2 and H_iso are built entry by entry: the same values, to the bit,
-    // as the operator expressions on Ivol / Ireal they used to evaluate
+    // projector identities and the stiffness-compliance pair of iso_operator, in engineering Voigt
     const double E = 70000., nu = 0.3;
     const double K = E/(3.*(1.-2*nu)), mu = E/(2.*(1.+nu));
-    const mat Idev_ref = Ireal() - Ivol();
-    const mat Idev2_ref = Ireal2() - Ivol();
-    EXPECT_TRUE(approx_equal(Idev(), Idev_ref, "absdiff", 0.));
-    EXPECT_TRUE(approx_equal(Idev2(), Idev2_ref, "absdiff", 0.));
-    EXPECT_TRUE(approx_equal(L_iso(E, nu, "Enu"), mat(3.*K*Ivol() + 2.*mu*Idev_ref), "absdiff", 0.));
-    EXPECT_TRUE(approx_equal(M_iso(E, nu, "Enu"), mat(1/(3.*K)*Ivol() + 1/(2.*mu)*Idev2_ref), "absdiff", 0.));
-    EXPECT_TRUE(approx_equal(H_iso(3., 5.), mat(3.*3.*Ivol() + 2.*5.*Idev_ref), "absdiff", 0.));
+    const mat I6 = eye(6, 6);
+    const mat Pd = Idev(), Pv = Ivol(), Pd2 = Idev2();
+    EXPECT_TRUE(approx_equal(Pd*Pd2*Pd, Pd, "absdiff", 1.E-15));   // I_dev2 is the inverse metric of I_dev on deviators
+    EXPECT_TRUE(approx_equal(Pv*Pv, Pv, "absdiff", 1.E-15));
+    EXPECT_TRUE(approx_equal(Pv*Pd, zeros(6, 6), "absdiff", 1.E-15));
+    EXPECT_TRUE(approx_equal(Pd + Pv, mat(Ireal()), "absdiff", 1.E-15));
+    EXPECT_TRUE(approx_equal(Pd2 + Pv, mat(Ireal2()), "absdiff", 1.E-15));
+    const mat L = L_iso(E, nu, "Enu"), M = M_iso(E, nu, "Enu");
+    EXPECT_TRUE(approx_equal(L*M, I6, "absdiff", 1.E-14));
+    EXPECT_TRUE(approx_equal(L, mat(iso_operator(3.*K, 2.*mu, Tensor4Type::stiffness)), "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(M, mat(iso_operator(1./(3.*K), 1./(2.*mu), Tensor4Type::compliance)), "absdiff", 0.));
+    EXPECT_TRUE(approx_equal(mat(H_iso(3., 5.)), mat(iso_operator(9., 10., Tensor4Type::stiffness)), "absdiff", 0.));
+    EXPECT_DOUBLE_EQ(L(3,3), mu);                                   // exact shear diagonal
+    vec Ith = {1., 1., 1., 0., 0., 0.};
+    EXPECT_TRUE(approx_equal(L*Ith, vec(3.*K*Ith), "reldiff", 1.E-14));
+    vec e_dev = {1.E-3, -2.E-3, 1.E-3, 4.E-3, -1.E-3, 2.E-3};
+    EXPECT_TRUE(approx_equal(L*e_dev, vec(2.*mu*(Ireal()*e_dev)), "reldiff", 1.E-14));
 }
 
 TEST(Tconstitutive, inv_cubic)

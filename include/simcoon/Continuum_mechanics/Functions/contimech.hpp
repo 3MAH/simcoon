@@ -84,7 +84,7 @@ double tr(const arma::vec &v);
 /**
  * @brief Returns the deviatoric part of a tensor v expressed in Voigt notation
  * @param v The input tensor (arma::vec)
- * @return The 6 vector, deviatoric part (arma::vec)
+ * @return The 6 vector, deviatoric part (arma::vec::fixed<6>, no allocation)
  * @details The deviatoric part of a tensor \f$ \mathbf{m} \f$ expressed in Voigt notation is:
 \f[
     \mathbf{v}' = \mathbf{v} - \frac{1}{3} \textrm{tr}(\mathbf{v}) \mathbf{I}_{th}
@@ -97,7 +97,7 @@ double tr(const arma::vec &v);
         vec v_dev = dev(v);
  * @endcode
 */
-arma::vec dev(const arma::vec &v);
+arma::vec::fixed<6> dev(const arma::vec &v);
 
 /**
  * @brief Provides the Von Mises stress \f$ \sigma^{Mises} \f$ of a second order stress tensor written as a vector v in Voigt notation
@@ -119,24 +119,26 @@ double Mises_stress(const arma::vec &v);
 /**
  * @brief Provides the stress flow \f$ \boldsymbol{\eta}_{stress} \f$ of a second order stress tensor written as a vector v in Voigt notation
  * @param v The input stress tensor (arma::vec)
- * @return The 6 vector, flow (arma::vec)
+ * @return The 6 vector, flow (arma::vec::fixed<6>, no allocation)
  * @details The stress flow direction is defined as:
 \f[
     \boldsymbol{\eta}_{stress} = \frac{\frac{3}{2} \mathbf{\sigma}'}{\sigma^{Mises}} = \frac{\frac{3}{2} \textrm{dev}(\mathbf{\sigma})}{\sigma^{Mises}}
 \f]
  * This corresponds to the normal to the Von Mises yield surface and is used in associated flow rules.
+ * The result is strain-like: its shear entries carry the engineering factor 2, so that
+ * \f$ \boldsymbol{\eta}_{stress} \cdot \boldsymbol{\sigma} = \sigma^{Mises} \f$ with the plain dot product.
  * Example:
  * @code
         vec v = randu(6);
         vec v_flow = eta_stress(v);
  * @endcode
 */
-arma::vec eta_stress(const arma::vec &v);
+arma::vec::fixed<6> eta_stress(const arma::vec &v);
 
 /**
  * @brief Provides the derivative of the J2 stress flow w.r.t. stress, \f$ \partial \boldsymbol{\eta}_{stress} / \partial \boldsymbol{\sigma} \f$ (6x6 Voigt)
  * @param v The input stress tensor (arma::vec, 6)
- * @return The 6x6 Hessian of the Mises equivalent stress (arma::mat)
+ * @return The 6x6 Hessian of the Mises equivalent stress (arma::mat::fixed<6,6>, no allocation)
  * @details With \f$ \boldsymbol{\eta}_{stress} = \mathbf{P}_{Mises}\,\boldsymbol{\sigma} / \sigma^{Mises} \f$, the derivative is the normalized-normal Hessian
 \f[
     \frac{\partial \boldsymbol{\eta}_{stress}}{\partial \boldsymbol{\sigma}}
@@ -156,39 +158,41 @@ arma::vec eta_stress(const arma::vec &v);
  * \f$ \mathbf{L}\,(\Delta s\,\partial\boldsymbol{\Lambda}/\partial\boldsymbol{\sigma}) \f$ inside
  * assemble_algorithmic_tangent(), where the strain-like output meets the stiffness \f$ \mathbf{L} \f$.
  */
-arma::mat deta_stress(const arma::vec &v);
+arma::mat::fixed<6,6> deta_stress(const arma::vec &v);
 
 /**
  * @brief Provides the strain flow (direction) from a stress tensor (Euclidian norm), according to the Voigt convention for strains
  * @param v The input stress tensor (arma::vec)
- * @return The 6 vector, flow (arma::vec)
+ * @return The 6 vector, flow (arma::vec::fixed<6>, no allocation)
  * @details The normalized flow direction based on the Euclidian norm is:
 \f[
     \boldsymbol{\eta}_{norm} = \frac{\mathbf{\sigma}}{\|\mathbf{\sigma}\|} = \frac{\mathbf{\sigma}}{\sqrt{\mathbf{\sigma}:\mathbf{\sigma}}}
 \f]
  * Note that the Euclidian norm is expressed as \f$ \|\mathbf{m}\| = \sqrt{\mathbf{m}:\mathbf{m}} \f$, considering that v is the vector representation of a stress matrix m.
+ * The result is strain-like (shear entries doubled), as eta_stress.
  * @code
         vec v = randu(6);
         vec v_flow = eta_norm_stress(v);
  * @endcode
 */
-arma::vec eta_norm_stress(const arma::vec &v);
+arma::vec::fixed<6> eta_norm_stress(const arma::vec &v);
 
 /**
  * @brief Provides the strain flow (direction) from a strain tensor (Euclidian norm), according to the Voigt convention for strains
  * @param v The input strain tensor (arma::vec)
- * @return The 6 vector, flow (arma::vec)
+ * @return The 6 vector, flow (arma::vec::fixed<6>, no allocation)
  * @details The normalized flow direction based on the Euclidian norm is:
 \f[
     \boldsymbol{\eta}_{norm} = \frac{\boldsymbol{\varepsilon}}{\|\boldsymbol{\varepsilon}\|} = \frac{\boldsymbol{\varepsilon}}{\sqrt{\boldsymbol{\varepsilon}:\boldsymbol{\varepsilon}}}
 \f]
  * Note that the Euclidian norm is expressed as \f$ \|\mathbf{m}\| = \sqrt{\mathbf{m}:\mathbf{m}} \f$, considering that v is the vector representation of a strain matrix m.
+ * The result keeps the strain convention of the input (engineering shears, not doubled again), as eta_strain.
  * @code
         vec v = randu(6);
         vec v_flow = eta_norm_strain(v);
  * @endcode
 */
-arma::vec eta_norm_strain(const arma::vec &v);
+arma::vec::fixed<6> eta_norm_strain(const arma::vec &v);
     
 /**
  * @brief Provides the Euclidian norm of a stress tensor
@@ -242,19 +246,23 @@ double Mises_strain(const arma::vec &v);
 /**
  * @brief Provides the strain flow \f$ \boldsymbol{\eta}_{strain} \f$ of a second order strain tensor written as a vector v in Voigt notation
  * @param v The input strain tensor (arma::vec)
- * @return The 6 vector, flow (arma::vec)
+ * @return The 6 vector, flow (arma::vec::fixed<6>, no allocation)
  * @details The strain flow direction is defined as:
 \f[
     \boldsymbol{\eta}_{strain} = \frac{\frac{2}{3} \boldsymbol{\varepsilon}'}{\varepsilon^{Mises}} = \frac{\frac{2}{3} \textrm{dev}(\boldsymbol{\varepsilon})}{\varepsilon^{Mises}}
 \f]
  * This is conjugate to the stress flow \f$ \boldsymbol{\eta}_{stress} \f$ used in plasticity.
+ * The result keeps the strain convention of the input (engineering shears \f$ \gamma = 2\varepsilon_{ij} \f$,
+ * not doubled again): it is \f$ \tfrac{2}{3}\,\mathrm{dev}(\boldsymbol{\varepsilon})/\varepsilon^{Mises} \f$ entry by entry,
+ * not the gradient \f$ \partial \varepsilon^{Mises}/\partial \boldsymbol{\varepsilon} \f$ (whose shear entries would be halved);
+ * \f$ \varepsilon^{Mises} = \boldsymbol{\eta}_{strain} \cdot (\mathbf{I}_{r05} \circ \boldsymbol{\varepsilon}) \f$.
  * Example:
  * @code
         vec v = randu(6);
         vec eps_f = eta_strain(v);
  * @endcode
 */
-arma::vec eta_strain(const arma::vec &v);
+arma::vec::fixed<6> eta_strain(const arma::vec &v);
 
 /**
  * @brief Provides the second invariant of the deviatoric part of a second order stress tensor, written as a vector v in Voigt notation
@@ -587,7 +595,7 @@ arma::mat dyadic(const arma::mat &a, const arma::mat &b);
     mat c = auto_sym_dyadic_operator(sym_a);
  * @endcode
 */
-arma::mat auto_sym_dyadic_operator(const arma::mat &a);
+arma::mat::fixed<6,6> auto_sym_dyadic_operator(const arma::mat::fixed<3,3> &a);
 
 /**
  * @brief Provides the symmetric 4th-order dyadic product of two symmetric tensors

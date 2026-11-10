@@ -85,7 +85,7 @@
  *
  *     void umat_external_M(
  *         const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma,
- *         arma::mat &Lt, arma::mat &L, arma::vec &sigma_in,
+ *         arma::mat &Lt, arma::mat &L,
  *         const arma::mat &DR, const int &nprops,
  *         const arma::vec &props, const int &nstatev, arma::vec &statev,
  *         const double &T, const double &DT, const double &Time, const double &DTime,

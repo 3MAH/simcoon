@@ -52,6 +52,12 @@ namespace simcoon{
  *   2nd Piola-Kirchhoff \f$ \mathbf{S} \f$
  * - Deformation: Deformation gradient \f$ \mathbf{F} \f$, stretch \f$ \mathbf{U} \f$, rotation \f$ \mathbf{R} \f$
  * - Internal state variables for constitutive laws
+ *
+ * The tensor members have fixed sizes (`vec::fixed<6>` in Voigt notation, `mat::fixed<3,3>`):
+ * they never allocate, and assigning them another size throws `std::logic_error` (Armadillo's size
+ * check, active in simcoon's builds, which do not define ARMA_NO_DEBUG). `statev` and
+ * `statev_start` are sized by the law (`nstatev`); `dSdT`, `drdE` and `drdT` of the thermomechanical
+ * state keep their dynamic shape for now.
  */
 class state_variables
 {
@@ -61,22 +67,22 @@ class state_variables
 
 	public :
 
-		arma::vec Etot; ///< Green-Lagrange strain tensor (Voigt notation)
-		arma::vec DEtot; ///< Increment of Green-Lagrange strain
-		arma::vec etot; ///< Logarithmic (Hencky) strain tensor (Voigt notation)
-		arma::vec Detot; ///< Increment of logarithmic strain
-		arma::vec PKII; ///< 2nd Piola-Kirchhoff stress tensor (Voigt notation); kernel output, crosses l2g only
-		arma::vec PKII_start; ///< 2nd Piola-Kirchhoff stress at start of increment; crosses both ways (see rotate_l2g)
-		arma::vec tau; ///< Kirchhoff stress tensor (Voigt notation); kernel output, crosses l2g only
-		arma::vec tau_start; ///< Kirchhoff stress at start of increment; read by the solver residual, crosses both ways
-		arma::vec sigma; ///< Cauchy stress tensor (Voigt notation)
-		arma::vec sigma_start; ///< Cauchy stress at start of increment; crosses both ways
-        arma::mat F0; ///< Deformation gradient at start of increment
-        arma::mat F1; ///< Deformation gradient at end of increment
-        arma::mat U0; ///< Right stretch tensor at start of increment; solver-owned (global copy), never crosses
-        arma::mat U1; ///< Right stretch tensor at end of increment; solver-owned (global copy), never crosses
-        arma::mat R; ///< Rotation tensor
-        arma::mat DR; ///< Increment of rotation tensor
+		arma::vec::fixed<6> Etot; ///< Green-Lagrange strain tensor (Voigt notation)
+		arma::vec::fixed<6> DEtot; ///< Increment of Green-Lagrange strain
+		arma::vec::fixed<6> etot; ///< Logarithmic (Hencky) strain tensor (Voigt notation)
+		arma::vec::fixed<6> Detot; ///< Increment of logarithmic strain
+		arma::vec::fixed<6> PKII; ///< 2nd Piola-Kirchhoff stress tensor (Voigt notation); kernel output, crosses l2g only
+		arma::vec::fixed<6> PKII_start; ///< 2nd Piola-Kirchhoff stress at start of increment; crosses both ways (see rotate_l2g)
+		arma::vec::fixed<6> tau; ///< Kirchhoff stress tensor (Voigt notation); kernel output, crosses l2g only
+		arma::vec::fixed<6> tau_start; ///< Kirchhoff stress at start of increment; read by the solver residual, crosses both ways
+		arma::vec::fixed<6> sigma; ///< Cauchy stress tensor (Voigt notation)
+		arma::vec::fixed<6> sigma_start; ///< Cauchy stress at start of increment; crosses both ways
+        arma::mat::fixed<3,3> F0; ///< Deformation gradient at start of increment
+        arma::mat::fixed<3,3> F1; ///< Deformation gradient at end of increment
+        arma::mat::fixed<3,3> U0; ///< Right stretch tensor at start of increment; solver-owned (global copy), never crosses
+        arma::mat::fixed<3,3> U1; ///< Right stretch tensor at end of increment; solver-owned (global copy), never crosses
+        arma::mat::fixed<3,3> R; ///< Rotation tensor
+        arma::mat::fixed<3,3> DR; ///< Increment of rotation tensor
         double T; ///< Current temperature; kernel constant, crosses g2l only
         double DT; ///< Temperature increment; kernel constant, crosses g2l only
     

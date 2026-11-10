@@ -38,14 +38,12 @@ namespace simcoon{
 //=====Public methods for state_variables_T============================================
 
 //-------------------------------------------------------------
-state_variables_T::state_variables_T() : state_variables(), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
+state_variables_T::state_variables_T() : state_variables(), dSdT(1,6), drdE(1,6), drdT(1,1)
 //-------------------------------------------------------------
 {
     Q = 0.;
     r = 0.;
     r_in = 0.;
-    sigma_in = zeros(6);
-    sigma_in_start = zeros(6);
     Wm = zeros(4);
     Wm_start = zeros(4);
     Wt = zeros(3);
@@ -58,12 +56,10 @@ state_variables_T::state_variables_T() : state_variables(), sigma_in(6), sigma_i
 }
 
 //-------------------------------------------------------------
-state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
+state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start), dSdT(1,6), drdE(1,6), drdT(1,1)
 //-------------------------------------------------------------
 {	
 
-    assert (msigma_in.size() == 6);
-    assert (msigma_in_start.size() == 6);
     
     assert (mWm.size() == 4);
     assert (mWt.size() == 3);
@@ -89,8 +85,6 @@ state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const 
     Q = mQ;
     r = mr;
     r_in = mr_in;
-    sigma_in = msigma_in;
-    sigma_in_start = msigma_in_start;
     Wm = mWm;
     Wm_start = mWm_start;
     Wt = mWt;
@@ -103,14 +97,12 @@ state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const 
 }
 
 //------------------------------------------------------
-state_variables_T::state_variables_T(const state_variables_T& sv) : state_variables(sv), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
+state_variables_T::state_variables_T(const state_variables_T& sv) : state_variables(sv), dSdT(1,6), drdE(1,6), drdT(1,1)
 //------------------------------------------------------
 {
     Q = sv.Q;
     r = sv.r;
     r_in = sv.r_in;
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
     Wm = sv.Wm;
     Wt = sv.Wt;
     Wm_start = sv.Wm_start;
@@ -134,8 +126,6 @@ state_variables_T& state_variables_T::operator = (const state_variables_T& sv)
 //----------------------------------------------------------------------
 {
     state_variables::operator=(sv);   //common fields, U0, U1, R, DR and tangent_mode included
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
     dSdE = sv.dSdE;
     dSdEt = sv.dSdEt;
     dSdT = sv.dSdT;
@@ -158,8 +148,6 @@ state_variables_T& state_variables_T::copy_fields_T (const state_variables_T& sv
 //----------------------------------------------------------------------
 {
     state_variables::copy_fields(sv);   //common fields, U0, U1, R and DR included
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
     dSdE = sv.dSdE;
     dSdEt = sv.dSdEt;
     dSdT = sv.dSdT;
@@ -178,13 +166,11 @@ state_variables_T& state_variables_T::copy_fields_T (const state_variables_T& sv
 }
 
 //-------------------------------------------------------------
-void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT)
+void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT)
 //-------------------------------------------------------------
 {
     state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start);
     
-    assert (msigma_in.size() == 6);
-    assert (msigma_in_start.size() == 6);
     
     assert (mWm.size() == 4);
     assert (mWt.size() == 3);
@@ -210,8 +196,6 @@ void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &m
     Q = mQ;
     r = mr;
     r_in = mr_in;
-    sigma_in = msigma_in;
-    sigma_in_start = msigma_in_start;
     Wm = mWm;
     Wt = mWt;
     Wm_start = mWm_start;
@@ -228,7 +212,6 @@ void state_variables_T::to_start()
 //-------------------------------------------------------------
 {
     state_variables::to_start();
-    sigma_in = sigma_in_start;
     Wm = Wm_start;
     Wt = Wt_start;
 }
@@ -238,7 +221,6 @@ void state_variables_T::set_start(const int &corate_type)
 //-------------------------------------------------------------
 {
     state_variables::set_start(corate_type);
-    sigma_in_start = sigma_in;    
     Wm_start = Wm;
     Wt_start = Wt;
 }
@@ -298,8 +280,6 @@ ostream& operator << (ostream& s, const state_variables_T& sv)
 	s << "tau_start: \n" << sv.tau_start << "\n";
 	s << "sigma: \n" << sv.sigma << "\n";
 	s << "sigma_start: \n" << sv.sigma_start << "\n";
-    s << "sigma_in: \n" << sv.sigma_in << "\n";
-    s << "sigma_in_start: \n" << sv.sigma_in_start << "\n";
     s << "F0: \n" << sv.F0 << "\n";
     s << "F1: \n" << sv.F1 << "\n";
     s << "T: \n" << sv.T << "\n";

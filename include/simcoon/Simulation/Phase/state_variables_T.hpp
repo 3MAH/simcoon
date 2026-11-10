@@ -47,15 +47,13 @@ namespace simcoon{
 
 	public :
     
-        arma::vec sigma_in; ///< inelastic stress; no in-tree writer (a plugin output in umat_plugin_api.hpp, unused), never crosses the frame
-        arma::vec sigma_in_start; ///< never crosses
-        arma::vec Wm; ///< mechanical works; crosses both ways
-        arma::vec Wt; ///< thermal works; crosses both ways
-        arma::vec Wm_start; ///< set by set_start on each copy, never crosses
-        arma::vec Wt_start; ///< set by set_start on each copy, never crosses
+        arma::vec::fixed<4> Wm; ///< mechanical works; crosses both ways
+        arma::vec::fixed<3> Wt; ///< thermal works; crosses both ways
+        arma::vec::fixed<4> Wm_start; ///< set by set_start on each copy, never crosses
+        arma::vec::fixed<3> Wt_start; ///< set by set_start on each copy, never crosses
 		
-        arma::mat dSdE; ///< mechanical tangent; kernel output, crosses l2g only
-        arma::mat dSdEt; ///< read by nobody, never crosses
+        arma::mat::fixed<6,6> dSdE; ///< mechanical tangent; kernel output, crosses l2g only
+        arma::mat::fixed<6,6> dSdEt; ///< read by nobody, never crosses
         arma::mat dSdT; ///< thermal stress tangent, a Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel output, crosses l2g only
         double Q; ///< heat flux (rate), set by the solver as -r/DTime (0 at DTime = 0); crosses g2l only
         /**
@@ -98,8 +96,6 @@ namespace simcoon{
          * @param U1 stretch tensor at end
          * @param R rotation tensor
          * @param DR rotation increment
-         * @param sigma_in inelastic stress (size 6)
-         * @param sigma_in_start inelastic stress at start (size 6)
          * @param T temperature
          * @param DT temperature increment
          * @param nstatev number of internal state variables
@@ -118,7 +114,7 @@ namespace simcoon{
          * @param drdE strain derivative of r (1x6)
          * @param drdT temperature derivative of r (1x1)
          */
-        state_variables_T(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const arma::vec &sigma_in, const arma::vec &sigma_in_start, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const double &Q, const double &r, const double &r_in, const arma::vec &Wm, const arma::vec &Wt, const arma::vec &Wm_start, const arma::vec &Wt_start, const arma::mat &dSdE, const arma::mat &dSdEt, const arma::mat &dSdT, const arma::mat &drdE, const arma::mat &drdT);
+        state_variables_T(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const double &Q, const double &r, const double &r_in, const arma::vec &Wm, const arma::vec &Wt, const arma::vec &Wm_start, const arma::vec &Wt_start, const arma::mat &dSdE, const arma::mat &dSdEt, const arma::mat &dSdT, const arma::mat &drdE, const arma::mat &drdT);
 		/** @brief Copy constructor. */
 		state_variables_T(const state_variables_T &);
 		/** @brief Destructor. */
@@ -130,13 +126,13 @@ namespace simcoon{
         /**
          * @brief Copy the field values from another state_variables_T object.
          * The common fields of state_variables::copy_fields (U0, U1, R and DR included), then
-         * sigma_in, sigma_in_start, the operators dSdE, dSdEt, dSdT, drdE, drdT, Wm, Wt, Wm_start,
+         * the operators dSdE, dSdEt, dSdT, drdE, drdT, Wm, Wt, Wm_start,
          * Wt_start, Q, r and r_in; tangent_mode, ncp and statev untouched.
          */
 		virtual state_variables_T& copy_fields_T (const state_variables_T&);
 		
 		using state_variables::update;
-		virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
+		virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
         virtual void to_start(); //rollback: Wm_start & Wt_start go to Wm & Wt, respectively
         virtual void set_start(const int &); //accept: Wm & Wt go to Wm_start & Wt_start, respectively
     
