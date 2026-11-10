@@ -71,6 +71,14 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-09
+
+Condensed stress states (#139, #141, #145), finite-strain and thermomechanical Abaqus bridges
+(#143), LLDM0 ply damage (#144), `ncp` / `integrator` run options, least-squares identification,
+and the performance campaign (#147 to #153: lock-free slices, fixed-size kernels, cached
+homogenization, Armadillo local storage of 36 elements). An intermediate release: the
+**In progress** section above lists the fixed-size and natural-form work scheduled for 2.4.
+
 ### Breaking changes
 
 - `copy_parameters`, `apply_parameters`, `copy_constants` and `apply_constants`
@@ -236,7 +244,8 @@ See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.1).
 
 See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.0).
 
-[Unreleased]: https://github.com/3MAH/simcoon/compare/2.2.0...HEAD
+[Unreleased]: https://github.com/3MAH/simcoon/compare/2.3.0...HEAD
+[2.3.0]: https://github.com/3MAH/simcoon/compare/2.2.0...2.3.0
 [2.2.0]: https://github.com/3MAH/simcoon/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/3MAH/simcoon/compare/2.0.1...2.1.0
 [2.0.1]: https://github.com/3MAH/simcoon/compare/2.0.0...2.0.1
