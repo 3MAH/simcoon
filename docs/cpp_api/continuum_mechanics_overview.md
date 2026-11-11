@@ -212,7 +212,7 @@ vec statev = zeros(8);
 vec DEtot = {0.001, 0, 0, 0, 0, 0};
 
 // Call UMAT
-umat_plasticity_iso(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
+umat_plasticity_iso(Etot, DEtot, sigma, Lt, L, DR,
                         6, props, 8, statev, T, DT, Time, DTime,
                         Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
 ```

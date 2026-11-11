@@ -254,10 +254,9 @@ namespace simcoon{
  * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
- * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  *
- * umat_plasticity_chaboche(Etot, DEtot, stress, Lt, L, sigma_in, DR,
+ * umat_plasticity_chaboche(Etot, DEtot, stress, Lt, L, DR,
  *                              12, props, 20, statev, 20.0, 0.0, 0.0, 1.0,
  *                              Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
  *

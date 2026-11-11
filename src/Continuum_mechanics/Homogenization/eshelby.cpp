@@ -201,9 +201,7 @@ void calG(const double &pt, const double &a1, const double &a2, const double &a3
 
 }
 
-// two rows of G per operation: lane2 of lanes.hpp, each lane runs the scalar expressions
-
-// sum of calG in the per-entry operation order of the point loop (bitwise); sin/cos hoisted, two rows of G at a time
+// Gauss quadrature of calG over the unit sphere; sin/cos hoisted, two rows of G per lane2 (lanes.hpp)
 void Gauss(const mat &Lt, mat &G, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {
     double L[6][6];
@@ -271,15 +269,10 @@ void Gauss(const mat &Lt, mat &G, const double &a1, const double &a2, const doub
             R22[p] = rn22*inv_D;
         }
 
-        const lane2 wx_l = lanes(wx(l), wx(l));
-        const lane2 zero = lanes(0., 0.);
-        //a sequential sum per entry: an ordered vectorised reduction over p could split the
-        //contracted multiply-adds
-#if defined(__clang__)
-        #pragma clang loop vectorize(disable)
-#endif
+        const double wx_l = wx(l);
         for (int p=0; p<np; p++) {
-            const lane2 wy_p = lanes(wy_[p], wy_[p]);
+            const double w = wx_l*wy_[p];   //polar x azimuthal weight
+            const lane2 w_p = lanes(w, w);
             const lane2 X0_p = lanes(X[0][p], X[0][p]);
             const lane2 X1_p = lanes(X[1][p], X[1][p]);
             const lane2 X2_p = lanes(X[2][p], X[2][p]);
@@ -289,8 +282,7 @@ void Gauss(const mat &Lt, mat &G, const double &a1, const double &a2, const doub
                 const lane2 rX0 = mul(rn_ij, X0_p), rX1 = mul(rn_ij, X1_p), rX2 = mul(rn_ij, X2_p);
                 const lane2 H[6] = {mul(rX0, X0_p), mul(rX1, X0_p), mul(rX2, X0_p), mul(rX1, X1_p), mul(rX2, X1_p), mul(rX2, X2_p)};
                 for (int c=0; c<6; c++) {
-                    const lane2 rg = mul_add(H[c], wy_p, zero);         //azimuthal weight
-                    Gp[q][c] = mul_add(wx_l, rg, Gp[q][c]);             //polar weight
+                    Gp[q][c] = mul_add(H[c], w_p, Gp[q][c]);
                 }
             }
         }

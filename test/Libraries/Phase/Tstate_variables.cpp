@@ -129,3 +129,17 @@ TEST(Tstate_variables, copies_keep_every_common_field)
     t_fields.copy_fields_T(t);
     expect_common(t_fields, t, false);
 }
+
+TEST(Tstate_variables, tensor_members_have_fixed_sizes)
+{
+    state_variables_M m;
+    EXPECT_EQ(m.Etot.n_elem, 6u);
+    EXPECT_EQ(m.Lt.n_rows, 6u);
+    EXPECT_EQ(m.Wm.n_elem, 4u);
+    EXPECT_EQ(m.DR.n_rows, 3u);
+    EXPECT_THROW(m.Etot = zeros(7), std::logic_error);
+    EXPECT_THROW(m.Lt = zeros(3, 3), std::logic_error);
+    EXPECT_THROW(m.Wm = zeros(3), std::logic_error);
+    m.statev = zeros(11);   // sized by the law
+    EXPECT_EQ(m.statev.n_elem, 11u);
+}

@@ -31,20 +31,17 @@ Known gaps and planned work, not yet in a release. An item moves to
   (kappa, dPhi/dsigma, dLambda/dsigma): every MODUL tangent copies the 6x6 flow Hessians to the heap, the
   largest remaining allocation source in MODUL plasticity. Fixed-size or view-based arguments
   need an API change of `assemble_*_tangent`.
-- The perf kernels of 2.3 reproduce Armadillo's rounding so that the solver dumps stay
-  bit-for-bit (`dot_voigt` with the two interleaved partial sums of `accu` in `contimech.cpp`;
-  `trace`, `powmat(X, 2)` and the I2 block split around `gamma_11` in `hyperelastic.cpp`;
-  `a*Ivol + b*X` entry by entry in `constitutive.cpp`; the `calG` summation order in
-  `eshelby.cpp`). Once the perf pull requests are merged, these get their natural form: the
-  invariants of `contimech.cpp` (Mises, J2, norms, eta flows) and `batch_mises` share one scalar
-  kernel on the engineering-Voigt self-contraction, dispatched on `Tensor2Type` (shear weight 2
-  for a stress, 1/2 for a strain, declared once next to `mandel_factors`), without building a
-  `tensor2`; the `vdev`/`vdev2` pair disappears. The gate becomes `dump_results.py compare` /
-  `regression_baseline.py --compare` with an absolute tolerance scaled to each table (Q and r
-  of the SMA_T laws are differences of large terms), the zero-tolerance pass staying available
-  to pin a defect. The Fastor to Armadillo rewrite starts
-  under this relaxed policy. `mul6`/`mul66` keep their fixed order: they replace the BLAS, they
-  do not imitate it.
+- Under the rounding policy of 2.4 (results move at the round-off level; the gate is
+  `dump_results.py compare --rtol 1e-11 --field-rtol Q=1e-5,r=1e-5`, the heat tables of the
+  thermomechanical SMA laws being differences of large terms; the zero-tolerance pass stays
+  available to pin a defect), still to do: the Fastor to Armadillo rewrite; `dSdT`, `drdE` and
+  `drdT` of `state_variables_T` as fixed-size members (one shape instead of the 1x6 / 6x1 dance,
+  ten `_T` kernel signatures); the per-mechanism `std::vector` arguments of `tangent_assembly`
+  as 6 x N matrices; the cofactor form `D = -dev(b_bar^-1)` of the I2 derivative of the
+  hyperelastic tangent, which loses 3 log10(lambda) digits in its current difference form at
+  large stretch; a reference scale emitted by the dumper for the heat tables instead of the
+  per-field tolerance. `mul6`/`mul66` keep their fixed order: they replace the BLAS, they do
+  not imitate it.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
@@ -70,6 +67,41 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   (Maxwell) form; the 2.x names stay for compatibility.
 
 ## [Unreleased]
+
+### Breaking changes
+
+- `sigma_in` and `sigma_in_start` are removed from `state_variables_M` and `state_variables_T`
+  (members, the long constructors and `update`, which lose two arguments), from the legacy
+  `umat_external` declaration and from the plugin example: no kernel wrote them and nothing read
+  them (the solver block that built `sigma_in_red` without using it is removed too). The plugin
+  entry points (`umat_plugin_ext_api`, UMABA, UMANS) never carried them.
+
+### Changed
+
+- The invariants of `contimech.hpp` (`dev`, `Mises_*`, `J2_*`, `J3_*`, `norm_*`, `eta_*`, `deta_stress`)
+  and `batch_mises` share one scalar kernel on the engineering-Voigt 6-vector: `contract_voigt`,
+  `dev_voigt` and `det_sym_voigt` (`small_dense.hpp`), with the shear weight of a contraction
+  (`voigt_shear_weight(a, b)`), the Mises factor and the Mises kernel (`mises_voigt`) declared once
+  per `Tensor2Type` next to `voigt_shear_in`, and the Mandel shear factors derived from one table of
+  exponents (`mandel_shear_exponents`, `mandel_shear_product`). `J3` is the closed-form determinant
+  of the deviator (no LAPACK dispatch). `eta_strain` and `eta_norm_strain` keep the strain
+  convention of their input, as before, now stated in their contract. The pair of scaled copies the
+  2.3 kernels carried, and `dot6`, are gone. `batch_mises` refuses an array without 6 rows.
+- `iso_operator(a, b, Tensor4Type)` builds `a Ivol + b Idev` in closed form; `Ireal`, `Ivol`,
+  `Idev`, `Ireal2`, `Idev2`, `L_iso`, `M_iso`, `H_iso` and the hyperelastic volumetric operator are
+  instances of it and return `mat::fixed<6,6>`; `dev`, `eta_*` return `vec::fixed<6>`, `deta_stress`
+  `mat::fixed<6,6>`; `auto_sym_dyadic_operator` takes a `mat::fixed<3,3>` and returns a
+  `mat::fixed<6,6>` (a `mat` argument converts). The tensor members of `state_variables` (`Etot`,
+  `sigma`, `F0`, `Lt`, `Wm`...) are fixed-size: assigning another size throws `std::logic_error`;
+  `statev`, `dSdT`, `drdE` and `drdT` stay dynamic. `small_lu::solve_columns_in_place` solves a matrix
+  in place.
+- Natural form of the perf kernels of 2.3: the hyperelastic invariant tangent sums its five
+  operators in order, the Eshelby quadrature folds its two weights once (no compiler pragma left in
+  a `.cpp`), the single-mechanism algorithmic tangent factorizes `M` with `small_lu` instead of a
+  LAPACK inverse. Results move at the round-off level (below 2e-14 relative on every solver, batch
+  and micromechanics table; the heat `Q`/`r` of the thermomechanical SMA laws, differences of
+  large terms, up to 3e-6 of their own 1e-7 scale). `benchmark/dump_results.py compare` takes
+  `--field-rtol` for such tables.
 
 ## [2.3.0] - 2026-11-09
 

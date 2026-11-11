@@ -42,7 +42,7 @@ namespace simcoon{
 
 
 //-------------------------------------------------------------
-state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables()
 //-------------------------------------------------------------
 {
 	Etot = zeros(6);
@@ -68,7 +68,7 @@ state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(
 
 
 //-------------------------------------------------------------
-state_variables::state_variables(const int &m, const bool &init, const double &value) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const int &m, const bool &init, const double &value)
 //-------------------------------------------------------------
 {
     
@@ -106,7 +106,7 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
 }
     
 //-------------------------------------------------------------
-state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start)
 //-------------------------------------------------------------
 {	
 	assert (mEtot.size() == 6);
@@ -152,7 +152,7 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
 
 
 //------------------------------------------------------
-state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const state_variables& sv)
 //------------------------------------------------------
 {
 	tangent_mode = sv.tangent_mode;

@@ -111,17 +111,29 @@ inline arma::mat::fixed<3,3> mul3_ABt(const arma::mat::fixed<3,3> &A, const arma
 }
 
 /**
- * @brief \f$ \sum_{k<6} a_k b_k \f$ in the accumulation order of Armadillo's accu / dot (15.6):
- * two interleaved partial sums over the even and odd entries, added last. Reproduces sum(a % b).
+ * @brief Contraction \f$ \mathbf{A}:\mathbf{B} \f$ of two symmetric tensors stored as engineering Voigt
+ * 6-vectors: \f$ \sum_{k<3} a_k b_k + w \sum_{k \ge 3} a_k b_k \f$. The shear weight @p w is 2 for two
+ * stresses, 1/2 for two strains and 1 for a stress with a strain (see voigt_shear_weight in tensor.hpp).
  */
-inline double dot6(const double *a, const double *b) {
-    double val1 = 0.;
-    double val2 = 0.;
-    for (int i = 0; i < 6; i += 2) {
-        val1 += (a[i] * b[i]);
-        val2 += (a[i+1] * b[i+1]);
-    }
-    return (val1 + val2);
+inline double contract_voigt(const double *a, const double *b, const double w) {
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + w*(a[3]*b[3] + a[4]*b[4] + a[5]*b[5]);
+}
+
+/// Deviator of a Voigt 6-vector, \f$ d = v - \tfrac{1}{3}\mathrm{tr}(v)\,\mathbf{I} \f$.
+inline void dev_voigt(const double *v, double *d) {
+    const double m = (v[0] + v[1] + v[2])/3.;
+    d[0] = v[0] - m; d[1] = v[1] - m; d[2] = v[2] - m;
+    d[3] = v[3]; d[4] = v[4]; d[5] = v[5];
+}
+
+/**
+ * @brief Determinant of the symmetric 3x3 tensor stored as a Voigt 6-vector @p v whose shear entries map to
+ * the tensor with the factor @p shear (voigt_shear_in: 1 for a stress, 1/2 for a strain); closed form, no
+ * 3x3 built and no LAPACK dispatch.
+ */
+inline double det_sym_voigt(const double *v, const double shear) {
+    const double s3 = shear*v[3], s4 = shear*v[4], s5 = shear*v[5];
+    return v[0]*(v[1]*v[2] - s5*s5) - s3*(s3*v[2] - s4*s5) + s4*(s3*s5 - v[1]*s4);
 }
 
 /// \f$ \mathbf{C} = \mathbf{a}\,\mathbf{b}^T \f$ for two 6-vectors: one product per entry, no BLAS dispatch.

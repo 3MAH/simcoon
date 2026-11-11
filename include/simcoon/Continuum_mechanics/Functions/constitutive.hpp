@@ -35,7 +35,7 @@ enum class Tensor4Type;   // tensor.hpp
 
 /**
  * @brief Returns the fourth order identity tensor Ireal written in Voigt notation
- * @return The following 6x6 mat (arma::mat)
+ * @return The following 6x6 mat (arma::mat::fixed<6,6>, no allocation)
 \f[
     I_{real} = \left( \begin{array}{cccccc}
         1 & 0 & 0 & 0 & 0 & 0 \\
@@ -50,11 +50,11 @@ enum class Tensor4Type;   // tensor.hpp
         mat Ir = Ireal();
  * @endcode
 */
-arma::mat Ireal();
+arma::mat::fixed<6,6> Ireal();
 
 /**
  * @brief Returns the volumic of the identity tensor Ivol written in Voigt notation
- * @return The following 6x6 mat (arma::mat) 
+ * @return The following 6x6 mat (arma::mat::fixed<6,6>, no allocation)
 \f[
     I_{vol} = \left( \begin{array}{cccccc}
         1/3 & 1/3 & 1/3 & 0 & 0 & 0 \\
@@ -69,11 +69,11 @@ arma::mat Ireal();
         mat Iv = Ivol();
  * @endcode
 */
-arma::mat Ivol();
+arma::mat::fixed<6,6> Ivol();
 
 /**
  * @brief Returns the deviatoric of the identity tensor Idev written in Voigt notation
- * @return The following 6x6 mat (arma::mat)
+ * @return The following 6x6 mat (arma::mat::fixed<6,6>, no allocation)
 \f[ 
     I_{dev} = I_{real} - I_{vol} = \left( \begin{array}{cccccc}
         2/3 & -1/3 & -1/3 & 0 & 0 & 0 \\
@@ -88,11 +88,23 @@ arma::mat Ivol();
         mat Id = Idev();
  * @endcode
  */
-arma::mat Idev();
+arma::mat::fixed<6,6> Idev();
+
+/**
+ * @brief The isotropic operator \f$ a\,\mathbf{I}_{vol} + b\,\mathbf{I}_{dev} \f$ in engineering Voigt notation
+ * @param a coefficient of the volumetric projector
+ * @param b coefficient of the deviatoric projector
+ * @param type the Tensor4Type of the result: the shear diagonal is \f$ b \f$ divided by
+ *        mandel_shear_product (\f$ b/2 \f$ for a stiffness, \f$ 2b \f$ for a compliance), the normal block
+ *        \f$ (a + 2b)/3 \f$ on the diagonal and \f$ (a - b)/3 \f$ off it
+ * @return The 6x6 operator (arma::mat::fixed<6,6>, no allocation); Ireal, Ivol, Idev, Ireal2, Idev2, L_iso,
+ *         M_iso and H_iso are instances of it
+ */
+arma::mat::fixed<6,6> iso_operator(const double &a, const double &b, Tensor4Type type);
 
 /**
  * @brief Returns the fourth order identity tensor \f$ \widehat{I} \f$ written in Voigt notation
- * @return The following 6x6 mat (arma::mat)
+ * @return The following 6x6 mat (arma::mat::fixed<6,6>, no allocation)
 \f[ 
     \widehat{I} = \left( \begin{array}{cccccc}
         1 & 0 & 0 & 0 & 0 & 0 \\
@@ -108,11 +120,11 @@ arma::mat Idev();
         mat Ir2 = Ireal2();
  * @endcode
  */  
- arma::mat Ireal2();
+arma::mat::fixed<6,6> Ireal2();
 
 /**
  * @brief Returns the deviatoric part of the identity tensor, in the form of \f$ \widehat{I} \f$ considering the Voigt notation
- * @return The following 6x6 mat (arma::mat) 
+ * @return The following 6x6 mat (arma::mat::fixed<6,6>, no allocation)
 \f[ 
     I_{dev2} = \left( \begin{array}{cccccc}
         2/3 & -1/3 & -1/3 & 0 & 0 & 0 \\
@@ -127,7 +139,7 @@ arma::mat Idev();
  *  mat Id2 = Idev2();
  * @endcode
  */
-arma::mat Idev2();
+arma::mat::fixed<6,6> Idev2();
 
 /**
  * @brief Returns the expansion vector
@@ -192,7 +204,7 @@ arma::vec Ir05();
  * Exhaustive list of possible third argument :
  * ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
  * @param C1, C2, conv
- * @return The 6x6 stiffness matrix considering a Voigt notation (arma::mat)
+ * @return The 6x6 stiffness matrix considering a Voigt notation (arma::mat::fixed<6,6>, no allocation)
  * @details Example: 
  * @code 
         double E = 210000;
@@ -201,12 +213,12 @@ arma::vec Ir05();
  * @endcode
  * @throw std::invalid_argument for an unknown convention
  */
-arma::mat L_iso(const double &C1, const double &C2, const std::string &conv="Enu");
+arma::mat::fixed<6,6> L_iso(const double &C1, const double &C2, const std::string &conv="Enu");
 
 /**
  * @brief Provides the elastic compliance tensor for an isotropic material.
  * @param C1, C2, conv
- * @return The 6x6 compliance matrix considering a Voigt notation (arma::mat) 
+ * @return The 6x6 compliance matrix considering a Voigt notation (arma::mat::fixed<6,6>, no allocation)
  * @details The two first arguments are a couple of Lamé coefficients. The third argument specify which couple has been provided and the order of coefficients.
  * Exhaustive list of possible third argument :
  * ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
@@ -217,7 +229,7 @@ arma::mat L_iso(const double &C1, const double &C2, const std::string &conv="Enu
  * @endcode
  * @throw std::invalid_argument for an unknown convention
 */
-arma::mat M_iso(const double &C1, const double &C2, const std::string& conv="Enu");
+arma::mat::fixed<6,6> M_iso(const double &C1, const double &C2, const std::string& conv="Enu");
 
 /**
  * @brief Provides the elastic stiffness tensor for a cubic material.
@@ -397,7 +409,7 @@ arma::mat M_isotrans(const double &EL, const double &ET, const double &nuTL, con
  * @brief Provides the viscous tensor H for an isotropic material.
  * @param etaB Bulk viscosity \f$ \eta_B \f$
  * @param etaS Shear viscosity \f$ \eta_S \f$
- * @return The 6x6 viscous matrix considering a Voigt notation (arma::mat)
+ * @return The 6x6 viscous matrix considering a Voigt notation (arma::mat::fixed<6,6>, no allocation)
 \f[ 
     H_{iso} = \left( \begin{array}{cccccc}
     \eta_B + \frac{4}{3} \eta_S & \eta_B - \frac{2}{3} \eta_S & \eta_B - \frac{2}{3} \eta_S & 0 & 0 & 0 \\
@@ -414,7 +426,7 @@ arma::mat M_isotrans(const double &EL, const double &ET, const double &nuTL, con
         mat Hiso = H_iso(etaB, etaS);
  * @endcode 
  */
-arma::mat H_iso(const double &etaB, const double &etaS);
+arma::mat::fixed<6,6> H_iso(const double &etaB, const double &etaS);
 
 //Update the elastic prediction, providing the stiffness tensor and the trial elastic strain
 

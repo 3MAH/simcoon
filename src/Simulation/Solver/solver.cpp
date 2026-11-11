@@ -648,16 +648,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         }
                                         else if(solver_type == 1) {
                                             //RNL
-                                            vec sigma_in_red = zeros(6);
-                                            for(int k = 0 ; k < 6 ; k++)
-                                            {
-                                                if (sptr_meca->cBC_meca(k)) {
-                                                    sigma_in_red(k) = sv_M->sigma_in(k) - sv_M->sigma_in_start(k);
-                                                }
-                                                else {
-                                                    sigma_in_red(k) = 0.;
-                                                }
-                                            }
                                             Delta = -invK * residual;
                                         }
 
@@ -1074,17 +1064,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         }
                                         else if(solver_type == 1) {
                                             //RNL
-                                            vec sigma_in_red = zeros(7);
-                                            for(int k = 0 ; k < 6 ; k++)
-                                            {
-                                                if (sptr_thermomeca->cBC_meca(k)) {
-                                                    sigma_in_red(k) = sv_T->sigma_in(k) - sv_T->sigma_in_start(k);
-                                                }
-                                                else {
-                                                    sigma_in_red(k) = 0.;
-                                                }
-                                            }
-                                            sigma_in_red(6) = -1.*sv_T->r_in;
                                             Delta = -invK * residual;
                                         }
                                         if (finite_ct)

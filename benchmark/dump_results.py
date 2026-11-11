@@ -215,12 +215,16 @@ def dump_batch(out, N=997, n_inc=6):
 # --------------------------------------------------------------------------- compare
 
 
-def compare(path_a, path_b, rtol=0.0, verbose=False):
+def compare(path_a, path_b, rtol=0.0, verbose=False, field_rtol=None):
     """Compare two dumps; return True when every array matches within rtol.
+
+    *field_rtol* maps a field name (the part after '|') to its own tolerance: the heat tables
+    Q and r of the thermomechanical laws are differences of large terms.
 
     Prints the cases that differ (all of them with *verbose*) and a summary line.
     """
     a, b = np.load(path_a), np.load(path_b)
+    field_rtol = field_rtol or {}
     keys = sorted(set(a.files) | set(b.files))
     worst = {}     # case -> (relative difference, field)
     ok = True
@@ -248,7 +252,7 @@ def compare(path_a, path_b, rtol=0.0, verbose=False):
             rel = np.inf
         if rel > worst.get(case, (0.0, ""))[0]:
             worst[case] = (rel, field)
-        if rel > rtol:
+        if rel > field_rtol.get(field, rtol):
             ok = False
     for case, (rel, field) in sorted(worst.items()):
         if rel == 0 and not verbose:
@@ -275,6 +279,8 @@ def main():
     p.add_argument("--rtol", type=float, default=0.0,
                    help="largest relative difference accepted (default 0: bit-identical)")
     p.add_argument("-v", "--verbose", action="store_true", help="also list identical cases")
+    p.add_argument("--field-rtol", default="",
+                   help="per-field tolerances, e.g. Q=1e-5,r=1e-5 (fields not listed use --rtol)")
     args = parser.parse_args()
 
     if args.command == "solver":
@@ -282,7 +288,16 @@ def main():
     elif args.command == "batch":
         dump_batch(args.output)
     else:
-        sys.exit(0 if compare(args.a, args.b, args.rtol, args.verbose) else 1)
+        field_rtol = {}
+        for item in filter(None, args.field_rtol.split(",")):
+            name, sep, value = item.partition("=")
+            try:
+                field_rtol[name] = float(value)
+            except ValueError:
+                parser.error(f"--field-rtol expects NAME=TOL items, got {item!r}")
+            if not sep:
+                parser.error(f"--field-rtol expects NAME=TOL items, got {item!r}")
+        sys.exit(0 if compare(args.a, args.b, args.rtol, args.verbose, field_rtol) else 1)
 
 
 if __name__ == "__main__":

@@ -925,8 +925,8 @@ bool select_condensed(phase_characteristics &rve, const condensed_state &cs, boo
     };
     if (!solve_condensed(cs, sv.DEtot, sv.sigma, Lt, [&](double &tn) { run_3D(start, tn); }, restore, tnew_dt))
         return false;
-    sv.tau(cs.C).zeros();
-    sv.PKII(cs.C).zeros();
+    sv.tau.elem(cs.C).zeros();
+    sv.PKII.elem(cs.C).zeros();
     return true;
 }
 

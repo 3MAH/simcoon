@@ -37,61 +37,44 @@ using namespace arma;
 
 namespace simcoon{
 
-mat Ireal(){
-	
-	mat Ireal = eye(6,6);
-	for (int i=3; i<6; i++)
-		Ireal(i,i) = 0.5;
-		
-	return Ireal;
-}
-
-mat Ivol(){
-	
-	mat Ivol = zeros(6,6);
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<3; j++) {
-			Ivol(i,j) = (1./3.);
-		}
-	}
-	return Ivol;
-}
-
-// a*Ivol + b*X entry by entry: one allocation, same rounding as the expression
-static mat iso_combination(const double &a, const double &b, const double &X_shear) {
-	const double v = a*(1./3.);             // a Ivol_ij on the normal block
-	const double d_ii = b*(1.-1./3.);       // b X_ii, normal block
-	const double d_ij = b*(0.-1./3.);       // b X_ij, normal block, i != j
-	const double d_ss = b*X_shear;          // b X_ii, shear block
-	const double n_ii = v + d_ii;
-	const double n_ij = v + d_ij;
-	mat L(6, 6, fill::zeros);
+mat::fixed<6,6> iso_operator(const double &a, const double &b, Tensor4Type type) {
+	const double n_ii = (a + 2.*b)/3.;
+	const double n_ij = (a - b)/3.;
+	const double s = b/mandel_shear_product(type);
+	mat::fixed<6,6> L(fill::zeros);
 	for (int i=0; i<3; i++) {
 		for (int j=0; j<3; j++) {
 			L(i,j) = (i == j) ? n_ii : n_ij;
 		}
-		L(i+3,i+3) = d_ss;
+		L(i+3,i+3) = s;
 	}
 	return L;
 }
 
-mat Idev(){
+mat::fixed<6,6> Ireal(){
 	
-	return	iso_combination(0., 1., 0.5);
+	return iso_operator(1., 1., Tensor4Type::stiffness);
 }
 
-mat Ireal2(){
+mat::fixed<6,6> Ivol(){
 	
-	mat Ireal2 = eye(6,6);
-	for (int i=3; i<6; i++)
-		Ireal2(i,i) = 2.;
-		
-	return Ireal2;
+	return iso_operator(1., 0., Tensor4Type::stiffness);
 }
 
-mat Idev2(){
+
+mat::fixed<6,6> Idev(){
 	
-	return	iso_combination(0., 1., 2.);
+	return iso_operator(0., 1., Tensor4Type::stiffness);
+}
+
+mat::fixed<6,6> Ireal2(){
+	
+	return iso_operator(1., 1., Tensor4Type::compliance);
+}
+
+mat::fixed<6,6> Idev2(){
+	
+	return iso_operator(0., 1., Tensor4Type::compliance);
 }
 
 vec Ith(){
@@ -121,7 +104,7 @@ vec Ir05(){
 	return Ir05;
 }
 
-mat L_iso(const double &C1, const double &C2, const std::string &conv) {
+mat::fixed<6,6> L_iso(const double &C1, const double &C2, const std::string &conv) {
 	
 	double K = 0.;
 	double mu = 0.;	
@@ -166,10 +149,10 @@ mat L_iso(const double &C1, const double &C2, const std::string &conv) {
 		throw std::invalid_argument("L_iso: unknown convention '" + conv + "'; expected Enu, nuE, Kmu/KG, muK/GK, lambdamu/lambdaG, mulambda/Glambda");
 	}
 	
-	return iso_combination(3.*K, 2.*mu, 0.5);   // 3K Ivol + 2mu Idev
+	return iso_operator(3.*K, 2.*mu, Tensor4Type::stiffness);
 }
 
-mat M_iso(const double &C1, const double &C2, const string &conv) {
+mat::fixed<6,6> M_iso(const double &C1, const double &C2, const string &conv) {
 	
 	double K = 0.;
 	double mu = 0.;	
@@ -214,7 +197,7 @@ mat M_iso(const double &C1, const double &C2, const string &conv) {
 		throw std::invalid_argument("M_iso: unknown convention '" + conv + "'; expected Enu, nuE, Kmu/KG, muK/GK, lambdamu/lambdaG, mulambda/Glambda");
 	}
 	
-	return iso_combination(1/(3.*K), 1/(2.*mu), 2.);   // 1/(3K) Ivol + 1/(2mu) Idev2
+	return iso_operator(1./(3.*K), 1./(2.*mu), Tensor4Type::compliance);
 }
 
 mat L_cubic(const double &C1, const double &C2, const double &C4, const string &conv){
@@ -589,9 +572,9 @@ mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 	return M;
 }
 
-mat H_iso(const double &etaB, const double &etaS) {
+mat::fixed<6,6> H_iso(const double &etaB, const double &etaS) {
 		
-	return iso_combination(3.*etaB, 2.*etaS, 0.5);   // 3 etaB Ivol + 2 etaS Idev
+	return iso_operator(3.*etaB, 2.*etaS, Tensor4Type::stiffness);
 }
 
 // ndi < 3 (Abaqus order): first ndi direct + first nshr shears kept, the rest stress-free;

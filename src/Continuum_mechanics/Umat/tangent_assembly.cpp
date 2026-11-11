@@ -186,7 +186,7 @@ ContinuumTangent assemble_algorithmic_tangent(
     // Algorithmic operators:  \tilde{L} = M^{-1} L,  \tilde{\kappa}^j = M^{-1} \kappa^j,
     // \tilde{B}^{lj} = Bhat_continuum^{lj} + \partial \Phi^l \cdot (M^{-1} - I) \cdot \kappa^j  (Bhat_continuum = \partial \Phi \cdot \kappa - K).
     arma::mat::fixed<6,6> L_tilde = L;
-    for (int c = 0; c < 6; ++c) lu.solve_in_place(L_tilde.colptr(c));
+    lu.solve_columns_in_place(L_tilde);
     std::vector<arma::vec> kappa_tilde(Nmech);
     for (arma::uword j = 0; j < Nmech; ++j) {
         kappa_tilde[j] = kappa_j[j];
@@ -219,15 +219,19 @@ ContinuumTangent assemble_algorithmic_tangent(
     {
         return assemble_continuum_tangent(Bhat_scalar, kappa, dPhidsigma, Ds, L);
     }
-    arma::mat Minv;
-    if (!arma::inv(Minv, arma::eye(6, 6) + L * (Ds * dLambda_dsigma))) {
-        // Ill-conditioned FD Hessian (backend-dependent detection): fall back
-        // to the continuum operator instead of aborting the solve.
+    // singular M (ill-conditioned FD Hessian): continuum fallback
+    const arma::mat::fixed<6,6> DsdLambda = Ds * dLambda_dsigma;
+    arma::mat::fixed<6,6> M = mul66(L, DsdLambda);
+    M += arma::eye(6, 6);
+    small_lu<6> lu;
+    if (!lu.factor(M)) {
         return assemble_continuum_tangent(Bhat_scalar, kappa, dPhidsigma, Ds, L);
     }
-    const arma::mat L_tilde  = Minv * L;
-    const arma::vec kappa_t  = Minv * kappa;
-    const double    Bhat_t   = Bhat_scalar + arma::dot(dPhidsigma, (Minv - arma::eye(6, 6)) * kappa);
+    arma::mat::fixed<6,6> L_tilde = L;
+    lu.solve_columns_in_place(L_tilde);
+    arma::vec::fixed<6> kappa_t = kappa;
+    lu.solve_in_place(kappa_t.memptr());
+    const double Bhat_t = Bhat_scalar + arma::dot(dPhidsigma, kappa_t - kappa);   // dPhi . (M^-1 - I) kappa
     // 1-mech form of the assembly with the transpose of L~ on dPhi (L~ is not symmetric when
     // dLambda/dsigma is not); same masking as the continuum overload.
     ContinuumTangent out;

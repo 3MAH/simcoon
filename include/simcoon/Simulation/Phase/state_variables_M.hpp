@@ -48,14 +48,12 @@ class state_variables_M : public state_variables
 
 	public :
 		
-        arma::vec sigma_in; ///< inelastic stress; no in-tree writer (a plugin output in umat_plugin_api.hpp, unused), never crosses the frame
-        arma::vec sigma_in_start; ///< never crosses
     
-        arma::vec Wm; ///< mechanical works [total, reversible, irreversible, dissipated]; crosses both ways
-        arma::vec Wm_start; ///< set by set_start on each copy, never crosses
+        arma::vec::fixed<4> Wm; ///< mechanical works [total, reversible, irreversible, dissipated]; crosses both ways
+        arma::vec::fixed<4> Wm_start; ///< set by set_start on each copy, never crosses
     
-		arma::mat L; ///< elastic stiffness; plugin-kernel input, crosses g2l only (the solver zeroes the global one)
-		arma::mat Lt; ///< tangent stiffness; crosses both ways
+		arma::mat::fixed<6,6> L; ///< elastic stiffness; plugin-kernel input, crosses g2l only (the solver zeroes the global one)
+		arma::mat::fixed<6,6> Lt; ///< tangent stiffness; crosses both ways
 		
 		/** @brief Default constructor (zero strains and stresses, identity F, U, R, DR). */
 		state_variables_M();
@@ -77,8 +75,6 @@ class state_variables_M : public state_variables
          * @param U1 stretch tensor at end
          * @param R rotation tensor
          * @param DR rotation increment
-         * @param sigma_in inelastic stress (size 6)
-         * @param sigma_in_start inelastic stress at start (size 6)
          * @param T temperature
          * @param DT temperature increment
          * @param nstatev number of internal state variables
@@ -89,7 +85,7 @@ class state_variables_M : public state_variables
          * @param L elastic stiffness (6x6)
          * @param Lt tangent stiffness (6x6)
          */
-        state_variables_M(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const arma::vec &sigma_in, const arma::vec &sigma_in_start, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const arma::vec &Wm, const arma::vec &Wm_start, const arma::mat &L, const arma::mat &Lt);
+        state_variables_M(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const arma::vec &Wm, const arma::vec &Wm_start, const arma::mat &L, const arma::mat &Lt);
     
 		/** @brief Copy constructor. */
 		state_variables_M(const state_variables_M &);
@@ -102,12 +98,12 @@ class state_variables_M : public state_variables
         /**
          * @brief Copy the field values from another state_variables_M object.
          * The common fields of state_variables::copy_fields (U0, U1, R and DR included), then
-         * sigma_in, sigma_in_start, L, Lt, Wm and Wm_start; tangent_mode, ncp and statev untouched.
+         * L, Lt, Wm and Wm_start; tangent_mode, ncp and statev untouched.
          */
 		virtual state_variables_M& copy_fields_M (const state_variables_M&);
 		
         using state_variables::update;
-        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Initialize with parameters
+        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Initialize with parameters
         virtual void to_start(); //rollback: Wm_start goes to Wm
         virtual void set_start(const int &); //accept: Wm goes to Wm_start
     
