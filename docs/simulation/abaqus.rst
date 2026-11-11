@@ -15,9 +15,9 @@ Simcoon provides ready-to-use UMAT bridge files in the ``software/`` directory t
 
 These files export an ``extern "C" umat_()`` function that Abaqus calls directly. The bridge:
 
-1. Converts Abaqus arrays → simcoon Armadillo format (``abaqus2smart_M()``)
-2. Calls simcoon's ``select_umat_M()`` to run the appropriate model based on the 5-character material name
-3. Converts results back → Abaqus arrays (``smart2abaqus_M()``)
+1. Converts Abaqus arrays to the simcoon Armadillo format (``abaqus2smart_M()``)
+2. Calls simcoon's ``select_umat_M()`` to run the model the material name (``CMNAME``, read whole) selects
+3. Converts results back to Abaqus arrays (``smart2abaqus_M()``)
 
 .. note::
    
@@ -64,7 +64,7 @@ Ensure simcoon is built and installed using the provided install script:
 Using umat_singleM (Recommended)
 --------------------------------
 
-This is the simplest approach: the model is selected by the **material name** in your Abaqus input file (first 5 characters).
+This is the simplest approach: the model is selected by the **material name** in your Abaqus input file (the ``CMNAME`` token up to its first blank: five letters or a ``_closed`` name, the ``_R`` suffix aside; a descriptive tail such as ``EPICP_STEEL`` falls back to the first five letters).
 
 **Step 1: Compile the UMAT**
 
@@ -98,7 +98,8 @@ Create or edit your ``abaqus_v6.env`` file:
 
 **Material definition in Abaqus input file**
 
-The first 5 characters of the material name select the constitutive model:
+The material name selects the constitutive model (the whole ``CMNAME`` token; Abaqus upper-cases
+names, so ``EPICP_CLOSED`` reaches ``EPICP_closed``):
 
 .. code-block:: none
 
@@ -163,7 +164,7 @@ the simcoon solver and fedoo do: ``DFGRD0`` and ``DFGRD1`` give the kinematics,
 dispatch is available, the hyperelastic ones included. The material name chooses
 the kinematic form:
 
-- ``EPICP`` (the five-character law name alone): the **total form**, the
+- ``EPICP`` (the law name alone): the **total form**, the
   logarithmic strain :math:`\ln\mathbf{U}` read from ``DFGRD1`` with its dual
   stress. It keeps no kinematic history (``*DEPVAR`` unchanged), satisfies the
   first law exactly and is exactly objective;
@@ -171,9 +172,13 @@ the kinematic form:
   :math:`\ln\mathbf{V}` and its frame. These are history quantities: the last 15
   ``STATEV`` entries hold them (see `State Variables Layout`_).
 
-The law is always the first five characters. ``_R`` must be the whole rest of the
-name: any other tail (``EPICP_REF``, ``EPICP_R2``) is ignored, as before the suffix
-existed, and gives the total form.
+The law is the whole ``CMNAME`` token (up to the first blank), ``_R`` excluded; a
+longer name such as ``EPICP_closed`` (the dedicated closed-form kernel, the plain
+name running the modular engine) is read as such, ``EPICP_closed_R`` being its rate
+form. A token longer than five letters that names no law and does not end with
+``_closed`` carries a descriptive tail: its first five letters select the law
+(``EPICP_STEEL`` runs ``EPICP``, ``EPICP_STEEL_R`` its rate form), with one warning
+per name on the error stream. A token that then still names no law stops the analysis.
 
 The outputs follow Abaqus's definitions:
 
@@ -224,12 +229,28 @@ Rules for the input file under ``NLGEOM``:
   ``DRPLDE``) and the non-symmetric part of the Jacobian in the coupled Newton
   loop; without it Abaqus symmetrizes them.
 
-The finite route serves the 3D, plane-strain and axisymmetric elements. Plane
-stress, shells, beams and trusses, steps without ``NLGEOM`` (Abaqus then hands
-``DFGRD1`` as the identity), the custom-model bridges and the mechanical laws
-that only exist in small strain (``SMADI``, ``LLDM0``, the micromechanics
-schemes, ...) keep the corotational route below; so does a law the total form
-does not serve (``HYPOO``) unless its name carries ``_R``.
+The finite route serves every ``(NDI, NSHR)`` state. With three direct
+components (3D, plane strain, axisymmetric) the law runs on ``DFGRD0`` /
+``DFGRD1`` as they come. For a condensed state (plane stress and shells, beams,
+trusses) the host's free components of the deformation gradient are
+placeholders: the material point owns its free stretches through the strain it
+keeps in ``STATEV`` (the stress-free strain slots right after the energies, as
+in the corotational route; the thickness strain :math:`\varepsilon_{33}` and
+the transverse shears for plane stress), rebuilds :math:`\mathbf{F}` from them
+(``condensed_F``: :math:`\exp(\ln\mathbf{V})\,\mathbf{R}` with the free
+components of :math:`\ln\mathbf{V}` from the strain state, or
+:math:`\mathbf{R}\exp(\mathbf{H})` under the total form) and solves them by a
+Newton on the free components of the box strain increment, the stress the law
+returns vanishing there (``solve_condensed``, two to four evaluations of the
+law per increment). The kept kinematics are formed with the free stretches of
+the start of the increment: exact when the free directions are principal
+(plane stress), second order otherwise. ``DDSDDE`` is the statically condensed
+box tangent, converted to the Jaumann Jacobian as in 3D. Steps without
+``NLGEOM`` (Abaqus then hands ``DFGRD1`` as the identity), the custom-model
+bridges and the mechanical laws that only exist in small strain (``SMADI``,
+``LLDM0``, the micromechanics schemes, ...) keep the corotational route below;
+so does a law the total form does not serve (``HYPOO``) unless its name
+carries ``_R``.
 
 **Corotational route.** Abaqus then integrates the UMAT in its corotated frame:
 ``STRESS`` and ``STRAN`` are rotated by Abaqus before the call (``DROT`` is the
@@ -254,7 +275,7 @@ only for ``NLGEOM`` steps and for the cases with three direct components.
 Without ``NLGEOM`` the Jacobian is the kernel tangent, so linear-perturbation
 procedures (``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress
 and 1D take the condensed tangent as it is, the element owning the thickness
-change.
+change (on the finite route, its Jaumann form of the condensed box tangent).
 
 Plane stress, shells, beams and trusses
 ---------------------------------------
@@ -359,7 +380,7 @@ Architecture
     │                           ▼                                   │
     │  ┌─────────────────────────────────────────────────────────┐  │
     │  │  select_umat_M(rve, ...)                                │  │
-    │  │  - Reads material name (first 5 chars of cmname)        │  │
+    │  │  - Reads material name (the cmname token, _R excluded)  │  │
     │  │  - Dispatches to appropriate model: ELISO, EPICP, etc.  │  │
     │  └─────────────────────────────────────────────────────────┘  │
     │                           │                                   │
@@ -471,7 +492,7 @@ The following constitutive models are available through ``select_umat_M()``:
      - :math:`E, \nu, \alpha, \sigma_Y, k, m, k_X`
      - 14 (T_init, p, EP, a)
    * - EPCHA
-     - Von Mises + Voce + 2× Armstrong-Frederick
+     - Von Mises + Voce + two Armstrong-Frederick terms
      - :math:`E, \nu, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2`
      - 33
    * - EPJCK
@@ -483,15 +504,15 @@ The following constitutive models are available through ``select_umat_M()``:
      - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`
      - 8 (T_init, p, EP)
    * - EPHAC
-     - Cubic elasticity + Hill + Voce + 2× AF
+     - Cubic elasticity + Hill + Voce + two AF terms
      - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N`
      - 33
    * - EPANI
-     - Cubic elasticity + anisotropic yield + Voce + 2× AF
+     - Cubic elasticity + anisotropic yield + Voce + two AF terms
      - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, P_{11}..P_{66}` (9)
      - 33
    * - EPDFA
-     - Cubic elasticity + DFA yield + Voce + 2× AF
+     - Cubic elasticity + DFA yield + Voce + two AF terms
      - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N, K`
      - 33
    * - EPCHG

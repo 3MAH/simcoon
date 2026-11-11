@@ -28,6 +28,9 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/parameter.hpp>
@@ -48,8 +51,8 @@ ModularUMAT::ModularUMAT()
     : elasticity_()
     , mechanisms_()
     , T_init_(0.0)
-    , sigma_start_(arma::zeros(6))
-    , L_cur_(arma::zeros(6, 6))
+    , sigma_start_(arma::fill::zeros)
+    , L_cur_(arma::fill::zeros)
     , initialized_(false)
     , maxiter_(100)
     , precision_(1e-9)
@@ -85,6 +88,7 @@ ViscoelasticMechanism& ModularUMAT::add_viscoelasticity(
     auto mech = std::make_unique<ViscoelasticMechanism>(N_prony);
     mech->configure(props, offset);
     mech->set_reference_stiffness(elasticity_.L0());
+    mech->set_thermal_expansion(elasticity_.alpha());
     mechanisms_.push_back(std::move(mech));
     return static_cast<ViscoelasticMechanism&>(*mechanisms_.back());
 }
@@ -168,6 +172,7 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
     }
 
     // anisotropic potential + inelastic mechanism accepted: fibre convection approximate (structure_tensors_push_forward)
+    set_ncp(ncp_);   // the complementarity function asked before configuration, checked against the composition
 }
 
 void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
@@ -375,10 +380,12 @@ void ModularUMAT::run(
     // Wm_r closes the balance Wm = Wm_r + Wm_ir + Wm_d
     double Wm_ir_inc = 0.0, Wm_d_inc = 0.0;
     if (!mechanisms_.empty()) {
-        const arma::vec::fixed<6> Etot_end = Etot + DEtot;   // once, not per mechanism
+        // the strains the mechanisms see: thermal part removed (the branch forces of PRONK)
+        const arma::vec::fixed<6> Eth_start = Etot - elasticity_.alpha() * (T - T_init_);
+        const arma::vec::fixed<6> Eth_end = Etot + DEtot - elasticity_.alpha() * (T + DT - T_init_);
         for (const auto& mech : mechanisms_) {
             double Wm_r_m = 0.0, Wm_ir_m = 0.0, Wm_d_m = 0.0;
-            mech->compute_work(sigma_start_, sigma, Etot, Etot_end, Wm_r_m, Wm_ir_m, Wm_d_m);
+            mech->compute_work(sigma_start_, sigma, Eth_start, Eth_end, Wm_r_m, Wm_ir_m, Wm_d_m);
             Wm_ir_inc += Wm_ir_m;
             Wm_d_inc += Wm_d_m;
         }
@@ -403,6 +410,13 @@ void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
         throw std::runtime_error("ElasticityModule: not configured");   // thermal_strain's guard
     }
     arma::vec::fixed<6> Eel = Etot_end - elasticity_.alpha() * DT_init;
+    if (elasticity_.omega() != 0.) {   // entropic hyperelasticity: f(theta) = 1 + omega (theta - theta_0)/theta_0
+        if (T_init_ <= 0.) {
+            throw std::invalid_argument("ModularUMAT: an entropic hyperelastic block (omega != 0) needs an absolute "
+                                        "reference temperature (T_init > 0)");
+        }
+        elasticity_.set_entropic_factor(1. + elasticity_.omega() * DT_init / T_init_);
+    }
     if (!mechanisms_.empty()) {
         arma::vec::fixed<6> E_inel(arma::fill::zeros);
         for (const auto& mech : mechanisms_) {
@@ -438,8 +452,9 @@ bool ModularUMAT::return_mapping(
 
     // with no constraints this elastic call is the whole response
     const arma::vec::fixed<6> Etot_end = Etot + DEtot;
+    const arma::vec::fixed<6> Eth_end = Etot_end - elasticity_.alpha() * (T + DT - T_init);
     for (auto& mech : mechanisms_) {
-        mech->predict(Etot_end, DTime);   // closed-form parts first (viscoelastic branches)
+        mech->predict(Eth_end, DTime);   // closed-form parts first (viscoelastic branches), thermal part removed
     }
     refresh_stress(Etot_end, T + DT - T_init, ndi, nshr, sigma);
     if (n_total == 0) {
@@ -681,22 +696,23 @@ void ModularUMAT::assemble_jacobian(
     // single row: no off-diagonal entry, phase 2 skipped (compute_tangent fetches dPhi and kappa itself)
     if (B.n_rows > 1) {
         // kappa lists fetched once: the refs stay valid, nothing below calls compute_constraints
-        std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
+        std::vector<const arma::mat*> kappa_all(mechanisms_.size());
         for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
             kappa_all[jm] = &mechanisms_[jm]->kappa(sigma_eff_, DT, L_cur_);
         }
         for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
-            const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma_eff_);
-            if (dPhi_l_all.empty()) continue;
-            for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
+            const arma::mat& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma_eff_);
+            if (dPhi_l_all.is_empty()) continue;
+            for (arma::uword l_c = 0; l_c < dPhi_l_all.n_cols; ++l_c) {
                 const int row = mech_offset_[lm] + static_cast<int>(l_c);
-                const arma::vec::fixed<6> dPhi_l = dPhi_l_all[l_c].voigt();
+                const arma::vec::fixed<6> dPhi_l = dPhi_l_all.col(l_c);
                 for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-                    const auto& kappa_j_all = *kappa_all[jm];
-                    for (size_t j_c = 0; j_c < kappa_j_all.size(); ++j_c) {
+                    const arma::mat& kappa_j_all = *kappa_all[jm];
+                    for (arma::uword j_c = 0; j_c < kappa_j_all.n_cols; ++j_c) {
                         if (lm == jm && l_c == j_c) continue;  // diagonal last
                         const int col = mech_offset_[jm] + static_cast<int>(j_c);
-                        B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c].voigt())
+                        const arma::vec::fixed<6> kappa_j = kappa_j_all.col(j_c);
+                        B(row, col) = -arma::dot(dPhi_l, kappa_j)
                                     + mechanisms_[lm]->K_cross(
                                           static_cast<int>(l_c),
                                           *mechanisms_[jm],
@@ -729,6 +745,8 @@ void ModularUMAT::compute_tangent(
     int tangent_mode
 ) {
     Lt = L_cur_;
+    stress_mapped_ = false;
+    ct_cached_ = false;
 
     if (tangent_mode == tangent_none) {
         // Explicit integration: elastic operator, no assembly.
@@ -749,63 +767,59 @@ void ModularUMAT::compute_tangent(
     const arma::vec& sigma_eff = sigma_eff_;
 
     // algorithmic assembly only for stress-dependent Phi with an analytic flow Hessian (the Hessians are kept)
-    std::vector<std::pair<size_t, const std::vector<tensor4>*>> algo;
+    std::vector<std::pair<size_t, const arma::mat*>>& algo = algo_;
+    algo.clear();
     if (tangent_mode == tangent_closest_point) {
         // Exact operator of the closest-point solve; every multiplier-carrying row is inside it.
+        ct_rows_.clear();
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            if (mechanisms_[m]->carries_multipliers()) algo.emplace_back(m, nullptr);
+            if (!mechanisms_[m]->carries_multipliers()) continue;
+            algo.emplace_back(m, nullptr);
+            for (int c = 0; c < mechanisms_[m]->num_constraints(); ++c) ct_rows_.emplace_back(m, c);
         }
-        Lt = cpp_consistent_tangent(cpp_result_, L_cur_).Lt;
+        ct_ = cpp_consistent_tangent(cpp_result_, L_cur_);
+        ct_kappa_ = cpp_result_.kappa_j;
+        ct_dPhi_ = cpp_result_.dPhidsigma_l;
+        ct_cached_ = true;
+        Lt = ct_.Lt;
     } else if (tangent_mode == tangent_algorithmic && arma::any(Ds_total > simcoon::iota)) {
         // no active multiplier: the assembly masks everything and returns L, skip the Hessians
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            const std::vector<tensor4>* hess = mechanisms_[m]->dLambda_dsigma(sigma_eff);
-            if (hess != nullptr && !mechanisms_[m]->dPhi_dsigma(sigma_eff).empty()) {
+            const arma::mat* hess = mechanisms_[m]->dLambda_dsigma(sigma_eff);
+            if (hess != nullptr && !mechanisms_[m]->dPhi_dsigma(sigma_eff).is_empty()) {
                 algo.emplace_back(m, hess);
             }
         }
     }
 
     if (tangent_mode == tangent_algorithmic && !algo.empty()) {
-        // sign: modular B = -dPhi.kappa + K, tangent_assembly Bhat = dPhi.kappa - K, hence Bhat = -B
-        int n_total = 0;
-        for (const auto& mech : mechanisms_) {
-            n_total += mech->num_constraints();
-        }
-        arma::mat B(n_total, n_total);
-        assemble_jacobian(sigma, 0.0, B);
-
-        std::vector<int> rows;
-        std::vector<arma::vec> kappa_j;
-        std::vector<arma::vec> dPhi_l;
-        std::vector<arma::mat> dLambda_l;
-        rows.reserve(n_total);
-        kappa_j.reserve(n_total);
-        dPhi_l.reserve(n_total);
-        dLambda_l.reserve(n_total);
+        std::vector<int>& rows = rows_;
+        rows.clear();
+        ct_rows_.clear();
+        size_t nb = 0;
+        for (const auto& [m, hess] : algo) nb += mechanisms_[m]->dPhi_dsigma(sigma_eff).n_cols;
+        ct_kappa_.set_size(6, nb);
+        ct_dPhi_.set_size(6, nb);
+        dLambda_l_.set_size(6, 6 * nb);
+        size_t i = 0;
         for (const auto& [m, hess] : algo) {
-            const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma_eff);
-            const auto& kappa_all = mechanisms_[m]->kappa(sigma_eff, 0.0, L_cur_);
-            const auto& hess_all = *hess;
-            for (size_t c = 0; c < dPhi_all.size(); ++c) {
-                rows.push_back(mech_offset_[m] + static_cast<int>(c));
-                dPhi_l.emplace_back(dPhi_all[c].voigt());
-                kappa_j.emplace_back(kappa_all[c].voigt());
-                dLambda_l.emplace_back(hess_all[c].mat());
+            const arma::mat& dPhi = mechanisms_[m]->dPhi_dsigma(sigma_eff);
+            const arma::mat& kappa = mechanisms_[m]->kappa(sigma_eff, 0.0, L_cur_);
+            for (int c = 0; c < static_cast<int>(dPhi.n_cols); ++c, ++i) {
+                rows.push_back(mech_offset_[m] + c);
+                ct_rows_.emplace_back(m, c);
+                ct_dPhi_.col(i) = dPhi.col(c);
+                ct_kappa_.col(i) = kappa.col(c);
+                dLambda_l_.cols(6 * i, 6 * i + 5) = hess->cols(6 * c, 6 * c + 5);
             }
         }
-        const size_t nb = rows.size();
-        arma::mat Bhat(nb, nb);
+        arma::mat Bhat;
+        multiplier_jacobian(sigma, rows, Bhat);
         arma::vec Ds_sub(nb);
-        for (size_t i = 0; i < nb; ++i) {
-            Ds_sub(i) = Ds_total(rows[i]);
-            for (size_t j = 0; j < nb; ++j) {
-                Bhat(i, j) = -B(rows[i], rows[j]);
-            }
-        }
-        const ContinuumTangent ct =
-            assemble_algorithmic_tangent(Bhat, kappa_j, dPhi_l, Ds_sub, L_cur_, dLambda_l);
-        Lt = ct.Lt;
+        for (size_t k = 0; k < nb; ++k) Ds_sub(k) = Ds_total(rows[k]);
+        ct_ = assemble_algorithmic_tangent(Bhat, ct_kappa_, ct_dPhi_, Ds_sub, L_cur_, dLambda_l_);
+        ct_cached_ = true;
+        Lt = ct_.Lt;
     }
 
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
@@ -816,23 +830,42 @@ void ModularUMAT::compute_tangent(
             sigma_eff, L_cur_, Ds_total, mech_offset_[m], Lt);
     }
 
-    // Left and right maps: d sigma = Q d sigma_eff (damage), eps_in(eps) (viscoelastic branches)
+    // Left and right maps: d sigma = Q d sigma_eff (damage), eps_in(eps) (viscoelastic branches);
+    // the effective tangent is kept for the heat of the thermomechanical face
     for (const auto& mech : mechanisms_) {
         const arma::mat Q = mech->stress_map(sigma_eff_);
         if (!Q.is_empty()) {
+            if (!stress_mapped_) {
+                Lt_eff_ = Lt;
+                stress_mapped_ = true;
+            }
             Lt = Q * Lt;
         }
     }
     apply_total_strain_maps(Lt);
+    if (stress_mapped_) apply_total_strain_maps(Lt_eff_);
+}
+
+void ModularUMAT::multiplier_jacobian(const arma::vec& sigma, const std::vector<int>& rows, arma::mat& Bhat) {
+    // sign: modular B = -dPhi.kappa + K, tangent_assembly Bhat = dPhi.kappa - K, hence Bhat = -B
+    int n_total = 0;
+    for (const auto& mech : mechanisms_) n_total += mech->num_constraints();
+    arma::mat B(n_total, n_total);
+    assemble_jacobian(sigma, 0.0, B);
+    const size_t nb = rows.size();
+    Bhat.set_size(nb, nb);
+    for (size_t i = 0; i < nb; ++i) {
+        for (size_t j = 0; j < nb; ++j) Bhat(i, j) = -B(rows[i], rows[j]);
+    }
 }
 
 void ModularUMAT::apply_total_strain_maps(arma::mat& Lt) const {
     // Inelastic strains driven by the total strain alone (viscoelastic branches): chain rule,
     // applied last, sigma = F(eps - eps_in(eps)).
     for (const auto& mech : mechanisms_) {
-        const arma::mat map = mech->total_strain_map();
+        const arma::mat& map = mech->total_strain_map();
         if (!map.is_empty()) {
-            Lt = Lt * map;
+            Lt = mul66(Lt, map);
         }
     }
 }
@@ -933,6 +966,324 @@ void umat_modular(
         );
     } catch (...) {
         // a failed configuration or initialization must not be reused
+        cache.drop_most_recent();
+        throw;
+    }
+}
+
+// ========== Thermomechanical face ==========
+
+namespace {
+// the memo key of start_iso_energy: Etot, DR (identity when null), T, statev
+void iso_memo_key(std::vector<double>& key, const arma::vec& Etot, const double* DR, double T, const arma::vec& statev) {
+    key.resize(16 + statev.n_elem);
+    std::memcpy(key.data(), Etot.memptr(), 6 * sizeof(double));
+    if (DR) {
+        std::memcpy(key.data() + 6, DR, 9 * sizeof(double));
+    } else {
+        for (int k = 0; k < 9; ++k) key[6 + k] = (k % 4 == 0) ? 1. : 0.;
+    }
+    key[15] = T;
+    std::memcpy(key.data() + 16, statev.memptr(), statev.n_elem * sizeof(double));
+}
+}  // namespace
+
+void ModularUMAT::run_T(
+    const arma::vec& Etot,
+    const arma::vec& DEtot,
+    arma::vec& sigma,
+    double& r,
+    arma::mat& dSdE,
+    arma::vec& dSdT,
+    arma::vec& drdE,
+    double& drdT,
+    const arma::mat& DR,
+    int nprops,
+    const arma::vec& props,
+    int nstatev,
+    arma::vec& statev,
+    double T,
+    double DT,
+    double Time,
+    double DTime,
+    double& Wm,
+    double& Wm_r,
+    double& Wm_ir,
+    double& Wm_d,
+    double& Wt,
+    double& Wt_r,
+    double& Wt_ir,
+    int ndi,
+    int nshr,
+    bool start,
+    double& tnew_dt,
+    int tangent_mode
+) {
+    if (!elasticity_.is_configured()) {
+        int offset = 2;   // [rho, c_p, the MODUL stream]
+        configure_from_props(props, offset);
+    }
+    const bool entropic = (elasticity_.omega() != 0.);
+    const double W_iso_start = entropic ? start_iso_energy(Etot, DR, T, nstatev, statev, start, ndi, nshr) : 0.;
+    const double c_0 = props(0) * props(1);
+    const double T1 = T + DT;
+    if (start) {
+        Wt = 0.0;
+        Wt_r = 0.0;
+        Wt_ir = 0.0;
+    }
+    const double Wm_d_before = start ? 0.0 : Wm_d;
+
+    arma::mat L;
+    run("MODUL", Etot, DEtot, sigma, dSdE, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime,
+        Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode);
+    const arma::vec& alpha = elasticity_.alpha();
+    if (tnew_dt < 1.0) {   // rejected by run(): the start state, no heat
+        dSdT = -dSdE * alpha;
+        r = 0.0;
+        drdE.zeros(6);
+        drdT = 0.0;
+        return;
+    }
+
+    // multiplier rows (mechanism, constraint) of the committed state; the viscoelastic rows are inert
+    const arma::vec::fixed<6> Etot_end = Etot + DEtot;
+    const arma::vec::fixed<6> Eth_start = Etot - elasticity_.thermal_strain(T - T_init_);
+    const arma::vec::fixed<6> Eth_end = Etot_end - elasticity_.thermal_strain(T1 - T_init_);
+    std::vector<std::pair<size_t, int>>& rows_T = rows_T_;
+    rows_T.clear();
+    bool active = false;
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        if (!mechanisms_[m]->carries_multipliers()) continue;
+        const int nc = static_cast<int>(mechanisms_[m]->dPhi_dsigma(sigma_eff_).n_cols);
+        for (int c = 0; c < nc; ++c) rows_T.emplace_back(m, c);
+        active = active || (nc > 0 && mechanisms_[m]->committed_multiplier() > simcoon::iota);
+    }
+    const size_t n_rows = rows_T.size();
+    // the assembly of compute_tangent serves when it covers these rows (modes 2 and 3); the mechanisms
+    // without multipliers refresh their caches at the committed state either way
+    const bool reuse = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point)
+                       && (!active || (ct_cached_ && ct_rows_ == rows_T));
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        if (reuse && mechanisms_[m]->carries_multipliers()) continue;
+        arma::vec Phi_m, Y_m;
+        mechanisms_[m]->compute_constraints(sigma_eff_, Eth_end, L_cur_, DTime, Phi_m, Y_m);
+    }
+    ContinuumTangent ct_local;
+    arma::mat kappa_local, dPhi_local;
+    if (n_rows == 0 || (reuse && !active)) {   // no row, or every row masked: zero sensitivities, no flux needed
+        ct_local.L_tilde = L_cur_;
+        ct_local.P_epsilon.zeros(6, n_rows);
+        ct_local.invBhat.zeros(n_rows, n_rows);
+        kappa_local.zeros(6, n_rows);
+        dPhi_local.zeros(6, n_rows);
+    } else if (!reuse) {   // sensitivities assembled at the committed state (continuum for tangent_none)
+        std::vector<int>& rows = rows_;
+        rows.clear();
+        std::vector<std::pair<size_t, const arma::mat*>>& hess = algo_;   // (mechanism, flow Hessian) per row
+        hess.clear();
+        kappa_local.set_size(6, n_rows);
+        dPhi_local.set_size(6, n_rows);
+        arma::vec Ds_rows(n_rows);
+        int mode = (tangent_mode == tangent_none) ? tangent_continuum : (tangent_mode == tangent_closest_point) ? tangent_algorithmic : tangent_mode;
+        for (size_t l = 0; l < n_rows; ++l) {
+            const auto [m, c] = rows_T[l];
+            rows.push_back(mech_offset_[m] + c);
+            dPhi_local.col(l) = mechanisms_[m]->dPhi_dsigma(sigma_eff_).col(c);
+            kappa_local.col(l) = mechanisms_[m]->kappa(sigma_eff_, 0.0, L_cur_).col(c);
+            Ds_rows(l) = mechanisms_[m]->committed_multiplier();
+            hess.emplace_back(m, mechanisms_[m]->dLambda_dsigma(sigma_eff_));
+            if (hess.back().second == nullptr) mode = tangent_continuum;   // no flow Hessian: the continuum sensitivities
+        }
+        arma::mat Bhat;
+        multiplier_jacobian(sigma, rows, Bhat);
+        ct_local = compute_tangent_operator(mode, Bhat, kappa_local, dPhi_local, Ds_rows, L_cur_,
+            [&]() -> arma::mat {
+                arma::mat H(6, 6 * n_rows);
+                for (size_t l = 0; l < n_rows; ++l) {
+                    const int c = rows_T[l].second;
+                    H.cols(6 * l, 6 * l + 5) = hess[l].second->cols(6 * c, 6 * c + 5);
+                }
+                return H;
+            });
+    }
+    const bool shared = reuse && active;
+    const ContinuumTangent& ct = shared ? ct_ : ct_local;
+    const arma::mat& kappa_j = shared ? ct_kappa_ : kappa_local;
+    const arma::mat& dPhi_l = shared ? ct_dPhi_ : dPhi_local;
+
+    // the trial stress rate q of a temperature move, dPhi/dtheta = 0 for every criterion: the thermal strain through
+    // the branches, -L (I - dEV_tilde/dE) alpha (as the tangent, apply_total_strain_maps; L alpha under tangent_none),
+    // and for an entropic block w0 T_iso (stress f(theta) T_iso + p_vol I, d(f T_iso)/dtheta = (omega/theta_0) T_iso);
+    // the rows see q and their fluxes through M^-1 = L_tilde L^-1 of the assembly: P_theta = invBhat (dPhi_l : M^-1 q)
+    arma::vec alpha_eff = alpha;
+    if (tangent_mode != tangent_none) {
+        for (auto it = mechanisms_.rbegin(); it != mechanisms_.rend(); ++it) {
+            const arma::mat& map = (*it)->total_strain_map();
+            if (!map.is_empty()) mul6(map, alpha_eff, alpha_eff);
+        }
+    }
+    arma::vec T_iso(6, arma::fill::zeros);
+    const double w0 = entropic ? elasticity_.omega() / T_init_ : 0.;
+    if (entropic) {
+        T_iso = sigma_eff_;
+        T_iso.subvec(0, 2) -= elasticity_.vol_pressure();
+        T_iso /= elasticity_.entropic_factor();
+    }
+    arma::vec::fixed<6> q;
+    mul6(ct.L_tilde, alpha_eff, q);
+    q = -q;
+    // L^-1 T_iso of the entropic term, and L^-T T_iso for the entropy chain below (entropic only)
+    arma::vec::fixed<6> L_inv_T, Lt_inv_T;
+    if (entropic) {
+        small_lu<6> lu;
+        if (!lu.factor(L_cur_) ) throw simcoon::exception_inv("ModularUMAT::run_T: singular elastic tangent");
+        L_inv_T = T_iso;
+        lu.solve_in_place(L_inv_T.memptr());
+        arma::vec::fixed<6> Lt_L_inv_T;
+        mul6(ct.L_tilde, L_inv_T, Lt_L_inv_T);
+        q += w0 * Lt_L_inv_T;
+        const arma::mat::fixed<6, 6> L_t = L_cur_.t();
+        if (!lu.factor(L_t)) throw simcoon::exception_inv("ModularUMAT::run_T: singular elastic tangent");
+        Lt_inv_T = T_iso;
+        lu.solve_in_place(Lt_inv_T.memptr());
+    }
+    arma::vec g(n_rows);
+    for (size_t l = 0; l < n_rows; ++l) {
+        const arma::vec::fixed<6> dPhi_m = dPhi_l.col(l);
+        g(l) = arma::dot(dPhi_m, q);
+    }
+    const arma::vec P_theta = ct.invBhat * g;
+    arma::vec dSdT_eff = q;   // of the effective stress
+    const arma::mat& kappa_t = ct.kappa_tilde.is_empty() ? kappa_j : ct.kappa_tilde;   // M^-1 kappa (kappa: no correction)
+    for (size_t l = 0; l < n_rows; ++l) {
+        const arma::vec::fixed<6> kappa_l = kappa_t.col(l);
+        dSdT_eff -= kappa_l * P_theta(l);
+    }
+    dSdT = dSdT_eff;
+    if (stress_mapped_) {   // damage: d sigma = Q d sigma_eff, as the tangent
+        for (const auto& mech : mechanisms_) {
+            const arma::mat Q = mech->stress_map(sigma_eff_);
+            if (!Q.is_empty()) dSdT = Q * dSdT;
+        }
+    }
+    const arma::mat& dSdE_eff = stress_mapped_ ? Lt_eff_ : dSdE;
+
+    // entropy, dissipation and the heat of the increment, per reference volume
+    const double eta = c_0 * std::log(T1 / T_init_) + arma::dot(alpha, sigma) - w0 * elasticity_.W_iso();
+    const double eta_start = c_0 * std::log(T / T_init_) + arma::dot(alpha, sigma_start_) - w0 * W_iso_start;
+    const double Deta = eta - eta_start;
+    const double Dgamma = Wm_d - Wm_d_before;
+    arma::vec dDgamma_dE(6, arma::fill::zeros);
+    double dDgamma_dT = 0.0;
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        size_t first = n_rows, n_m = 0;   // the rows of mechanism m are consecutive
+        for (size_t l = 0; l < n_rows; ++l) {
+            if (rows_T[l].first == m) {
+                first = std::min(first, l);
+                ++n_m;
+            }
+        }
+        const arma::mat P_eps_m = (n_m > 0) ? arma::mat(ct.P_epsilon.cols(first, first + n_m - 1)) : arma::mat(6, 0);
+        const arma::vec P_th_m = (n_m > 0) ? arma::vec(P_theta.subvec(first, first + n_m - 1)) : arma::vec();
+        const StrainMechanism::DissipationInputs in{sigma_start_, sigma, sigma_eff_, Eth_start, Eth_end,
+                                                    dSdE, dSdT, dSdE_eff, dSdT_eff, P_eps_m, P_th_m};
+        arma::vec dE;
+        double dT_m;
+        mechanisms_[m]->dissipation_sensitivity(in, dE, dT_m);
+        dDgamma_dE += dE;
+        dDgamma_dT += dT_m;
+    }
+    // W_iso(H_e): dW_iso = T_iso : dH_e; alone H_e = eps - alpha dtheta, with mechanisms dH_e = L^-1 (dsigma_eff - w0 T_iso dtheta)
+    arma::vec dW_dE = T_iso;
+    double dW_dT = -arma::dot(T_iso, alpha);
+    if (entropic && !mechanisms_.empty()) {
+        dW_dE = mul6_At(dSdE_eff, Lt_inv_T);
+        dW_dT = arma::dot(Lt_inv_T, dSdT_eff - w0 * T_iso);
+    }
+    heat_source_increment(Dgamma, dDgamma_dE, dDgamma_dT, Deta, arma::vec(mul6_At(dSdE, alpha) - w0 * dW_dE),
+                          c_0 / T1 + arma::dot(dSdT, alpha) - w0 * dW_dT, T1, r, drdE, drdT);
+    Wt += T1 * Deta;
+    Wt_r += T1 * Deta;
+    if (entropic) {   // the end state is the next start of a sequential path: its W_iso is at hand
+        iso_memo_key(iso_key_[1], Etot_end, nullptr, T1, statev);
+        iso_W_[1] = elasticity_.W_iso();
+    }
+}
+
+
+double ModularUMAT::start_iso_energy(const arma::vec& Etot, const arma::mat& DR, double T, int nstatev,
+                                     const arma::vec& statev, bool start, int ndi, int nshr) {
+    (void)ndi;
+    (void)nshr;
+    if (!initialized_) {
+        arma::vec sv = statev;
+        initialize(nstatev, sv);
+    }
+    std::vector<double>& key = iso_key_scratch_;
+    iso_memo_key(key, Etot, DR.memptr(), T, statev);
+    for (int k = 0; k < 2; ++k) {
+        if (iso_key_[k] == key) return iso_W_[k];
+    }
+    T_init_ = start ? T : statev(0);
+    const bool rotate = !is_identity_rotation(DR);   // Etot arrives transported with DR, the state follows as in run()
+    for (auto& mech : mechanisms_) {
+        mech->unpack(statev);
+        if (rotate) mech->rotate(DR);
+    }
+    arma::vec::fixed<6> Eel = Etot - elasticity_.alpha() * (T - T_init_);
+    if (!mechanisms_.empty()) {   // as refresh_stress
+        arma::vec::fixed<6> E_inel(arma::fill::zeros);
+        for (const auto& mech : mechanisms_) {
+            E_inel += mech->inelastic_strain();
+        }
+        Eel -= E_inel;
+    }
+    iso_W_[0] = elasticity_.iso_energy(Eel);
+    iso_key_[0].swap(key);
+    return iso_W_[0];
+}
+
+void umat_modular_T(
+    const arma::vec& Etot,
+    const arma::vec& DEtot,
+    arma::vec& sigma,
+    double& r,
+    arma::mat& dSdE,
+    arma::vec& dSdT,
+    arma::vec& drdE,
+    double& drdT,
+    const arma::mat& DR,
+    const int& nprops,
+    const arma::vec& props,
+    const int& nstatev,
+    arma::vec& statev,
+    const double& T,
+    const double& DT,
+    const double& Time,
+    const double& DTime,
+    double& Wm,
+    double& Wm_r,
+    double& Wm_ir,
+    double& Wm_d,
+    double& Wt,
+    double& Wt_r,
+    double& Wt_ir,
+    const int& ndi,
+    const int& nshr,
+    const bool& start,
+    double& tnew_dt,
+    const int& tangent_mode,
+    const KinematicForm& kinematic_form,
+    const int& ncp
+) {
+    thread_local modular_umat_cache cache;   // its own: these props carry [rho, c_p] in front
+    ModularUMAT& mumat = cache.acquire(props, nstatev, kinematic_form);
+    try {
+        mumat.set_ncp(ncp_method_of(ncp, "MODUL"));
+        mumat.run_T(Etot, DEtot, sigma, r, dSdE, dSdT, drdE, drdT, DR, nprops, props, nstatev, statev,
+                    T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir, ndi, nshr, start, tnew_dt, tangent_mode);
+    } catch (...) {
         cache.drop_most_recent();
         throw;
     }

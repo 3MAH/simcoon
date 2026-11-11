@@ -33,6 +33,7 @@
 
 #pragma once
 #include <exception>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 #include <string>
 #include <armadillo>
 
@@ -144,9 +145,9 @@ void abaqus2smart_M(const double *stress, const double *ddsdde,
  * @param drot Abaqus rotation increment matrix
  * @param sigma [out] simcoon stress vector
  * @param dSdE [out] simcoon mechanical tangent matrix
- * @param dSdT [out] simcoon stress-temperature tangent matrix
- * @param drpldE [out] simcoon heat generation-strain tangent matrix
- * @param drpldT [out] simcoon heat generation-temperature tangent matrix
+ * @param dSdT [out] simcoon stress-temperature derivative (6)
+ * @param drpldE [out] simcoon heat generation-strain derivative (6)
+ * @param drpldT [out] simcoon heat generation-temperature derivative
  * @param Etot [out] simcoon total strain vector
  * @param DEtot [out] simcoon strain increment vector
  * @param T [out] simcoon temperature
@@ -166,8 +167,8 @@ void abaqus2smart_T(const double *stress, const double *ddsdde,
     const double &dtime, const double &temperature, const double &Dtemperature, 
     const int &nprops, const double *props, const int &nstatev, double *statev, 
     const int &ndi, const int &nshr, const double *drot, 
-    arma::vec &sigma, arma::mat &dSdE, arma::mat &dSdT, 
-    arma::mat &drpldE, arma::mat &drpldT, 
+    arma::vec &sigma, arma::mat &dSdE, arma::vec &dSdT,
+    arma::vec &drpldE, double &drpldT,
     arma::vec &Etot, arma::vec &DEtot, double &T, double &DT, 
     double &Time, double &DTime, arma::vec &props_smart, 
     arma::vec &Wm, arma::vec &Wt, arma::vec &statev_smart, 
@@ -224,14 +225,25 @@ arma::mat abaqus_jacobian(const arma::mat &Lt, const arma::vec &sigma);
 bool abaqus_nlgeom(const double *dfgrd1);
 
 /**
+ * @brief The law name an Abaqus CMNAME carries: its characters up to the first blank or NUL
+ *        (80 at most), without the kinematic-form suffix `_R` of abaqus_kinematic_form().
+ *        `EPICP_closed_R` names the law `EPICP_closed` in its rate form; the `_closed` suffix is
+ *        recognised in any case (Abaqus upper-cases material names: `EPICP_CLOSED`). A token
+ *        longer than five characters that is in none of the name tables (finite_umat_names(),
+ *        small_strain_umat_names(), thermo_umat_id()) and does not end with `_closed` carries a
+ *        descriptive tail (`EPICP_STEEL`): its first five characters are the law, said once per
+ *        name on the error stream. A token that then still names no law stops the analysis.
+ * @param cmname the CMNAME argument of the UMAT (space padded, 80 characters)
+ */
+std::string abaqus_umat_name(const char *cmname);
+
+/**
  * @brief The kinematic form an Abaqus material name asks for under NLGEOM.
- * @details The law is the first five characters of CMNAME. The total form (strain space,
- *          \f$ \ln\mathbf{U} \f$ and its dual stress, read from DFGRD0/DFGRD1, no history) is
- *          the default; the suffix `_R` (e.g. `EPICP_R`) asks for the rate form (log_R,
- *          corate 3), whose accumulated strain and frame rotation take the last
- *          abaqus_kinematic_statev() STATEV entries. `_R` must be the whole suffix (case
- *          insensitive): any other tail after the five characters (`EPICP_REF`, `EPICP_R2`)
- *          is ignored and gives the total form, as names were read before the suffix existed.
+ * @details The total form (strain space, \f$ \ln\mathbf{U} \f$ and its dual stress, read from
+ *          DFGRD0/DFGRD1, no history) is the default; the suffix `_R` (e.g. `EPICP_R`) asks for
+ *          the rate form (log_R, corate 3), whose accumulated strain and frame rotation take the
+ *          last abaqus_kinematic_statev() STATEV entries. `_R` (case insensitive) must end the
+ *          name token read by abaqus_umat_name(); any other tail is part of the law name.
  *          A NUL-terminated name (a C caller) is read up to its terminator only.
  * @param cmname the CMNAME argument of the UMAT (space padded, 80 characters)
  * @return corate_type_total, or 3 for `_R`
@@ -279,13 +291,14 @@ bool fea_numerical_failure(const std::exception &e);
 /**
  * @brief Whether an Abaqus call runs the finite-strain route (the deformation gradient driving
  *        select_umat_M_finite / the thermomechanical finite dispatch).
- * @details True for an NLGEOM step (abaqus_nlgeom()) with three direct components (3D, plane
- *          strain, axisymmetric) and a law the finite dispatch serves in the requested form
- *          (every thermomechanical law under the rate form, the total form where
- *          total_formulation_serves_T(); the mechanical ones of finite_umat_names(), the total
- *          form only where total_formulation_serves()). Otherwise the bridge keeps the
- *          corotational small-strain route on STRAN/DSTRAN (plane stress and 1D, NLGEOM=NO,
- *          the small-strain-only laws).
+ * @details True for an NLGEOM step (abaqus_nlgeom()) and a law the finite dispatch serves in
+ *          the requested form (every thermomechanical law under the rate form, the total form
+ *          where total_formulation_serves_T(); the mechanical ones of finite_umat_names(), the
+ *          total form only where total_formulation_serves()), whatever (NDI, NSHR): a condensed
+ *          state (plane stress, beams) solves its free stretches on the finite route
+ *          (run_umat_M / run_umat_T, condensed_F). Otherwise the bridge keeps the corotational
+ *          small-strain route on STRAN/DSTRAN (NLGEOM=NO, the small-strain-only laws).
+ *          @p ndi is kept for the callers' symmetry with the small-strain route.
  */
 bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int &corate_type, const bool &thermomechanical, const double *dfgrd1);
 
@@ -298,7 +311,12 @@ bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int
  *          accumulated log_R strain and frame read from @p kin_statev (rate form; zero entries,
  *          Abaqus's initial STATEV, read as an undeformed start); DR and Detot follow from
  *          corate_kinematics, the Green-Lagrange pair from F. STRAN, DSTRAN and DROT play no
- *          further part.
+ *          further part. For a condensed state (@p cs active) the host's free components of
+ *          DFGRD0/1 are placeholders: F0 is rebuilt from the point's strain state (condensed_F;
+ *          the free box strain of the last increment comes from @p kin_statev under the rate
+ *          form, from the STATEV slots of the stress-free strain that abaqus2smart_M / _T read
+ *          into sv.Etot under the total form) and F1 with the free stretches of the start, the
+ *          Newton of run_umat_M / run_umat_T moving them to the stress-free state.
  * @param sv [in/out] the global state variables of the point
  * @param drot DROT (9, column-major), the rotation Abaqus applied to STRESS
  * @param dfgrd0 DFGRD0 (9, column-major)
@@ -306,8 +324,20 @@ bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int
  * @param kin_statev the last abaqus_kinematic_statev() entries of STATEV (rate form), unused otherwise
  * @param corate_type corate_type_total or 3 (abaqus_kinematic_form())
  * @param DTime time increment
+ * @param cs the condensed state of (NDI, NSHR), inactive for three direct components
  */
-void abaqus2smart_finite(state_variables &sv, const double *drot, const double *dfgrd0, const double *dfgrd1, const double *kin_statev, const int &corate_type, const double &DTime);
+void abaqus2smart_finite(state_variables &sv, const double *drot, const double *dfgrd0, const double *dfgrd1, const double *kin_statev, const int &corate_type, const double &DTime, const condensed_state &cs);
+
+/**
+ * @brief Box strain at the end of the increment on the finite route: the commit of set_start,
+ *        \f$ \Delta\mathbf{R}\,\mathbf{e}\,\Delta\mathbf{R}^T + \Delta\mathbf{e} \f$ under the rate form,
+ *        \f$ \mathbf{H}_{n+1} = \mathbf{H}_n + \Delta\mathbf{H} \f$ under the total one.
+ * @param sv the state after the law
+ * @param corate_type corate_type_total or 3
+ * @return the strain (6), what the rate form stores in its kinematic STATEV and a condensed
+ *         state in its stress-free strain slots
+ */
+arma::vec finite_box_strain_end(const state_variables &sv, const int &corate_type);
 
 /**
  * @brief The finite-strain point -> the Abaqus stress and material Jacobian (mechanical).
@@ -417,9 +447,9 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran,
  * @param Wm simcoon mechanical work quantities vector
  * @param Wt simcoon thermal work quantities vector
  * @param dSdE simcoon mechanical tangent matrix (condensed when ndi < 3, select_umat_T)
- * @param dSdT simcoon stress-temperature tangent matrix (condensed when ndi < 3)
- * @param drpldE simcoon heat generation-strain tangent matrix (condensed when ndi < 3)
- * @param drpldT simcoon heat generation-temperature tangent matrix
+ * @param dSdT simcoon stress-temperature derivative (6, condensed when ndi < 3)
+ * @param drpldE simcoon heat generation-strain derivative (6, condensed when ndi < 3)
+ * @param drpldT simcoon heat generation-temperature derivative
  * @param nlgeom as smart2abaqus_M
  * @param Etot_end as smart2abaqus_M, stored after Wm and Wt (layout in abaqus2smart_T)
  */
@@ -428,8 +458,8 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
     const int &ndi, const int &nshr, 
     const arma::vec &sigma, const arma::vec &statev_smart, const double &r, 
     const arma::vec &Wm, const arma::vec &Wt, 
-    const arma::mat &dSdE, const arma::mat &dSdT, 
-    const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom = true,
+    const arma::mat &dSdE, const arma::vec &dSdT,
+    const arma::vec &drpldE, const double &drpldT, const bool &nlgeom = true,
     const arma::vec &Etot_end = arma::vec());
 
 //=============================================================================

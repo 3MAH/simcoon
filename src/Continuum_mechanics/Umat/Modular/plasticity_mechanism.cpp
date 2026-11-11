@@ -27,6 +27,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Simulation/Maths/small_lu.hpp>
 #include <simcoon/parameter.hpp>
 #include <algorithm>
+#include <cstring>
 #include <limits>
 #include <stdexcept>
 
@@ -127,11 +128,11 @@ void PlasticityMechanism::register_variables() {
 
 arma::vec PlasticityMechanism::total_backstress_voigt() const {
     kin_hard_->compute_backstresses(ivc_, X_branches_);
-    tensor2 X_t = tensor2::zeros(Tensor2Type::stress);
-    for (const auto& x : X_branches_) {
-        X_t += x;
+    arma::vec::fixed<6> X(arma::fill::zeros);
+    for (arma::uword i = 0; i < X_branches_.n_cols; ++i) {
+        X += X_branches_.col(i);
     }
-    return X_t.to_arma_voigt();
+    return X;
 }
 
 double PlasticityMechanism::equivalent_stress(const arma::vec& sigma) const {
@@ -177,24 +178,20 @@ void PlasticityMechanism::compute_constraints(
 ) const {
     // Get internal variables
     double p = ivc_.at(p_index_).scalar();
+    hessian_valid_ = false;
 
     // X_i built once here and reused by hardening_modulus: valid within this FB iteration only
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {
-        kin_hard_->compute_backstresses(ivc_, X_branches_);
-        tensor2 X_t = tensor2::zeros(Tensor2Type::stress);
-        for (const auto& x : X_branches_) {
-            X_t += x;
-        }
-        const arma::vec sigma_eff = sigma - X_t.to_arma_voigt();
+        const arma::vec::fixed<6> sigma_eff = sigma - total_backstress_voigt();
         yield_->equivalent_stress_and_flow(sigma_eff, sigma_eq, flow_dir_);
     } else {
         yield_->equivalent_stress_and_flow(sigma, sigma_eq, flow_dir_);
     }
 
-    const double R = iso_hard_->R(p);
-    const double dR_dp = iso_hard_->dR_dp(p);
+    double R, dR_dp;
+    iso_hard_->R_and_dR(p, R, dR_dp);
 
     // Yield function: Phi = sigma_eq - R - sigma_Y
     Phi.set_size(1);
@@ -209,25 +206,25 @@ void PlasticityMechanism::compute_constraints(
         kappa_ = L * flow_dir_;
     }
     H_total_ = dR_dp + (has_kin
-        ? kin_hard_->hardening_modulus(strain(flow_dir_), X_branches_)
+        ? kin_hard_->hardening_modulus(flow_dir_, X_branches_)
         : 0.0);
 }
 
-const std::vector<tensor2>& PlasticityMechanism::dPhi_dsigma(
+const arma::mat& PlasticityMechanism::dPhi_dsigma(
     const arma::vec& /*sigma*/) const {
     // Requires compute_constraints to have been called this FB iteration.
-    dPhi_dsigma_cache_[0] = strain(flow_dir_);
-    return dPhi_dsigma_cache_;
+    dPhi_column_.col(0) = flow_dir_;
+    return dPhi_column_;
 }
 
-const std::vector<tensor2>& PlasticityMechanism::kappa(
+const arma::mat& PlasticityMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
     // kappa = L_ref · n, already computed by compute_constraints.
-    kappa_cache_[0] = stress(kappa_);
-    return kappa_cache_;
+    kappa_column_.col(0) = kappa_;
+    return kappa_column_;
 }
 
-const std::vector<tensor4>* PlasticityMechanism::dLambda_dsigma(
+const arma::mat* PlasticityMechanism::dLambda_dsigma(
     const arma::vec& sigma) const {
     if (!yield_->has_flow_hessian()) {
         return nullptr;
@@ -235,9 +232,10 @@ const std::vector<tensor4>* PlasticityMechanism::dLambda_dsigma(
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     const arma::vec sigma_eff =
         has_kin ? arma::vec(sigma - total_backstress_voigt()) : sigma;
-    hessian_cache_[0] =
-        tensor4(arma::mat(yield_->flow_hessian(sigma_eff)), Tensor4Type::compliance);
-    return &hessian_cache_;
+    hessian_eng_ = yield_->flow_hessian(sigma_eff);
+    hessian_at_ = sigma;
+    hessian_valid_ = true;
+    return &hessian_eng_;
 }
 
 bool PlasticityMechanism::supports_closest_point() const {
@@ -250,6 +248,7 @@ bool PlasticityMechanism::refresh_state(
     int offset) {
     const double dp = std::max(Ds_total(offset), 0.0);   // the integrator projects Ds >= 0 too
     const bool has_kin = kin_hard_->num_backstresses() > 0;
+    implicit_update_ = true;
 
     auto& p_var = ivc_.at(p_index_);
     p_var.scalar() = p_var.scalar_start() + dp;
@@ -266,11 +265,11 @@ bool PlasticityMechanism::refresh_state(
     } else {
         // Start = normal of the dp-relaxed start backstress: exact for von Mises (zero steps);
         // warm-starting from the previous normal measured worse (J2 pays real steps).
-        kin_hard_->refresh_state(dp, tensor2::zeros(Tensor2Type::strain), ivc_);   // alpha_i^n / (1 + D_i dp)
+        kin_hard_->refresh_state(dp, arma::vec::fixed<6>(arma::fill::zeros), ivc_);   // alpha_i^n / (1 + D_i dp)
         n = yield_->flow_direction(sigma - total_backstress_voigt());
         bool converged = false;
         for (int it = 0; it < 25; ++it) {
-            kin_hard_->refresh_state(dp, strain(n), ivc_);
+            kin_hard_->refresh_state(dp, n, ivc_);
             xi = sigma - total_backstress_voigt();
             arma::vec flow;
             yield_->equivalent_stress_flow_hessian(xi, sigma_eq, flow, H);
@@ -299,8 +298,9 @@ bool PlasticityMechanism::refresh_state(
 
     // Total derivatives at this state (class note in the header).
     ClosestPointIngredients& out = cpp_cache_[0];
-    const double dR_dp = iso_hard_->dR_dp(p_var.scalar());
-    out.Phi = sigma_eq - iso_hard_->R(p_var.scalar()) - sigma_Y_;
+    double R_p, dR_dp;
+    iso_hard_->R_and_dR(p_var.scalar(), R_p, dR_dp);
+    out.Phi = sigma_eq - R_p - sigma_Y_;
     out.Lambda = n;
     if (!has_kin) {
         out.dPhi_dsigma = n;
@@ -318,7 +318,7 @@ bool PlasticityMechanism::refresh_state(
     arma::vec::fixed<6> Tn;
     for (arma::uword i = 0; i < 6; ++i) Tn(i) = T_shear[i] * n(i);
     out.dLambda_dsigma = lu_A.solve(H);
-    out.dPhi_dsigma = n - gamma * (out.dLambda_dsigma.t() * Tn);
+    out.dPhi_dsigma = n - gamma * mul6_At(out.dLambda_dsigma, Tn);
     out.K = -arma::dot(Tn, lu_A.solve(beta)) - dR_dp;
     out.dLambda_dDs = -lu_A.solve(arma::vec(HT * beta));
     return true;
@@ -368,7 +368,7 @@ void PlasticityMechanism::compute_jacobian_contribution(
     B(row_offset, row_offset) = -dPhi_L_dPhi - H_total_;
 }
 
-arma::vec PlasticityMechanism::inelastic_strain() const {
+const arma::vec& PlasticityMechanism::inelastic_strain() const {
     return ivc_.at(EP_index_).raw_voigt();
 }
 
@@ -378,6 +378,7 @@ void PlasticityMechanism::update(
 ) {
     // projected onto Dp >= 0 (see update() in the header)
     double dp = ds(offset);
+    implicit_update_ = false;
     if (dp == 0.0) {
         return;   // the update below is exactly the identity for dp = 0
     }
@@ -395,7 +396,7 @@ void PlasticityMechanism::update(
     EP += dp * flow_dir_;
 
     // Update kinematic hardening variables
-    kin_hard_->update(dp, strain(flow_dir_), ivc_);
+    kin_hard_->update(dp, flow_dir_, ivc_);
 }
 
 void PlasticityMechanism::tangent_contribution(
@@ -446,24 +447,68 @@ void PlasticityMechanism::compute_work(
     }
     const arma::vec DEP = EP_var.delta_vec();
 
-    // Average stress during increment
-    arma::vec sigma_avg = 0.5 * (sigma_start + sigma);
-
-    // Dissipated work: sigma : dEP
-    Wm_d = arma::dot(sigma_avg, DEP);
-
-    // For kinematic hardening, part of the work is stored
-    // Stored work in backstress: X : dEP (approximately)
-    if (kin_hard_->num_backstresses() > 0) {
-        const arma::vec X = total_backstress_voigt();
-        Wm_ir = arma::dot(X, DEP);
-        Wm_d -= Wm_ir;
-    } else {
-        Wm_ir = 0.0;
-    }
+    // stored in the hardening: the trapezoids in p and in the back-strains
+    const double p_start = ivc_.at(p_index_).scalar_start(), p = ivc_.at(p_index_).scalar();
+    Wm_ir = 0.5 * (iso_hard_->R(p_start) + iso_hard_->R(p)) * Dp + kin_hard_->stored_increment(ivc_);
+    Wm_d = 0.5 * arma::dot(sigma_start + sigma, DEP) - Wm_ir;
 
     // Recoverable work (elastic) - handled by ModularUMAT
     Wm_r = 0.0;
+}
+
+void PlasticityMechanism::dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE,
+                                                  double& dDgamma_dT) const {
+    const double Dp = ivc_.at(p_index_).delta_scalar();
+    const arma::vec DEP = ivc_.at(EP_index_).delta_vec();
+    const double p_start = ivc_.at(p_index_).scalar_start(), p = ivc_.at(p_index_).scalar();
+
+    // the direction the update moved along (flow_dir_: the last compute_constraints), X_i at both ends
+    const int n_kin = kin_hard_->num_backstresses();
+    arma::mat X_i_start(6, n_kin), X_i(6, n_kin);
+    arma::vec::fixed<6> X_start(arma::fill::zeros), X(arma::fill::zeros);
+    for (int i = 0; i < n_kin; ++i) {
+        const InternalVariable& a = *kin_hard_->back_strain_variable(ivc_, i);
+        X_i_start.col(i) = kin_hard_->backstress_voigt(i, a.raw_voigt_start());
+        X_i.col(i) = kin_hard_->backstress_voigt(i, a.raw_voigt());
+        X_start += X_i_start.col(i);
+        X += X_i.col(i);
+    }
+    const arma::vec& Lambda = flow_dir_;
+
+    // d(Dgamma)/d(Dp) at fixed direction: the hardening forces A_p = -R, A_a = -X of the dedicated kernels
+    double R_p, dR_p;
+    iso_hard_->R_and_dR(p, R_p, dR_p);
+    double f_p = 0.5 * (arma::dot(in.sigma_start + in.sigma, Lambda) - iso_hard_->R(p_start) - R_p - dR_p * Dp);
+    double g_X = 0.0;
+    // turning of the direction over the increment on xi = sigma_eff - X, xi_{n+1} : dLambda/dxi = 0 (degree 0)
+    arma::vec g_turn(6, arma::fill::zeros);
+    if (Dp > 0.0 && yield_->has_flow_hessian()) {
+        // the Hessian of dLambda_dsigma when it was taken at this stress (one evaluation per increment)
+        const bool cached = hessian_valid_
+            && std::memcmp(hessian_at_.memptr(), in.sigma_eff.memptr(), 6 * sizeof(double)) == 0;
+        // H (sigma_n - X_n + sigma_n+1 - X_n+1), H xi_eff,n+1 = 0: the committed end contributes sigma - sigma_eff (zero without damage)
+        const arma::vec::fixed<6> dxi = (in.sigma_start - X_start) + (in.sigma - in.sigma_eff);
+        if (cached) {
+            g_turn = 0.5 * Dp * (hessian_eng_ * dxi);
+        } else {
+            g_turn = 0.5 * Dp * (yield_->flow_hessian(arma::vec(in.sigma_eff - X)) * dxi);
+        }
+    }
+    for (int i = 0; i < n_kin; ++i) {
+        const InternalVariable& a = *kin_hard_->back_strain_variable(ivc_, i);
+        const arma::vec Da = a.delta_vec();
+        // d alpha_{n+1} / d Dp at fixed direction: Lambda (Prager); with recovery, (Lambda - D alpha_{n+1}) / (1 + D Dp)
+        // of the backward-Euler update, the secant Da / Dp over the explicit cutting-plane iterates (measured: the
+        // consistent form of the last iterate is 5x worse there); the back stress follows the flow, dxi = dsigma_eff - X(Lambda) dDp
+        const double D_i = kin_hard_->recovery_parameter(i);
+        const arma::vec Lambda_i = (D_i == 0.0 || Dp <= 0.0) ? Lambda
+            : implicit_update_ ? arma::vec((Lambda - D_i * a.raw_voigt()) / (1.0 + D_i * Dp)) : arma::vec(Da / Dp);
+        const arma::vec X_i_of_Lambda = kin_hard_->backstress_voigt(i, Lambda_i);
+        f_p -= 0.5 * (arma::dot(X_i_start.col(i) + X_i.col(i), Lambda_i) + arma::dot(X_i_of_Lambda, Da));
+        g_X += arma::dot(g_turn, X_i_of_Lambda);
+    }
+    dDgamma_dE = 0.5 * mul6_At(in.dSdE, DEP) + (f_p - g_X) * in.P_epsilon.col(0) + mul6_At(in.dSdE_eff, g_turn);
+    dDgamma_dT = 0.5 * arma::dot(in.dSdT, DEP) + (f_p - g_X) * in.P_theta(0) + arma::dot(in.dSdT_eff, g_turn);
 }
 
 } // namespace simcoon

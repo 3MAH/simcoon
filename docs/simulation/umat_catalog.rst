@@ -2,7 +2,8 @@
 Constitutive model (UMAT) catalog
 ====================================
 
-Every constitutive law is selected by its 5-character ``umat_name``. Since the
+Every constitutive law is selected by its ``umat_name`` (five letters, or the ``_closed``
+name of a kept dedicated kernel). Since the
 modular UMAT framework, four kinds of implementation coexist behind those
 names — **the calling convention is identical for all of them** (same
 ``umat_name``, same props, same solver/FEA usage):
@@ -12,13 +13,17 @@ names — **the calling convention is identical for all of them** (same
 - **modular (adapter)**: a legacy name whose dedicated kernel was removed
   after its equivalence with a ``MODUL`` configuration was proven against the
   retained reference kernels — bit-identical for the elastic, power-law and
-  Hill families; within 2e-3 relative for the Voce/Chaboche families, whose
-  legacy incremental ``Hp`` update differs from the modular closed form
-  (tests in ``test_modular.py`` and ``Treference_umats``); a translator maps
+  Hill families and, since the modular engine runs the same cutting plane, for
+  the Voce/Chaboche families as well (tests in ``test_modular.py`` and
+  ``Treference_umats``); a translator maps
   the legacy props to the modular configuration at each call.
-- **legacy (kept)**: a dedicated, self-contained implementation kept either
-  for pedagogy (readable single-file reference of the CCP return mapping) or
-  because no modular equivalent exists.
+- **legacy (kept)**: a dedicated, self-contained implementation kept because
+  no modular equivalent exists.
+- **modular (adapter); ``NAME_closed`` runs the dedicated kernel**: the name
+  runs the modular engine; the dedicated closed-form kernel stays reachable
+  under the ``_closed`` suffix (benchmarks, comparisons, the readable
+  single-file reference of the CCP return mapping), on every route the plain
+  name takes (solver, ``sim.umat`` / ``sim.umat_T``, Abaqus ``CMNAME``).
 - **Python (external)**: the ``PYEXT`` name serves a law written in Python
   (:class:`simcoon.PythonUMAT`) through a registered callback; see :doc:`python_umat`.
 
@@ -51,24 +56,29 @@ Small-strain mechanical models
      -
    * - EPICP
      - Von Mises + power-law isotropic hardening
-     - legacy (kept)
+     - modular (adapter); ``EPICP_closed`` runs the dedicated kernel
      - E, nu, alpha, sigmaY, k, m
-     - Pedagogical reference of the CCP return mapping; the hardening goes
-       through the modular PowerLawHardening (C1 onset blend below p = 1e-6
-       for m < 1, exact above), as EPJCK
+     - The dedicated kernel (``EPICP_closed``, mechanical and thermomechanical)
+       is the pedagogical reference of the CCP return mapping with the
+       closed-form radial-return tangent, 1.3x faster than the generic
+       assembly of the modular engine; the hardening goes through the modular
+       PowerLawHardening (C1 onset blend below p = 1e-6 for m < 1, exact
+       above), as EPJCK
    * - EPKCP
      - Von Mises + power-law isotropic + Prager kinematic
      - modular (adapter)
      - E, nu, alpha, sigmaY, k, m, kX
-     - Legacy Prager writes X = kX·a; the modular twin uses X = (2/3)C·a,
-       i.e. C = 1.5·kX (handled by the adapter)
+     - The legacy kernel writes :math:`X = k_X a`, the modular twin
+       :math:`X = \tfrac{2}{3} C a`, i.e. :math:`C = 1.5 k_X` (handled by the adapter)
    * - EPCHA
      - Von Mises + Voce + 2x Armstrong-Frederick
-     - legacy (kept)
+     - modular (adapter); ``EPCHA_closed`` runs the dedicated kernel
      - E, nu, alpha, sigmaY, Q, b, C1, D1, C2, D2
-     - Pedagogical reference of kinematic hardening in CCP; the Voce term goes
-       through the modular VoceHardening (:math:`H_p = R(p)` in every mode,
-       ``statev[32]`` is its output), as EPCHG
+     - The dedicated kernel (``EPCHA_closed``) is the pedagogical reference of
+       kinematic hardening in CCP, the modular composition to round-off on a
+       cyclic path (same cutting plane); the modular statev are
+       ``[T_init, p, EP, a_1, a_2]`` (20, the back-strains), the back stresses
+       and ``H_p`` of the dedicated layout are not stored
    * - EPJCK
      - Von Mises + Johnson-Cook yield stress (power-law hardening x logarithmic
        strain-rate factor x thermal softening)
@@ -133,10 +143,13 @@ Small-strain mechanical models
        identical props layout (measured 86% response difference)
    * - PRONK
      - Generalized Maxwell (Prony series), N branches
-     - legacy (kept)
+     - modular (adapter); ``PRONK_closed`` runs the dedicated kernel
      - E0, nu0, alpha, N, then per branch: E_i, nu_i, etaB_i, etaS_i
-     - Pedagogical reference; the modular Viscoelasticity mechanism takes the
-       same closed-form step and is identical to it (round-off)
+     - The dedicated kernel (``PRONK_closed``, mechanical and thermomechanical)
+       is the pedagogical reference; the modular Viscoelasticity mechanism
+       takes the same closed-form step and is identical to it (round-off); the
+       modular statev are ``[T_init, (v_i, EV_i) x N]`` (1 + 7N), the total
+       viscous strain of the dedicated layout is not stored
    * - LLDM0
      - Ladevèze-Le Dantec damage of the unidirectional ply (d22, d12), plasticity in effective stress
      - legacy (kept)
@@ -150,7 +163,9 @@ Small-strain mechanical models
      - Also available under finite strain (NLGEOM control types 2-6), where
        the composition is a Hencky hyperelastic law on the logarithmic
        strain; requires ``corate_type = 3`` (log_R) — any other corate is
-       rejected with a ``RuntimeError`` (hyper/hypo consistency)
+       rejected with a ``RuntimeError`` (hyper/hypo consistency). Thermomechanical
+       twin with (rho, c_p) prepended: linear elasticity blocks, every
+       mechanism (:doc:`modular_python`)
 
 Shape memory alloys, finite strain, multiscale, plugins
 ========================================================
@@ -655,8 +670,9 @@ approximate (see the note on the scope of the algorithmic tangent in :doc:`solve
 
 **Closest-point coverage (2.2).** The closest-point integrator with its exact operator runs for
 ``MODUL`` rows whose criterion has a flow Hessian (von Mises, Hill, DFA, Ani; with every
-hardening law and a hyperelastic block), for the dedicated kernels ``EPICP``, ``EPCHA``,
-``EPICP`` / ``EPKCP`` thermomechanical, and for the SMA kernels ``SMADI`` / ``SMADC`` /
+hardening law and a hyperelastic block) and for the legacy names the modular engine serves,
+for the dedicated kernels ``EPICP_closed``, ``EPCHA_closed`` (``EPICP_closed`` / ``EPKCP_closed``
+thermomechanical), and for the SMA kernels ``SMADI`` / ``SMADC`` /
 ``SMAAI`` / ``SMAAC`` and ``SMRDI`` / ``SMRDC`` / ``SMRAI`` / ``SMRAC`` (analytic total
 derivatives through the mean transformation strain and the reorientation back-strain; about
 2x the cost of mode 2 per increment on a superelastic loop, 3x with the reorientation row,
@@ -682,9 +698,10 @@ by name, and the ``props`` stay those of the law.
 
 ``solve(..., ncp="min")`` or ``sim.umat(..., ncp="min")`` switches the complementarity function
 of the cutting plane from Fischer-Burmeister (``ncp="fischer_burmeister"``, the default, the
-historical results bit for bit) to the min function, the classic cutting-plane step. EPICP,
-EPKCP and ``MODUL`` read it, in their cutting plane. Any other law, a thermomechanical block, a
-mean-field model or the closest-point integrator raises ``ValueError`` for ``ncp="min"``.
+historical results bit for bit) to the min function, the classic cutting-plane step. The modular
+engine (``MODUL`` and the legacy names it serves, mechanical and thermomechanical) and
+``EPICP_closed`` read it, in their cutting plane. Any other law, a mean-field model or the
+closest-point integrator raises ``ValueError`` for ``ncp="min"``.
 
 **Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
 The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
@@ -790,7 +807,7 @@ rows are coupled (off-diagonal terms of :math:`B`) and keep Fischer-Burmeister.
      - no effect: Fischer-Burmeister is kept
    * - ``MODUL`` with an Armstrong-Frederick back stress
      - refused (``ValueError``), see above
-   * - any other law, a thermomechanical block, a mean-field model
+   * - any other law, any other thermomechanical block, a mean-field model
      - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
    * - ``integrator="closest_point"``
      - refused (``ValueError``): the closest-point integrator keeps Fischer-Burmeister
@@ -839,9 +856,8 @@ Each adapter-served name is validated at two levels:
   ``test/Libraries/Umat/reference_kernels/`` (compiled only into the
   ``Treference_umats`` gtest, never into ``libsimcoon``, not dispatchable by
   name). Every adapter is driven side by side with its reference kernel on a
-  cyclic strain path each test run — machine precision for the
-  elastic/power-law families, < 2e-3 for the Voce/Chaboche family (legacy
-  incremental vs modular closed-form Voce integration).
+  cyclic strain path each test run — machine precision for every family (the
+  Chaboche row of the gtest keeps a 2e-3 tolerance, measured at 4e-15).
 
 A benchmark row per family lives in ``benchmark/bench_legacy_vs_modular.py``:
 results show no measurable adapter overhead, and the modular

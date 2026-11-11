@@ -748,13 +748,12 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
-    const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
     // algorithmic clamped to continuum: the FD flow Hessian is near-singular on the plateau
     const int tangent_mode_eff = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point)
         ? tangent_continuum : tangent_mode;
     ct = compute_tangent_operator(
-        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
-        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+        tangent_mode_eff, Bhat, join_rows(kappa_j[0], kappa_j[1]), join_rows(dPhiFdsigma, dPhiRdsigma), Ds_j, L,
+        [&]() -> mat {  // lazy: evaluated only in algorithmic mode
             // Simo-Hughes: dLambda^F/dsigma by central FD + DM, dLambda^R/dsigma = -DM, ETMean held fixed
             auto lambdaTF_at = [&](const vec &s) -> vec {
                 return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
@@ -770,8 +769,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
                 dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
             }
             dLambdaF += DM;                       // d(DM*sigma)/dsigma (linear, exact)
-            const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
-            return dLambda_dsigma_l;
+            return join_rows(dLambdaF, -1. * DM);
         });
     }
     Lt = ct.Lt;

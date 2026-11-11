@@ -180,9 +180,11 @@ def test_voce_plasticity_runs_end_to_end(work_in_examples):
     assert 400.0 < peak < 500.0, f"Voce peak {peak:.1f} outside expected band"
 
 
-def test_viscoelastic_matches_pronk_reference(work_in_examples):
+@pytest.mark.parametrize("pronk", ["PRONK", "PRONK_closed"])
+def test_viscoelastic_matches_pronk_reference(work_in_examples, pronk):
     """MODUL with a Viscoelasticity mechanism must reproduce the reference
-    PRONK (Prony_Nfast) UMAT through the solver on a relaxation path.
+    PRONK (Prony_Nfast) UMAT through the solver on a relaxation path, under
+    its legacy name (the modular engine) and as the dedicated kernel.
 
     Regression for the consistent-tangent bug where tangent_contribution
     rebuilt K(i,i) without the -1/DTime term (Lt went singular and the
@@ -194,7 +196,7 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
 
     pronk_props = np.array([E0, nu0, 0.0, len(terms)]
                            + [x for t in terms for x in t])
-    ref = _run_case("PRONK", pronk_props, 7 + 7 * len(terms), "PRONK_path.json")
+    ref = _run_case(pronk, pronk_props, 7 + 7 * len(terms), "PRONK_path.json")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=E0, C2=nu0),
@@ -268,9 +270,11 @@ def test_tangent_mode_1_same_converged_response(work_in_examples):
     )
 
 
-def test_chaboche_matches_epcha_reference(work_in_examples):
+@pytest.mark.parametrize("epcha", ["EPCHA", "EPCHA_closed"])
+def test_chaboche_matches_epcha_reference(work_in_examples, epcha):
     """MODUL (Voce + 2-term Chaboche) must reproduce the reference EPCHA UMAT
-    through the solver on the cyclic path.
+    through the solver on the cyclic path, under its legacy name (the modular
+    engine) and as the dedicated kernel.
 
     Regression for the FB-Jacobian hardening-sign bug: B carried +H_total
     instead of -H_total (dPhi/dp = -H), a wrong Newton slope that made the FB
@@ -281,7 +285,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
     epcha_props = np.array([210000.0, 0.3, 0.0,
                             300.0, 200.0, 20.0,
                             30000.0, 172.0, 19500.0, 301.0])
-    ref = _run_case("EPCHA", epcha_props, 33, "MODUL_path.json")
+    ref = _run_case(epcha, epcha_props, 33, "MODUL_path.json")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
@@ -298,8 +302,9 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
     peak = np.max(np.abs(ref[:, 1]))
     max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
     assert peak > 500.0, "sanity: cyclic path reached the hardened regime"
-    assert max_diff / peak < 2e-3, (
-        f"MODUL Chaboche deviates from EPCHA by {max_diff/peak:.3%} "
+    # the same cutting plane: identical to round-off (the 2e-3 of the regression above is history)
+    assert max_diff / peak < 1e-10, (
+        f"MODUL Chaboche deviates from EPCHA by {max_diff/peak:.3e} "
         "(FB Jacobian sign regression?)"
     )
 
@@ -339,9 +344,10 @@ def test_hill_matches_ephil_reference(work_in_examples):
     )
 
 
-def test_chaboche_shear_matches_epcha_reference(work_in_examples):
+@pytest.mark.parametrize("epcha", ["EPCHA", "EPCHA_closed"])
+def test_chaboche_shear_matches_epcha_reference(work_in_examples, epcha):
     """MODUL Chaboche kinematic hardening under SHEAR loading must match the
-    reference EPCHA UMAT.
+    reference EPCHA UMAT, under its legacy name and as the dedicated kernel.
 
     Regression for the backstress convention bug: X = (2/3) C a is a
     stress-like tensor, but it was carried in the back-strain (engineering
@@ -354,7 +360,7 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
     # SHEAR_path.json drives E12 with all other components stress-free.
     ep = np.array([210000., 0.3, 0., 300., 0., 0., 30000., 300., 19500., 172.])
     # eps12, sig12
-    ref = _run_case("EPCHA", ep, 33, "SHEAR_path.json", cols=(11, 17))
+    ref = _run_case(epcha, ep, 33, "SHEAR_path.json", cols=(11, 17))
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000., C2=0.3),
@@ -812,10 +818,12 @@ def test_damage_driving_force_is_the_undamaged_energy():
     assert abs(wd[1] - exact) < 0.01 * exact
 
 
-@pytest.mark.parametrize("umat", ["ZENER", "ZENNK", "PRONK"])
+@pytest.mark.parametrize("umat", ["ZENER", "ZENNK", "PRONK", "PRONK_closed"])
 def test_viscoelastic_step_is_exact_backward_euler(umat):
     """The linear viscoelastic kernels take the closed-form implicit step: the stress is the
-    backward-Euler solution, and Lt its exact derivative (central differences)."""
+    backward-Euler solution, and Lt its exact derivative (central differences). The Prony case
+    runs under its legacy name (the modular engine, branch i at statev 1 + 7 i: v_i then EV_i)
+    and as the dedicated kernel (EV_i at 8 + 7 i)."""
     E0, nu0 = 3000., 0.35
     branches = [(1500., 0.35, 3000., 1200.), (800., 0.35, 30000., 12000.)]
     if umat == "ZENER":
@@ -824,6 +832,7 @@ def test_viscoelastic_step_is_exact_backward_euler(umat):
     else:
         props = np.array([E0, nu0, 0., len(branches)] + [x for b in branches for x in b])
         nstatev = 7 + 7 * len(branches)
+    ev_slot = 2 if umat == "PRONK" else 8
     L = lambda E, n: np.asarray(sim.L_iso([E, n], "Enu"))
     Hv = lambda b, s: np.asarray(sim.L_iso([b, s], "Kmu"))       # 3 etaB Ivol + 2 etaS Idev
     L0 = L(E0, nu0)
@@ -837,7 +846,7 @@ def test_viscoelastic_step_is_exact_backward_euler(umat):
         sig = L0 @ (eps_n - EVn[0])
     else:
         for i, e in enumerate(EVn):
-            sv[8 + 7 * i:14 + 7 * i] = e
+            sv[ev_slot + 7 * i:ev_slot + 6 + 7 * i] = e
         if umat == "ZENNK":
             sig = L0 @ (eps_n - sum(EVn))
         else:

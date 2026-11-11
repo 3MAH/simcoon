@@ -96,6 +96,18 @@ inline double mises_voigt(const double *v, Tensor2Type t, double *d) {
     return std::sqrt(mises_factor(t)*contract_voigt(d, d, voigt_shear_weight(t)));
 }
 
+/// Flow \f$ c\,\mathbf{x}/n \f$ of the Voigt 6-vector @p x with its shear entries scaled by @p shear (2 for a
+/// strain-like output of a stress-like @p x), zero at \f$ n \le 0 \f$: the kernel of eta_stress and of the
+/// fused von Mises flow of the modular yield criterion.
+inline arma::vec::fixed<6> flow_voigt(const double *x, const double n, const double c, const double shear) {
+    if (n <= 0.) return arma::vec::fixed<6>(arma::fill::zeros);
+    const double k = c/n;
+    arma::vec::fixed<6> eta;
+    for (int i=0; i<3; i++) eta[i] = k*x[i];
+    for (int i=3; i<6; i++) eta[i] = shear*k*x[i];
+    return eta;
+}
+
 /// tensor2::from_voigt(v, t).mat() on the stack, without the object; @p v must hold 6 values.
 inline arma::mat::fixed<3,3> voigt_to_mat(const arma::vec &v, Tensor2Type t) {
     if (v.n_elem != 6) {

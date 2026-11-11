@@ -72,8 +72,13 @@ private:
     std::vector<size_t> v_index_;       ///< ivc_ index of "v_<i>", resolved by register_variables
 
     // Per-iteration caches (CCP: frozen flow direction from previous iteration)
-    mutable std::vector<tensor2> kappa_t_;        ///< Zero fluxes: the rows carry no multiplier
+    arma::mat kappa_t_;                           ///< Zero fluxes (6 x N): the rows carry no multiplier
+    mutable arma::vec::fixed<6> EV_tilde_;        ///< inelastic_strain() buffer, valid for the branch strains of EV_at_
+    mutable std::vector<double> EV_at_;           ///< the EV_i (6 each) EV_tilde_ was summed from; empty: not yet
     arma::mat dEVtilde_dE_;                       ///< d(sum_i M_0 L_i EV_i)/d(eps), set by predict()
+    arma::mat map_;                               ///< I - dEVtilde_dE_, set by predict()
+    arma::vec alpha_;                             ///< Thermal expansion of the block (zero until set_thermal_expansion)
+    std::vector<arma::mat> dEVdE_i_;              ///< d(EV_i)/d(eps) per branch, set by predict()
 
 public:
     explicit ViscoelasticMechanism(int N_prony);
@@ -110,20 +115,33 @@ public:
     // depend on sigma, so dPhi_dsigma returns empty → no cross-mechanism
     // coupling inbound from stress. The mechanism still contributes kappa to
     // outbound stress perturbations seen by other mechanisms.
-    [[nodiscard]] const std::vector<tensor2>& kappa(
+    [[nodiscard]] const arma::mat& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref) const override;
 
-    [[nodiscard]] arma::vec inelastic_strain() const override;
+    [[nodiscard]] const arma::vec& inelastic_strain() const override;
 
     void update(
         const arma::vec& ds,
         int offset
     ) override;
 
-    [[nodiscard]] arma::mat total_strain_map() const override;
+    [[nodiscard]] const arma::mat& total_strain_map() const override;
     void predict(const arma::vec& E_total_end, double DTime) override;
+    /**
+     * @brief Derivatives of the viscous dissipation of the increment, the trapezoid
+     * \f$ \Delta\gamma = \sum_i \tfrac12 (\mathbf{A}_i^n + \mathbf{A}_i^{n+1}) : \Delta\mathbf{E}^v_i \f$ on the
+     * branch forces \f$ \mathbf{A}_i = \mathbf{L}_i (\boldsymbol{\varepsilon} - \mathbf{E}^v_i) \f$ (compute_work),
+     * exact for the backward-Euler branches (PRONK_T):
+     * \f$ \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} = \sum_i \tfrac12 [(\mathbf{L}_i(\mathbf{I} -
+     * \partial\mathbf{E}^v_i/\partial\boldsymbol{\varepsilon}))^T \Delta\mathbf{E}^v_i + (\partial\mathbf{E}^v_i/\partial\boldsymbol{\varepsilon})^T
+     * (\mathbf{A}_i^n + \mathbf{A}_i^{n+1})] \f$; every branch quantity depends on
+     * \f$ \boldsymbol{\varepsilon} - \boldsymbol{\alpha}\,\Delta\theta \f$ alone, so the temperature one is
+     * \f$ -\boldsymbol{\alpha} \cdot \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} \f$.
+     * The rows carry no multiplier: the multiplier sensitivities are not read.
+     */
+    void dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE, double& dDgamma_dT) const override;
 
     void tangent_contribution(
         const arma::vec& sigma,
@@ -157,6 +175,11 @@ public:
      * Called by ModularUMAT after the elasticity module is configured.
      */
     void set_reference_stiffness(const arma::mat& L_0);
+    /**
+     * @brief Thermal expansion of the block, for \f$ \partial\mathbf{E}^v_i/\partial\theta \f$ of the
+     * thermomechanical face. Called by ModularUMAT after the elasticity module is configured.
+     */
+    void set_thermal_expansion(const arma::vec& alpha);
 };
 
 } // namespace simcoon

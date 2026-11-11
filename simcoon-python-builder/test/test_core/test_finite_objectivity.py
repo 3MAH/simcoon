@@ -94,13 +94,25 @@ def test_stress_hold_under_spin(umat, control_type, corate):
 # ----- corate 4: the genuine convected (Truesdell / Oldroyd) rate --------------------------
 
 def test_epcha_refuses_truesdell():
-    """EPCHA stores X_i = 2/3 C_i a_i: the Truesdell rate convects a (strain) and X (stress)
-    differently and would pull the pair apart, so corate 4 is refused."""
+    """The dedicated EPCHA_closed stores X_i = 2/3 C_i a_i: the Truesdell rate convects a (strain)
+    and X (stress) differently and would pull the pair apart, so corate 4 is refused. The modular
+    composition stores the back-strains only and transports them."""
     props, nstatev, eps = _PLASTIC["EPCHA"]
     st = StepMeca(control="F", value=np.diag([np.exp(eps), 1., 1.]).ravel().tolist(), ninc=5)
     with pytest.raises(Exception, match="Truesdell"):
-        sim.solver.solve(Block(steps=[st], control_type="F"), "EPCHA", props, nstatev,
+        sim.solver.solve(Block(steps=[st], control_type="F"), "EPCHA_closed", props, nstatev,
                          T_init=290., corate=4)
+    sim.solver.solve(Block(steps=[st], control_type="F"), "EPCHA", props, nstatev, T_init=290., corate=4)
+
+
+@pytest.mark.parametrize("corate", [4, 5])
+def test_pronk_refuses_the_convected_rates(corate):
+    """PRONK (the modular engine, one block per branch) declares no tensorial statev layout: the
+    convected rates 4 and 5, which transport declared statev by variance, are refused by name."""
+    props = np.array([3000., 0.35, 0., 1, 1500., 0.35, 3000., 1200.])
+    st = StepMeca(control="F", value=np.diag([1.05, 1., 1.]).ravel().tolist(), ninc=5, time=1.)
+    with pytest.raises(Exception, match="declared"):
+        sim.solver.solve(Block(steps=[st], control_type="F"), "PRONK", props, 14, T_init=290., corate=corate)
 
 
 def _simple_shear(umat, props, ninc, corate=4, gamma=1.0):

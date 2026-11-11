@@ -36,10 +36,18 @@ namespace simcoon {
  */
 struct ContinuumTangent {
     arma::mat Lt;                       ///< Tangent operator \f$ \mathbf{L}_t \f$ (\f$ 6\times 6 \f$).
-    std::vector<arma::vec> P_epsilon;   ///< Per-mechanism strain sensitivity \f$ \mathbf{P}_\varepsilon^l \f$ (each 6).
+    arma::mat P_epsilon;                ///< Strain sensitivities \f$ \mathbf{P}_\varepsilon^l \f$, one column per mechanism (\f$ 6\times N_{\mathrm{mech}} \f$).
     arma::mat invBhat;                  ///< Active-set-masked inverse \f$ \hat{B}^{-1} \f$
                                         ///< (\f$ N_{\mathrm{mech}}\times N_{\mathrm{mech}} \f$), exposed for
                                         ///< thermomechanical UMATs that build \f$ \mathbf{P}_\theta \f$ downstream.
+    arma::mat::fixed<6, 6> L_tilde;     ///< Elastic operator the sensitivities are taken on: \f$ \mathbf{L} \f$ for the
+                                        ///< continuum assembly, \f$ \tilde{\mathbf{L}} = \mathbf{M}^{-1}\mathbf{L} \f$ for
+                                        ///< the algorithmic one, so a trial stress rate \f$ \mathbf{q} \f$ of another
+                                        ///< origin (thermal) enters the rows as \f$ \tilde{\mathbf{L}}\mathbf{L}^{-1}\mathbf{q} \f$
+                                        ///< and its flux as \f$ \tilde{\boldsymbol{\kappa}} \f$ below.
+    arma::mat kappa_tilde;              ///< \f$ \tilde{\boldsymbol{\kappa}} = \mathbf{M}^{-1}\boldsymbol{\kappa} \f$ of the
+                                        ///< algorithmic assembly (\f$ 6\times N_{\mathrm{mech}} \f$); empty when it is
+                                        ///< \f$ \boldsymbol{\kappa} \f$ itself (continuum assembly, no correction).
 };
 
 /**
@@ -78,17 +86,16 @@ struct ContinuumTangent {
  */
 ContinuumTangent assemble_continuum_tangent(
     const arma::mat& Bhat,
-    const std::vector<arma::vec>& kappa_j,
-    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::mat& kappa_j,
+    const arma::mat& dPhidsigma_l,
     const arma::vec& Ds_j,
     const arma::mat& L);
 
 /**
  * @brief Single-mechanism convenience overload.
  *
- * Forwards to the N-mechanism form with `{kappa}`, `{dPhidsigma}`, and the
- * scalar `Bhat`/`Ds` lifted to \f$1 \times 1\f$ / size-1 quantities. Removes the
- * `{ vec }` brace-init dance from the 9 single-mechanism UMAT call sites.
+ * The N-mechanism form with the scalar `Bhat`/`Ds` lifted to \f$1 \times 1\f$ / size-1
+ * quantities, without the \f$ 1 \times 1 \f$ inverse.
  */
 ContinuumTangent assemble_continuum_tangent(
     double Bhat_scalar,
@@ -161,21 +168,21 @@ ContinuumTangent assemble_continuum_tangent(
  *   i.e. the same quantity passed to @ref assemble_continuum_tangent. Do **not** pass an
  *   already-corrected algorithmic \f$ \tilde{B} \f$ — the routine builds \f$ \tilde{B} \f$
  *   internally and would double-correct, silently producing wrong tangents.
- * @param kappa_j          Per-mechanism flux \f$ \boldsymbol{\kappa}^j = \mathbf{L}\,\boldsymbol{\Lambda}_\varepsilon^j \f$ (each 6).
- * @param dPhidsigma_l     Per-mechanism criterion gradient \f$ \partial \Phi^l/\partial \boldsymbol{\sigma} \f$ (each 6).
+ * @param kappa_j          Fluxes \f$ \boldsymbol{\kappa}^j = \mathbf{L}\,\boldsymbol{\Lambda}_\varepsilon^j \f$, one column per mechanism (\f$ 6\times N \f$).
+ * @param dPhidsigma_l     Criterion gradients \f$ \partial \Phi^l/\partial \boldsymbol{\sigma} \f$, one column per criterion (\f$ 6\times N \f$).
  * @param Ds_j             Per-mechanism increment \f$ \Delta s^j \f$ over the step.
  * @param L                Elastic stiffness \f$ \mathbf{L} \f$ (\f$ 6\times 6 \f$).
- * @param dLambda_dsigma_l Per-mechanism \f$ \partial \boldsymbol{\Lambda}_\varepsilon^j/\partial \boldsymbol{\sigma} \f$
- *   (each \f$ 6\times 6 \f$). Pass a zero matrix where the direction is independent of
- *   \f$ \boldsymbol{\sigma} \f$ (the algorithmic correction degenerates to the continuum tangent there).
+ * @param dLambda_dsigma_l \f$ \partial \boldsymbol{\Lambda}_\varepsilon^j/\partial \boldsymbol{\sigma} \f$ of every mechanism side by
+ *   side, columns \f$ 6j..6j+5 \f$ for mechanism \f$ j \f$ (\f$ 6\times 6N \f$). Pass a zero block where the direction
+ *   is independent of \f$ \boldsymbol{\sigma} \f$ (the algorithmic correction degenerates to the continuum tangent there).
  */
 ContinuumTangent assemble_algorithmic_tangent(
     const arma::mat& Bhat_continuum,
-    const std::vector<arma::vec>& kappa_j,
-    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::mat& kappa_j,
+    const arma::mat& dPhidsigma_l,
     const arma::vec& Ds_j,
     const arma::mat& L,
-    const std::vector<arma::mat>& dLambda_dsigma_l);
+    const arma::mat& dLambda_dsigma_l);
 
 /**
  * @brief Single-mechanism convenience overload for the algorithmic tangent.
@@ -189,13 +196,14 @@ ContinuumTangent assemble_algorithmic_tangent(
     const arma::mat& dLambda_dsigma);
 
 /**
- * @brief Lazy per-mechanism Hessian provider for compute_tangent_operator().
+ * @brief Lazy Hessian provider for compute_tangent_operator(): the \f$ 6\times 6N \f$ matrix of the
+ * per-mechanism Hessians side by side (assemble_algorithmic_tangent()).
  *
  * Invoked ONLY when the algorithmic operator is requested — expensive Hessians
  * (e.g. the SMA finite-difference \f$ \partial \boldsymbol{\Lambda}/\partial
  * \boldsymbol{\sigma} \f$) must not be evaluated in the other modes.
  */
-using HessianProvider = std::function<std::vector<arma::mat>()>;
+using HessianProvider = std::function<arma::mat()>;
 
 // NOTE: only the iterative (plasticity/SMA/thermomechanical) kernels dispatch
 // on tangent_mode. The finite-strain hyperelastic, linear viscoelastic, damage
@@ -207,8 +215,8 @@ using HessianProvider = std::function<std::vector<arma::mat>()>;
  * point UMATs call after their return mapping, keeping only the physical
  * inputs at the call site.
  *
- * - @c tangent_none: no assembly; returns { Lt = L, per-mechanism zero
- *   P_epsilon, zero invBhat } so downstream thermomechanical algebra
+ * - @c tangent_none: no assembly; returns { Lt = L, zero P_epsilon
+ *   (\f$ 6\times N \f$), zero invBhat } so downstream thermomechanical algebra
  *   (P_theta from P_epsilon/invBhat) degrades consistently to the elastic
  *   operator (explicit integration).
  * - @c tangent_continuum: assemble_continuum_tangent().
@@ -222,17 +230,17 @@ using HessianProvider = std::function<std::vector<arma::mat>()>;
  *
  * @param tangent_mode One of the tangent_* constants (parameter.hpp)
  * @param Bhat Local Jacobian (N x N), as in assemble_continuum_tangent
- * @param kappa_j Flux directions (N x 6-vector)
- * @param dPhidsigma_l Criterion gradients (N x 6-vector)
+ * @param kappa_j Flux directions (6 x N, one column per mechanism; a vec for N = 1)
+ * @param dPhidsigma_l Criterion gradients (6 x N)
  * @param Ds_j Multiplier increments (active-set mask, N)
  * @param L Elastic stiffness (6 x 6)
- * @param dLambda_dsigma Lazy provider of the per-mechanism flow Hessians
+ * @param dLambda_dsigma Lazy provider of the flow Hessians (6 x 6N)
  */
 ContinuumTangent compute_tangent_operator(
     int tangent_mode,
     const arma::mat& Bhat,
-    const std::vector<arma::vec>& kappa_j,
-    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::mat& kappa_j,
+    const arma::mat& dPhidsigma_l,
     const arma::vec& Ds_j,
     const arma::mat& L,
     const HessianProvider& dLambda_dsigma = nullptr);
@@ -278,11 +286,11 @@ ContinuumTangent compute_tangent_operator(
  * @param deta_dT \f$ \partial\eta_{n+1}/\partial\theta \f$
  * @param T1 temperature at the end of the increment, \f$ \theta_{n+1} \f$
  * @param[out] r heat of the increment \f$ R \f$ (MPa, i.e. MJ/m\f$^3\f$)
- * @param[out] drdE \f$ \partial R/\partial\boldsymbol{\varepsilon} \f$ (6x1, the thermomechanical UMAT layout)
- * @param[out] drdT \f$ \partial R/\partial\theta \f$ (1x1)
+ * @param[out] drdE \f$ \partial R/\partial\boldsymbol{\varepsilon} \f$ (6)
+ * @param[out] drdT \f$ \partial R/\partial\theta \f$
  */
 void heat_source_increment(const double &Dgamma, const arma::vec &dDgamma_dE, const double &dDgamma_dT,
                            const double &Deta, const arma::vec &deta_dE, const double &deta_dT,
-                           const double &T1, double &r, arma::mat &drdE, arma::mat &drdT);
+                           const double &T1, double &r, arma::vec &drdE, double &drdT);
 
 } // namespace simcoon

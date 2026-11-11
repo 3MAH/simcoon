@@ -307,14 +307,14 @@ TEST(Ttangent_EPJCK, dissipation_is_non_negative_at_high_temperature)
 // the softening is active.
 // ---------------------------------------------------------------------
 namespace {
-struct OutT { vec sigma; double r; mat dSdE; mat dSdT; mat drdE; mat drdT; vec statev; double Wt_ir; };
+struct OutT { vec sigma; double r; mat dSdE; vec dSdT; vec drdE; double drdT; vec statev; double Wt_ir; };
 OutT run_epjck_T(const vec &DEtot, double DTime, double T, double DT, int tangent_mode) {
     vec props_T(13);
     props_T(0) = 7.85e-9; props_T(1) = 4.75e8;   // t/mm^3, mJ/(t K)
     props_T.subvec(2, 12) = JC_PROPS;
     vec Etot = zeros(6), statev = zeros(9), sigma = zeros(6);
     double r = 0.;
-    mat dSdE = zeros(6, 6), dSdT = zeros(6, 1), drdE = zeros(6, 1), drdT = zeros(1, 1);
+    mat dSdE = zeros(6, 6); vec dSdT = zeros(6), drdE = zeros(6); double drdT = 0.;
     mat DR = eye(3, 3);
     double Wm = 0., Wm_r = 0., Wm_ir = 0., Wm_d = 0., Wt = 0., Wt_r = 0., Wt_ir = 0., tnew_dt = 1.;
     umat_plasticity_johnson_cook_CCP_T(Etot, DEtot, sigma, r, dSdE, dSdT, drdE, drdT, DR, 13, props_T,
@@ -333,7 +333,7 @@ TEST(Ttangent_EPJCK, thermomechanical_dSdT_is_the_temperature_derivative)
         ASSERT_GT(o.statev(1), simcoon::iota);
         const vec fd = (run_epjck_T(DEPS_YIELD, DTime, T, h, mode).sigma
                       - run_epjck_T(DEPS_YIELD, DTime, T, -h, mode).sigma) / (2. * h);
-        EXPECT_LT(norm(o.dSdT.col(0) - fd, 2), 1.e-4 * norm(fd, 2)) << "mode " << mode;
+        EXPECT_LT(norm(o.dSdT - fd, 2), 1.e-4 * norm(fd, 2)) << "mode " << mode;
         EXPECT_GT(o.Wt_ir, 0.) << "the softened stored energy carries an entropy";
     }
 }
@@ -356,7 +356,7 @@ TEST(Ttangent_EPJCK, thermomechanical_twin_matches_mechanical_block)
 
     vec Etot = zeros(6), statev = zeros(9), sigma = zeros(6);
     double r = 0.;
-    mat dSdE = zeros(6, 6), dSdT = zeros(6, 1), drdE = zeros(6, 1), drdT = zeros(1, 1);
+    mat dSdE = zeros(6, 6); vec dSdT = zeros(6), drdE = zeros(6); double drdT = 0.;
     mat DR = eye(3, 3);
     double Wm = 0., Wm_r = 0., Wm_ir = 0., Wm_d = 0., Wt = 0., Wt_r = 0., Wt_ir = 0.;
     double tnew_dt = 1.;
@@ -375,7 +375,7 @@ TEST(Ttangent_EPJCK, thermomechanical_twin_matches_mechanical_block)
     const vec alpha = JC_PROPS(2) * Ith();
     const vec dSdT_el = -L * alpha;
     // flow direction ~ sigma', so the softening term kappa P_theta reduces sigma_11 further
-    EXPECT_LT(dSdT(0, 0), dSdT_el(0));
+    EXPECT_LT(dSdT(0), dSdT_el(0));
 }
 
 // The softening T*^m is singular in curvature at T* = 0 for m < 2 (and in slope for m < 1): below

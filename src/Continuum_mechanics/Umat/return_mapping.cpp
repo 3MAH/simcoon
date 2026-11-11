@@ -80,6 +80,8 @@ ReturnMappingResult closest_point_return_mapping(
     // Elastic block: Lc is its tangent at the iterate (the given L for a linear block).
     mat Lc = L;
     const bool nonlinear_block = static_cast<bool>(hooks.elastic_response);
+    vec::fixed<6> eps_el;
+    vec sigma_F;
     // criterion gradients only at the Newton top (eval_gradients): with FD callbacks each is a full state re-solve
     auto eval_basic = [&](const vec &sig, const vec &Dl) {
         for (int j = 0; j < N; j++) {
@@ -87,9 +89,8 @@ ReturnMappingResult closest_point_return_mapping(
             Lambda_j[j] = mechanisms[j].Lambda ? mechanisms[j].Lambda(sig) : mechanisms[j].dPhi_dsigma(sig);
         }
         if (nonlinear_block) {
-            vec eps_el = hooks.eps_el_tr;
+            eps_el = hooks.eps_el_tr;
             for (int j = 0; j < N; j++) eps_el -= Dl(j) * Lambda_j[j];
-            vec sigma_F;
             hooks.elastic_response(eps_el, sigma_F, Lc);
             R_sigma = sig - sigma_F;
             for (int j = 0; j < N; j++) kappa[j] = Lc * Lambda_j[j];
@@ -111,15 +112,18 @@ ReturnMappingResult closest_point_return_mapping(
 
     // Tangent ingredients at the converged iterate from the pieces the Newton just built
     // (kappa_eff = kappa + c: the multiplier-side state chain enters through the flux).
-    auto fill_tangent_pieces = [&](const mat &K, std::vector<mat> &&D, const std::vector<vec> &c) {
+    auto fill_tangent_pieces = [&](const mat &K, const std::vector<mat> &D, const std::vector<vec> &c) {
         r.Bhat_continuum.set_size(N, N);
-        r.kappa_j.assign(kappa.begin(), kappa.end());
-        for (int j = 0; j < N; j++) r.kappa_j[j] += c[j];
-        r.dPhidsigma_l.assign(n_l.begin(), n_l.end());
-        r.dLambda_dsigma_l = std::move(D);
-        for (int l = 0; l < N; l++) {
-            for (int j = 0; j < N; j++) {
-                r.Bhat_continuum(l, j) = sum(n_l[l] % r.kappa_j[j]) - K(l, j);
+        r.kappa_j.set_size(6, N);
+        r.dPhidsigma_l.set_size(6, N);
+        r.dLambda_dsigma_l.set_size(6, 6 * N);
+        for (int j = 0; j < N; j++) {
+            const vec kappa_c = kappa[j] + c[j];
+            r.kappa_j.col(j) = kappa_c;
+            r.dPhidsigma_l.col(j) = n_l[j];
+            r.dLambda_dsigma_l.cols(6 * j, 6 * j + 5) = D[j];
+            for (int l = 0; l < N; l++) {
+                r.Bhat_continuum(l, j) = sum(n_l[l] % kappa_c) - K(l, j);
             }
         }
     };
@@ -140,6 +144,10 @@ ReturnMappingResult closest_point_return_mapping(
     std::vector<vec> Minv_kc(N, zeros(6));   // M^-1 (kappa_j + c_j), for B_red and the stress step
     mat::fixed<6,6> M;
     small_lu<6> lu_M;
+    vec Phi_red(N), dDl(N), Dl_old(N), Dl_fb, dDl_a;
+    mat B_red(N, N);
+    vec::fixed<6> MinvR, dsigma, sigma_old;
+    uvec active(N);
 
     for (r.niter = 0; r.niter < maxiter; r.niter++) {
 
@@ -164,13 +172,12 @@ ReturnMappingResult closest_point_return_mapping(
             for (int j = 0; j < N && j < int(dLambda.size()); j++) c[j] = Lc * dLambda[j];
         }
 
-        const vec MinvR = lu_M.solve(R_sigma);
+        MinvR = R_sigma;
+        lu_M.solve_in_place(MinvR.memptr());
         for (int j = 0; j < N; j++) {
             Minv_kc[j] = kappa[j] + c[j];
             lu_M.solve_in_place(Minv_kc[j].memptr());
         }
-        vec Phi_red(N);
-        mat B_red(N, N);
         for (int l = 0; l < N; l++) {
             Phi_red(l) = Phi(l) - sum(n_l[l] % MinvR);
             for (int j = 0; j < N; j++) {
@@ -184,42 +191,47 @@ ReturnMappingResult closest_point_return_mapping(
         r.error_history.push_back(err);
         r.error = err;
         if (err < precision) {
-            fill_tangent_pieces(K, std::move(D_j), c);
+            fill_tangent_pieces(K, D_j, c);
             r.converged = true;
             return r;
         }
 
         // active set excludes rows with Phi < 0, no multiplier and a vanishing diagonal (zero FB row, singular solve)
-        const uvec active = find((Phi >= 0.) + (r.Dlambda > 0.) + (abs(B_red.diag()) >= simcoon::iota));
-        vec dDl = zeros(N);
-        if (active.n_elem > 0) {
-            vec Dl_fb = r.Dlambda(active);
-            vec dDl_a(active.n_elem);
+        uword n_active = 0;
+        for (int l = 0; l < N; l++) {
+            if (Phi(l) >= 0. || r.Dlambda(l) > 0. || std::abs(B_red(l, l)) >= simcoon::iota) active(n_active++) = l;
+        }
+        dDl.zeros();
+        if (n_active > 0) {
             double err_fb_unused = 0.;
             try {
-                if (int(active.n_elem) == N) {   // every row active: no gather
+                if (int(n_active) == N) {   // every row active: no gather
+                    Dl_fb = r.Dlambda;
                     Fischer_Burmeister_m(Phi_red, Y_crit, B_red, Dl_fb, dDl, err_fb_unused);
                 } else {
-                    Fischer_Burmeister_m(Phi_red(active), Y_crit(active), B_red(active, active), Dl_fb, dDl_a, err_fb_unused);
-                    dDl(active) = dDl_a;
+                    const uvec act = active.head(n_active);
+                    Dl_fb = r.Dlambda(act);
+                    dDl_a.set_size(n_active);
+                    Fischer_Burmeister_m(Phi_red(act), Y_crit(act), B_red(act, act), Dl_fb, dDl_a, err_fb_unused);
+                    dDl(act) = dDl_a;
                 }
             } catch (const std::exception &) {
                 return r;   // LAPACK failure on the reduced system: non-convergence, the caller step-cuts
             }
         }
 
-        vec dsigma = -MinvR;
+        dsigma = -MinvR;
         for (int j = 0; j < N; j++) dsigma -= dDl(j) * Minv_kc[j];
 
         // Backtracking on the merit: semi-smooth iterations are locally non-monotone, so the
         // step is halved only when the merit grows by more than x2.
-        const vec sigma_old = r.sigma;
-        const vec Dl_old = r.Dlambda;
+        sigma_old = r.sigma;
+        Dl_old = r.Dlambda;
         double scale = 1.;
         int bt = 0;
         while (true) {
             r.sigma = sigma_old + scale * dsigma;
-            r.Dlambda = clamp(Dl_old + scale * dDl, 0., datum::inf);
+            for (int l = 0; l < N; l++) r.Dlambda(l) = std::max(Dl_old(l) + scale * dDl(l), 0.);   // clamp at 0
             // Deactivation snap (see the header): exact inactivity for a row hovering at the
             // complementarity boundary, gated on a stalled iteration.
             if (r.niter >= snap_niter) {
@@ -314,14 +326,15 @@ bool cutting_plane_return_mapping(
 }
 
 ContinuumTangent cpp_consistent_tangent(const ReturnMappingResult &r, const mat &L) {
-    if (!r.converged || r.kappa_j.empty()) {
+    if (!r.converged || r.kappa_j.is_empty()) {
         // Precondition not met: elastic operator as a sized placeholder (thermomechanical
         // callers read P_epsilon[l] unconditionally on the step-cut path).
         ContinuumTangent ct;
         ct.Lt = L;
+        ct.L_tilde = L;
         const uword Nm = std::max(r.Dlambda.n_elem, uword(1));
         ct.invBhat = zeros(Nm, Nm);
-        ct.P_epsilon.assign(Nm, zeros(6));
+        ct.P_epsilon.zeros(6, Nm);
         return ct;
     }
     return assemble_algorithmic_tangent(r.Bhat_continuum, r.kappa_j, r.dPhidsigma_l,

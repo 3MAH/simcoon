@@ -872,6 +872,57 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
     return dW;
 }
 
+double hyper_potential_energy(const HyperPotential &potential, const vec &props, const vec &I_bar, const std::vector<mat> &A) {
+    const double x1 = I_bar(0) - 3., x2 = I_bar(1) - 3.;
+    switch (potential) {
+        case HyperPotential::NEOHC:
+            require_props(props, 2, "NEOHC");
+            return 0.5*props(0)*x1;
+        case HyperPotential::MOORI:
+            require_props(props, 3, "MOORI");
+            return props(0)*x1 + props(1)*x2;
+        case HyperPotential::YEOHH:
+            require_props(props, 4, "YEOHH");
+            return props(0)*x1 + props(1)*x1*x1 + props(2)*x1*x1*x1;
+        case HyperPotential::ISHAH:
+            require_props(props, 4, "ISHAH");
+            return props(0)*x1 + props(1)*x1*x1 + props(2)*x2;
+        case HyperPotential::GETHH:
+            require_props(props, 3, "GETHH");
+            return props(0)*x1 + ((fabs(I_bar(1)) > simcoon::iota) ? props(1)*log(I_bar(1)/3.) : 0.);
+        case HyperPotential::SWANH: {
+            require_props(props, 2, "SWANH");
+            const int N_Swanson = int(props(0));
+            require_props(props, 2 + 4*std::max(N_Swanson, 0), "SWANH");
+            double W = 0.;
+            for (int i = 0; i < N_Swanson; i++) {
+                const double A_i = props(2+i*4), B_i = props(2+i*4+1), alpha = props(2+i*4+2), beta = props(2+i*4+3);
+                W += 1.5*A_i/(1. + alpha)*(pow(I_bar(0)/3., 1. + alpha) - 1.) + 1.5*B_i/(1. + beta)*(pow(I_bar(1)/3., 1. + beta) - 1.);
+            }
+            return W;
+        }
+        case HyperPotential::HOLZA: {
+            require_props(props, 5, "HOLZA");
+            const double k_1 = props(1), k_2 = props(2);
+            const uword n_fam = uword(std::lround(props(4)));
+            if (A.size() != n_fam) {
+                throw std::invalid_argument("HOLZA: " + std::to_string(A.size()) + " structure tensors for "
+                                            + std::to_string(n_fam) + " fibre families (see structure_tensors_push_forward)");
+            }
+            double W = props(0)*x1;
+            for (uword i = 0; i < n_fam; i++) {
+                const double E_bar = trace(A[i]) - 1.;
+                if (E_bar <= simcoon::iota) continue;   // same switch and guard as the derivatives
+                W += k_1/(2.*k_2)*(exp(std::min(k_2*E_bar*E_bar, 350.)) - 1.);
+            }
+            return W;
+        }
+        default:
+            throw std::invalid_argument("hyper_potential_energy: unknown potential "
+                                        + std::to_string(static_cast<int>(potential)));
+    }
+}
+
 void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, const int &corate_type, vec &tau, mat &Lt_box, const std::vector<mat> &A) {
 
     if (A.size() != dW.dWdI_a_bar.n_elem || A.size() != dW.dW2dI_aa_bar.n_elem) {

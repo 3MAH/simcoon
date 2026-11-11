@@ -115,6 +115,13 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
     throw py::error_already_set();
 }
 
+// NCPMethod code of the ncp name of sim.umat / sim.umat_T
+int ncp_code(const std::string &name, const char *entry) {
+	if (name != "fischer_burmeister" && name != "min")
+		throw std::invalid_argument(std::string(entry) + ": ncp must be 'fischer_burmeister' or 'min'; got '" + name + "'");
+	return (name == "min") ? 1 : 0;
+}
+
 // Integrator code of the integrator name of sim.umat / sim.umat_T
 int integrator_code(const std::string &name) {
 	if (name == "cutting_plane") return simcoon::integrator_cutting_plane;
@@ -157,26 +164,6 @@ simcoon::condensed_state batch_stress_state(const int &ndi, const std::optional<
 	nshr = nshr_py.value_or(simcoon::default_nshr(ndi));
 	return simcoon::make_condensed_state(ndi, nshr);
 }
-
-// Deformation gradient of a condensed finite-strain point. The caller's F holds the rotation and
-// the kept stretches only: F = exp(ln V) R with ln V on the free components replaced by the strain
-// state, etot at the start of the increment, etot + Detot_pt at its end
-struct condensed_F {
-	arma::vec lnV;
-	arma::mat R;
-	explicit condensed_F(const arma::mat &F) {
-		arma::mat V;
-		simcoon::VR_decomposition(V, R, F);
-		lnV = simcoon::t2v_strain(arma::logmat_sympd(V));
-	}
-	arma::mat operator()(const simcoon::condensed_state &cs, const arma::vec &e) const {
-		arma::vec l = lnV;
-		l(cs.C) = e(cs.C);
-		return simcoon::eR_to_F(simcoon::v2t_strain(l), R);
-	}
-	// the total form: the strain state is the whole H = ln U, F = R exp(H)
-	arma::mat total(const arma::vec &H) const { return R*arma::expmat_sym(simcoon::v2t_strain(H)); }
-};
 
 // condense = 'spatial_face': the stress the law returns vanishes on the free set (tau_hat_C under the
 // rate form, T_C under the total one: the face of current normal R e_3), Newton with the law's own tangent. 'material_face': the second
@@ -261,9 +248,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
 		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
 		// ncp: complementarity function of the local cutting plane, by name (NCPMethod)
-		if (ncp_name != "fischer_burmeister" && ncp_name != "min")
-			throw std::invalid_argument("umat: ncp must be 'fischer_burmeister' or 'min'; got '" + ncp_name + "'");
-		const int ncp = (ncp_name == "min") ? 1 : 0;
+		const int ncp = ncp_code(ncp_name, "umat");
 		simcoon::check_ncp_serves(umat_name_py, ncp, false, tangent_mode);
 		simcoon::check_integrator_serves(umat_name_py, tangent_mode, false);
 		// kinematic_form and corate (its former name) are one value; the dispatch carries the
@@ -287,7 +272,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			throw std::invalid_argument("tangent_output must be 'box', 'material' or 'spatial'; got '" + tangent_output + "'");
 		}
 		const int tangent_out = it_tangent_out->second;
-		static const std::map<string, int> list_umat = { {"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"HOLZA",27},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"EPJCK",33},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
+		static const std::map<string, int> list_umat = { {"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",201},{"EPICP_closed",5},{"EPKCP",201},{"EPCHA",201},{"EPCHA_closed",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",201},{"PRONK_closed",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"HOLZA",27},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"EPJCK",33},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
 		// guarded lookup (serial context): an unknown name throws here, outside the parallel region
 		const auto it_umat = list_umat.find(umat_name_py);
 		if (it_umat == list_umat.end()) {
@@ -595,11 +580,11 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			mat F1_pt = !have_F1 ? mat() : cs.active() ? mat(F1_s) : simcoon::slice_view(F1, pt);
 			const bool rebuild_F = cs.active() && have_F0 && have_F1
 			                       && (total || arguments_type == 2 || !arma::approx_equal(F0_s, F1_s, "absdiff", 0.));
-			std::optional<condensed_F> F1_of;
-			auto F_at = [&](const condensed_F &Fc, const vec &e) { return total ? Fc.total(e) : Fc(cs, e); };
+			std::optional<simcoon::condensed_F> F1_of;
+			auto F_at = [&](const simcoon::condensed_F &Fc, const vec &e) { return total ? Fc.total(e) : Fc(cs, e); };
 			if (rebuild_F) {
 				try {   // no throw in the parallel region: a degenerate F is a step-cut request
-					F0_pt = F_at(condensed_F(F0_s), etot);
+					F0_pt = F_at(simcoon::condensed_F(F0_s), etot);
 					F1_of.emplace(F1_s);
 				}
 				catch (const std::exception &) {
@@ -782,7 +767,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode_py, const std::optional<bool> &start_py, const std::optional<py::array_t<double>> &F0_py, const std::optional<py::array_t<double>> &F1_py, const py::object &kinematic_form_py, const std::string &condense, const std::string &tangent_output, const std::string &integrator_py){
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode_py, const std::optional<bool> &start_py, const std::optional<py::array_t<double>> &F0_py, const std::optional<py::array_t<double>> &F1_py, const py::object &kinematic_form_py, const std::string &condense, const std::string &tangent_output, const std::string &integrator_py, const std::string &ncp_name){
 		// Point-wise thermomechanical UMAT batch entry, mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
@@ -790,19 +775,19 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
 		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
+		const int ncp = ncp_code(ncp_name, "umat_T");
+		simcoon::check_ncp_serves(umat_name_py, ncp, true, tangent_mode);
 		simcoon::check_integrator_serves(umat_name_py, tangent_mode, true);
-		static const std::map<string, int> list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10} };
-		auto it_umat = list_umat.find(umat_name_py);
-		if (it_umat == list_umat.end()) {
+		const int id_umat = simcoon::thermo_umat_id(umat_name_py);   // the dispatch map of select_umat_T
+		if (id_umat < 0) {
 			throw std::invalid_argument("The choice of thermomechanical Umat could not be found in the umat library: " + umat_name_py);
 		}
-		int id_umat = it_umat->second;
 		int arguments_type; //depends on the argument used in the umat
 
 		// Unified thermomechanical function pointer: (Etot, DEtot, sigma, r, dSdE, dSdT, drdE, drdT, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir, ndi, nshr, start, tnew_dt, tangent_mode)
-		void (*umat_function)(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
+		void (*umat_function)(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
 		// SMA family variant carrying the umat_name as leading argument
-		void (*umat_function_named)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
+		void (*umat_function_named)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
 
 		const int ncomp = 6;
 		int nshr;
@@ -894,9 +879,9 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		}
 		vec list_r(nb_points, fill::zeros);
 		cube dSdE(ncomp, ncomp, nb_points);
-		cube dSdT(ncomp, 1, nb_points);
-		cube drdE(ncomp, 1, nb_points); //T UMATs write drdE as a (6,1) column (e.g. drdE = zeros(6))
-		cube drdT(1, 1, nb_points);
+		mat dSdT(ncomp, nb_points);
+		mat drdE(ncomp, nb_points);
+		vec drdT(nb_points);
 		int nprops = list_props.n_rows;
 		int nstatev = list_statev.n_rows;
 
@@ -951,6 +936,14 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				arguments_type = 2;
 				break;
 			}
+			case 200: {
+				arguments_type = 3;   // the modular face, props [rho, c_p, stream]
+				break;
+			}
+			case 201: {
+				arguments_type = 4;   // legacy names served by the modular face (legacy_adapters.cpp)
+				break;
+			}
 			default: {
 				throw std::invalid_argument( "The choice of thermomechanical Umat could not be found in the umat library." );
 			}
@@ -975,18 +968,19 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			double tnew_dt_pt = 1.;
 
 			// slice aliases, as launch_umat
-			mat dSdE_s = simcoon::slice_view(dSdE, pt), dSdT_s = simcoon::slice_view(dSdT, pt);
-			mat drdE_s = simcoon::slice_view(drdE, pt), drdT_s = simcoon::slice_view(drdT, pt);
+			mat dSdE_s = simcoon::slice_view(dSdE, pt);
+			vec dSdT_s(dSdT.colptr(pt), ncomp, false, true), drdE_s(drdE.colptr(pt), ncomp, false, true);
+			double &drdT_s = drdT(pt);
 			const mat F0_s = finite ? simcoon::slice_view(F0, pt) : mat();
 			const mat F1_s = finite ? simcoon::slice_view(F1, pt) : mat();
 			// as launch_umat: F0_pt, F1_pt alias the caller's slices unless condensed
 			mat F0_pt = !finite ? mat() : cs.active() ? mat(F0_s) : simcoon::slice_view(F0, pt);
 			mat F1_pt = !finite ? mat() : cs.active() ? mat(F1_s) : simcoon::slice_view(F1, pt);
-			std::optional<condensed_F> F1_of;
-			auto F_at = [&](const condensed_F &Fc, const vec &e) { return total ? Fc.total(e) : Fc(cs, e); };
+			std::optional<simcoon::condensed_F> F1_of;
+			auto F_at = [&](const simcoon::condensed_F &Fc, const vec &e) { return total ? Fc.total(e) : Fc(cs, e); };
 			if (finite && cs.active()) {
 				try {
-					F0_pt = F_at(condensed_F(F0_s), etot);
+					F0_pt = F_at(simcoon::condensed_F(F0_s), etot);
 					F1_of.emplace(F1_s);
 				}
 				catch (const std::exception &) {
@@ -1025,6 +1019,14 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						umat_function_named(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode);
 						break;
 					}
+					case 3: {
+						simcoon::umat_modular_T(etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate, ncp);
+						break;
+					}
+					case 4: {
+						simcoon::umat_legacy_modular_T(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate, ncp);
+						break;
+					}
 				}
 			};
 			if (!cs.active()) {
@@ -1038,7 +1040,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 					if (!material_face) {
 						if (simcoon::solve_condensed(cs, Detot_pt, sigma, dSdE_s, run_law, restore, tnew_dt_pt)) {
 							if (finite) {   // d(strain_C)/dtheta = -L_CC^-1 dstress_C/dtheta, its direct part is dlnJ/dtheta
-								const vec dC = -arma::solve(mat(dSdE_s(cs.C, cs.C)), vec(mat(dSdT_s).rows(cs.C)));
+								const vec dC = -arma::solve(mat(dSdE_s(cs.C, cs.C)), vec(dSdT_s(cs.C)));
 								for (arma::uword j = 0; j < cs.C.n_elem; j++)
 									if (cs.C(j) < 3) dlnJ_dT += dC(j);
 							}
@@ -1075,8 +1077,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 							// material derivatives at fixed F1: dS/dtheta = F^-1 dtau/dtheta F^-T,
 							// dr/dE = dr/dH dH/dE (rate: dH rotated by R1 into the box)
 							const mat Fi = arma::inv(F1_pt);
-							mat dSdT_S = simcoon::t2v_stress(Fi*kirchhoff(simcoon::v2t_stress(vec(dSdT_s)))*Fi.t());
-							mat drdE_E = simcoon::box_covector_2_dE(arma::vectorise(drdE_s), F1_pt, total ? simcoon::corate_type_total : 3);   // drdE is stored (6, 1)
+							vec dSdT_S = simcoon::t2v_stress(Fi*kirchhoff(simcoon::v2t_stress(dSdT_s))*Fi.t());
+							vec drdE_E = simcoon::box_covector_2_dE(drdE_s, F1_pt, total ? simcoon::corate_type_total : 3);
 							simcoon::condense_tangent_T(cs, M, dSdT_S, drdE_E, drdT_s);
 							dSdE_s = M;
 							dSdT_s = dSdT_S;
@@ -1099,7 +1101,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						double dW_T;
 						sigma = simcoon::total_formulation_tau(sigma, Detot_pt, F1_pt, true, dW_T);
 						if (!material_face)
-							dSdT_s = simcoon::t2v_stress(simcoon::LogStressU2Kirchoff(simcoon::v2t_stress(vec(dSdT_s)), F1_pt));
+							dSdT_s = simcoon::t2v_stress(simcoon::LogStressU2Kirchoff(simcoon::v2t_stress(dSdT_s), F1_pt));
 					}
 					catch (const std::exception &) { finite_cut = true; }
 				}
@@ -1125,11 +1127,11 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						try {
 							const int code = total ? simcoon::corate_type_total : 3;
 							const mat dSdE_S = simcoon::DtauDe_corate_2_DSDE(dSdE_s, code, F1_pt, J1*simcoon::v2t_stress(sigma));
-							const vec drdE_E = simcoon::box_covector_2_dE(arma::vectorise(drdE_s), F1_pt, code);
+							const vec drdE_E = simcoon::box_covector_2_dE(drdE_s, F1_pt, code);
 							if (tangent_out == tangent_out_material) {
 								const mat Fi = arma::inv(F1_pt);
 								dSdE_s = dSdE_S;
-								dSdT_s = simcoon::t2v_stress(Fi*(J1*simcoon::v2t_stress(vec(dSdT_s)))*Fi.t());
+								dSdT_s = simcoon::t2v_stress(Fi*(J1*simcoon::v2t_stress(dSdT_s))*Fi.t());
 								drdE_s = drdE_E;
 							}
 							else {
@@ -1153,10 +1155,6 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			raise_step_cut("umat_T", tnew_dt);
 		if (cs.active()) write_back_free_strain(Detot_py, wb_rows, Detot_W);
 
-		// post-loop repacking: dSdT, drdE (ncomp,1,N) and drdT (1,1,N) are contiguous (ncomp,N) and (N) blocks
-		mat dSdT_out(dSdT.memptr(), ncomp, nb_points, false, true);
-		mat drdE_out(drdE.memptr(), ncomp, nb_points, false, true);
-		vec drdT_out(drdT.memptr(), nb_points, false, true);
-		return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(list_sigma, true), simpy::arma_to_numpy::mat_to_arr(list_statev, true), simpy::arma_to_numpy::mat_to_arr(list_Wm, true), simpy::arma_to_numpy::mat_to_arr(list_Wt, true), simpy::arma_to_numpy::col_to_arr(list_r, true), simpy::arma_to_numpy::cube_to_arr(dSdE, true), simpy::arma_to_numpy::mat_to_arr(dSdT_out, true), simpy::arma_to_numpy::mat_to_arr(drdE_out, true), simpy::arma_to_numpy::col_to_arr(drdT_out, true));
+		return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(list_sigma, true), simpy::arma_to_numpy::mat_to_arr(list_statev, true), simpy::arma_to_numpy::mat_to_arr(list_Wm, true), simpy::arma_to_numpy::mat_to_arr(list_Wt, true), simpy::arma_to_numpy::col_to_arr(list_r, true), simpy::arma_to_numpy::cube_to_arr(dSdE, true), simpy::arma_to_numpy::mat_to_arr(dSdT, true), simpy::arma_to_numpy::mat_to_arr(drdE, true), simpy::arma_to_numpy::col_to_arr(drdT, true));
 	}
 }

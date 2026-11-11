@@ -19,6 +19,9 @@
 #include <string>
 #include <stdexcept>
 #include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Simulation/Maths/lagrange.hpp>
 
 using namespace arma;
 
@@ -26,6 +29,22 @@ namespace simcoon {
 
 int default_nshr(const int &ndi) {
     return (ndi == 1) ? 0 : ((ndi == 2) ? 1 : 3);
+}
+
+condensed_F::condensed_F(const arma::mat &F) {
+    arma::mat V;
+    VR_decomposition(V, R, F);
+    lnV = t2v_strain(arma::logmat_sympd(V));
+}
+
+arma::mat condensed_F::operator()(const condensed_state &cs, const arma::vec &e) const {
+    arma::vec l = lnV;
+    l(cs.C) = e(cs.C);
+    return eR_to_F(v2t_strain(l), R);
+}
+
+arma::mat condensed_F::total(const arma::vec &H) const {
+    return R*arma::expmat_sym(v2t_strain(H));
 }
 
 condensed_state make_condensed_state(const int &ndi, const int &nshr) {
@@ -76,11 +95,10 @@ void condense_tangent(const condensed_state &cs, mat &Lt) {
     Lt(cs.K, cs.K) = Q;
 }
 
-void condense_tangent_T(const condensed_state &cs, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT) {
+void condense_tangent_T(const condensed_state &cs, mat &dSdE, vec &dSdT, vec &drdE, double &drdT) {
 
     if (!cs.active()) return;
-    // dSdT and drdE are 6-entry vectors stored 6x1 or 1x6: work on their entries, keep the shape
-    const vec qT = vectorise(dSdT), rE = vectorise(drdE);
+    const vec qT = dSdT, rE = drdE;
     const mat X = solve(dSdE(cs.C, cs.C), join_rows(dSdE(cs.C, cs.K), qT(cs.C)));   // [L_CC^-1 L_CK | L_CC^-1 dSdT_C]
     const uword nK = cs.K.n_elem;
     const mat X_E = X.cols(0, nK - 1);
@@ -88,16 +106,14 @@ void condense_tangent_T(const condensed_state &cs, mat &dSdE, mat &dSdT, mat &dr
     const mat Q = dSdE(cs.K, cs.K) - dSdE(cs.K, cs.C)*X_E;
     const vec qT_K = qT(cs.K) - dSdE(cs.K, cs.C)*X_T;
     const vec rE_K = rE(cs.K) - (rE(cs.C).t()*X_E).t();
-    const double rT = drdT(0, 0) - dot(rE(cs.C), X_T);
+    const double rT = drdT - dot(rE(cs.C), X_T);
     dSdE.zeros();
     dSdE(cs.K, cs.K) = Q;
     dSdT.zeros();
     drdE.zeros();
-    for (uword k = 0; k < nK; k++) {
-        dSdT(cs.K(k)) = qT_K(k);
-        drdE(cs.K(k)) = rE_K(k);
-    }
-    drdT(0, 0) = rT;
+    dSdT(cs.K) = qT_K;
+    drdE(cs.K) = rE_K;
+    drdT = rT;
 }
 
 } //namespace simcoon

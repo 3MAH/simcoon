@@ -41,8 +41,9 @@ def solve(
     blocks : Block, StepMeca or sequence of them
         The loading path. Bare steps are wrapped in a small-strain Block.
     umat_name : str, PythonUMAT or callable
-        Constitutive model: either the name of a built-in model (5 characters,
-        e.g. 'ELISO', 'EPICP', 'MODUL') or a constitutive law written in Python
+        Constitutive model: either the name of a built-in model (five letters,
+        e.g. 'ELISO', 'EPICP', 'MODUL', or a `_closed` name; a legacy name runs the modular engine,
+        its `_closed` form the dedicated kernel when one exists) or a constitutive law written in Python
         (a :class:`simcoon.PythonUMAT` instance, or any callable with its
         ``integrate`` keyword signature). A Python law is registered under the
         ``PYEXT`` name for the duration of the call and integrated by the C++
@@ -102,19 +103,21 @@ def solve(
         'fischer_burmeister' (default), or 'min', the classic cutting-plane step
         on a single surface with a Fischer-Burmeister fallback: about half the
         local iterations for isotropic or linear (Prager) kinematic hardening,
-        the same return to the local tolerance. Read by EPICP, EPKCP and MODUL
-        (refused for an Armstrong-Frederick back stress); any other law, and the
-        thermomechanical blocks, raise ValueError for 'min', as does the
-        closest-point integrator. See the UMAT catalog.
+        the same return to the local tolerance. Read by the modular engine
+        (MODUL and the legacy names it serves, mechanical and thermomechanical;
+        refused for an Armstrong-Frederick back stress) and by EPICP_closed;
+        any other law raises ValueError for 'min', as does the closest-point
+        integrator. See the UMAT catalog.
     integrator : str, optional
         Local integrator of the laws with a return mapping: 'cutting_plane'
         (the default) or 'closest_point', the backward-Euler closest-point
         projection, a different discrete update (EPCHA: 1 to 2 % apart on
         coarse increments) with its exact operator. It takes
-        ``tangent_mode='algorithmic'``. Served by EPICP, EPCHA, EPJCK, MODUL
-        and its adapters and the SMA kernels (mechanical), EPICP and EPKCP
-        (thermomechanical): any other law raises ValueError. Inside MODUL, a
-        Tresca or Drucker row keeps the cutting plane.
+        ``tangent_mode='algorithmic'``. Served by the modular engine (MODUL and
+        the legacy names it serves, mechanical and thermomechanical), the
+        dedicated EPICP_closed, EPCHA_closed, EPKCP_closed, EPJCK and the SMA
+        kernels: any other law raises ValueError. Inside MODUL, a Tresca or
+        Drucker row keeps the cutting plane.
     **params
         Numeric solver controls forwarded to the C++ loop: div_tnew_dt,
         mul_tnew_dt, miniter, maxiter, inforce, precision, precision_rel,

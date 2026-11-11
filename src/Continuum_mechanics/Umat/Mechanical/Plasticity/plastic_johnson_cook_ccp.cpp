@@ -244,14 +244,11 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     const ContinuumTangent ct = compute_tangent_operator(
-        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
-        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+        tangent_mode, Bhat, kappa_j[0], dPhidsigma, Ds_j, L,
+        [&]() -> mat {  // lazy: evaluated only in algorithmic mode
             // J2 associated flow: dLambda/dsigma = deta_stress, complete for one isotropic mechanism
-            std::vector<mat> dLambda_dsigma_l(1);
-            dLambda_dsigma_l[0] = deta_stress(sigma);
-            return dLambda_dsigma_l;
+            return mat(deta_stress(sigma));
         });
     Lt = ct.Lt;
 

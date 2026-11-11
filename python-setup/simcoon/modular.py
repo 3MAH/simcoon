@@ -477,12 +477,19 @@ _VOLUMETRIC_NAMES = {"log": VolumetricPotential.LOG_J,
 class _HyperInvariantsElasticity:
     r"""Common serialization of an isochoric-invariant potential.
 
-    Props layout: ``[potential, n_params, params..., volumetric, alpha]``, the
-    volumetric selector counted in ``n_params``. The potential comes from the
+    Props layout: ``[potential, n_params, params..., volumetric, alpha, omega]``,
+    the volumetric selector counted in ``n_params``. The potential comes from the
     concrete subclass and the parameters are its fields in declaration order,
     which is what gives each model its own named arguments. They have no
-    default; ``volumetric`` and ``alpha`` are keyword-only, so positional
-    arguments always fill the potential's parameters.
+    default; ``volumetric``, ``alpha`` and ``omega`` are keyword-only, so
+    positional arguments always fill the potential's parameters.
+
+    ``omega`` is the entropic fraction of the isochoric potential,
+    :math:`\psi = (1 - \omega + \omega\,\theta/\theta_0)\,\bar{W} + U(J)`: 0 (default)
+    is energetic thermoelasticity, the limit of the linear blocks; 1 the entropic
+    elasticity of a rubber (:math:`\mu \propto \theta`, Gough-Joule heating). Read by
+    the thermomechanical face and by the mechanical block when the temperature
+    moves; it needs absolute temperatures (``T_init > 0``).
 
     ``volumetric`` selects U(J): ``"log"`` for
     :math:`\kappa (J \ln J - J + 1)` (default) or ``"quadratic"`` for
@@ -491,6 +498,7 @@ class _HyperInvariantsElasticity:
     potential: ClassVar[HyperPotential]
     volumetric: str = field(default="log", kw_only=True)
     alpha: float = field(default=0.0, kw_only=True)
+    omega: float = field(default=0.0, kw_only=True)
 
     @property
     def elasticity_type(self) -> ElasticityType:
@@ -498,7 +506,7 @@ class _HyperInvariantsElasticity:
 
     def potential_params(self) -> List[float]:
         return [getattr(self, f.name) for f in fields(self)
-                if f.name not in ("alpha", "volumetric")]
+                if f.name not in ("alpha", "volumetric", "omega")]
 
     def __post_init__(self):
         self.volumetric_potential   # a bad selector fails at construction, not at to_props()
@@ -516,7 +524,7 @@ class _HyperInvariantsElasticity:
     def to_props(self) -> List[float]:
         """Return the props values for this elasticity."""
         params = list(self.potential_params()) + [float(self.volumetric_potential)]
-        return [float(self.potential), float(len(params))] + params + [self.alpha]
+        return [float(self.potential), float(len(params))] + params + [self.alpha, self.omega]
 
     @property
     def nprops(self) -> int:

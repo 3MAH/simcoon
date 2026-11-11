@@ -26,6 +26,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
+#include <cstring>
 #include <stdexcept>
 
 namespace simcoon {
@@ -44,8 +46,11 @@ ViscoelasticMechanism::ViscoelasticMechanism(int N_prony)
     , v_key_(N_prony)
     , ev_index_(N_prony, 0)
     , v_index_(N_prony, 0)
-    , kappa_t_(N_prony, tensor2::zeros(Tensor2Type::stress))
+    , kappa_t_(6, N_prony, arma::fill::zeros)
     , dEVtilde_dE_(arma::zeros(6, 6))
+    , map_(arma::eye(6, 6))
+    , alpha_(arma::zeros(6))
+    , dEVdE_i_(N_prony)
 {
     L_0_.zeros(6, 6);   // until set_reference_stiffness: an unset reference spring is zero
 }
@@ -89,6 +94,10 @@ void ViscoelasticMechanism::set_reference_stiffness(const arma::mat& L_0) {
     }
 }
 
+void ViscoelasticMechanism::set_thermal_expansion(const arma::vec& alpha) {
+    alpha_ = alpha;
+}
+
 void ViscoelasticMechanism::compute_constraints(
     const arma::vec& /*sigma*/,
     const arma::vec& /*E_total*/,
@@ -116,18 +125,28 @@ void ViscoelasticMechanism::compute_jacobian_contribution(
     }
 }
 
-const std::vector<tensor2>& ViscoelasticMechanism::kappa(
+const arma::mat& ViscoelasticMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
     return kappa_t_;   // zero: the rows carry no multiplier
 }
 
-arma::vec ViscoelasticMechanism::inelastic_strain() const {
-    // EV_tilde = sum_i (M_0 L_i) EV_i (Prony_Nfast form); M0_L_i_ precomputed in set_reference_stiffness
-    arma::vec EV_tilde = arma::zeros(6);
-    for (int i = 0; i < N_prony_; ++i) {
-        EV_tilde += M0_L_i_[i] * ivc_.at(ev_index_[i]).raw_voigt();
+const arma::vec& ViscoelasticMechanism::inelastic_strain() const {
+    // EV_tilde = sum_i (M_0 L_i) EV_i (Prony_Nfast form); M0_L_i_ precomputed in set_reference_stiffness.
+    // Summed again only when a branch strain moved since (unpack, rotate, predict): the compare is 6N doubles
+    const size_t n = 6 * static_cast<size_t>(N_prony_);
+    bool same = EV_at_.size() == n;
+    for (int i = 0; same && i < N_prony_; ++i) {
+        same = std::memcmp(EV_at_.data() + 6 * i, ivc_.at(ev_index_[i]).raw_voigt().memptr(), 6 * sizeof(double)) == 0;
     }
-    return EV_tilde;
+    if (same) return EV_tilde_;
+    EV_at_.resize(n);
+    EV_tilde_.zeros();
+    for (int i = 0; i < N_prony_; ++i) {
+        const arma::vec& ev = ivc_.at(ev_index_[i]).raw_voigt();
+        EV_tilde_ += M0_L_i_[i] * ev;
+        std::memcpy(EV_at_.data() + 6 * i, ev.memptr(), 6 * sizeof(double));
+    }
+    return EV_tilde_;
 }
 
 void ViscoelasticMechanism::update(
@@ -143,7 +162,7 @@ void ViscoelasticMechanism::predict(const arma::vec& E_total_end, double DTime) 
     for (int i = 0; i < N_prony_; ++i) {
         EV_start[i] = ivc_.at(ev_index_[i]).raw_voigt_start();
     }
-    const LinearViscoStep st = maxwell_parallel_step(L_0_, L_i_, H_i_, EV_start, E_total_end, arma::zeros(6), DTime);
+    LinearViscoStep st = maxwell_parallel_step(L_0_, L_i_, H_i_, EV_start, E_total_end, alpha_, DTime);
     dEVtilde_dE_.zeros();
     for (int i = 0; i < N_prony_; ++i) {
         InternalVariable& ev = ivc_.at(ev_index_[i]);
@@ -151,11 +170,13 @@ void ViscoelasticMechanism::predict(const arma::vec& E_total_end, double DTime) 
         InternalVariable& v = ivc_.at(v_index_[i]);
         v.scalar() = v.scalar_start() + norm_strain(st.EV_i[i] - EV_start[i]);
         dEVtilde_dE_ += M0_L_i_[i] * st.dEVdE_i[i];
+        dEVdE_i_[i] = std::move(st.dEVdE_i[i]);
     }
+    map_ = arma::eye(6, 6) - dEVtilde_dE_;
 }
 
-arma::mat ViscoelasticMechanism::total_strain_map() const {
-    return arma::eye(6, 6) - dEVtilde_dE_;
+const arma::mat& ViscoelasticMechanism::total_strain_map() const {
+    return map_;
 }
 
 void ViscoelasticMechanism::tangent_contribution(
@@ -190,6 +211,21 @@ void ViscoelasticMechanism::compute_work(
         const arma::vec A_end = L_i_[i] * (E_end - ev.raw_voigt());
         Wm_d += 0.5 * arma::dot(A_start + A_end, ev.delta_vec());
     }
+}
+
+void ViscoelasticMechanism::dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE,
+                                                    double& dDgamma_dT) const {
+    // dA_i/dE = L_i (I - dEV_i/dE), as PRONK_T; the branches see eps - alpha dtheta only
+    dDgamma_dE.zeros(6);
+    const arma::mat I6 = arma::eye(6, 6);
+    for (int i = 0; i < N_prony_; ++i) {
+        const InternalVariable& ev = ivc_.at(ev_index_[i]);
+        const arma::vec DEV = ev.delta_vec();
+        const arma::vec A_mid2 = L_i_[i] * (in.E_start - ev.raw_voigt_start()) + L_i_[i] * (in.E_end - ev.raw_voigt());
+        const arma::mat& dEVdE = dEVdE_i_[i];
+        dDgamma_dE += 0.5 * (mul6_At(mul66(L_i_[i], I6 - dEVdE), DEV) + mul6_At(dEVdE, A_mid2));
+    }
+    dDgamma_dT = -arma::dot(dDgamma_dE, alpha_);
 }
 
 } // namespace simcoon

@@ -44,6 +44,9 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include "reference_kernels/DFA_chaboche_ccp.hpp"
 #include "reference_kernels/Generic_chaboche_ccp.hpp"
 #include "reference_kernels/Hill_isoh_Nfast.hpp"
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.hpp>
 
 using namespace arma;
 using namespace simcoon;
@@ -128,6 +131,23 @@ TEST(Treference_umats, ELORT_matches_reference) {
     expect_equiv(umat_elasticity_ortho, "ELORT",
                  {70000., 30000., 15000., 0.3, 0.3, 0.3,
                   8000., 6000., 5000., 1e-5, 2e-5, 3e-5}, 1, 1e-9);
+}
+
+// the dedicated kernels still in the library (the _closed names) against the adapter-served names
+TEST(Treference_umats, EPICP_matches_dedicated_kernel) {
+    expect_equiv([](auto&&... a) { umat_plasticity_iso(a..., 0); }, "EPICP",
+                 {210000., 0.3, 0., 300., 1000., 1.0}, 8, 1e-9);
+}
+
+TEST(Treference_umats, EPCHA_matches_dedicated_kernel) {
+    // Voce: legacy incremental Hp vs modular closed form -> small drift
+    expect_equiv([](auto&&... a) { umat_plasticity_chaboche(a...); }, "EPCHA",
+                 {210000., 0.3, 0., 300., 200., 20., 30000., 172., 19500., 301.}, 33, 2e-3);
+}
+
+TEST(Treference_umats, PRONK_matches_dedicated_kernel) {
+    expect_equiv([](auto&&... a) { umat_prony_Nfast(a...); }, "PRONK",
+                 {3000., 0.35, 0., 2, 1500., 0.35, 3000., 1200., 800., 0.35, 30000., 12000.}, 21, 1e-9);
 }
 
 TEST(Treference_umats, EPKCP_matches_reference) {

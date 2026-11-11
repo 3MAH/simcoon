@@ -36,16 +36,16 @@ namespace {
 // the algorithmic form passes (M^-1 L)^T, not symmetric when dLambda/dsigma is not
 ContinuumTangent assemble_tangent(
     const arma::mat& Bhat,
-    const std::vector<arma::vec>& kappa_j,
-    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::mat& kappa_j,
+    const arma::mat& dPhidsigma_l,
     const arma::vec& Ds_j,
     const arma::mat& L,
     const arma::mat& Lt_dPhi)
 {
     const arma::uword Nmech = Bhat.n_rows;
     assert(Bhat.n_cols == Nmech);
-    assert(kappa_j.size() == Nmech);
-    assert(dPhidsigma_l.size() == Nmech);
+    assert(kappa_j.n_rows == 6 && kappa_j.n_cols == Nmech);
+    assert(dPhidsigma_l.n_rows == 6 && dPhidsigma_l.n_cols == Nmech);
     assert(Ds_j.n_elem == Nmech);
 
     arma::vec op = arma::zeros<arma::vec>(Nmech);
@@ -61,7 +61,8 @@ ContinuumTangent assemble_tangent(
         // degenerate Bhat (e.g. SMA plateau): elastic operator rather than inf in Lt/P, which would abort the solve
         ContinuumTangent out;
         out.Lt = L;
-        out.P_epsilon.assign(Nmech, arma::zeros(6));
+        out.L_tilde = L;
+        out.P_epsilon.zeros(6, Nmech);
         out.invBhat.zeros(Nmech, Nmech);
         return out;
     }
@@ -69,16 +70,13 @@ ContinuumTangent assemble_tangent(
 
     // elastic increment: every product below sums signed zeros, so Lt = L bit for bit; skipped when no term can be inf/NaN
     if (!any(op) && Lt_dPhi.is_finite()) {
-        double max_dPhi = 0.;
-        bool finite = true;
-        for (arma::uword m = 0; m < Nmech; ++m) {
-            finite = finite && dPhidsigma_l[m].is_finite() && kappa_j[m].is_finite();
-            if (finite) max_dPhi = std::max(max_dPhi, arma::abs(dPhidsigma_l[m]).max());
-        }
+        const bool finite = dPhidsigma_l.is_finite() && kappa_j.is_finite();
+        const double max_dPhi = finite ? arma::abs(dPhidsigma_l).max() : 0.;
         if (finite && arma::abs(Lt_dPhi).max()*max_dPhi < 1.E300) {
             ContinuumTangent out;
             out.Lt = L;
-            out.P_epsilon.assign(Nmech, arma::zeros(6));
+            out.L_tilde = L;
+            out.P_epsilon.zeros(6, Nmech);
             out.invBhat = std::move(invBhat);
             return out;
         }
@@ -87,11 +85,12 @@ ContinuumTangent assemble_tangent(
     // P^l = sum_m invBhat(l,m) Lt_dPhi dPhi^m (Bhat rows = criteria, columns = mechanisms), then Lt = L - sum_l kappa^l P^l^T
     assert(L.n_rows == 6 && L.n_cols == 6 && Lt_dPhi.n_rows == 6 && Lt_dPhi.n_cols == 6);
     arma::mat LD(6, Nmech);
-    for (arma::uword m = 0; m < Nmech; ++m) mul6(Lt_dPhi.memptr(), dPhidsigma_l[m].memptr(), LD.colptr(m));
+    for (arma::uword m = 0; m < Nmech; ++m) mul6(Lt_dPhi.memptr(), dPhidsigma_l.colptr(m), LD.colptr(m));
     ContinuumTangent out;
-    out.P_epsilon.assign(Nmech, arma::vec(6, arma::fill::zeros));
+    out.L_tilde = L;
+    out.P_epsilon.zeros(6, Nmech);
     for (arma::uword l = 0; l < Nmech; ++l) {
-        double* p = out.P_epsilon[l].memptr();
+        double* p = out.P_epsilon.colptr(l);
         for (arma::uword m = 0; m < Nmech; ++m) {
             const double b = invBhat(l, m);
             const double* d = LD.colptr(m);
@@ -102,7 +101,7 @@ ContinuumTangent assemble_tangent(
     for (arma::uword j = 0; j < 6; ++j)
         for (arma::uword i = 0; i < 6; ++i) {
             double s = 0.;
-            for (arma::uword l = 0; l < Nmech; ++l) s += kappa_j[l](i)*out.P_epsilon[l](j);
+            for (arma::uword l = 0; l < Nmech; ++l) s += kappa_j(i, l)*out.P_epsilon(j, l);
             out.Lt(i, j) -= s;
         }
     out.invBhat = std::move(invBhat);
@@ -112,8 +111,8 @@ ContinuumTangent assemble_tangent(
 
 ContinuumTangent assemble_continuum_tangent(
     const arma::mat& Bhat,
-    const std::vector<arma::vec>& kappa_j,
-    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::mat& kappa_j,
+    const arma::mat& dPhidsigma_l,
     const arma::vec& Ds_j,
     const arma::mat& L)
 {
@@ -127,10 +126,10 @@ ContinuumTangent assemble_continuum_tangent(
     double Ds,
     const arma::mat& L)
 {
-    // 1-mech specialisation: skip the 1\times 1 arma::inv and the std::vector
-    // brace-init that the N-mech form would otherwise pay per UMAT call.
+    // 1-mech specialisation: no 1x1 inverse
     ContinuumTangent out;
-    out.P_epsilon.assign(1, arma::zeros(6));
+    out.L_tilde = L;
+    out.P_epsilon.zeros(6, 1);
     out.invBhat.zeros(1, 1);
 
     if (Ds <= simcoon::iota || std::abs(Bhat_scalar) < simcoon::iota ||
@@ -141,37 +140,37 @@ ContinuumTangent assemble_continuum_tangent(
     }
     const double invBhat = 1.0 / Bhat_scalar;
     out.invBhat(0, 0) = invBhat;
-    out.P_epsilon[0] = invBhat * (L * dPhidsigma);
-    out.Lt = L - kappa * out.P_epsilon[0].t();
+    out.P_epsilon = invBhat * (L * dPhidsigma);
+    out.Lt = L - kappa * out.P_epsilon.t();
     return out;
 }
 
 ContinuumTangent assemble_algorithmic_tangent(
     const arma::mat& Bhat_continuum,
-    const std::vector<arma::vec>& kappa_j,
-    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::mat& kappa_j,
+    const arma::mat& dPhidsigma_l,
     const arma::vec& Ds_j,
     const arma::mat& L,
-    const std::vector<arma::mat>& dLambda_dsigma_l)
+    const arma::mat& dLambda_dsigma_l)
 {
     const arma::uword Nmech = Bhat_continuum.n_rows;
     assert(Bhat_continuum.n_cols == Nmech);
-    assert(kappa_j.size() == Nmech);
-    assert(dPhidsigma_l.size() == Nmech);
+    assert(kappa_j.n_cols == Nmech);
+    assert(dPhidsigma_l.n_cols == Nmech);
     assert(Ds_j.n_elem == Nmech);
-    assert(dLambda_dsigma_l.size() == Nmech);
+    assert(dLambda_dsigma_l.n_rows == 6 && dLambda_dsigma_l.n_cols == 6 * Nmech);
 
     // M = I + L \cdot \sum_j (\Delta s^j \cdot \partial \Lambda^j/\partial \sigma ), summed over the active set only.
     const arma::mat::fixed<6,6> I6 = arma::eye(6, 6);
     arma::mat::fixed<6,6> sumDsLambdaSigma = arma::zeros(6, 6);
     for (arma::uword j = 0; j < Nmech; ++j) {
         if (Ds_j(j) > simcoon::iota) {
-            sumDsLambdaSigma += Ds_j(j) * dLambda_dsigma_l[j];
+            sumDsLambdaSigma += Ds_j(j) * dLambda_dsigma_l.cols(6 * j, 6 * j + 5);
         }
     }
 
     // no dLambda/dsigma correction: M = I, the algorithmic tangent is the continuum one
-    if (arma::approx_equal(sumDsLambdaSigma, arma::zeros(6, 6), "absdiff", simcoon::iota)) {
+    if (sumDsLambdaSigma.is_zero(simcoon::iota)) {
         return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
     }
 
@@ -187,22 +186,22 @@ ContinuumTangent assemble_algorithmic_tangent(
     // \tilde{B}^{lj} = Bhat_continuum^{lj} + \partial \Phi^l \cdot (M^{-1} - I) \cdot \kappa^j  (Bhat_continuum = \partial \Phi \cdot \kappa - K).
     arma::mat::fixed<6,6> L_tilde = L;
     lu.solve_columns_in_place(L_tilde);
-    std::vector<arma::vec> kappa_tilde(Nmech);
-    for (arma::uword j = 0; j < Nmech; ++j) {
-        kappa_tilde[j] = kappa_j[j];
-        lu.solve_in_place(kappa_tilde[j].memptr());
-    }
+    arma::mat kappa_tilde = kappa_j;
+    lu.solve_columns_in_place(kappa_tilde);
     arma::mat Bhat_tilde = Bhat_continuum;
     for (arma::uword j = 0; j < Nmech; ++j) {
-        const arma::vec::fixed<6> dkappa_j = kappa_tilde[j] - kappa_j[j];   // (M^-1 - I) kappa_j, shared by every row l
+        const arma::vec::fixed<6> dkappa_j = kappa_tilde.col(j) - kappa_j.col(j);   // (M^-1 - I) kappa_j, shared by every row l
         for (arma::uword l = 0; l < Nmech; ++l) {
-            Bhat_tilde(l, j) += arma::dot(dPhidsigma_l[l], dkappa_j);
+            const arma::vec::fixed<6> dPhi_l = dPhidsigma_l.col(l);
+            Bhat_tilde(l, j) += arma::dot(dPhi_l, dkappa_j);
         }
     }
 
     // L~ = M^-1 L is not symmetric: its transpose acts on dPhi
     const arma::mat::fixed<6,6> L_tilde_t = L_tilde.t();
-    return assemble_tangent(Bhat_tilde, kappa_tilde, dPhidsigma_l, Ds_j, L_tilde, L_tilde_t);
+    ContinuumTangent out = assemble_tangent(Bhat_tilde, kappa_tilde, dPhidsigma_l, Ds_j, L_tilde, L_tilde_t);
+    out.kappa_tilde = std::move(kappa_tilde);
+    return out;
 }
 
 ContinuumTangent assemble_algorithmic_tangent(
@@ -215,7 +214,7 @@ ContinuumTangent assemble_algorithmic_tangent(
 {
     // Inactive mechanism OR no \sigma -correction -> continuum result.
     if (Ds <= simcoon::iota ||
-        arma::approx_equal(dLambda_dsigma, arma::zeros(6, 6), "absdiff", simcoon::iota))
+        dLambda_dsigma.is_zero(simcoon::iota))
     {
         return assemble_continuum_tangent(Bhat_scalar, kappa, dPhidsigma, Ds, L);
     }
@@ -235,25 +234,25 @@ ContinuumTangent assemble_algorithmic_tangent(
     // 1-mech form of the assembly with the transpose of L~ on dPhi (L~ is not symmetric when
     // dLambda/dsigma is not); same masking as the continuum overload.
     ContinuumTangent out;
-    out.P_epsilon.assign(1, arma::zeros(6));
+    out.L_tilde = L_tilde;
+    out.kappa_tilde = kappa_t;
+    out.P_epsilon.zeros(6, 1);
     out.invBhat.zeros(1, 1);
     if (std::abs(Bhat_t) < simcoon::iota || !std::isfinite(Bhat_t)) {
         out.Lt = L_tilde;
         return out;
     }
     out.invBhat(0, 0) = 1.0 / Bhat_t;
-    out.P_epsilon[0] = out.invBhat(0, 0) * (L_tilde.t() * dPhidsigma);
-    out.Lt = L_tilde - kappa_t * out.P_epsilon[0].t();
+    out.P_epsilon = out.invBhat(0, 0) * (L_tilde.t() * dPhidsigma);
+    out.Lt = L_tilde - kappa_t * out.P_epsilon.t();
     return out;
 }
-
-
 
 ContinuumTangent compute_tangent_operator(
     int tangent_mode,
     const arma::mat& Bhat,
-    const std::vector<arma::vec>& kappa_j,
-    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::mat& kappa_j,
+    const arma::mat& dPhidsigma_l,
     const arma::vec& Ds_j,
     const arma::mat& L,
     const HessianProvider& dLambda_dsigma) {
@@ -263,7 +262,8 @@ ContinuumTangent compute_tangent_operator(
         // thermomechanical P_theta algebra degrades consistently.
         ContinuumTangent ct;
         ct.Lt = L;
-        ct.P_epsilon.assign(kappa_j.size(), arma::zeros(6));
+        ct.L_tilde = L;
+        ct.P_epsilon.zeros(6, kappa_j.n_cols);
         ct.invBhat = arma::zeros(Bhat.n_rows, Bhat.n_cols);
         return ct;
     }
@@ -286,7 +286,6 @@ ContinuumTangent compute_tangent_operator(
     throw std::invalid_argument("compute_tangent_operator: unknown tangent_mode "
                                 + std::to_string(tangent_mode));
 }
-
 ContinuumTangent compute_tangent_operator(
     int tangent_mode,
     double Bhat_scalar,
@@ -296,25 +295,19 @@ ContinuumTangent compute_tangent_operator(
     const arma::mat& L,
     const std::function<arma::mat()>& dLambda_dsigma) {
 
-    HessianProvider provider = nullptr;
-    if (dLambda_dsigma) {
-        provider = [&dLambda_dsigma]() {
-            return std::vector<arma::mat>{dLambda_dsigma()};
-        };
-    }
     arma::mat Bhat(1, 1);
     Bhat(0, 0) = Bhat_scalar;
-    return compute_tangent_operator(tangent_mode, Bhat, {kappa}, {dPhidsigma},
-                                    arma::vec{Ds}, L, provider);
+    return compute_tangent_operator(tangent_mode, Bhat, kappa, dPhidsigma,
+                                    arma::vec{Ds}, L, dLambda_dsigma);
 }
 
 void heat_source_increment(const double &Dgamma, const arma::vec &dDgamma_dE, const double &dDgamma_dT,
                            const double &Deta, const arma::vec &deta_dE, const double &deta_dT,
-                           const double &T1, double &r, arma::mat &drdE, arma::mat &drdT)
+                           const double &T1, double &r, arma::vec &drdE, double &drdT)
 {
     r = Dgamma - T1*Deta;
     drdE = dDgamma_dE - T1*deta_dE;
-    drdT = dDgamma_dT - Deta - T1*deta_dT;   // 1x1
+    drdT = dDgamma_dT - Deta - T1*deta_dT;
 }
 
 } // namespace simcoon

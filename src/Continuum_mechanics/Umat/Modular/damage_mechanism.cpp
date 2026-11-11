@@ -26,6 +26,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 
 namespace simcoon {
 
@@ -219,17 +220,9 @@ void DamageMechanism::compute_jacobian_contribution(
     B(row_offset, row_offset) = 1.0;
 }
 
-const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
-    const arma::vec& /*sigma*/) const {
-    // Damage is not solved by the FB rows (fixed point, consistency_residual): no stress
-    // coupling in the local Jacobian. The other mechanisms see the effective stress.
-    static const std::vector<tensor2> none;
-    return none;
-}
-
-const std::vector<tensor2>& DamageMechanism::kappa(
+const arma::mat& DamageMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
-    return kappa_cache_;   // zero: no multiplier carried
+    return kappa_zero_;   // zero: no multiplier carried
 }
 
 double DamageMechanism::consistency_residual(const arma::vec& sigma_eff) const {
@@ -255,10 +248,8 @@ double DamageMechanism::stiffness_reduction() const {
     return 1.0 - ivc_.at(D_index_).scalar();
 }
 
-arma::vec DamageMechanism::inelastic_strain() const {
-    // Damage doesn't contribute a separate inelastic strain
-    // It affects the stiffness instead
-    return arma::zeros(6);
+const arma::vec& DamageMechanism::inelastic_strain() const {
+    return no_inelastic_strain_;
 }
 
 void DamageMechanism::update(
@@ -300,9 +291,25 @@ void DamageMechanism::compute_work(
     Wm_d = 0.0;
 
     if (dD > simcoon::iota) {
-        // Energy dissipated by damage: Y dD, Y = psi_0 being the force conjugate to D
-        Wm_d = Y_current_ * dD;
+        // trapezoid Y dD on the driving force, Y_n from the start stress (sigma_eff = sigma / (1 - D))
+        const double Y_start = compute_driving_force(sigma_start / (1.0 - ivc_.at(D_index_).scalar_start()), M_cached_);
+        Wm_d = 0.5 * (Y_start + Y_current_) * dD;
     }
+}
+
+void DamageMechanism::dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE,
+                                              double& dDgamma_dT) const {
+    dDgamma_dE.zeros(6);
+    dDgamma_dT = 0.0;
+    const double dD = ivc_.at(D_index_).delta_scalar();
+    if (dD <= simcoon::iota || !M_cached_valid_) {
+        return;
+    }
+    const double Y_start = compute_driving_force(in.sigma_start / (1.0 - ivc_.at(D_index_).scalar_start()), M_cached_);
+    const arma::vec S_sigma = M_cached_ * (in.sigma / stiffness_reduction());   // dY/dsigma_eff at the committed state
+    const double f = 0.5 * dD + 0.5 * (Y_start + Y_current_) * dD_dY_;
+    dDgamma_dE = f * mul6_At(in.dSdE_eff, S_sigma);
+    dDgamma_dT = f * arma::dot(in.dSdT_eff, S_sigma);
 }
 
 } // namespace simcoon

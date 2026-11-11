@@ -58,15 +58,18 @@ struct point {
     double time = 0.;
     double temperature;
     bool thermo;
+    int ndi, nshr;   // (NDI, NSHR) of the element: 3D, or a condensed state (plane stress (2, 1))
 
-    point(const string &name, const vec &p, const int &nstatev_law, const bool &thermo_, const double &T0 = 293.15)
-        : cmname(name), props(p), temperature(T0), thermo(thermo_) {
-        statev.assign((thermo ? 7 : 4) + nstatev_law + abaqus_kinematic_statev(abaqus_kinematic_form(cmname.c_str())), 0.);
+    point(const string &name, const vec &p, const int &nstatev_law, const bool &thermo_, const double &T0 = 293.15,
+          const int &ndi_ = 3, const int &nshr_ = 3)
+        : cmname(name), props(p), temperature(T0), thermo(thermo_), ndi(ndi_), nshr(nshr_) {
+        statev.assign((thermo ? 7 : 4) + static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem) + nstatev_law
+                      + abaqus_kinematic_statev(abaqus_kinematic_form(cmname.c_str())), 0.);
     }
 
     // the body of umat_singleM / umat_singleT on (DFGRD0, DFGRD1, DROT, DTEMP)
     void call(const mat &F0, const mat &F1, const mat &DROT, const double &dtime, const double &dtemp = 0.) {
-        const int ndi = 3, nshr = 3, nstatev = static_cast<int>(statev.size()), nprops = static_cast<int>(props.n_elem);
+        const int nstatev = static_cast<int>(statev.size()), nprops = static_cast<int>(props.n_elem);
         const vec stress_rot = rotate_stress(stress, DROT);
         double stress_a[6], ddsdde_a[36], ddsddt_a[6], drplde_a[6];
         std::copy(stress_rot.begin(), stress_rot.end(), stress_a);
@@ -93,12 +96,12 @@ struct point {
             abaqus2smart_M(stress_a, ddsdde_a, stran, dstran, time_a, dtime, temperature, dtemp, nprops, props_v.memptr(), nstatev - nstatev_kin, statev.data(), ndi, nshr, DROT.memptr(), sv->sigma, sv->Lt, sv->Etot, sv->DEtot, sv->T, sv->DT, Time, DTime, props_smart, sv->Wm, sv->statev, DR, start);
             rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
             ASSERT_TRUE(abaqus_finite_route(umat_name, ndi, corate_type, false, F1.memptr()));
-            abaqus2smart_finite(*sv, DROT.memptr(), F0.memptr(), F1.memptr(), kin_statev, corate_type, DTime);
+            abaqus2smart_finite(*sv, DROT.memptr(), F0.memptr(), F1.memptr(), kin_statev, corate_type, DTime, make_condensed_state(ndi, nshr));
             run_umat_M(rve, sv->DR, Time, DTime, ndi, nshr, start, 0, 5, corate_type, pnewdt);
             vec s;
             mat C;
             smart2abaqus_finite_M(*sv, sv->Lt, corate_type, s, C, kin_statev);
-            smart2abaqus_M(stress_a, ddsdde_a, statev.data(), ndi, nshr, s, sv->statev, sv->Wm, C, false);
+            smart2abaqus_M(stress_a, ddsdde_a, statev.data(), ndi, nshr, s, sv->statev, sv->Wm, C, false, finite_box_strain_end(*sv, corate_type));
         }
         else {
             rve.construct(0, 2);
@@ -109,13 +112,13 @@ struct point {
             abaqus2smart_T(stress_a, ddsdde_a, ddsddt_a, drplde_a, drpldt_in, stran, dstran, time_a, dtime, temperature, dtemp, nprops, props_v.memptr(), nstatev - nstatev_kin, statev.data(), ndi, nshr, DROT.memptr(), sv->sigma, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT, sv->Etot, sv->DEtot, sv->T, sv->DT, Time, DTime, props_smart, sv->Wm, sv->Wt, sv->statev, DR, start);
             rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
             ASSERT_TRUE(abaqus_finite_route(umat_name, ndi, corate_type, true, F1.memptr()));
-            abaqus2smart_finite(*sv, DROT.memptr(), F0.memptr(), F1.memptr(), kin_statev, corate_type, DTime);
+            abaqus2smart_finite(*sv, DROT.memptr(), F0.memptr(), F1.memptr(), kin_statev, corate_type, DTime, make_condensed_state(ndi, nshr));
             run_umat_T(rve, sv->DR, Time, DTime, ndi, nshr, start, 0, 5, corate_type, pnewdt);
             vec s, dsdt, drde;
             mat C;
             double q = 0., dqdt = 0.;
             smart2abaqus_finite_T(*sv, corate_type, DTime, s, C, dsdt, q, drde, dqdt, kin_statev);
-            smart2abaqus_T(stress_a, ddsdde_a, ddsddt_a, drplde_a, drpldt, rpl, statev.data(), ndi, nshr, s, sv->statev, q, sv->Wm, sv->Wt, C, dsdt, drde, mat({dqdt}), false);
+            smart2abaqus_T(stress_a, ddsdde_a, ddsddt_a, drplde_a, drpldt, rpl, statev.data(), ndi, nshr, s, sv->statev, q, sv->Wm, sv->Wt, C, dsdt, drde, dqdt, false, finite_box_strain_end(*sv, corate_type));
             ddsddt = vec(ddsddt_a, 6);
             drplde = vec(drplde_a, 6);
         }
@@ -182,7 +185,7 @@ TEST(Tabaqus_finite, kinematic_form_and_route)
     const mat F = F_test(1.), I = eye(3, 3);
     EXPECT_TRUE(abaqus_finite_route("EPICP", 3, corate_type_total, false, F.memptr()));
     EXPECT_FALSE(abaqus_finite_route("EPICP", 3, corate_type_total, false, I.memptr()));   // NLGEOM = NO
-    EXPECT_FALSE(abaqus_finite_route("EPICP", 2, corate_type_total, false, F.memptr()));   // plane stress
+    EXPECT_TRUE(abaqus_finite_route("EPICP", 2, corate_type_total, false, F.memptr()));    // plane stress: solved around the dispatch
     EXPECT_FALSE(abaqus_finite_route("SMADI", 3, corate_type_total, false, F.memptr()));   // small-strain-only mechanical law
     EXPECT_FALSE(abaqus_finite_route("HYPOO", 3, corate_type_total, false, F.memptr()));   // not a total-form law...
     EXPECT_TRUE(abaqus_finite_route("HYPOO", 3, 3, false, F.memptr()));                    // ...but a rate one
@@ -286,9 +289,10 @@ TEST(Tabaqus_finite, ddsdde_is_the_jaumann_jacobian)
 TEST(Tabaqus_finite, thermal_outputs_are_the_derivatives_of_rpl_and_stress)
 {
     // RPL = r/(J dt): DRPLDE, DRPLDT and DDSDDT by central differences on DFGRD1 and DTEMP, on a
-    // plastic increment (dissipation and thermoelastic coupling), both forms. DRPLDE carries the
-    // accuracy of the kernel's own dr/deps (6e-4 here for EPICP; the conversion alone is exact,
-    // drplde_is_exact_for_thermoelasticity)
+    // plastic increment (dissipation and thermoelastic coupling), both forms. The kernel's dr/deps
+    // and its conversion are exact in the total form (1e-10); _R carries the log_R frame-increment
+    // approximation of the strain derivatives (3e-4, the same for ELISO_R: the kernel plays no part,
+    // drplde_is_exact_for_thermoelasticity), as DDSDDE does (ddsdde_is_the_jaumann_jacobian)
     for (const string name : {"EPICP", "EPICP_R"}) {
         point base(name, props_EPICP_T, 8, true);
         base.call(eye(3, 3), F_test(0.5), eye(3, 3), 0.5, 2.);
@@ -306,15 +310,15 @@ TEST(Tabaqus_finite, thermal_outputs_are_the_derivatives_of_rpl_and_stress)
             m.call(F0, perturbed(F1, j, -h), eye(3, 3), dt, dT);
             drplde_fd(j) = (p.rpl - m.rpl)/(2.*h);
         }
-        EXPECT_LT(norm(ref.drplde - drplde_fd), 2.e-3*norm(drplde_fd)) << name;
+        EXPECT_LT(norm(ref.drplde - drplde_fd), (name == "EPICP" ? 1.e-8 : 1.e-3)*norm(drplde_fd)) << name;
 
         const double hT = 1.e-4;
         point p = base, m = base;
         p.call(F0, F1, eye(3, 3), dt, dT + hT);
         m.call(F0, F1, eye(3, 3), dt, dT - hT);
-        EXPECT_NEAR(ref.drpldt, (p.rpl - m.rpl)/(2.*hT), 1.e-4*fabs(ref.drpldt)) << name;
+        EXPECT_NEAR(ref.drpldt, (p.rpl - m.rpl)/(2.*hT), 1.e-6*fabs(ref.drpldt)) << name;
         const vec ddsddt_fd = (p.stress - m.stress)/(2.*hT);
-        EXPECT_LT(norm(ref.ddsddt - ddsddt_fd), 1.e-4*norm(ddsddt_fd)) << name;
+        EXPECT_LT(norm(ref.ddsddt - ddsddt_fd), 1.e-6*norm(ddsddt_fd)) << name;
     }
 }
 
@@ -322,7 +326,7 @@ TEST(Tabaqus_finite, thermal_outputs_are_the_derivatives_of_rpl_and_stress)
 TEST(Tabaqus_finite, drplde_is_exact_for_thermoelasticity)
 {
     // ELISO's dr/deps is exact: DRPLDE matches the central differences to rounding in the total
-    // form, to the log_R frame-increment accuracy in the rate form
+    // form (1e-10), to the log_R frame-increment accuracy in the rate form (3e-4)
     const vec props_ELISO_T = {7.8e-9, 4.6e8, E_, nu_, 1.2e-5};
     for (const string name : {"ELISO", "ELISO_R"}) {
         point base(name, props_ELISO_T, 1, true);
@@ -340,4 +344,81 @@ TEST(Tabaqus_finite, drplde_is_exact_for_thermoelasticity)
         }
         EXPECT_LT(norm(ref.drplde - drplde_fd), (name == "ELISO" ? 1.e-8 : 1.e-3)*norm(drplde_fd)) << name;
     }
+}
+
+
+// Plane stress (NDI, NSHR) = (2, 1) on the finite route: the host's F33 is a placeholder; the point
+// solves its thickness stretch (STATEV, right after the energies) and its in-plane answer is the one
+// of the 3D point run at that F33, where the thickness is stress-free. Exact under the total form;
+// under _R the 3D point integrates the thickness strain by the log_R quadrature (O(dt^3) per
+// increment) while the plane-stress point owns it as its box strain: the gap is second order in
+// the increment
+namespace {
+mat F_plane(const double &a, const double &g, const double &b) {
+    mat F = eye(3, 3);
+    F(0, 0) = a;
+    F(0, 1) = g;
+    F(1, 1) = b;
+    return F;
+}
+
+struct ps_gap { double stress = 0., s33 = 0., rpl = 0., h33 = 0.; };
+
+// along ninc increments of the in-plane path, relative to the 3D stress scale
+ps_gap plane_stress_gap(const string &name, const vec &props, const int &nsv, const bool &thermo, const int &ninc) {
+    point ps(name, props, nsv, thermo, 293.15, 2, 1), p3(name, props, nsv, thermo);
+    const int hdr = thermo ? 7 : 4;   // header, then the free strain (33, 13, 23)
+    mat Fp0 = eye(3, 3), F30 = eye(3, 3);
+    ps_gap g;
+    for (int k = 1; k <= ninc; k++) {
+        const double t = double(k)/ninc, dtemp = thermo ? 3./ninc : 0.;
+        const mat Fp1 = F_plane(1. + 0.12*t, 0.08*t, 1. - 0.05*t);
+        ps.call(Fp0, Fp1, eye(3, 3), 0.2/ninc, dtemp);
+        mat F31 = Fp1;
+        F31(2, 2) = exp(ps.statev[hdr]);
+        p3.call(F30, F31, eye(3, 3), 0.2/ninc, dtemp);
+        const double s = std::max(norm(p3.stress, "inf"), 1.);
+        g.stress = std::max({g.stress, fabs(ps.stress(0) - p3.stress(0))/s, fabs(ps.stress(1) - p3.stress(1))/s,
+                             fabs(ps.stress(2) - p3.stress(3))/s});   // Abaqus plane stress: 11, 22, 12
+        g.s33 = std::max(g.s33, fabs(p3.stress(2))/s);
+        if (thermo) g.rpl = std::max(g.rpl, fabs(ps.rpl - p3.rpl)/std::max(fabs(p3.rpl), 1.e-300));
+        Fp0 = Fp1;
+        F30 = F31;
+    }
+    g.h33 = ps.statev[hdr];
+    return g;
+}
+}
+
+TEST(Tabaqus_finite, plane_stress_solves_the_thickness_stretch)
+{
+    for (const string name : {"ELISO", "EPICP"}) {
+        const bool plastic = (name == "EPICP");
+        const ps_gap g = plane_stress_gap(name, plastic ? props_EPICP_M : vec({E_, nu_, 1.2e-5}), plastic ? 8 : 1, false, 2);
+        EXPECT_LT(g.stress, 1.e-8) << name;
+        EXPECT_LT(g.s33, 1.e-8) << name;
+        EXPECT_GT(fabs(g.h33), 1.e-3) << name;
+    }
+    for (const string name : {"ELISO_R", "EPICP_R"}) {
+        const bool plastic = (name == "EPICP_R");
+        const vec props = plastic ? props_EPICP_M : vec({E_, nu_, 1.2e-5});
+        const ps_gap g2 = plane_stress_gap(name, props, plastic ? 8 : 1, false, 2);
+        const ps_gap g8 = plane_stress_gap(name, props, plastic ? 8 : 1, false, 8);
+        EXPECT_LT(g2.stress, 5.e-3) << name;
+        EXPECT_LT(g8.stress, g2.stress/4.) << name;   // second order in the increment
+        EXPECT_LT(g8.s33, g2.s33/4.) << name;
+    }
+}
+
+TEST(Tabaqus_finite, plane_stress_thermal_point_is_the_3D_one)
+{
+    const ps_gap g = plane_stress_gap("EPICP", props_EPICP_T, 8, true, 2);
+    EXPECT_LT(g.stress, 1.e-8);
+    EXPECT_LT(g.s33, 1.e-8);
+    EXPECT_LT(g.rpl, 1.e-8);
+    const ps_gap g2 = plane_stress_gap("EPICP_R", props_EPICP_T, 8, true, 2);
+    const ps_gap g8 = plane_stress_gap("EPICP_R", props_EPICP_T, 8, true, 8);
+    EXPECT_LT(g2.stress, 5.e-3);
+    EXPECT_LT(g8.stress, g2.stress/4.);
+    EXPECT_LT(g8.rpl, std::max(g2.rpl/4., 1.e-8));
 }

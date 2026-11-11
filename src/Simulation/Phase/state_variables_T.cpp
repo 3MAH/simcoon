@@ -38,7 +38,7 @@ namespace simcoon{
 //=====Public methods for state_variables_T============================================
 
 //-------------------------------------------------------------
-state_variables_T::state_variables_T() : state_variables(), dSdT(1,6), drdE(1,6), drdT(1,1)
+state_variables_T::state_variables_T() : state_variables()
 //-------------------------------------------------------------
 {
     Q = 0.;
@@ -50,13 +50,13 @@ state_variables_T::state_variables_T() : state_variables(), dSdT(1,6), drdE(1,6)
     Wt_start = zeros(3);
     dSdE = zeros(6,6);
     dSdEt = zeros(6,6);
-    dSdT = zeros(1,6);
-    drdE = zeros(1,6);
-    drdT = zeros(1,1);
+    dSdT.zeros();
+    drdE.zeros();
+    drdT = 0.;
 }
 
 //-------------------------------------------------------------
-state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start), dSdT(1,6), drdE(1,6), drdT(1,1)
+state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const vec &mdSdT, const vec &mdrdE, const double &mdrdT) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start)
 //-------------------------------------------------------------
 {	
 
@@ -73,15 +73,10 @@ state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const 
     assert (mdSdEt.n_rows == 6);
 	assert (mdSdEt.n_cols == 6);
     
-    assert (mdSdT.n_rows == 1);
-    assert (mdSdT.n_cols == 6);
+    assert (mdSdT.n_elem == 6);
     
-    assert (mdrdE.n_rows == 1);
-    assert (mdrdE.n_cols == 6);
+    assert (mdrdE.n_elem == 6);
     
-    assert (mdrdT.n_rows == 1);
-    assert (mdrdT.n_cols == 1);
-
     Q = mQ;
     r = mr;
     r_in = mr_in;
@@ -97,7 +92,7 @@ state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const 
 }
 
 //------------------------------------------------------
-state_variables_T::state_variables_T(const state_variables_T& sv) : state_variables(sv), dSdT(1,6), drdE(1,6), drdT(1,1)
+state_variables_T::state_variables_T(const state_variables_T& sv) : state_variables(sv)
 //------------------------------------------------------
 {
     Q = sv.Q;
@@ -166,7 +161,7 @@ state_variables_T& state_variables_T::copy_fields_T (const state_variables_T& sv
 }
 
 //-------------------------------------------------------------
-void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT)
+void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const vec &mdSdT, const vec &mdrdE, const double &mdrdT)
 //-------------------------------------------------------------
 {
     state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start);
@@ -184,14 +179,9 @@ void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &m
     assert (mdSdEt.n_rows == 6);
     assert (mdSdEt.n_cols == 6);
     
-    assert (mdSdT.n_rows == 1);
-    assert (mdSdT.n_cols == 6);
+    assert (mdSdT.n_elem == 6);
     
-    assert (mdrdE.n_rows == 1);
-    assert (mdrdE.n_cols == 6);
-    
-    assert (mdrdT.n_rows == 1);
-    assert (mdrdT.n_cols == 1);
+    assert (mdrdE.n_elem == 6);
     
     Q = mQ;
     r = mr;
@@ -241,13 +231,8 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
     Wt = sv.Wt;
 
     frame.rotate_stiffness(dSdE);
-    // dSdT, drdE: Voigt vectors stored as mat, rotated with the stress operator, shape kept (see the header).
-    vec dSdT_v = vectorise(dSdT);
-    frame.rotate_stress(dSdT_v);
-    dSdT = reshape(dSdT_v, size(dSdT));
-    vec drdE_v = vectorise(drdE);
-    frame.rotate_stress(drdE_v);
-    drdE = reshape(drdE_v, size(drdE));
+    frame.rotate_stress(dSdT);   // dSdT, drdE: Voigt covectors, rotate with the stress operator (header)
+    frame.rotate_stress(drdE);
 
 	return *this;
 }

@@ -21,6 +21,9 @@
 
 #include <iostream>
 #include <algorithm>
+#include <cctype>
+#include <mutex>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <armadillo>
@@ -145,7 +148,7 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
     unpack_statev(statev, nstatev, 4, cs.C, DR, Etot, statev_smart);
 }
 
-void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &dSdE, mat &dSdT, mat &drpldE, mat &drpldT, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &Wt, vec &statev_smart, mat &DR, bool &start) {
+void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &dSdE, vec &dSdT, vec &drpldE, double &drpldT, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &Wt, vec &statev_smart, mat &DR, bool &start) {
 
     const condensed_state cs = make_condensed_state(ndi, nshr);
     const fea_components K = abaqus_components(cs);
@@ -155,7 +158,7 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
     fe2mat(ddsdde, K, dSdE);
     fe2vec(ddsddt, K, dSdT);
     fe2vec(drplde, K, drpldE);
-    drpldT(0) = drpldt;
+    drpldT = drpldt;
 
     ///@brief rotation matrix
     DR = mat(drot, 3, 3);
@@ -209,12 +212,48 @@ mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
     return J;
 }
 
+namespace {
+// CMNAME: space-padded CHARACTER*80 (a C string stops at '\0')
+std::size_t cmname_length(const char *cmname) {
+    std::size_t n = 0;
+    while (n < 80 && cmname[n] != '\0' && cmname[n] != ' ') ++n;
+    return n;
+}
+bool cmname_rate_suffix(const char *cmname, const std::size_t n) {
+    return n >= 2 && cmname[n - 2] == '_' && (cmname[n - 1] == 'R' || cmname[n - 1] == 'r');
+}
+}  // namespace
+
+std::string abaqus_umat_name(const char *cmname) {
+    const std::size_t n = cmname_length(cmname);
+    std::string name(cmname, cmname_rate_suffix(cmname, n) ? n - 2 : n);
+    // Abaqus upper-cases material names: the _closed suffix is matched in any case
+    static const std::string closed = "_closed";
+    bool closed_suffix = false;
+    if (name.size() > closed.size()) {
+        const std::size_t k = name.size() - closed.size();
+        closed_suffix = true;
+        for (std::size_t i = 0; i < closed.size() && closed_suffix; ++i)
+            closed_suffix = std::tolower(static_cast<unsigned char>(name[k + i])) == closed[i];
+        if (closed_suffix) name.replace(k, closed.size(), closed);
+    }
+    // a descriptive tail on a law name (EPICP_STEEL): the first five letters, said once per name
+    if (name.size() > 5 && !closed_suffix && finite_umat_names().count(name) == 0
+        && small_strain_umat_names().count(name) == 0 && thermo_umat_id(name) < 0) {
+        static std::mutex said_mutex;
+        static std::set<std::string> said;
+        const std::lock_guard<std::mutex> lock(said_mutex);
+        if (said.insert(name).second) {
+            std::cerr << "simcoon UMAT: CMNAME '" << name << "' names no law; its first five letters '"
+                      << name.substr(0, 5) << "' select it\n";
+        }
+        name.resize(5);
+    }
+    return name;
+}
+
 int abaqus_kinematic_form(const char *cmname) {
-    // CMNAME: space-padded CHARACTER*80 (a C string stops at '\0'); '_R' must be the whole suffix
-    if (std::find(cmname, cmname + 7, '\0') != cmname + 7)
-        return corate_type_total;
-    return (cmname[5] == '_' && (cmname[6] == 'R' || cmname[6] == 'r') && (cmname[7] == ' ' || cmname[7] == '\0'))
-        ? 3 : corate_type_total;
+    return cmname_rate_suffix(cmname, cmname_length(cmname)) ? 3 : corate_type_total;
 }
 
 int abaqus_kinematic_statev(const int &corate_type) {
@@ -238,7 +277,8 @@ bool fea_numerical_failure(const std::exception &e) {
 }
 
 bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int &corate_type, const bool &thermomechanical, const double *dfgrd1) {
-    if (ndi != 3 || !abaqus_nlgeom(dfgrd1))
+    (void)ndi;   // a condensed state solves its free stretches on the finite route (condensed_F)
+    if (!abaqus_nlgeom(dfgrd1))
         return false;
     if (thermomechanical)   // the finite thermomechanical dispatch serves every law of the small one under log_R
         return corate_type != corate_type_total || total_formulation_serves_T(umat_name);
@@ -249,20 +289,16 @@ bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int
     return corate_type != corate_type_total || total_formulation_serves(umat_name);
 }
 
-void abaqus2smart_finite(state_variables &sv, const double *drot, const double *dfgrd0, const double *dfgrd1, const double *kin_statev, const int &corate_type, const double &DTime) {
+void abaqus2smart_finite(state_variables &sv, const double *drot, const double *dfgrd0, const double *dfgrd1, const double *kin_statev, const int &corate_type, const double &DTime, const condensed_state &cs) {
     sv.F0 = mat(dfgrd0, 3, 3);
     sv.F1 = mat(dfgrd1, 3, 3);
     // F0 is the converged state of the last increment: no step cut cures a singular one
     if (det(sv.F0) <= simcoon::iota)
         throw std::invalid_argument("abaqus2smart_finite: DFGRD0 is singular; the converged state of the last "
                                     "increment cannot be cured by a step cut");
-    // Abaqus rotated STRESS by DROT for its own corotational route: back to the global basis
-    const mat DROT(drot, 3, 3);
-    sv.sigma = det(sv.F0)*rotate_stress(sv.sigma, mat(DROT.t()));
-    sv.tau = sv.sigma;
-    sv.Etot = t2v_strain(Green_Lagrange(sv.F0));
-    sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
-    if (corate_type == corate_type_total) {   // a state function of F
+    const vec E_C_stored = sv.Etot;   // ndi < 3: the free box strain of the last increment (STATEV slots)
+    const bool total = (corate_type == corate_type_total);
+    if (total) {   // a state function of F
         mat lnC0;
         if (!logmat_sympd(lnC0, mat(sv.F0.t()*sv.F0)))
             throw simcoon::exception_logmat_sympd("abaqus2smart_finite: ln C0 failed");
@@ -275,6 +311,28 @@ void abaqus2smart_finite(state_variables &sv, const double *drot, const double *
         if (!any(vectorise(sv.R)))   // STATEV starts at zero: an undeformed start
             sv.R.eye();
     }
+    if (cs.active()) {   // the host's free stretches are placeholders: F0 from the strain state, F1 with the start ones
+        if (total) {
+            sv.etot.elem(cs.C) = E_C_stored(cs.C);
+            sv.F0 = condensed_F(sv.F0).total(sv.etot);
+            mat lnC1;
+            if (!logmat_sympd(lnC1, mat(sv.F1.t()*sv.F1)))
+                throw simcoon::exception_logmat_sympd("abaqus2smart_finite: ln C1 failed");
+            vec H1 = t2v_strain(0.5*lnC1);
+            H1(cs.C) = sv.etot.elem(cs.C);
+            sv.F1 = condensed_F(sv.F1).total(H1);
+        }
+        else {
+            sv.F0 = condensed_F(sv.F0)(cs, sv.etot);
+            sv.F1 = condensed_F(sv.F1)(cs, sv.etot);
+        }
+    }
+    // Abaqus rotated STRESS by DROT for its own corotational route: back to the global basis
+    const mat DROT(drot, 3, 3);
+    sv.sigma = det(sv.F0)*rotate_stress(sv.sigma, mat(DROT.t()));
+    sv.tau = sv.sigma;
+    sv.Etot = t2v_strain(Green_Lagrange(sv.F0));
+    sv.DEtot = t2v_strain(Green_Lagrange(sv.F1)) - sv.Etot;
     mat D, Omega;
     const double dt = (DTime > simcoon::iota) ? DTime : 1.;   // D dt is what the increment uses
     corate_kinematics(corate_type, sv.DR, D, Omega, sv.F0, sv.F1, dt);
@@ -287,21 +345,25 @@ void smart2abaqus_finite_M(const state_variables &sv, const mat &Lt, const int &
     sigma = sv.tau/det(sv.F1);
     ddsdde = DSDE_2_Dsigma_JaumannDD(DSDE, sv.F1, v2t_stress(sigma));
     if (corate_type != corate_type_total) {   // the commit of set_start
-        const vec etot_end = rotate_strain(sv.etot, sv.DR) + sv.Detot;
+        const vec etot_end = finite_box_strain_end(sv, corate_type);
         const mat R_end = sv.DR*sv.R;
         std::copy(etot_end.begin(), etot_end.end(), kin_statev);
         std::copy(R_end.begin(), R_end.end(), kin_statev + 6);
     }
 }
 
+vec finite_box_strain_end(const state_variables &sv, const int &corate_type) {
+    return (corate_type == corate_type_total) ? vec(sv.etot + sv.Detot) : vec(rotate_strain(sv.etot, sv.DR) + sv.Detot);
+}
+
 void smart2abaqus_finite_T(const state_variables_T &sv, const int &corate_type, const double &DTime, vec &sigma, mat &ddsdde, vec &ddsddt, double &rpl, vec &drplde, double &drpldt, double *kin_statev) {
     smart2abaqus_finite_M(sv, sv.dSdE, corate_type, sigma, ddsdde, kin_statev);
     const double J = det(sv.F1);
     const double per_volume_time = (DTime > simcoon::iota) ? 1./(J*DTime) : 0.;
-    ddsddt = vectorise(sv.dSdT)/J;
+    ddsddt = sv.dSdT/J;
     rpl = sv.r*per_volume_time;
-    drpldt = sv.drdT(0, 0)*per_volume_time;
-    const vec drdE = box_covector_2_dE(vectorise(sv.drdE), sv.F1, corate_type);
+    drpldt = sv.drdT*per_volume_time;
+    const vec drdE = box_covector_2_dE(sv.drdE, sv.F1, corate_type);
     const vec I = {1., 1., 1., 0., 0., 0.};
     drplde = (t2v_stress(sv.F1*v2t_stress(drdE)*sv.F1.t()) - sv.r*I)*per_volume_time;
 }
@@ -363,7 +425,7 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     }
 }
 
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE_kernel, const mat &dSdT, const mat &drpldE, const mat &drpldT, const bool &nlgeom, const vec &Etot_end) {
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE_kernel, const vec &dSdT, const vec &drpldE, const double &drpldT, const bool &nlgeom, const vec &Etot_end) {
 
     // dSdE, dSdT, drpldE and drpldT arrive condensed on the element's components (select_umat_T)
     const mat dSdE = (nlgeom && ndi == 3) ? abaqus_jacobian(dSdE_kernel, sigma) : dSdE_kernel;
@@ -373,7 +435,7 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
     mat2fe(dSdE, K, ddsdde);
     vec2fe(dSdT, K, ddsddt);
     vec2fe(drpldE, K, drplde);
-    drpldt = drpldT(0,0);
+    drpldt = drpldT;
     rpl = r;
 
     ///@brief : Pass the state variables

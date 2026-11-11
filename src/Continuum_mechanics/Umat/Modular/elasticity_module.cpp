@@ -182,10 +182,12 @@ void ElasticityModule::configure_orthotropic(double C1, double C2, double C3,
 }
 
 void ElasticityModule::configure_hyper_invariants(HyperPotential potential, const arma::vec& params,
-                                                  double alpha_scalar) {
+                                                  double alpha_scalar, double omega) {
     type_ = ElasticityType::HYPER_INVARIANTS;
     hyper_potential_ = potential;
     hyper_props_ = params;
+    omega_ = omega;
+    entropic_factor_ = 1.;
 
     alpha_ = alpha_scalar * Ith();
 
@@ -273,7 +275,8 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
             }
             const arma::vec params = props.subvec(offset + 2, offset + 1 + n_params);
             const double alpha = props(offset + 2 + n_params);
-            configure_hyper_invariants(potential, params, alpha);
+            const double omega = props(offset + 3 + n_params);
+            configure_hyper_invariants(potential, params, alpha, omega);
             offset += props_count(type, n_params);
             break;
         }
@@ -305,25 +308,27 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
             + std::to_string(ndi) + ")");
     }
     // V_el = exp(eps_el) passed where F is expected: the returned box tangent is d(tau)/d(eps_el), R = I
-    const arma::mat eps_t = v2t_strain(eps_el);
     arma::vec::fixed<3> e;
     arma::mat::fixed<3,3> N;
-    if (!eig_sym_3x3(e, N, eps_t)) {
-        throw simcoon::exception_expmat_sym("Error in expmat_sym function inside ElasticityModule::evaluate.");
+    arma::mat V_el, b_el;
+    double J_el;
+    std::vector<arma::mat> A;
+    arma::vec I_bar;
+    hyper_kinematics(eps_el, e, N, V_el, b_el, J_el, A, I_bar);
+    hyper_invariants_dW dW = hyper_potential_derivatives(hyper_potential_, hyper_props_, I_bar, J_el, A);
+    p_vol_ = J_el*dW.dUdJ;
+    if (omega_ != 0.) {
+        W_iso_ = hyper_potential_energy(hyper_potential_, hyper_props_, I_bar, A);
     }
-    const arma::vec::fixed<3> exp_e = arma::exp(e);
-    const arma::mat V_el = spectral_compose_3x3(N, exp_e);
-    const arma::mat b_el = spectral_compose_3x3(N, exp_e % exp_e);
-    const double J_el = std::exp(arma::trace(eps_t));
-
-    // An anisotropic potential carries reference fibre directions: push them forward with
-    // V_el, the same tensor that plays F here. an_ was parsed once at configure time.
-    const std::vector<arma::mat> A =
-        structure_tensors_push_forward(V_el, an_.a0, an_.kappa_d, J_el);
-
-    const hyper_invariants_dW dW =
-        hyper_potential_derivatives(hyper_potential_, hyper_props_,
-                                    isochoric_invariants(b_el, J_el), J_el, A);
+    if (entropic_factor_ != 1.) {   // psi = f(theta) W_iso + U: the isochoric derivatives scale, U does not
+        dW.dWdI_1_bar *= entropic_factor_;
+        dW.dWdI_2_bar *= entropic_factor_;
+        dW.dW2dI_11_bar *= entropic_factor_;
+        dW.dW2dI_12_bar *= entropic_factor_;
+        dW.dW2dI_22_bar *= entropic_factor_;
+        dW.dWdI_a_bar *= entropic_factor_;
+        dW.dW2dI_aa_bar *= entropic_factor_;
+    }
     // tau = dpsi/deps_el per reference volume (isotropic psi); corate 3, never the solver's.
     const bool total = (kinematic_form_ == KinematicForm::total);
     if (!total && A.empty()) {
@@ -338,6 +343,35 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
         // dual stress of H_el: equal to tau when coaxial, and what makes a fibre potential exact
         sigma = t2v_stress(Kirchoff2LogStressU(v2t_stress(sigma), V_el));
     }
+}
+
+void ElasticityModule::hyper_kinematics(const arma::vec& eps_el, arma::vec::fixed<3>& e, arma::mat::fixed<3, 3>& N,
+                                        arma::mat& V_el, arma::mat& b_el, double& J_el, std::vector<arma::mat>& A,
+                                        arma::vec& I_bar) const {
+    const arma::mat eps_t = v2t_strain(eps_el);
+    if (!eig_sym_3x3(e, N, eps_t)) {
+        throw simcoon::exception_expmat_sym("Error in expmat_sym function inside ElasticityModule::evaluate.");
+    }
+    const arma::vec::fixed<3> exp_e = arma::exp(e);
+    V_el = spectral_compose_3x3(N, exp_e);
+    b_el = spectral_compose_3x3(N, exp_e % exp_e);
+    J_el = std::exp(arma::trace(eps_t));
+    // An anisotropic potential carries reference fibre directions: push them forward with
+    // V_el, the same tensor that plays F here. an_ was parsed once at configure time.
+    A = structure_tensors_push_forward(V_el, an_.a0, an_.kappa_d, J_el);
+    I_bar = isochoric_invariants(b_el, J_el);
+}
+
+double ElasticityModule::iso_energy(const arma::vec& eps_el) const {
+    if (type_ != ElasticityType::HYPER_INVARIANTS) return 0.;
+    arma::vec::fixed<3> e;
+    arma::mat::fixed<3,3> N;
+    arma::mat V_el, b_el;
+    double J_el;
+    std::vector<arma::mat> A;
+    arma::vec I_bar;
+    hyper_kinematics(eps_el, e, N, V_el, b_el, J_el, A, I_bar);
+    return hyper_potential_energy(hyper_potential_, hyper_props_, I_bar, A);
 }
 
 arma::vec ElasticityModule::thermal_strain(double DT) const {

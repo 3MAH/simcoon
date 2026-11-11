@@ -252,20 +252,25 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         }
     }
 
+    mat kappa_m(6, N_plas), dPhi_m(6, N_plas);
+    for (int i = 0; i < N_plas; i++) {
+        kappa_m.col(i) = kappa_j[i];
+        dPhi_m.col(i) = dPhidsigma[i];
+    }
     ContinuumTangent ct;
     if (tangent_mode == 1) {
         // Simo-Hughes algorithmic tangent (N Hill fast mechanisms): per mechanism
         // dLambda_eps^i/dsigma = ddHill_stress(sigma, Hill_params[i]).
-        std::vector<mat> dLambda_dsigma_l(N_plas);
+        mat dLambda_dsigma_l(6, 6 * N_plas);
         for (int i = 0; i < N_plas; i++) {
-            dLambda_dsigma_l[i] = ddHill_stress(stress, Hill_params[i]);
+            dLambda_dsigma_l.cols(6 * i, 6 * i + 5) = ddHill_stress(stress, Hill_params[i]);
         }
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma, Ds_j, L, dLambda_dsigma_l);
+        ct = assemble_algorithmic_tangent(Bhat, kappa_m, dPhi_m, Ds_j, L, dLambda_dsigma_l);
     } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma, Ds_j, L);
+        ct = assemble_continuum_tangent(Bhat, kappa_m, dPhi_m, Ds_j, L);
     }
     Lt = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& P_epsilon = ct.P_epsilon;
     
     std::vector<double> A_p(N_plas);
     for (int i = 0; i < N_plas; i++) {

@@ -94,20 +94,17 @@ private:
     size_t p_index_ = 0;   ///< ivc_ index of "p", resolved by register_variables()
     size_t EP_index_ = 0;  ///< ivc_ index of "EP", resolved by register_variables()
 
-    // Per-iteration caches populated by compute_constraints. dPhi_dsigma() and
-    // kappa() return const-refs into these single-element buffers to avoid
-    // re-constructing the vectors on every FB iteration.
-    // flow_dir_/kappa_ stay raw engineering Voigt: the FB loop re-derives
-    // them every iteration and the yield/hardening internals are raw, so
-    // typed members would force eng<->3x3 conversions at every boundary
-    // (benchmarked at +7% on the elastoplastic golden). The typed view is
-    // produced once per iteration in dPhi_dsigma()/kappa().
+    // Per-iteration caches populated by compute_constraints, raw engineering Voigt;
+    // dPhi_dsigma() and kappa() return const-refs to their one-column views.
     mutable arma::vec flow_dir_;                ///< ∂Φ/∂σ (associated flow direction)
     mutable arma::vec kappa_;                   ///< L_ref · flow_dir_
-    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(Tensor2Type::strain)};
-    mutable std::vector<tensor2> kappa_cache_{tensor2(Tensor2Type::stress)};
-    mutable std::vector<tensor4> hessian_cache_{tensor4(Tensor4Type::compliance)};
-    mutable std::vector<tensor2> X_branches_;   ///< Per-branch backstresses, built
+    mutable arma::mat dPhi_column_ = arma::mat(6, 1);    ///< flow_dir_ as the 6 x 1 of the interface
+    mutable arma::mat kappa_column_ = arma::mat(6, 1);   ///< kappa_ as the 6 x 1 of the interface
+    mutable arma::mat::fixed<6, 6> hessian_eng_;   ///< flow Hessian at the shifted stress (dLambda_dsigma)
+    mutable arma::vec::fixed<6> hessian_at_;       ///< the stress hessian_eng_ was evaluated at
+    mutable bool hessian_valid_ = false;           ///< hessian_eng_ holds the Hessian of the current state at hessian_at_
+    bool implicit_update_ = false;                 ///< the last state update was the backward-Euler one of refresh_state (closest point), else the cutting-plane step of update()
+    mutable arma::mat X_branches_;              ///< Per-branch backstresses (6 x n, stress Voigt), built
                                                 ///< ONCE per FB iteration in
                                                 ///< compute_constraints and reused
                                                 ///< for sigma_eff + hardening_modulus
@@ -243,10 +240,10 @@ public:
         int row_offset
     ) const override;
 
-    [[nodiscard]] const std::vector<tensor2>& dPhi_dsigma(
+    [[nodiscard]] const arma::mat& dPhi_dsigma(
         const arma::vec& sigma) const override;
 
-    [[nodiscard]] const std::vector<tensor2>& kappa(
+    [[nodiscard]] const arma::mat& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref) const override;
@@ -254,7 +251,7 @@ public:
     /// Flow Hessian dLambda/dsigma at the shifted stress (sigma - X), via the
     /// yield criterion's analytic kernel (deta_stress / ddHill / ddDFA / ddAni).
     /// nullptr for criteria without one (Tresca, Drucker) -> continuum fallback.
-    [[nodiscard]] const std::vector<tensor4>* dLambda_dsigma(
+    [[nodiscard]] const arma::mat* dLambda_dsigma(
         const arma::vec& sigma) const override;
 
     /// has_flow_hessian(): von Mises, Hill, DFA, anisotropic. Tresca and Drucker have
@@ -296,7 +293,7 @@ public:
     /// update(); see StrainMechanism::committed_multiplier).
     [[nodiscard]] double committed_multiplier() const override;
 
-    arma::vec inelastic_strain() const override;
+    const arma::vec& inelastic_strain() const override;
 
     /**
      * @brief Applies the FB correction \f$ \Delta s \f$, PROJECTED onto \f$ p \ge p_{start} \f$.
@@ -320,6 +317,13 @@ public:
         arma::mat& Lt
     ) const override;
 
+    /**
+     * @brief Thermodynamic split of the plastic work of the increment, the trapezoids of the
+     * dedicated kernels: \f$ W_m^{ir} = \tfrac12 (R_n + R_{n+1})\,\Delta p + \sum_i \tfrac12 (\mathbf{X}_i^n
+     * + \mathbf{X}_i^{n+1}) : \Delta\boldsymbol{\alpha}_i \f$ (energy stored in the hardening) and
+     * \f$ W_m^d = \tfrac12 (\boldsymbol{\sigma}_n + \boldsymbol{\sigma}_{n+1}) : \Delta\boldsymbol{\varepsilon}^p - W_m^{ir} \f$,
+     * the dissipation the heat of the thermomechanical face is built on.
+     */
     void compute_work(
         const arma::vec& sigma_start,
         const arma::vec& sigma,
@@ -329,6 +333,27 @@ public:
         double& Wm_ir,
         double& Wm_d
     ) const override;
+
+    /**
+     * @brief Derivatives of the dissipation of compute_work (see StrainMechanism): the flow direction
+     * \f$ \boldsymbol{\Lambda} \f$ of the last compute_constraints (the direction the update moved
+     * along: the last cutting-plane iterate's, as the dedicated kernels; the committed one when the
+     * orchestrator re-evaluates the constraints there) and the hardening forces at the committed state,
+     * the turning of the direction over the increment through the flow Hessian at the committed
+     * shifted EFFECTIVE stress \f$ \boldsymbol{\xi} = \boldsymbol{\sigma}_{eff} - \mathbf{X} \f$ (criteria that have
+     * one, read from dLambda_dsigma() when it was evaluated there; held fixed otherwise), applied to
+     * \f$ \boldsymbol{\sigma}_n - \mathbf{X}_n + \boldsymbol{\sigma}_{n+1} - \mathbf{X}_{n+1} \f$ (the stresses of the
+     * dissipation; \f$ \mathbf{H}\boldsymbol{\xi}_{n+1} = 0 \f$) and contracted with the derivatives of the
+     * effective stress, and, for the back stresses, their evolution along the flow at fixed direction:
+     * \f$ \partial\boldsymbol{\alpha}_{i,n+1}/\partial\Delta p = \boldsymbol{\Lambda} \f$ (Prager); with recovery
+     * (Armstrong-Frederick, Chaboche) \f$ (\boldsymbol{\Lambda} - D_i \boldsymbol{\alpha}_{i,n+1}) / (1 + D_i \Delta p) \f$,
+     * the derivative of the backward-Euler update of the closest point (second order, 3e-7 on a
+     * non-proportional probe), and the secant \f$ \Delta\boldsymbol{\alpha}_i/\Delta p \f$ over the explicit
+     * iterates of the cutting plane (first order, 4e-5 on the same probe; the derivative of the last iterate
+     * is worse there). The \f$ \boldsymbol{\sigma}:\Delta\mathbf{E}^p \f$ term is on the stress the
+     * dissipation is written on (the damaged one under a damage mechanism, strain equivalence).
+     */
+    void dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE, double& dDgamma_dT) const override;
 };
 
 } // namespace simcoon

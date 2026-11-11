@@ -19,15 +19,28 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * @file legacy_adapters.hpp
  * @brief Legacy UMAT names served by the modular engine.
  *
- * The legacy UMATs whose physics ModularUMAT replicates exactly (proven by
- * the equivalence tests in test_modular.py and gated by
+ * The legacy UMATs whose physics ModularUMAT replicates (proven by the
+ * equivalence tests in test_modular.py / test_modular_thermo.py and gated by
  * benchmark/bench_legacy_vs_modular.py) keep their NAME and PROPS ABI: a
  * per-name translator turns the legacy props vector into the MODUL props
- * stream and the call is forwarded to umat_modular. statev: the modular
- * engine claims the FIRST required slots of the caller's array (legacy
- * allocations are always large enough); trailing legacy slots are left
- * untouched — column MEANING may differ from the deleted implementation
- * (see the migration table in the docs).
+ * stream and the call is forwarded to umat_modular (mechanical face) or
+ * umat_modular_T (thermomechanical face, the legacy props being
+ * `[rho, c_p, mechanical legacy props]`). statev: the modular engine claims
+ * the FIRST required slots of the caller's array (legacy allocations are
+ * always large enough); trailing legacy slots are left untouched — column
+ * MEANING may differ from the dedicated implementation (table below). The
+ * dedicated kernels that still exist answer the `_closed` names (EPICP_closed,
+ * EPCHA_closed, PRONK_closed, EPKCP_closed on the thermomechanical face).
+ *
+ * Name  | legacy props                               | MODUL stream (translate_NAME)                            | modular statev
+ * ------|--------------------------------------------|----------------------------------------------------------|---------------
+ * EPICP | E nu alpha sigmaY k m                      | isotropic block; plasticity, Mises, power law, no kin    | [T_init, p, EP] (8)
+ * EPKCP | E nu alpha sigmaY k m kX                   | ..., Prager C = 1.5 kX                                   | [T_init, p, EP, a] (14)
+ * EPCHA | E nu alpha sigmaY Q b C1 D1 C2 D2          | ..., Voce, Chaboche (C1, D1), (C2, D2)                   | [T_init, p, EP, a_1, a_2] (20)
+ * PRONK | E0 nu0 alpha N (E_i nu_i etaB_i etaS_i)xN  | isotropic block; one viscoelastic mechanism, N branches  | [T_init, (v_i, EV_i) x N] (1 + 7N)
+ *
+ * The other families (ELISO/ELIST/ELORT, EPHIL/EPTRI/EPHAC/EPANI/EPDFA/EPCHG/EPHIN) are listed in
+ * docs/simulation/umat_catalog.rst; a_i are back-strains (engineering shear), EV_i branch strains.
  *
  * @version 1.0
  */
@@ -83,5 +96,45 @@ void umat_legacy_modular(
     const int& tangent_mode = tangent_default,
     const int& ncp = 0
 );
+
+/**
+ * @brief The thermomechanical counterpart of umat_legacy_modular: @p props is
+ * `[rho, c_p, legacy mechanical props]`, translated to `[rho, c_p, MODUL stream]` and
+ * forwarded to umat_modular_T (its signature, @p ncp included). Serves EPICP, EPKCP and
+ * PRONK. Same exceptions as the mechanical face.
+ */
+void umat_legacy_modular_T(
+    const std::string& umat_name,
+    const arma::vec& Etot,
+    const arma::vec& DEtot,
+    arma::vec& sigma,
+    double& r,
+    arma::mat& dSdE,
+    arma::vec& dSdT,
+    arma::vec& drdE,
+    double& drdT,
+    const arma::mat& DR,
+    const int& nprops,
+    const arma::vec& props,
+    const int& nstatev,
+    arma::vec& statev,
+    const double& T,
+    const double& DT,
+    const double& Time,
+    const double& DTime,
+    double& Wm,
+    double& Wm_r,
+    double& Wm_ir,
+    double& Wm_d,
+    double& Wt,
+    double& Wt_r,
+    double& Wt_ir,
+    const int& ndi,
+    const int& nshr,
+    const bool& start,
+    double& tnew_dt,
+    const int& tangent_mode,
+    const KinematicForm& kinematic_form,
+    const int& ncp);
 
 } // namespace simcoon

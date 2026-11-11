@@ -106,7 +106,8 @@ private:
                                         ///< kappa, tangent_contribution.
     mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
     mutable arma::mat L_cached_;        ///< Stiffness the cached compliance was inverted from
-    std::vector<tensor2> kappa_cache_{tensor2::zeros(Tensor2Type::strain)};   ///< zero: no multiplier carried
+    arma::mat kappa_zero_ = arma::mat(6, 1, arma::fill::zeros);   ///< zero: no multiplier carried
+    arma::vec::fixed<6> no_inelastic_strain_{arma::fill::zeros};   ///< inelastic_strain(): damage adds none
     size_t D_index_ = 0;        ///< ivc_ index of "D", resolved by register_variables
     size_t Y_max_index_ = 0;    ///< ivc_ index of "Y_max", resolved by register_variables
 
@@ -183,21 +184,18 @@ public:
     [[nodiscard]] bool guarded_constraints() const override { return false; }
     [[nodiscard]] bool carries_multipliers() const override { return false; }   // Phi = -1, D by fixed point
 
-    /// Both dPhi/dsigma and kappa are M·σ products here, i.e. STRAIN-typed —
-    /// unlike the stress-typed kappa of plasticity/viscoelasticity. The
-    /// orchestrator's engineering-Voigt dot therefore mixes conventions for
-    /// damage rows/columns (a strain·strain pairing); this reproduces the
-    /// established Prony/CCP-era numerics and is kept deliberately. Review as
-    /// a modeling item, not a port bug.
-    [[nodiscard]] const std::vector<tensor2>& dPhi_dsigma(
-        const arma::vec& sigma) const override;
-
-    [[nodiscard]] const std::vector<tensor2>& kappa(
+    /// kappa is an M·σ product here, i.e. STRAIN-convention — unlike the
+    /// stress-convention kappa of plasticity/viscoelasticity. The orchestrator's
+    /// engineering-Voigt dot therefore mixes conventions for damage columns; this
+    /// reproduces the established Prony/CCP-era numerics and is kept deliberately.
+    /// Review as a modeling item, not a port bug. dPhi_dsigma is the base default
+    /// (no column): the row is a fixed point, not an FB multiplier.
+    [[nodiscard]] const arma::mat& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref) const override;
 
-    arma::vec inelastic_strain() const override;
+    const arma::vec& inelastic_strain() const override;
 
     void update(
         const arma::vec& ds,
@@ -212,6 +210,12 @@ public:
         arma::mat& Lt
     ) const override;
 
+    /**
+     * @brief Dissipation of the increment, the trapezoid \f$ \tfrac12 (Y_n + Y_{n+1})\,\Delta D \f$ on
+     * the driving force (the quadrature of every work of the engine; exact for the LINEAR law,
+     * where it telescopes to \f$ (Y_{n+1}^2 - Y_n^2)/(2 (Y_c - Y_0)) \f$), \f$ Y_n \f$ from the start
+     * stress, \f$ \boldsymbol{\sigma}^n_{eff} = \boldsymbol{\sigma}^n/(1 - D_n) \f$. Nothing stored.
+     */
     void compute_work(
         const arma::vec& sigma_start,
         const arma::vec& sigma,
@@ -221,6 +225,16 @@ public:
         double& Wm_ir,
         double& Wm_d
     ) const override;
+    /**
+     * @brief Derivatives of the trapezoid dissipation: \f$ \tfrac12 \Delta D\,\partial Y_{n+1} +
+     * \tfrac12 (Y_n + Y_{n+1})\,D'(Y)\,\partial Y_{n+1} \f$ (\f$ D'(Y) = 0 \f$ under unloading or at
+     * \f$ D_c \f$), \f$ \partial Y_{n+1}/\partial\boldsymbol{\varepsilon} = (\partial\boldsymbol{\sigma}_{eff}/\partial\boldsymbol{\varepsilon})^T
+     * \mathbf{S}\boldsymbol{\sigma}_{eff} \f$ and the same with \f$ \partial\boldsymbol{\sigma}_{eff}/\partial\theta \f$
+     * (the @c dSdE_eff / @c dSdT_eff of the inputs). The row carries no multiplier: the multiplier
+     * sensitivities are not read.
+     * Call after compute_constraints (\f$ D'(Y) \f$ and the compliance of the committed state).
+     */
+    void dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE, double& dDgamma_dT) const override;
 
     // Damage-specific methods
 

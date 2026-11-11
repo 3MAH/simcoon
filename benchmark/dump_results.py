@@ -17,10 +17,18 @@ Two dumps:
   EPCHG, serial (``n_threads=1``) and parallel (``n_threads=0``): sigma, statev,
   Wm and Lt after each increment.
 
+- ``batch_T`` — ``sim.umat_T`` on the same kind of arrays (N = 251) over six
+  increments with a temperature ramp, for EPICP_T, EPKCP_T and the MODUL
+  compositions of the thermomechanical face (J2 power law, Prager, Chaboche,
+  Prony + Prager, plasticity + damage, entropic neo-Hookean), cutting plane and
+  closest point: sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT after each
+  increment.
+
 Usage::
 
     python benchmark/dump_results.py solver ref_solver.npz   # with the reference build
     python benchmark/dump_results.py batch  ref_batch.npz
+    python benchmark/dump_results.py batch_T ref_batch_T.npz
     ...                                                       # switch builds
     python benchmark/dump_results.py solver new_solver.npz
     python benchmark/dump_results.py compare ref_solver.npz new_solver.npz
@@ -212,6 +220,75 @@ def dump_batch(out, N=997, n_inc=6):
     print(f"saved {len(store)} arrays to {out}")
 
 
+# --------------------------------------------------------------------------- batch_T
+
+
+def thermo_laws():
+    """(name, props, nstatev) of the thermomechanical batch: legacy kernels and MODUL compositions."""
+    from simcoon.modular import (ModularMaterial, IsotropicElasticity, NeoHookeanElasticity, Plasticity,
+                                 VonMisesYield, PowerLawHardening, PragerHardening, ChabocheHardening,
+                                 Viscoelasticity, Damage)
+    E, nu, alpha, sy, k, m, C = 210000.0, 0.3, 1.2e-5, 300.0, 500.0, 0.4, 20000.0
+    rho_cp = [7.8e-9, 4.6e8]
+    j2 = lambda kin=None: Plasticity(sy, VonMisesYield(), PowerLawHardening(k, m), kin) if kin else \
+        Plasticity(sy, VonMisesYield(), PowerLawHardening(k, m))
+    iso = IsotropicElasticity(E, nu, alpha)
+    compositions = {
+        "MODUL_J2": ModularMaterial(iso, [j2()]),
+        "MODUL_prager": ModularMaterial(iso, [j2(PragerHardening(1.5 * C))]),
+        "MODUL_chaboche": ModularMaterial(iso, [j2(ChabocheHardening(terms=((1.5 * C, 50.0),)))]),
+        "MODUL_prony_prager": ModularMaterial(iso, [Viscoelasticity(terms=[(0.3 * E, nu, 50.0, 20.0)]),
+                                                    j2(PragerHardening(1.5 * C))]),
+        "MODUL_damage": ModularMaterial(iso, [j2(), Damage(Y_0=0.02, Y_c=5.0)]),
+        "MODUL_neohookean_entropic": ModularMaterial(
+            NeoHookeanElasticity(mu=E / (2 * (1 + nu)), kappa=E / (3 * (1 - 2 * nu)), alpha=alpha, omega=1.0), []),
+    }
+    laws = [("EPICP", rho_cp + [E, nu, alpha, sy, k, m], 8),
+            ("EPKCP", rho_cp + [E, nu, alpha, sy, k, m, C], 14)]
+    for label, mat in compositions.items():
+        laws.append((label, rho_cp + list(mat.props), max(mat.nstatev, 1)))
+    return laws
+
+
+def dump_batch_T(out, N=251, n_inc=6):
+    import simcoon as sim
+
+    F = np.asfortranarray
+    rng = np.random.default_rng(5)
+    store = {}
+    fields = ("sigma", "statev", "Wm", "Wt", "r", "dSdE", "dSdT", "drdE", "drdT")
+    for label, props, nstatev in thermo_laws():
+        name = label.split("_")[0]
+        for integrator in ("cutting_plane", "closest_point"):
+            case = f"batch_T/{label}/{integrator}"
+            props_a = F(np.asarray(props, float).reshape(-1, 1))
+            etot = F(np.zeros((6, N)))
+            sigma = F(np.zeros((6, N)))
+            statev = F(np.zeros((nstatev, N)))
+            Wm = F(np.zeros((4, N)))
+            Wt = F(np.zeros((3, N)))
+            T = np.full(N, 293.15)
+            DT = np.full(N, 0.5)
+            DR = F(np.repeat(np.eye(3)[:, :, None], N, axis=2))
+            direction = rng.standard_normal((6, N))
+            for inc in range(n_inc):
+                Detot = F(1e-3 * direction * (1 if inc < 4 else -1))
+                try:
+                    res = sim.umat_T(name, etot, Detot, sigma, DR, props_a, statev, inc * 0.1, 0.1, Wm, Wt,
+                                     T, DT, n_threads=1, start=(inc == 0), integrator=integrator)
+                except Exception as e:
+                    print(f"FAIL {case} inc {inc}: {type(e).__name__}: {str(e)[:100]}")
+                    store[f"{case}/inc{inc}|__error__"] = np.array([1.0])
+                    break
+                sigma, statev, Wm, Wt = (F(np.asarray(v)) for v in res[:4])
+                etot = F(etot + Detot)
+                T = T + DT
+                for k, v in zip(fields, res):
+                    store[f"{case}/inc{inc}|{k}"] = np.array(v)
+    np.savez(out, **store)
+    print(f"saved {len(store)} arrays to {out}")
+
+
 # --------------------------------------------------------------------------- compare
 
 
@@ -273,6 +350,8 @@ def main():
                    help="comma-separated example scripts, relative to examples/ ('' for none)")
     p = sub.add_parser("batch", help="dump the batch sim.umat results")
     p.add_argument("output")
+    p = sub.add_parser("batch_T", help="dump the batch sim.umat_T results")
+    p.add_argument("output")
     p = sub.add_parser("compare", help="compare two dumps")
     p.add_argument("a")
     p.add_argument("b")
@@ -287,6 +366,8 @@ def main():
         dump_solver(args.output, [e for e in args.examples.split(",") if e])
     elif args.command == "batch":
         dump_batch(args.output)
+    elif args.command == "batch_T":
+        dump_batch_T(args.output)
     else:
         field_rtol = {}
         for item in filter(None, args.field_rtol.split(",")):

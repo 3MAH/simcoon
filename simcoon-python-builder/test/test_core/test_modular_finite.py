@@ -119,5 +119,6 @@ def test_modul_finite_plasticity_dissipates():
     assert abs(final[S_STRAIN][0]) < 1e-8      # strain driven back to zero
     assert final[S_STRESS][0] < -300.0         # reverse yield in compression
     assert final[S_WM][3] > 0.0                # Wm_d > 0
-    # No kinematic hardening -> no backstress storage -> Wm_ir stays 0
-    assert abs(final[S_WM][2]) < 1e-12
+    # the thermodynamic split: the Voce hardening stores int R dp (Wm_ir), the rest is dissipated
+    assert final[S_WM][2] > 0.0
+    assert abs(final[S_WM][0] - final[S_WM][1:].sum()) < 1e-10 * final[S_WM][0]

@@ -49,12 +49,14 @@ def test_homogeneous_case(case, extra):
     _assert_history(_run(case, **extra), _reference(case))
 
 
-@pytest.mark.parametrize("case", ["EPCHA", "EPCHG", "EPHAC"])
-def test_cyclic_case_replays_its_table(case):
+@pytest.mark.parametrize("case, umat_name", [("EPCHA", "EPCHA"), ("EPCHA", "EPCHA_closed"),
+                                             ("EPCHG", None), ("EPHAC", None)])
+def test_cyclic_case_replays_its_table(case, umat_name):
     """Three blocks (pre-cycle, alignment, tabular replay of the experiment); the
     reference holds the last rows of the history (the third block only for EPCHA and
-    EPHAC, the whole run for EPCHG)."""
-    res = _run(case)
+    EPHAC, the whole run for EPCHG). The EPCHA table is the dedicated kernel's; the
+    modular engine (the default) and the dedicated kernel both replay it."""
+    res = _run(case, **({"umat_name": umat_name} if umat_name else {}))
     ref = _reference(case, "simul_1.txt")
     _assert_history(res, ref, rows=slice(-ref.shape[0], None))
 

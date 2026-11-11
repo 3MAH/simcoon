@@ -139,6 +139,8 @@ LAWS = {
     "ZENER": ([4.4, 0.656, 3000., 0.35, 1e-4, 1500., 0.35, 3000., 1200.], 8, T0, 0.05),
     "PRONK": ([4.4, 0.656, 3000., 0.35, 1e-4, 1., 1500., 0.35, 3000., 1200.], 14, T0, 0.05),
     "SMADI": (SMA, 17, 320., 0.06),
+    # the modular face, [rho, c_p, stream]: isotropic Enu + von Mises, power-law isotropic + Prager (EPKCP)
+    "MODUL": ([RHO, C_P, 0, 0, E, NU, ALPHA, 1, 0, 0, 0, 1, 1, 300., 500., 0.4, 30000.], 14, T0, 0.1),
 }
 SPIN = np.array([[0., -2., 0.], [2., 0., 0.], [0., 0., 0.]])
 
@@ -184,6 +186,46 @@ def test_rate_form_is_objective_to_second_order_under_a_spin(name):
     (dS40, dT40), (dS160, dT160) = gap(40), gap(160)
     assert dS40 < 5e-3 and dT40 < 5e-3
     assert dS160 < dS40 / 10. and dT160 < dT40 / 10.
+
+
+def _F_block(F, name, props, nstatev, form, ninc):
+    st = StepThermomeca(control="F", value=np.asarray(F).ravel(), ninc=ninc, thermal_control="heat_flux", Q=0.)
+    return solve(Block(steps=[st], control_type="F"), name, props, nstatev, T_init=T0, kinematic_form=form)
+
+
+def _gap(ra, rb, key):
+    a, b = np.asarray(ra[key]), np.asarray(rb[key])
+    return np.abs(a - b).max() / np.abs(a).max()
+
+
+def test_rate_and_total_forms_coincide_on_a_coaxial_path():
+    """Constrained uniaxial stretch to 1.3 (fixed principal directions): the corotational law in
+    ln V and the law in ln U are the same law, so the rate form converges to the total form with
+    the increment count (second order), on the temperature, the stress and the works."""
+    F = np.diag([1.3, 1., 1.])
+    gaps = {}
+    for ninc in (40, 160):
+        ra, rb = _F_block(F, "EPICP", EPICP, 8, "rate", ninc), _F_block(F, "EPICP", EPICP, 8, "total", ninc)
+        gaps[ninc] = {k: _gap(ra, rb, k) for k in ("Temp", "Kirchhoff", "Wm")}
+    assert gaps[160]["Temp"] < 1e-7 and gaps[160]["Kirchhoff"] < 1e-6 and gaps[160]["Wm"] < 2e-6
+    for k in gaps[40]:
+        assert gaps[40][k] / gaps[160][k] > 8.   # second order in the increment
+
+
+def test_rate_and_total_forms_are_two_laws_on_a_non_coaxial_path():
+    """Simple shear to gamma = 1 with plasticity: the principal directions of V turn, the two
+    forms are two different (both legitimate) finite-strain laws. The dissipation and the adiabatic
+    temperature agree closely; the work conjugacy defect of the rate form is booked in Wm and
+    Wm_r, never in r (so T is driven by the same heat), and does not vanish with the increments."""
+    F = np.eye(3)
+    F[0, 1] = 1.0
+    ra, rb = _F_block(F, "EPICP", EPICP, 8, "rate", 40), _F_block(F, "EPICP", EPICP, 8, "total", 40)
+    Ta, Tb = np.asarray(ra["Temp"]).ravel()[-1] - T0, np.asarray(rb["Temp"]).ravel()[-1] - T0
+    Wa, Wb = np.asarray(ra["Wm"])[:, -1], np.asarray(rb["Wm"])[:, -1]
+    assert Ta > 40. and abs(Ta - Tb) < 1e-3 * Ta          # same heat, to 1e-3
+    assert abs(Wa[3] - Wb[3]) < 1e-3 * Wa[3]              # same dissipation
+    assert abs(Wa[1] - Wb[1]) > 0.5 * abs(Wb[1])          # the recoverable work bookkeeping differs
+    assert abs(Wa[0] - Wb[0]) < 1e-2 * Wa[0]              # by a small fraction of the total work
 
 
 def test_block_start_probe_relaxes_nothing():

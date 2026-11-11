@@ -122,7 +122,7 @@ Solver parameters
      - The loading path, as returned by ``sim.solver.load_path_json`` or built directly (see :doc:`python_solver`)
    * - umat_name
      - string or callable
-     - 5-character code identifying the constitutive law (e.g., 'ELISO', 'EPICP', 'EPKCP'), or a constitutive law written in Python
+     - name of the constitutive law (e.g., 'ELISO', 'EPICP', 'EPKCP'; a legacy name runs the modular engine, ``EPICP_closed`` and the other ``_closed`` names the dedicated kernels), or a constitutive law written in Python
    * - props
      - numpy array
      - Material properties array
@@ -509,7 +509,14 @@ Mechanical steps only carry **T_final** (above). Thermomechanical steps (``"ther
    :math:`\boldsymbol{\tau}`. The total form is exact: :math:`\mathbf{T}:\dot{\mathbf{H}} =
    \boldsymbol{\tau}:\mathbf{D}`. Under the rate form the kernel's power differs from
    :math:`\boldsymbol{\tau}:\mathbf{D}` when the stress is not coaxial with the stretch; the
-   difference is booked to **Wm** and **Wm_r**, never to the heat. The other rates are refused.
+   difference is booked to **Wm** and **Wm_r**, never to the heat. The two forms are therefore
+   one law on a path whose principal stretch directions are fixed in the material (they agree to
+   the time-discretization order of the rate form), and two different, equally legitimate laws
+   when those directions turn: in simple shear to :math:`\gamma = 1` with plasticity the
+   adiabatic temperature and the dissipation of the two forms agree to :math:`10^{-3}` while
+   their recoverable works differ (the defect is second order in the difference of the principal
+   log strains, :math:`1 - x/\sinh x`). Prefer ``"total"`` when such paths dominate and the
+   recoverable work matters. The other rates are refused.
    Under ``"F"`` / ``"gradU"`` control with a heat flux or a convection, the Newton runs on the
    temperature alone.
 

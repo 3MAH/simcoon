@@ -94,6 +94,33 @@ TEST(Tumat_single, numerical_failure_is_a_step_cut)
     EXPECT_LT(r.pnewdt, 1.);
 }
 
+TEST(Tumat_single, cmname_is_read_whole)
+{
+    // the dedicated kernel under its full name, rate form: CMNAME is the whole token before the blanks
+    const int nstatev = nheader + nstatev_EPICP + simcoon::abaqus_kinematic_statev(3);
+    const call_result r = call("EPICP_closed_R", nstatev, eye(3, 3), F_stretch);
+    EXPECT_EQ(r.pnewdt, 1.);
+    EXPECT_TRUE(r.stress.is_finite());
+    EXPECT_GT(r.stress(0), 0.);
+    const call_result m = call("EPICP_R", nstatev, eye(3, 3), F_stretch);   // the modular engine, same law
+    EXPECT_LT(norm(r.stress - m.stress, 2), 1.e-8 * norm(m.stress, 2));
+    const call_result u = call("EPICP_CLOSED_R", nstatev, eye(3, 3), F_stretch);   // as Abaqus upper-cases it
+    EXPECT_EQ(norm(u.stress - r.stress, 2), 0.);
+}
+
+TEST(Tumat_single, descriptive_tail_falls_back_to_five_letters)
+{
+    // a deck naming its material EPICP_STEEL runs EPICP (a warning once); the _closed suffix is kept whole
+    const call_result r = call("EPICP", nheader + nstatev_EPICP, eye(3, 3), F_stretch);
+    const call_result s = call("EPICP_STEEL", nheader + nstatev_EPICP, eye(3, 3), F_stretch);
+    EXPECT_EQ(s.pnewdt, 1.);
+    EXPECT_EQ(norm(s.stress - r.stress, 2), 0.);
+    const int nstatev_R = nheader + nstatev_EPICP + simcoon::abaqus_kinematic_statev(3);
+    const call_result rr = call("EPICP_R", nstatev_R, eye(3, 3), F_stretch);
+    const call_result sr = call("EPICP_STEEL_R", nstatev_R, eye(3, 3), F_stretch);
+    EXPECT_EQ(norm(sr.stress - rr.stress, 2), 0.);
+}
+
 TEST(Tumat_singleDeathTest, input_errors_stop_the_analysis)
 {
     GTEST_FLAG_SET(death_test_style, "threadsafe");

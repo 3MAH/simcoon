@@ -85,11 +85,31 @@ res = sim.solver.solve(
 )
 
 ###################################################################################
+# Two engines answer this law. The name ``EPCHA`` is served by the modular engine
+# (the default): the same props are translated to a von Mises plasticity with Voce
+# and two-term Chaboche hardening. The dedicated closed-form kernel is kept under
+# the name ``EPCHA_closed``, for benchmarks and comparisons. Same props, same
+# ``nstatev``; only the layout of the internal variables differs.
+
+res_closed = sim.solver.solve(
+    blocks,
+    "EPCHA_closed",
+    props,
+    nstatev,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
+)
+gap = np.abs(res["Stress"] - res_closed["Stress"]).max() / np.abs(res["Stress"]).max()
+print(f"EPCHA (modular engine) vs EPCHA_closed (dedicated kernel): relative gap {gap:.1e}")
+
+###################################################################################
 # Plotting the results
 # ----------------------
 #
 # We plot the stress-strain hysteresis loop which shows the cyclic behavior
-# including the Bauschinger effect from kinematic hardening.
+# including the Bauschinger effect from kinematic hardening, for both engines.
 
 e11, e22, e33, e12, e13, e23 = res["Strain"]
 s11, s22, s33, s12, s13, s23 = res["Stress"]
@@ -104,7 +124,8 @@ plt.grid(True)
 plt.tick_params(axis="both", which="major", labelsize=15)
 plt.xlabel(r"Strain $\varepsilon_{11}$", size=15)
 plt.ylabel(r"Stress $\sigma_{11}$ (MPa)", size=15)
-plt.plot(e11, s11, c="blue", label="Chaboche model")
+plt.plot(e11, s11, c="blue", label="EPCHA (modular engine)")
+plt.plot(res_closed["Strain"][0], res_closed["Stress"][0], c="red", ls="--", label="EPCHA_closed (dedicated kernel)")
 plt.legend(loc="best")
 
 # Second subplot: Work terms vs Time

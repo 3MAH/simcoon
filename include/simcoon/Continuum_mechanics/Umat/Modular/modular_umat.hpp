@@ -82,7 +82,7 @@ private:
     // Modules
     ElasticityModule elasticity_;
     std::vector<std::unique_ptr<StrainMechanism>> mechanisms_;
-    arma::vec sigma_eff_;   ///< Effective (undamaged) stress of the last refresh_stress; what every mechanism works on
+    arma::vec::fixed<6> sigma_eff_;   ///< Effective (undamaged) stress of the last refresh_stress; what every mechanism works on
 
     // Constraint-row offset per mechanism; computed once in initialize() and
     // reused by every FB iteration (it only changes if mechanisms are
@@ -91,14 +91,42 @@ private:
 
     // State
     double T_init_;         ///< Initial temperature
-    arma::vec sigma_start_; ///< Stress at start of increment
+    arma::vec::fixed<6> sigma_start_; ///< Stress at start of increment
     /// Elastic block's tangent at the elastic strain of the LAST
     /// refresh_stress() call (return_mapping() starts with one). Carries no
     /// damage factor, so it is not d(sigma)/d(eps) of the model. The multiplier
     /// Jacobian and the consistent tangent must see the tangent of the state
     /// the stress was evaluated at, or Newton loses its quadratic rate.
-    arma::mat L_cur_;
+    arma::mat::fixed<6, 6> L_cur_;
+    arma::mat::fixed<6, 6> Lt_eff_;   ///< Tangent of the effective stress (before the damage stress_map), compute_tangent
+    /// Isochoric potential of a hyperelastic block at the start state of the increment (statev
+    /// rotated with DR as run() does, Etot, T), for the entropy of the thermomechanical face: the
+    /// memo below when it holds that state (the end state of the last run_T, or the same start
+    /// again), ElasticityModule::iso_energy otherwise (no stress, no tangent)
+    double start_iso_energy(const arma::vec& Etot, const arma::mat& DR, double T, int nstatev, const arma::vec& statev,
+                            bool start, int ndi, int nshr);
+    /// (Etot, DR, T, statev) -> W_iso memo of start_iso_energy: slot 0 the last start state it
+    /// evaluated, slot 1 the end state of the last run_T (the next start of a sequential path)
+    std::vector<double> iso_key_[2], iso_key_scratch_;
+    double iso_W_[2] = {0., 0.};
+    bool stress_mapped_ = false;   ///< Whether compute_tangent applied a stress_map (Lt_eff_ then differs from Lt)
+    /// The multiplier assembly of the last compute_tangent (algorithmic or closest-point operator):
+    /// sensitivities, its rows (mechanism, constraint) and the flux / gradient vectors it was built
+    /// from, read by run_T so the thermal face shares one assembly with dSdE as the dedicated kernels
+    ContinuumTangent ct_;
+    std::vector<std::pair<size_t, int>> ct_rows_;
+    arma::mat ct_kappa_, ct_dPhi_;   ///< 6 x N, one column per row of ct_
+    bool ct_cached_ = false;
+    /// Per-call scratch of compute_tangent and run_T (one instance per thread): the capacity is kept
+    std::vector<std::pair<size_t, const arma::mat*>> algo_;
+    std::vector<int> rows_;
+    arma::mat dLambda_l_;   ///< 6 x 6N, the Hessians of the rows side by side
+    std::vector<std::pair<size_t, int>> rows_T_;   ///< the multiplier rows run_T reads
     bool initialized_;      ///< Whether initialize() has been called
+
+    /// The multiplier sub-system of the committed state for the rows @p rows (global constraint
+    /// indices): \f$ \hat{B} = -B \f$ restricted to them, @p sigma the stress assemble_jacobian() reads
+    void multiplier_jacobian(const arma::vec& sigma, const std::vector<int>& rows, arma::mat& Bhat);
 
     // Return-mapping controls (local internal-equilibrium Newton loop)
     int maxiter_;           ///< Maximum iterations for return mapping
@@ -203,7 +231,7 @@ public:
      * - props[1..N_el]: elasticity block. Linear types: convention code
      *   (IsoConv/CubicConv/..., selects the interpretation of the constant
      *   slots) then the constants; HYPER_INVARIANTS: potential, n_params,
-     *   parameters, alpha — see ElasticityModule::configure
+     *   parameters, alpha, omega — see ElasticityModule::configure
      * - props[N_el+1]: num_mechanisms
      * - For each mechanism:
      *   - props[i]: mechanism_type (0=plasticity, 1=viscoelasticity, 2=damage)
@@ -355,6 +383,90 @@ public:
         double& Wm_r,
         double& Wm_ir,
         double& Wm_d,
+        int ndi,
+        int nshr,
+        bool start,
+        double& tnew_dt,
+        int tangent_mode = tangent_default
+    );
+
+    /**
+     * @brief The thermomechanical face: run() on the mechanical state, then the heat of the
+     * increment and the thermal derivatives of the dedicated thermomechanical kernels
+     * (plastic_isotropic_T, plastic_kin_iso_T, Prony_Nfast_T), written once on the mechanisms.
+     *
+     * @p props is @c [rho, c_p, the MODUL stream] (configure_from_props at offset 2). The entropy
+     * is \f$ \eta = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma} \f$, \f$ c_0 = \rho c_p \f$,
+     * the dissipation \f$ \Delta\gamma \f$ the @c Wm_d of the increment (PlasticityMechanism::compute_work)
+     * and the heat \f$ r = \Delta\gamma - \theta_{n+1}\Delta\eta \f$ (heat_source_increment()). The stress
+     * derivative \f$ \partial\boldsymbol{\sigma}/\partial\theta = \tilde{\mathbf{q}} - \sum_l
+     * \tilde{\boldsymbol{\kappa}}^l P_\theta^l \f$ with \f$ P_\theta = \hat{B}^{-1}(\partial\Phi/\partial\theta +
+     * \partial\Phi/\partial\boldsymbol{\sigma}:\tilde{\mathbf{q}}) \f$ on the rows of the committed state, where
+     * \f$ \mathbf{q} = -\mathbf{L}:\boldsymbol{\alpha} \f$ (plus the entropic stress rate \f$ (\omega/\theta_0)\,
+     * \mathbf{T}_{iso}/f \f$ of a hyperelastic block) is the trial stress rate of a temperature move and
+     * \f$ \tilde{\mathbf{q}} = \mathbf{M}^{-1}\mathbf{q} \f$, \f$ \tilde{\boldsymbol{\kappa}} = \mathbf{M}^{-1}\boldsymbol{\kappa} \f$
+     * go through the \f$ \mathbf{M}^{-1} \f$ of the assembly (ContinuumTangent::L_tilde and kappa_tilde; the
+     * identity for the continuum one, so the thermal rows are as consistent as the tangent for any elasticity block),
+     * \f$ \hat{B}^{-1} \f$ and \f$ \mathbf{P}_\varepsilon \f$ from the assembly of @p tangent_mode: the one
+     * compute_tangent() built for @p dSdE (the closest-point operator when that solve produced the
+     * state, the algorithmic one otherwise), as the dedicated kernels share one assembly between the
+     * tangent and the heat, so the flux and gradient vectors are those of that assembly (the committed
+     * closest-point ingredients, or the caches of the last cutting-plane iterate); with no active
+     * multiplier the sensitivities are zero. The continuum sensitivities are assembled at the
+     * committed state for tangent_none and tangent_continuum, and when a multiplier row has no flow
+     * Hessian (under tangent_none @p dSdE stays the elastic operator while the heat derivatives carry
+     * the continuum sensitivities: consistent with neither, as the explicit mode of the dedicated
+     * kernels); the heat derivatives through StrainMechanism::dissipation_sensitivity(), on the
+     * stress of the dissipation and on the effective one (a damage mechanism). Each multiplier-carrying
+     * mechanism owns one multiplier (StrainMechanism::committed_multiplier). The trial thermal
+     * perturbation goes through the viscoelastic branches, \f$ -\mathbf{L}\,(\mathbf{I} -
+     * \partial\tilde{\mathbf{E}}^v/\partial\boldsymbol{\varepsilon})\,\boldsymbol{\alpha} \f$ (the elastic one
+     * under tangent_none, as PRONK_T), and the damage stress_map() maps it to the damaged stress as it
+     * maps the tangent. Serves the linear elasticity blocks, plasticity mechanisms
+     * (temperature-independent criteria, \f$ \partial\Phi/\partial\theta = 0 \f$), viscoelastic
+     * mechanisms (inert rows, their dissipation from the branches) and the damage mechanism (the
+     * trapezoid \f$ \tfrac12 (Y_n + Y_{n+1}) \Delta D \f$ and its derivatives on the effective stress).
+     * A hyperelastic block adds its entropic part (ElasticityModule::configure_hyper_invariants):
+     * \f$ \eta \mathrel{-}= (\omega/\theta_0)\,\bar{W} \f$, \f$ \partial\boldsymbol{\sigma}/\partial\theta \mathrel{+}=
+     * (\omega/\theta_0)\,\mathbf{T}_{iso}/f \f$, \f$ \partial\eta/\partial\boldsymbol{\varepsilon} \mathrel{-}=
+     * (\omega/\theta_0)\,\mathbf{T}_{iso}/f \f$ and \f$ \partial\eta/\partial\theta \mathrel{+}= (\omega/\theta_0)\,
+     * \boldsymbol{\alpha}:\mathbf{T}_{iso}/f \f$, the stress of the block being
+     * \f$ f(\theta)\,\mathbf{T}_{iso} + p_{vol}\mathbf{I} \f$. Composed with mechanisms, \f$ \bar{W} \f$ is
+     * taken on the elastic strain \f$ \mathbf{H}_e = \boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{in} -
+     * \boldsymbol{\alpha}\,\Delta\theta \f$ at both ends of the increment (start_iso_energy) and its derivatives
+     * go through the chain \f$ d\bar{W} = \mathbf{T}_{iso}:d\mathbf{H}_e \f$, \f$ d\mathbf{H}_e = \mathbf{L}^{-1}
+     * (d\boldsymbol{\sigma}_{eff} - (\omega/\theta_0)\,\mathbf{T}_{iso}/f\,d\theta) \f$ with the tangents of the
+     * effective stress of this assembly (\f$ \mathbf{L} \f$ the block's tangent at the committed state), so the
+     * inelastic strain of every mechanism enters as it enters the stress; a reference temperature
+     * \f$ \theta_0 \le 0 \f$ is refused (std::invalid_argument). A step cut of run() returns the start state
+     * with a zero heat. @p Wt and @p Wt_r accumulate \f$ \theta_{n+1}\Delta\eta \f$ as the
+     * dedicated kernels, @p Wt_ir stays 0 (all three reset on @p start). The other arguments are those of run().
+     */
+    void run_T(
+        const arma::vec& Etot,
+        const arma::vec& DEtot,
+        arma::vec& sigma,
+        double& r,
+        arma::mat& dSdE,
+        arma::vec& dSdT,
+        arma::vec& drdE,
+        double& drdT,
+        const arma::mat& DR,
+        int nprops,
+        const arma::vec& props,
+        int nstatev,
+        arma::vec& statev,
+        double T,
+        double DT,
+        double Time,
+        double DTime,
+        double& Wm,
+        double& Wm_r,
+        double& Wm_ir,
+        double& Wm_d,
+        double& Wt,
+        double& Wt_r,
+        double& Wt_ir,
         int ndi,
         int nshr,
         bool start,
@@ -545,6 +657,9 @@ private:
      * When the closest-point branch did not run (see return_mapping), the
      * algorithmic operator.
      *
+     * The assembly of modes 2 and 3 (sensitivities, rows, flux and gradient vectors) is kept in
+     * ct_ for run_T; the other paths invalidate it.
+     *
      * @param sigma Current (converged) stress
      * @param Ds_total Total multiplier increments
      * @param Lt Output: tangent modulus
@@ -622,6 +737,49 @@ void umat_modular(
     double& Wm_r,
     double& Wm_ir,
     double& Wm_d,
+    const int& ndi,
+    const int& nshr,
+    const bool& start,
+    double& tnew_dt,
+    const int& tangent_mode = tangent_default,
+    const KinematicForm& kinematic_form = KinematicForm::rate,
+    const int& ncp = 0
+);
+
+/**
+ * @brief Thermomechanical UMAT function of the modular model (ModularUMAT::run_T), the
+ * interface of the `_T` kernels: @p props is @c [rho, c_p, the MODUL stream], @p kinematic_form
+ * the reading of the strain and stress as umat_modular (under KinematicForm::total the strain is
+ * \f$ \ln\mathbf{U} \f$ and @p sigma its dual \f$ \mathbf{T} \f$, read by a hyperelastic block; the
+ * thermal derivatives are those of that reading, mapped by the finite box of select_umat_T),
+ * @p ncp the NCPMethod code of the run. Each thread keeps its configured instances as umat_modular
+ * does, keyed on (props bit for bit, nstatev, form); the state is always restored from @p statev.
+ */
+void umat_modular_T(
+    const arma::vec& Etot,
+    const arma::vec& DEtot,
+    arma::vec& sigma,
+    double& r,
+    arma::mat& dSdE,
+    arma::vec& dSdT,
+    arma::vec& drdE,
+    double& drdT,
+    const arma::mat& DR,
+    const int& nprops,
+    const arma::vec& props,
+    const int& nstatev,
+    arma::vec& statev,
+    const double& T,
+    const double& DT,
+    const double& Time,
+    const double& DTime,
+    double& Wm,
+    double& Wm_r,
+    double& Wm_ir,
+    double& Wm_d,
+    double& Wt,
+    double& Wt_r,
+    double& Wt_ir,
     const int& ndi,
     const int& nshr,
     const bool& start,

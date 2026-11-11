@@ -446,7 +446,6 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     ContinuumTangent ct;
     if (tangent_mode == 1) {
         // Simo-Hughes algorithmic tangent (closest-point). Flow on effective stress (sigma-X), with
@@ -458,13 +457,12 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
             case 3:  dLambda_dsigma = ddAni_stress(stress - X, criteria_params);  break;
             default: dLambda_dsigma = deta_stress(stress - X);                     break; // 0 = Mises
         }
-        const std::vector<mat> dLambda_dsigma_l = { dLambda_dsigma };
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j[0], dPhidsigma, Ds_j, L, dLambda_dsigma);
     } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+        ct = assemble_continuum_tangent(Bhat, kappa_j[0], dPhidsigma, Ds_j, L);
     }
     Lt = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
     P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));

@@ -51,6 +51,34 @@ vec translate_ELORT(const vec& p) {
                p(9), p(10), p(11), 0};
 }
 
+vec translate_EPICP(const vec& p) {
+    // legacy: E nu alpha sigmaY k m  ->  plasticity, Mises, PowerLaw, no kin
+    return vec{0, 0, p(0), p(1), p(2),
+               1,
+               0, 0, 2, 0, 1, 0,
+               p(3), p(4), p(5)};
+}
+
+vec translate_EPCHA(const vec& p) {
+    // legacy: E nu alpha sigmaY Q b C1 D1 C2 D2  ->  plasticity, Mises, Voce, 2 Armstrong-Frederick terms
+    return vec{0, 0, p(0), p(1), p(2),
+               1,
+               0, 0, 3, 3, 1, 2,
+               p(3), p(4), p(5), p(6), p(7), p(8), p(9)};
+}
+
+vec translate_PRONK(const vec& p) {
+    // legacy: E0 nu0 alpha N (E_i nu_i etaB_i etaS_i) x N  ->  one viscoelastic mechanism, the branches verbatim
+    const int N = static_cast<int>(p(3));
+    vec out(8 + 4 * static_cast<uword>(N));
+    out(0) = 0; out(1) = 0;
+    out(2) = p(0); out(3) = p(1); out(4) = p(2);
+    out(5) = 1;
+    out(6) = 1; out(7) = N;
+    for (uword i = 0; i < 4 * static_cast<uword>(N); ++i) out(8 + i) = p(4 + i);
+    return out;
+}
+
 vec translate_EPKCP(const vec& p) {
     // legacy: E nu alpha sigmaY k m kX; legacy Prager X = kX*a (tensorial),
     // modular X = (2/3) C a  ->  C = 1.5 kX
@@ -173,6 +201,9 @@ const std::map<std::string, LegacyPropsTranslator>& registry() {
         {"ELISO", translate_ELISO},
         {"ELIST", translate_ELIST},
         {"ELORT", translate_ELORT},
+        {"EPICP", translate_EPICP},
+        {"EPCHA", translate_EPCHA},
+        {"PRONK", translate_PRONK},
         {"EPKCP", translate_EPKCP},
         {"EPHIL", translate_EPHIL},
         {"EPTRI", translate_EPHIL},
@@ -191,6 +222,45 @@ bool has_legacy_adapter(const std::string& umat_name) {
     return registry().count(umat_name) > 0;
 }
 
+namespace {
+// per-thread memo of the last (name, props) translation of each face (plain std containers: no arma
+// object outlives the call); the key is written last so a throw leaves no stale pair. The
+// thermomechanical props carry [rho, c_p] in front of the mechanical legacy props.
+vec translated_props(const std::string& umat_name, const vec& props, const bool thermo) {
+    struct translation {
+        std::string name;
+        std::vector<double> props;
+        std::vector<double> props_mod;
+    };
+    thread_local translation memo[2];
+    translation& last = memo[thermo ? 1 : 0];
+    const bool hit = !last.name.empty() && umat_name == last.name && props.n_elem == last.props.size()
+        && (last.props.empty()
+            || std::memcmp(last.props.data(), props.memptr(), last.props.size() * sizeof(double)) == 0);
+    if (!hit) {
+        const auto it = registry().find(umat_name);
+        if (it == registry().end()) {
+            throw std::invalid_argument(std::string(thermo ? "umat_legacy_modular_T" : "umat_legacy_modular")
+                                     + ": no adapter registered for '" + umat_name + "'");
+        }
+        vec translated;
+        if (thermo) {
+            if (props.n_elem < 2) {
+                throw std::invalid_argument("umat_legacy_modular_T: '" + umat_name + "' needs [rho, c_p, ...]");
+            }
+            translated = join_cols(props.subvec(0, 1), it->second(props.subvec(2, props.n_elem - 1)));
+        } else {
+            translated = it->second(props);
+        }
+        last.name.clear();
+        last.props.assign(props.begin(), props.end());
+        last.props_mod.assign(translated.begin(), translated.end());
+        last.name = umat_name;
+    }
+    return vec(const_cast<double*>(last.props_mod.data()), last.props_mod.size(), false, true);   // a view
+}
+}  // namespace
+
 void umat_legacy_modular(
     const std::string& umat_name,
     const arma::vec& Etot, const arma::vec& DEtot,
@@ -202,30 +272,7 @@ void umat_legacy_modular(
     const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
     const int& tangent_mode, const int& ncp) {
 
-    // per-thread memo of the last (name, props) translation (plain std containers: no arma object
-    // outlives the call); the key is written last so a throw leaves no stale pair
-    struct translation {
-        std::string name;
-        std::vector<double> props;
-        std::vector<double> props_mod;
-    };
-    thread_local translation last;
-    const bool hit = !last.name.empty() && umat_name == last.name && props.n_elem == last.props.size()
-        && (last.props.empty()
-            || std::memcmp(last.props.data(), props.memptr(), last.props.size() * sizeof(double)) == 0);
-    if (!hit) {
-        const auto it = registry().find(umat_name);
-        if (it == registry().end()) {
-            throw std::invalid_argument("umat_legacy_modular: no adapter registered for '"
-                                     + umat_name + "'");
-        }
-        const vec translated = it->second(props);
-        last.name.clear();
-        last.props.assign(props.begin(), props.end());
-        last.props_mod.assign(translated.begin(), translated.end());
-        last.name = umat_name;
-    }
-    const vec props_mod(const_cast<double*>(last.props_mod.data()), last.props_mod.size(), false, true);   // a view
+    const vec props_mod = translated_props(umat_name, props, false);   // a view of the memo
     try {
         umat_modular(umat_name, Etot, DEtot, sigma, Lt, L, DR,
                      static_cast<int>(props_mod.n_elem), props_mod,
@@ -236,6 +283,31 @@ void umat_legacy_modular(
         // a configuration error, named after the legacy law; numerical failures pass through
         // with their own type (the step-cut policy)
         throw std::invalid_argument("'" + umat_name + "' (modular adapter): "
+                                 + e.what());
+    }
+}
+
+void umat_legacy_modular_T(
+    const std::string& umat_name,
+    const arma::vec& Etot, const arma::vec& DEtot,
+    arma::vec& sigma, double& r, arma::mat& dSdE, arma::vec& dSdT, arma::vec& drdE, double& drdT,
+    const arma::mat& DR,
+    const int& /*nprops*/, const arma::vec& props,
+    const int& nstatev, arma::vec& statev,
+    const double& T, const double& DT, const double& Time, const double& DTime,
+    double& Wm, double& Wm_r, double& Wm_ir, double& Wm_d,
+    double& Wt, double& Wt_r, double& Wt_ir,
+    const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
+    const int& tangent_mode, const KinematicForm& kinematic_form, const int& ncp) {
+
+    const vec props_mod = translated_props(umat_name, props, true);   // a view of the memo
+    try {
+        umat_modular_T(Etot, DEtot, sigma, r, dSdE, dSdT, drdE, drdT, DR,
+                       static_cast<int>(props_mod.n_elem), props_mod, nstatev, statev,
+                       T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir,
+                       ndi, nshr, start, tnew_dt, tangent_mode, kinematic_form, ncp);
+    } catch (const std::logic_error& e) {
+        throw std::invalid_argument("'" + umat_name + "' (modular adapter, thermomechanical): "
                                  + e.what());
     }
 }

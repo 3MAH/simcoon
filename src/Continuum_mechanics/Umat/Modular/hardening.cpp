@@ -22,6 +22,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/parameter.hpp>
 #include <cassert>
 #include <cmath>
@@ -41,51 +43,40 @@ auto& back_strain(Collection& ivc, size_t index, const std::string& key) {
     return ivc.at(index);
 }
 
-// X = (2/3) C alpha, re-tagged STRESS through the 3x3: alpha is strain-typed (factor-2 shear),
-// so a strain-typed X would double-count the shear terms in sigma - X and X:n
-inline tensor2 backstress_of(double C, const arma::vec& a) {
-    const double k = (2.0 / 3.0) * C;
-    arma::mat::fixed<3,3> X = voigt_to_mat(a, Tensor2Type::strain);
-    for (arma::uword i = 0; i < 9; ++i) {
-        X(i) = X(i) * k;
-    }
-    return stress(X);
-}
-
+// alpha and n engineering strain Voigt (doubled shear); the entrywise forms below
 // alpha <- alpha_from + dp n
-inline void add_flow(const arma::vec& alpha_from, double dp, const tensor2& n, arma::vec& alpha) {
-    arma::mat::fixed<3,3> a = voigt_to_mat(alpha_from, Tensor2Type::strain);
-    const arma::mat::fixed<3,3>& nm = n.mat();
-    for (arma::uword i = 0; i < 9; ++i) {
-        const double t = nm(i) * dp;
-        a(i) = a(i) + t;
+inline void add_flow(const arma::vec& alpha_from, double dp, const arma::vec& n, arma::vec& alpha) {
+    for (int i = 0; i < 6; ++i) {
+        const double t = n[i] * dp;
+        alpha[i] = alpha_from[i] + t;
     }
-    mat_to_voigt(a, Tensor2Type::strain, alpha);
 }
 
 // alpha <- alpha + dp (n - D alpha)
-inline void add_flow_recovery(InternalVariable& a_var, double dp, double D, const tensor2& n) {
-    arma::mat::fixed<3,3> a = voigt_to_mat(a_var.raw_voigt(), Tensor2Type::strain);
-    const arma::mat::fixed<3,3>& nm = n.mat();
-    for (arma::uword i = 0; i < 9; ++i) {
-        const double t1 = a(i) * D;
-        const double t2 = nm(i) - t1;
+inline void add_flow_recovery(InternalVariable& a_var, double dp, double D, const arma::vec& n) {
+    arma::vec& a = a_var.raw_voigt();
+    for (int i = 0; i < 6; ++i) {
+        const double t1 = a[i] * D;
+        const double t2 = n[i] - t1;
         const double t3 = t2 * dp;
-        a(i) = a(i) + t3;
+        a[i] = a[i] + t3;
     }
-    mat_to_voigt(a, Tensor2Type::strain, a_var.raw_voigt());
 }
 
 // alpha <- s (alpha_n + dp n), the Armstrong-Frederick backward-Euler closed form
-inline void refresh_from_start(InternalVariable& a_var, double dp, double s, const tensor2& n) {
-    arma::mat::fixed<3,3> a = voigt_to_mat(a_var.raw_voigt_start(), Tensor2Type::strain);
-    const arma::mat::fixed<3,3>& nm = n.mat();
-    for (arma::uword i = 0; i < 9; ++i) {
-        const double t = nm(i) * dp;
-        const double u = a(i) + t;
-        a(i) = u * s;
+inline void refresh_from_start(InternalVariable& a_var, double dp, double s, const arma::vec& n) {
+    const arma::vec& a_n = a_var.raw_voigt_start();
+    arma::vec& a = a_var.raw_voigt();
+    for (int i = 0; i < 6; ++i) {
+        const double t = n[i] * dp;
+        const double u = a_n[i] + t;
+        a[i] = u * s;
     }
-    mat_to_voigt(a, Tensor2Type::strain, a_var.raw_voigt());
+}
+
+// <n, n> of a strain-like n on its engineering components (shear weight 1/2)
+inline double nn_strain(const arma::vec& n) {
+    return contract_voigt(n.memptr(), n.memptr(), voigt_shear_weight(Tensor2Type::strain));
 }
 }  // namespace
 
@@ -157,6 +148,16 @@ double PowerLawHardening::dR_dp(double p) const {
     return a_reg_ + 2.0 * b_reg_ * p;
 }
 
+void PowerLawHardening::R_and_dR(double p, double& R, double& dR) const {
+    if (p > 0.0 && (m_ >= 1.0 || p >= p_reg_powerlaw)) {   // one pow: dR = m R / p
+        R = k_ * std::pow(p, m_);
+        dR = m_ * R / p;
+        return;
+    }
+    R = this->R(p);
+    dR = dR_dp(p);
+}
+
 // VoceHardening
 void VoceHardening::configure(const arma::vec& props, int& offset) {
     Q_ = props(offset);
@@ -170,6 +171,12 @@ double VoceHardening::R(double p) const {
 
 double VoceHardening::dR_dp(double p) const {
     return Q_ * b_ * std::exp(-b_ * p);
+}
+
+void VoceHardening::R_and_dR(double p, double& R, double& dR) const {
+    const double e = std::exp(-b_ * p);
+    R = Q_ * (1.0 - e);
+    dR = Q_ * b_ * e;
 }
 
 // CombinedVoceHardening
@@ -197,6 +204,16 @@ double CombinedVoceHardening::dR_dp(double p) const {
     return result;
 }
 
+void CombinedVoceHardening::R_and_dR(double p, double& R, double& dR) const {
+    R = 0.0;
+    dR = 0.0;
+    for (int i = 0; i < N_; ++i) {
+        const double e = std::exp(-b_(i) * p);
+        R += Q_(i) * (1.0 - e);
+        dR += Q_(i) * b_(i) * e;
+    }
+}
+
 // ==== KINEMATIC HARDENING IMPLEMENTATIONS ====
 
 std::unique_ptr<KinematicHardening> KinematicHardening::create(KinHardType type, int N) {
@@ -214,6 +231,33 @@ std::unique_ptr<KinematicHardening> KinematicHardening::create(KinHardType type,
     }
 }
 
+arma::vec KinematicHardening::backstress_voigt(int i, const arma::vec& a) const {
+    // X = (2/3) C alpha: alpha carries the doubled shear, X does not
+    const double k = (2.0 / 3.0) * branch_modulus(i);
+    arma::vec::fixed<6> X;
+    for (int c = 0; c < 3; ++c) X[c] = k * a[c];
+    for (int c = 3; c < 6; ++c) X[c] = k * (0.5 * a[c]);
+    return X;
+}
+
+void KinematicHardening::compute_backstresses(const InternalVariableCollection& ivc, arma::mat& X_i) const {
+    const int n = num_backstresses();
+    X_i.set_size(6, n);
+    for (int i = 0; i < n; ++i) {
+        X_i.col(i) = backstress_voigt(i, back_strain_variable(ivc, i)->raw_voigt());
+    }
+}
+
+double KinematicHardening::stored_increment(const InternalVariableCollection& ivc) const {
+    double W = 0.0;
+    for (int i = 0; i < num_backstresses(); ++i) {
+        const InternalVariable& a = *back_strain_variable(ivc, i);
+        // X linear in alpha: the trapezoid is the back stress of the mean back-strain
+        W += arma::dot(backstress_voigt(i, arma::vec(0.5*(a.raw_voigt_start() + a.raw_voigt()))), a.delta_vec());
+    }
+    return W;
+}
+
 void PragerHardening::configure(const arma::vec& props, int& offset) {
     C_ = props(offset);
     offset += 1;
@@ -224,24 +268,18 @@ void PragerHardening::register_variables(InternalVariableCollection& ivc) {
     a_index_ = ivc.index_of(a_key_);
 }
 
-void PragerHardening::compute_backstresses(const InternalVariableCollection& ivc,
-                                           std::vector<tensor2>& X_i) const {
-    X_i.resize(1, tensor2(Tensor2Type::stress));
-    X_i[0] = backstress_of(C_, back_strain(ivc, a_index_, a_key_).raw_voigt());
-}
-
-double PragerHardening::hardening_modulus(const tensor2& n,
-                                          const std::vector<tensor2>& /*X_i*/) const {
+double PragerHardening::hardening_modulus(const arma::vec& n,
+                                          const arma::mat& /*X_i*/) const {
     // exact slope n : dX/dp = (2/3) C <n,n> (= C for a von Mises normal, <n,n> = 3/2)
-    return (2.0 / 3.0) * C_ * arma::accu(n.mat() % n.mat());
+    return (2.0 / 3.0) * C_ * nn_strain(n);
 }
 
-void PragerHardening::update(double dp, const tensor2& n, InternalVariableCollection& ivc) {
+void PragerHardening::update(double dp, const arma::vec& n, InternalVariableCollection& ivc) {
     auto& a_var = back_strain(ivc, a_index_, a_key_);
     add_flow(a_var.raw_voigt(), dp, n, a_var.raw_voigt());   // alpha + dp n
 }
 
-void PragerHardening::refresh_state(double dp, const tensor2& n,
+void PragerHardening::refresh_state(double dp, const arma::vec& n,
                                     InternalVariableCollection& ivc) const {
     // Linear: alpha = alpha_n + dp n (exact backward Euler).
     auto& a_var = back_strain(ivc, a_index_, a_key_);
@@ -267,26 +305,20 @@ void ArmstrongFrederickHardening::register_variables(InternalVariableCollection&
     a_index_ = ivc.index_of(a_key_);
 }
 
-void ArmstrongFrederickHardening::compute_backstresses(
-    const InternalVariableCollection& ivc, std::vector<tensor2>& X_i) const {
-    X_i.resize(1, tensor2(Tensor2Type::stress));
-    X_i[0] = backstress_of(C_, back_strain(ivc, a_index_, a_key_).raw_voigt());
-}
-
 double ArmstrongFrederickHardening::hardening_modulus(
-    const tensor2& n, const std::vector<tensor2>& X_i) const {
+    const arma::vec& n, const arma::mat& X_i) const {
     // H_kin = (2/3) C <n,n> - D (X:n); X:n = stress-Voigt . engineering-strain-Voigt
-    const double nn = arma::accu(n.mat() % n.mat());
-    return (2.0 / 3.0) * C_ * nn - D_ * arma::dot(X_i[0].voigt(), n.voigt());
+    const arma::vec::fixed<6> X = X_i.col(0);
+    return (2.0 / 3.0) * C_ * nn_strain(n) - D_ * arma::dot(X, n);
 }
 
-void ArmstrongFrederickHardening::update(double dp, const tensor2& n,
+void ArmstrongFrederickHardening::update(double dp, const arma::vec& n,
                                           InternalVariableCollection& ivc) {
     // dα = (n − D α) dp  (AF in α-form; equivalent to dX/dp = (2/3)C n − D X)
     add_flow_recovery(back_strain(ivc, a_index_, a_key_), dp, D_, n);
 }
 
-void ArmstrongFrederickHardening::refresh_state(double dp, const tensor2& n,
+void ArmstrongFrederickHardening::refresh_state(double dp, const arma::vec& n,
                                                 InternalVariableCollection& ivc) const {
     // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp).
     refresh_from_start(back_strain(ivc, a_index_, a_key_), dp, (1.0 / (1.0 + D_ * dp)), n);
@@ -319,30 +351,20 @@ void ChabocheHardening::register_variables(InternalVariableCollection& ivc) {
     }
 }
 
-void ChabocheHardening::compute_backstresses(const InternalVariableCollection& ivc,
-                                             std::vector<tensor2>& X_i) const {
-    // X_i stress-typed (backstress_of): a strain-typed carrier would put the factor-2 shear back
-    X_i.resize(static_cast<size_t>(N_), tensor2(Tensor2Type::stress));
-    for (int i = 0; i < N_; ++i) {
-        X_i[static_cast<size_t>(i)] = backstress_of(C_(i), back_strain(ivc, a_index_[i], a_keys_[i]).raw_voigt());
-    }
-}
-
-double ChabocheHardening::hardening_modulus(const tensor2& n,
-                                            const std::vector<tensor2>& X_i) const {
+double ChabocheHardening::hardening_modulus(const arma::vec& n,
+                                            const arma::mat& X_i) const {
     // H_kin = Σ_i [ (2/3) C_i <n,n> − D_i (X_i : n) ] — exact slope per
     // branch (see ArmstrongFrederick).
-    const arma::vec::fixed<6> n_v = n.voigt();
-    const double nn = arma::accu(n.mat() % n.mat());
+    const double nn = nn_strain(n);
     double H_kin = 0.0;
     for (int i = 0; i < N_; ++i) {
-        H_kin += (2.0 / 3.0) * C_(i) * nn
-                 - D_(i) * arma::dot(X_i[static_cast<size_t>(i)].voigt(), n_v);
+        const arma::vec::fixed<6> X = X_i.col(i);
+        H_kin += (2.0 / 3.0) * C_(i) * nn - D_(i) * arma::dot(X, n);
     }
     return H_kin;
 }
 
-void ChabocheHardening::update(double dp, const tensor2& n,
+void ChabocheHardening::update(double dp, const arma::vec& n,
                                  InternalVariableCollection& ivc) {
     // dα_i = (n − D_i α_i) dp
     for (int i = 0; i < N_; ++i) {
@@ -350,7 +372,7 @@ void ChabocheHardening::update(double dp, const tensor2& n,
     }
 }
 
-void ChabocheHardening::refresh_state(double dp, const tensor2& n,
+void ChabocheHardening::refresh_state(double dp, const arma::vec& n,
                                       InternalVariableCollection& ivc) const {
     // Per-branch backward Euler closed form (see ArmstrongFrederick).
     for (int i = 0; i < N_; ++i) {

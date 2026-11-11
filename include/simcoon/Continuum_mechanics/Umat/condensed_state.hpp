@@ -62,6 +62,28 @@ int default_nshr(const int &ndi);
 condensed_state make_condensed_state(const int &ndi, const int &nshr = -1);
 
 /**
+ * @brief Deformation gradient of a condensed finite-strain point (ndi < 3).
+ *
+ * The host's \f$ \mathbf{F} \f$ holds the rotation and the kept stretches only: its free
+ * components are placeholders (Abaqus plane stress, a batch caller). The point owns its free
+ * stretches through its strain state: \f$ \mathbf{F} = \exp(\ln\mathbf{V})\,\mathbf{R} \f$ with
+ * \f$ \ln\mathbf{V} \f$ on the free set \f$ C \f$ replaced by the strain state (the rate form, the
+ * accumulated log strain in the lab), or \f$ \mathbf{F} = \mathbf{R}\exp(\mathbf{H}) \f$ from the whole
+ * material log strain (the total form). Exact when the free directions are principal (plane
+ * stress); the kept stretches move at second order otherwise.
+ */
+struct condensed_F {
+    arma::vec lnV;   ///< \f$ \ln\mathbf{V} \f$ of the host's F (6, engineering shear)
+    arma::mat R;     ///< its rotation
+    /// Throws exception_logmat_sympd on a degenerate F
+    explicit condensed_F(const arma::mat &F);
+    /// \f$ \exp(\ln\mathbf{V})\,\mathbf{R} \f$ with \f$ \ln\mathbf{V}_C = e_C \f$ (rate form)
+    arma::mat operator()(const condensed_state &cs, const arma::vec &e) const;
+    /// \f$ \mathbf{R}\exp(\mathbf{H}) \f$ (total form, H the whole strain state)
+    arma::mat total(const arma::vec &H) const;
+};
+
+/**
  * @brief One Newton step of solve_condensed on the stress-free components.
  * @param cs The condensed state
  * @param DEtot Strain increment (6), its \f$ C \f$ components updated unless converged
@@ -150,9 +172,9 @@ void condense_tangent(const condensed_state &cs, arma::mat &Lt);
  * @brief Static condensation of the thermomechanical derivatives on the kept set.
  * @param cs The condensed state (no-op when inactive)
  * @param dSdE Stress-strain tangent (6x6), condensed as by condense_tangent
- * @param dSdT Stress-temperature derivative (6 entries, 6x1 or 1x6)
- * @param drdE Heat-strain derivative (6 entries, 6x1 or 1x6)
- * @param drdT Heat-temperature derivative (1x1)
+ * @param dSdT Stress-temperature derivative (6)
+ * @param drdE Heat-strain derivative (6)
+ * @param drdT Heat-temperature derivative
  * @details With the stress-free condition \f$ \mathrm{d}\boldsymbol{\sigma}_C = \mathbf{0} \f$,
  * \f$ \mathrm{d}\boldsymbol{\varepsilon}_C = - \mathbf{L}_{CC}^{-1} \left( \mathbf{L}_{CK} \mathrm{d}\boldsymbol{\varepsilon}_K + \partial_T \boldsymbol{\sigma}_C \, \mathrm{d}T \right) \f$, so
  \f[
@@ -162,6 +184,6 @@ void condense_tangent(const condensed_state &cs, arma::mat &Lt);
  \f]
  * The \f$ C \f$ entries are set to zero.
  */
-void condense_tangent_T(const condensed_state &cs, arma::mat &dSdE, arma::mat &dSdT, arma::mat &drdE, arma::mat &drdT);
+void condense_tangent_T(const condensed_state &cs, arma::mat &dSdE, arma::vec &dSdT, arma::vec &drdE, double &drdT);
 
 } //namespace simcoon

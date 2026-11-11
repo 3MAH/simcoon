@@ -56,8 +56,7 @@ namespace simcoon{
  * The tensor members have fixed sizes (`vec::fixed<6>` in Voigt notation, `mat::fixed<3,3>`):
  * they never allocate, and assigning them another size throws `std::logic_error` (Armadillo's size
  * check, active in simcoon's builds, which do not define ARMA_NO_DEBUG). `statev` and
- * `statev_start` are sized by the law (`nstatev`); `dSdT`, `drdE` and `drdT` of the thermomechanical
- * state keep their dynamic shape for now.
+ * `statev_start` are sized by the law (`nstatev`).
  */
 class state_variables
 {
