@@ -593,8 +593,9 @@ public:
      * @param E_start Strain at the start of the increment, the thermal part removed
      *        (\f$ \boldsymbol{\varepsilon}_n - \boldsymbol{\alpha}\,(\theta_n - \theta_0) \f$, as predict())
      * @param E_end The same at the end of the increment
-     * @param Wm_r Output: recoverable work increment
-     * @param Wm_ir Output: irrecoverable (stored) work increment
+     * @param Wm_r Output: recoverable work increment stored by the mechanism itself (the back stresses of a
+     *        plasticity mechanism), 0 otherwise; the elastic one is the closure of ModularUMAT
+     * @param Wm_ir Output: irrecoverable (stored, never given back) work increment
      * @param Wm_d Output: dissipated work increment
      */
     virtual void compute_work(
@@ -637,8 +638,8 @@ public:
      * rows (DissipationInputs). Default: the mechanism has no thermomechanical face (throws).
      *
      * @param in the stresses, strains, tangents and multiplier sensitivities of the increment
-     * @param[out] dDgamma_dE \f$ \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} \f$ (6)
-     * @param[out] dDgamma_dT \f$ \partial\Delta\gamma/\partial\theta \f$
+     * @param[out] dDgamma_dE \f$ \partial\Delta\gamma_{loc}/\partial\boldsymbol{\varepsilon} \f$ (6)
+     * @param[out] dDgamma_dT \f$ \partial\Delta\gamma_{loc}/\partial\theta \f$
      */
     virtual void dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE, double& dDgamma_dT) const {
         (void)in; (void)dDgamma_dE; (void)dDgamma_dT;

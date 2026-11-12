@@ -54,7 +54,20 @@ enum class IsoHardType {
 };
 
 /**
- * @brief Base class for isotropic hardening
+ * @brief Base class for isotropic hardening: the hardening stress \f$ R(p) \f$ of the accumulated
+ *        plastic strain \f$ p \f$.
+ *
+ * \f$ R \f$ is the growth of the yield stress with \f$ p \f$: the criterion of PlasticityMechanism is
+ * \f$ \Phi = \sigma_{eq}(\boldsymbol{\sigma} - \mathbf{X}) - R(p) - \sigma_Y \f$, so the elastic domain has the
+ * radius \f$ \sigma_Y + R(p) \f$, with \f$ R(0) = 0 \f$. It is a stress (the unit of \f$ \sigma_Y \f$), not a
+ * strain. Thermodynamically it is the derivative of the hardening function \f$ F(p) \f$ of the irrecoverable
+ * free energy, \f$ R = F_p = \partial F/\partial p \f$, i.e. minus the force conjugate to \f$ p \f$
+ * (\f$ A_p = -F_p \f$, the notation of the theory manual and of the dedicated kernels). Its work
+ * \f$ \int R\,\mathrm{d}p \f$ is stored and not given back on unloading or reverse loading: the
+ * irrecoverable work \f$ W_m^{ir} \f$ of PlasticityMechanism::compute_work, excluded from the dissipation.
+ *
+ * Not to be confused with the heat tangents \f$ \mathbf{R}^\varepsilon = \partial r/\partial\boldsymbol{\varepsilon} \f$
+ * and \f$ R^\theta = \partial r/\partial\theta \f$ of the thermomechanical face (@c drdE, @c drdT).
  */
 class IsotropicHardening {
 public:
@@ -68,16 +81,16 @@ public:
     virtual void configure(const arma::vec& props, int& offset) = 0;
 
     /**
-     * @brief Compute hardening stress R(p)
+     * @brief Hardening stress \f$ R(p) = F_p \f$: the growth of the yield stress, \f$ \sigma_Y + R(p) \f$
      * @param p Accumulated plastic strain
-     * @return Hardening stress
+     * @return Hardening stress (unit of stress)
      */
     [[nodiscard]] virtual double R(double p) const = 0;
 
     /**
-     * @brief Compute hardening modulus dR/dp
+     * @brief Hardening modulus \f$ \mathrm{d}R/\mathrm{d}p = F_{pp} \f$, the plastic modulus of a uniaxial curve
      * @param p Accumulated plastic strain
-     * @return Derivative of hardening stress
+     * @return Derivative of the hardening stress (unit of stress)
      */
     [[nodiscard]] virtual double dR_dp(double p) const = 0;
 
@@ -250,7 +263,7 @@ public:
 
     /**
      * @brief Compute the per-branch backstresses \f$ \mathbf{X}_i = \tfrac{2}{3}
-     * C_i \boldsymbol{\alpha}_i \f$, one column per branch, engineering stress Voigt
+     * C_i \mathbf{a}_i \f$, one column per branch, engineering stress Voigt
      * (the back-strain carries the doubled shear, the back stress does not).
      *
      * This is the ONE place the backstresses are built from the back-strains.
@@ -312,9 +325,9 @@ public:
      * (closest-point / tangent_mode == tangent_closest_point contract).
      *
      * Unlike update() (incremental, frozen flow), this solves the implicit
-     * update \f$ \boldsymbol{\alpha} = \boldsymbol{\alpha}_n + \Delta p\,
-     * (\mathbf{n} - D\,\boldsymbol{\alpha}) \f$ in closed form
-     * \f$ \boldsymbol{\alpha} = (\boldsymbol{\alpha}_n + \Delta p\,\mathbf{n})
+     * update \f$ \mathbf{a} = \mathbf{a}_n + \Delta p\,
+     * (\mathbf{n} - D\,\mathbf{a}) \f$ in closed form
+     * \f$ \mathbf{a} = (\mathbf{a}_n + \Delta p\,\mathbf{n})
      * / (1 + D\,\Delta p) \f$ so the CPP Newton can re-evaluate the state at
      * every iterate. @p n is the flow normal, engineering strain Voigt. Default: no
      * state, nothing to do.
@@ -328,13 +341,13 @@ public:
      * @brief Linearisation of the backward-Euler branch maps at the refreshed
      * state (closest-point integrator).
      *
-     * With \f$ \boldsymbol{\alpha}_i = (\boldsymbol{\alpha}_i^n + \Delta p\,\mathbf{n})
+     * With \f$ \mathbf{a}_i = (\mathbf{a}_i^n + \Delta p\,\mathbf{n})
      * / (1 + D_i \Delta p) \f$ and \f$ \mathbf{X} = \sum_i \tfrac{2}{3} C_i\,
-     * \mathbf{T}\boldsymbol{\alpha}_i \f$ (\f$ \mathbf{T} \f$: engineering to tensorial
+     * \mathbf{T}\mathbf{a}_i \f$ (\f$ \mathbf{T} \f$: engineering to tensorial
      * shear), the total backstress is affine in the flow normal,
      * \f$ \mathbf{X} = \mathbf{X}_0(\Delta p) + \gamma\,\mathbf{T}\mathbf{n} \f$, with
      * \f[ \gamma = \Delta p \sum_i \frac{\tfrac{2}{3} C_i}{1 + D_i\Delta p}, \qquad
-     *      \boldsymbol{\beta} = \sum_i \frac{\tfrac{2}{3} C_i\,(\mathbf{n} - D_i\boldsymbol{\alpha}_i)}{1 + D_i\Delta p}
+     *      \boldsymbol{\beta} = \sum_i \frac{\tfrac{2}{3} C_i\,(\mathbf{n} - D_i\mathbf{a}_i)}{1 + D_i\Delta p}
      *      = \frac{\partial \mathbf{X}}{\partial \Delta p}\Big|_{\mathbf{n}}\ (\text{before } \mathbf{T}). \f]
      * @p alpha_i are the CURRENT (refreshed) back-strains. Default (no state):
      * \f$ \gamma = 0 \f$, \f$ \boldsymbol{\beta} = \mathbf{0} \f$.
@@ -366,17 +379,17 @@ public:
     [[nodiscard]] virtual int num_backstresses() const = 0;
 
     /**
-     * @brief Kinematic modulus \f$ C_i \f$ of branch @p i (\f$ \mathbf{X}_i = \tfrac23 C_i \boldsymbol{\alpha}_i \f$); 0 without branches
+     * @brief Kinematic modulus \f$ C_i \f$ of branch @p i (\f$ \mathbf{X}_i = \tfrac23 C_i \mathbf{a}_i \f$); 0 without branches
      */
     [[nodiscard]] virtual double branch_modulus(int i) const { (void)i; return 0.0; }
 
     /**
-     * @brief Dynamic recovery parameter \f$ D_i \f$ of branch @p i (\f$ \mathrm{d}\boldsymbol{\alpha}_i = (\boldsymbol{\Lambda} - D_i \boldsymbol{\alpha}_i)\,\mathrm{d}p \f$); 0 for Prager and without branches
+     * @brief Dynamic recovery parameter \f$ D_i \f$ of branch @p i (\f$ \mathrm{d}\mathbf{a}_i = (\boldsymbol{\Lambda} - D_i \mathbf{a}_i)\,\mathrm{d}p \f$); 0 for Prager and without branches
      */
     [[nodiscard]] virtual double recovery_parameter(int i) const { (void)i; return 0.0; }
 
     /**
-     * @brief The back-strain variable \f$ \boldsymbol{\alpha}_i \f$ of branch @p i in @p ivc; nullptr without branches
+     * @brief The back-strain variable \f$ \mathbf{a}_i \f$ of branch @p i in @p ivc; nullptr without branches
      */
     [[nodiscard]] virtual const InternalVariable* back_strain_variable(const InternalVariableCollection& ivc, int i) const {
         (void)ivc; (void)i;
@@ -391,10 +404,13 @@ public:
 
     /**
      * @brief Energy stored in the back stresses over the increment, per unit volume,
-     * \f$ \sum_i \tfrac12 (\mathbf{X}_i^n + \mathbf{X}_i^{n+1}) : \Delta\boldsymbol{\alpha}_i \f$: the trapezoid in the
-     * back-strains, exact for the quadratic potentials \f$ \tfrac13 C_i\,\boldsymbol{\alpha}_i:\boldsymbol{\alpha}_i \f$.
-     * Irrecoverable work of PlasticityMechanism::compute_work; with the isotropic one, what the
-     * dissipation excludes.
+     * \f$ \sum_i \tfrac12 (\mathbf{X}_i^n + \mathbf{X}_i^{n+1}) : \Delta\mathbf{a}_i \f$: the trapezoid in the
+     * back-strains, exact for the quadratic potentials \f$ \tfrac13 C_i\,\mathbf{a}_i:\mathbf{a}_i \f$.
+     * This energy is recoverable: a reverse loading (compression after tension) unloads the back stress
+     * and gives it back. It is the recoverable work of PlasticityMechanism::compute_work (part of
+     * \f$ W_m^r \f$); with the isotropic hardening work, what the dissipation excludes.
+     * @param ivc the collection holding the back-strains (start and current values)
+     * @return the stored energy increment
      */
     [[nodiscard]] double stored_increment(const InternalVariableCollection& ivc) const;
 
@@ -440,11 +456,11 @@ public:
 };
 
 /**
- * @brief Linear Prager kinematic hardening: \f$ \mathbf{X} = \tfrac{2}{3} C \boldsymbol{\alpha} \f$
+ * @brief Linear Prager kinematic hardening: \f$ \mathbf{X} = \tfrac{2}{3} C \mathbf{a} \f$
  *
- * The back-strain \f$ \boldsymbol{\alpha} \f$ is the thermodynamic internal
+ * The back-strain \f$ \mathbf{a} \f$ is the thermodynamic internal
  * variable (stored strain-like, factor-2 shear Voigt); the backstress
- * \f$ \mathbf{X} = \tfrac{2}{3} C \boldsymbol{\alpha} \f$ is its conjugate
+ * \f$ \mathbf{X} = \tfrac{2}{3} C \mathbf{a} \f$ is its conjugate
  * generalised force and is never independently stored. The same convention
  * holds for Armstrong-Frederick and Chaboche below.
  */

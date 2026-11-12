@@ -447,13 +447,11 @@ void PlasticityMechanism::compute_work(
     }
     const arma::vec DEP = EP_var.delta_vec();
 
-    // stored in the hardening: the trapezoids in p and in the back-strains
+    // stored in the hardening: the trapezoids in p (irrecoverable) and in the back-strains (recoverable)
     const double p_start = ivc_.at(p_index_).scalar_start(), p = ivc_.at(p_index_).scalar();
-    Wm_ir = 0.5 * (iso_hard_->R(p_start) + iso_hard_->R(p)) * Dp + kin_hard_->stored_increment(ivc_);
-    Wm_d = 0.5 * arma::dot(sigma_start + sigma, DEP) - Wm_ir;
-
-    // Recoverable work (elastic) - handled by ModularUMAT
-    Wm_r = 0.0;
+    Wm_ir = 0.5 * (iso_hard_->R(p_start) + iso_hard_->R(p)) * Dp;
+    Wm_r = kin_hard_->stored_increment(ivc_);
+    Wm_d = 0.5 * arma::dot(sigma_start + sigma, DEP) - Wm_ir - Wm_r;
 }
 
 void PlasticityMechanism::dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE,

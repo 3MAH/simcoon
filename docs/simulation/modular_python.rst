@@ -98,9 +98,9 @@ evaluated at the elastic strain it is handed, bridged by
 strain that strain is the elastic logarithmic strain, and the mechanisms act
 additively on it. Like every other law, the block defines its stored energy per
 reference volume as a function of the elastic strain,
-:math:`\psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el})`, and
+:math:`\Psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el})`, and
 returns the Kirchhoff stress of :math:`W` at :math:`\mathbf{F} := \mathbf{V}^{el}`. It equals
-:math:`\partial \psi / \partial \boldsymbol{\varepsilon}^{el}` for an isotropic potential, and for the
+:math:`\partial \Psi / \partial \boldsymbol{\varepsilon}^{el}` for an isotropic potential, and for the
 anisotropic ``HolzapfelElasticity`` only while it stays coaxial with :math:`\mathbf{V}^{el}`;
 the ``Stress`` output is :math:`\boldsymbol{\tau}/J` with the total :math:`J`.
 The volumetric term only sees the elastic volume change
@@ -151,7 +151,10 @@ Isotropic hardening
 -------------------
 
 The isotropic hardening law :math:`R(p)` of the accumulated plastic strain
-:math:`p`:
+:math:`p`. :math:`R` is the hardening stress, the growth of the yield stress
+(:math:`\sigma_Y + R(p)`, :math:`R(0) = 0`); in the notation of the theory manual it is
+:math:`F_p = \partial F/\partial p`, the derivative of the hardening function of the free
+energy. Its work :math:`\int R\,\mathrm{d}p` is the irrecoverable work ``Wm_ir``:
 
 .. list-table::
    :header-rows: 1
@@ -183,8 +186,8 @@ Kinematic hardening
 -------------------
 
 The back stress :math:`\mathbf{X}` shifting the yield surface. The stored
-internal variable is the **back-strain** :math:`\boldsymbol{\alpha}`
-(thermodynamic variable); :math:`\mathbf{X} = \tfrac{2}{3} C \boldsymbol{\alpha}`:
+internal variable is the **back-strain** :math:`\mathbf{a}`
+(thermodynamic variable); :math:`\mathbf{X} = \tfrac{2}{3} C \mathbf{a}`:
 
 .. list-table::
    :header-rows: 1
@@ -198,7 +201,7 @@ internal variable is the **back-strain** :math:`\boldsymbol{\alpha}`
      - :math:`\mathbf{X} = 0` (default)
    * - :class:`PragerHardening`
      - ``C``
-     - Linear: :math:`\dot{\boldsymbol{\alpha}} = \dot{p}\,\mathbf{n}`
+     - Linear: :math:`\dot{\mathbf{a}} = \dot{p}\,\mathbf{n}`
    * - :class:`ArmstrongFrederickHardening`
      - ``C, D``
      - :math:`\dot{\mathbf{X}} = \tfrac{2}{3}C\,\dot{\boldsymbol{\varepsilon}}^p - D\,\mathbf{X}\dot{p}`
@@ -230,7 +233,7 @@ Mechanisms
    * - :class:`Damage`
      - ``Y_0, Y_c, damage_type, A, n``
      - Scalar stiffness-degradation damage, :math:`\boldsymbol{\sigma} = (1-D)\,\boldsymbol{\sigma}_{eff}`,
-       driven by the undamaged energy :math:`Y = \psi_0`; the other mechanisms
+       driven by the undamaged energy :math:`Y = \Psi_0`; the other mechanisms
        (plastic yield included) act on the effective stress (strain
        equivalence). ``damage_type`` selects the evolution law and its extra
        parameters: ``LINEAR`` (none), ``EXPONENTIAL`` (``A``), ``POWER_LAW``
@@ -267,17 +270,18 @@ The same composition serves a thermomechanical block (``thermomechanical=True`` 
 front of the stream, as the dedicated kernels. The heat of the increment and its
 derivatives are written once on the mechanisms (``ModularUMAT::run_T``): the entropy
 :math:`\eta = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma}`, the dissipation
-:math:`\Delta\gamma` of the increment, the thermodynamic split of the plastic work (the
-hardening energy :math:`\tfrac12 (R_n + R_{n+1})\,\Delta p + \sum_i \tfrac12
-(\mathbf{X}_i^n + \mathbf{X}_i^{n+1}) : \Delta\boldsymbol{\alpha}_i` stored in ``Wm_ir``, the rest
-dissipated) and :math:`r = \Delta\gamma - \theta_{n+1}\,\Delta\eta` (see :doc:`solver`). A
+:math:`\Delta\gamma_{loc}` of the increment, the thermodynamic split of the plastic work (the
+isotropic hardening work :math:`\tfrac12 (R_n + R_{n+1})\,\Delta p` stored in ``Wm_ir``; the
+back-stress energy :math:`\sum_i \tfrac12 (\mathbf{X}_i^n + \mathbf{X}_i^{n+1}) : \Delta\mathbf{a}_i`
+in ``Wm_r``, since a reverse loading recovers it; the rest dissipated, ``Wm_d``) and
+:math:`r = \Delta\gamma_{loc} - \theta_{n+1}\,\Delta\eta` (see :doc:`solver`). A
 composition equivalent to ``EPICP`` or ``EPKCP`` is that kernel, stress, temperature and
 works to round-off, under every tangent mode and integrator and under both finite-strain
 forms. The derivatives of the heat are exact for isotropic hardening (the turning of the
 flow direction is in them) and hold the direction of the back stresses fixed over the
 increment (Prager as ``EPKCP``, 2e-6 on a non-proportional probe, tested at 1e-5;
 Armstrong-Frederick and Chaboche 1e-4 under the cutting plane, whose explicit iterates leave the
-secant :math:`\Delta\boldsymbol{\alpha}/\Delta p` as the derivative of the back-strain, 3e-7 under the
+secant :math:`\Delta\mathbf{a}/\Delta p` as the derivative of the back-strain, 3e-7 under the
 closest point, where the backward-Euler update has a consistent one). A viscoelastic mechanism dissipates
 :math:`\sum_i \tfrac12 (\mathbf{A}_i^n + \mathbf{A}_i^{n+1}) : \Delta\mathbf{E}^v_i` on its branch
 forces :math:`\mathbf{A}_i = \mathbf{L}_i (\boldsymbol{\varepsilon} - \boldsymbol{\alpha}(\theta - \theta_0) -
@@ -288,7 +292,7 @@ is the one-branch Maxwell composition with, per isotropic mode :math:`X \in \{K,
 A damage mechanism dissipates the trapezoid :math:`\tfrac12 (Y_n + Y_{n+1})\,\Delta D` on its
 driving force (exact for the linear law), its heat derivatives written on the effective stress.
 A hyperelastic block carries its temperature dependence through the ``omega`` keyword of the
-block, :math:`\psi = f(\theta)\,\bar{W} + U(J)` with
+block, :math:`\Psi = f(\theta)\,\bar{W} + U(J)` with
 :math:`f(\theta) = 1 - \omega + \omega\,\theta/\theta_0`: ``omega=0`` (default) is energetic
 thermoelasticity, the limit of the linear blocks (the entropy
 :math:`c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma}`, cooling under adiabatic
@@ -297,14 +301,22 @@ entropy gains :math:`-\bar{W}/\theta_0`, Gough-Joule heating beyond the thermoel
 :math:`\lambda - 1 \simeq \alpha\theta_0`). The volumetric term stays energetic, the heat capacity
 at fixed deformation stays :math:`c_0`, and the mechanical block scales its isochoric stress by
 :math:`f(\theta)` too when the temperature moves (``T_init`` must then be an absolute
-temperature). ``ncp="min"`` reaches the face through :func:`simcoon.solver.solve` and the
+temperature). "Entropic" names where the elastic energy is stored, not a dissipation: the block is
+hyperelastic, :math:`\gamma_{loc} = 0`, its heat :math:`-\theta\,\Delta\eta` is reversible
+(``Wt_r``) and ``Wm_ir = Wm_d = 0``. A load-unload cycle therefore closes without hysteresis
+under isothermal and under adiabatic conditions (the heat expelled on loading is taken back on
+unloading); a loop only opens under a finite heat exchange with the surroundings (thermoelastic
+damping), where its area is the net heat given to the surroundings and is booked in ``Wm_r``,
+the closure :math:`W_m - W_m^{ir} - W_m^d`, which is not a state function when the temperature
+moves. ``ncp="min"`` reaches the face through :func:`simcoon.solver.solve` and the
 ``ncp`` keyword of ``sim.umat_T``. The face serves every block and every mechanism,
 ``omega != 0`` composed with mechanisms included: the entropy then carries
 :math:`-\bar{W}(\mathbf{H}_e)/\theta_0` on the elastic strain
 :math:`\mathbf{H}_e = \boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{in} - \boldsymbol{\alpha}\,\Delta\theta`,
 its derivatives through the chain
 :math:`d\mathbf{H}_e = \mathbf{L}^{-1}\,(d\boldsymbol{\sigma}_{eff} - (\omega/\theta_0)\,\mathbf{T}_{iso}\,d\theta)`
-on the tangents of the effective stress (exact against finite differences with plasticity,
+on the tangents of the effective stress, :math:`\mathbf{T}_{iso}` the isochoric stress of the block
+at :math:`f = 1` (its stress is :math:`f(\theta)\,\mathbf{T}_{iso} + p_{vol}\mathbf{I}`) (exact against finite differences with plasticity,
 viscoelasticity and damage, to the accuracy of those tangents).
 
 See also

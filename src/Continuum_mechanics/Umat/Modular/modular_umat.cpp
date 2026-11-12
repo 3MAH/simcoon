@@ -1024,7 +1024,7 @@ void ModularUMAT::run_T(
         configure_from_props(props, offset);
     }
     const bool entropic = (elasticity_.omega() != 0.);
-    const double W_iso_start = entropic ? start_iso_energy(Etot, DR, T, nstatev, statev, start, ndi, nshr) : 0.;
+    const double W_iso_start = entropic ? start_iso_energy(Etot, DR, T, nstatev, statev, start) : 0.;
     const double c_0 = props(0) * props(1);
     const double T1 = T + DT;
     if (start) {
@@ -1112,10 +1112,7 @@ void ModularUMAT::run_T(
     const arma::mat& kappa_j = shared ? ct_kappa_ : kappa_local;
     const arma::mat& dPhi_l = shared ? ct_dPhi_ : dPhi_local;
 
-    // the trial stress rate q of a temperature move, dPhi/dtheta = 0 for every criterion: the thermal strain through
-    // the branches, -L (I - dEV_tilde/dE) alpha (as the tangent, apply_total_strain_maps; L alpha under tangent_none),
-    // and for an entropic block w0 T_iso (stress f(theta) T_iso + p_vol I, d(f T_iso)/dtheta = (omega/theta_0) T_iso);
-    // the rows see q and their fluxes through M^-1 = L_tilde L^-1 of the assembly: P_theta = invBhat (dPhi_l : M^-1 q)
+    // trial stress rate q of a temperature move and P_theta (run_T in the header)
     arma::vec alpha_eff = alpha;
     if (tangent_mode != tangent_none) {
         for (auto it = mechanisms_.rbegin(); it != mechanisms_.rend(); ++it) {
@@ -1194,7 +1191,7 @@ void ModularUMAT::run_T(
         dDgamma_dE += dE;
         dDgamma_dT += dT_m;
     }
-    // W_iso(H_e): dW_iso = T_iso : dH_e; alone H_e = eps - alpha dtheta, with mechanisms dH_e = L^-1 (dsigma_eff - w0 T_iso dtheta)
+    // dW_iso = T_iso : dH_e
     arma::vec dW_dE = T_iso;
     double dW_dT = -arma::dot(T_iso, alpha);
     if (entropic && !mechanisms_.empty()) {
@@ -1213,9 +1210,7 @@ void ModularUMAT::run_T(
 
 
 double ModularUMAT::start_iso_energy(const arma::vec& Etot, const arma::mat& DR, double T, int nstatev,
-                                     const arma::vec& statev, bool start, int ndi, int nshr) {
-    (void)ndi;
-    (void)nshr;
+                                     const arma::vec& statev, bool start) {
     if (!initialized_) {
         arma::vec sv = statev;
         initialize(nstatev, sv);

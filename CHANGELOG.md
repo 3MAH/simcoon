@@ -167,12 +167,12 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   per-iteration vectors, reduced system, active set and step across iterations (-6 % on every
   closest-point law, bit for bit).
 - The plastic work of the modular engine has the thermodynamic split of the dedicated kernels:
-  `Wm_ir` is the energy stored in the hardening, `1/2 (R_n + R_n+1) Dp` and the trapezoid
-  `1/2 (X_i,n + X_i,n+1) : D alpha_i` of every back stress (`KinematicHardening::stored_increment`),
-  and `Wm_d` the rest of `1/2 (sigma_n + sigma_n+1) : D EP`. `Wm` and the stress are unchanged;
-  `Wm_ir` / `Wm_d` move for `MODUL` and the adapter-served names (EPKCP, EPCHG, EPHIL...): the
-  isotropic hardening energy was dissipated and the back-stress one taken at the end point.
-  `EPKCP_T` books the back-stress energy in `Wm_ir` (it was in `Wm_r`), as the engine.
+  `Wm_ir` is the isotropic hardening work `1/2 (R_n + R_n+1) Dp`, the energy stored in the back
+  stresses, the trapezoid `1/2 (X_i,n + X_i,n+1) : D a_i` (`KinematicHardening::stored_increment`),
+  goes to `Wm_r` (a reverse loading recovers it), and `Wm_d` is the rest of
+  `1/2 (sigma_n + sigma_n+1) : D EP`. `Wm` and the stress are unchanged; `Wm_r` / `Wm_ir` / `Wm_d`
+  move for `MODUL` and the adapter-served names (EPKCP, EPCHG, EPHIL...): the isotropic hardening
+  energy was dissipated and the back-stress one booked irrecoverable, at the end point.
 - The thermomechanical face of `MODUL` shares the multiplier assembly of its mechanical tangent
   (`ContinuumTangent` of `compute_tangent`, kept in the instance) instead of rebuilding it at the
   committed state, as the dedicated kernels do: `P_epsilon`, `invBhat` and the flux vectors are

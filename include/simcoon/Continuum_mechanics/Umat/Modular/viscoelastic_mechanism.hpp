@@ -131,14 +131,14 @@ public:
     void predict(const arma::vec& E_total_end, double DTime) override;
     /**
      * @brief Derivatives of the viscous dissipation of the increment, the trapezoid
-     * \f$ \Delta\gamma = \sum_i \tfrac12 (\mathbf{A}_i^n + \mathbf{A}_i^{n+1}) : \Delta\mathbf{E}^v_i \f$ on the
+     * \f$ \Delta\gamma_{loc} = \sum_i \tfrac12 (\mathbf{A}_i^n + \mathbf{A}_i^{n+1}) : \Delta\mathbf{E}^v_i \f$ on the
      * branch forces \f$ \mathbf{A}_i = \mathbf{L}_i (\boldsymbol{\varepsilon} - \mathbf{E}^v_i) \f$ (compute_work),
      * exact for the backward-Euler branches (PRONK_T):
-     * \f$ \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} = \sum_i \tfrac12 [(\mathbf{L}_i(\mathbf{I} -
+     * \f$ \partial\Delta\gamma_{loc}/\partial\boldsymbol{\varepsilon} = \sum_i \tfrac12 [(\mathbf{L}_i(\mathbf{I} -
      * \partial\mathbf{E}^v_i/\partial\boldsymbol{\varepsilon}))^T \Delta\mathbf{E}^v_i + (\partial\mathbf{E}^v_i/\partial\boldsymbol{\varepsilon})^T
      * (\mathbf{A}_i^n + \mathbf{A}_i^{n+1})] \f$; every branch quantity depends on
      * \f$ \boldsymbol{\varepsilon} - \boldsymbol{\alpha}\,\Delta\theta \f$ alone, so the temperature one is
-     * \f$ -\boldsymbol{\alpha} \cdot \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} \f$.
+     * \f$ -\boldsymbol{\alpha} \cdot \partial\Delta\gamma_{loc}/\partial\boldsymbol{\varepsilon} \f$.
      * The rows carry no multiplier: the multiplier sensitivities are not read.
      */
     void dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE, double& dDgamma_dT) const override;

@@ -66,7 +66,7 @@ namespace simcoon {
  * The cutting-plane members above are untouched by it. Under damage the mechanism works on
  * the effective stress (strain equivalence, see DamageMechanism).
  *
- * Closest-point linearisation. With \f$ \boldsymbol{\alpha}_i = (\boldsymbol{\alpha}_i^n +
+ * Closest-point linearisation. With \f$ \mathbf{a}_i = (\mathbf{a}_i^n +
  * \Delta p\,\mathbf{n})/(1 + D_i\Delta p) \f$ the backstress is affine in the normal,
  * \f$ \mathbf{X} = \mathbf{X}_0 + \gamma\mathbf{T}\mathbf{n} \f$
  * (KinematicHardening::backward_euler_factors), so at fixed \f$ (\boldsymbol{\sigma},
@@ -209,7 +209,8 @@ public:
     [[nodiscard]] double equivalent_stress(const tensor2& sigma) const;
 
     /**
-     * @brief Yield function value Phi = sigma_eq(sigma - X) - R(p) - sigma_Y.
+     * @brief Yield function value \f$ \Phi = \sigma_{eq}(\boldsymbol{\sigma} - \mathbf{X}) - R(p) - \sigma_Y \f$,
+     *        \f$ R(p) \f$ the isotropic hardening stress (IsotropicHardening), \f$ \mathbf{X} \f$ the back stress.
      *
      * Phi <= 0 inside the elastic domain; the return-mapping drives Phi to 0
      * when the trial state lies outside.
@@ -319,10 +320,19 @@ public:
 
     /**
      * @brief Thermodynamic split of the plastic work of the increment, the trapezoids of the
-     * dedicated kernels: \f$ W_m^{ir} = \tfrac12 (R_n + R_{n+1})\,\Delta p + \sum_i \tfrac12 (\mathbf{X}_i^n
-     * + \mathbf{X}_i^{n+1}) : \Delta\boldsymbol{\alpha}_i \f$ (energy stored in the hardening) and
-     * \f$ W_m^d = \tfrac12 (\boldsymbol{\sigma}_n + \boldsymbol{\sigma}_{n+1}) : \Delta\boldsymbol{\varepsilon}^p - W_m^{ir} \f$,
-     * the dissipation the heat of the thermomechanical face is built on.
+     * dedicated kernels.
+     *
+     * - \f$ W_m^{ir} = \tfrac12 (R_n + R_{n+1})\,\Delta p \f$: the isotropic hardening work
+     *   (\f$ F_p\,\dot p \f$, IsotropicHardening), stored and never given back;
+     * - \f$ W_m^{r} = \sum_i \tfrac12 (\mathbf{X}_i^n + \mathbf{X}_i^{n+1}) : \Delta\mathbf{a}_i \f$: the
+     *   energy stored in the back stresses (\f$ \mathbf{X}:\dot{\mathbf{a}} \f$,
+     *   KinematicHardening::stored_increment), recovered on a reverse loading;
+     * - \f$ W_m^d = \tfrac12 (\boldsymbol{\sigma}_n + \boldsymbol{\sigma}_{n+1}) : \Delta\boldsymbol{\varepsilon}^p
+     *   - W_m^{ir} - W_m^{r} \f$: the dissipation \f$ \Delta\gamma_{loc} \f$ the heat of the thermomechanical
+     *   face is built on.
+     *
+     * The elastic part of the recoverable work is not here: ModularUMAT closes
+     * \f$ W_m^r = W_m - W_m^{ir} - W_m^d \f$ over the whole law, which holds both.
      */
     void compute_work(
         const arma::vec& sigma_start,
@@ -345,10 +355,10 @@ public:
      * \f$ \boldsymbol{\sigma}_n - \mathbf{X}_n + \boldsymbol{\sigma}_{n+1} - \mathbf{X}_{n+1} \f$ (the stresses of the
      * dissipation; \f$ \mathbf{H}\boldsymbol{\xi}_{n+1} = 0 \f$) and contracted with the derivatives of the
      * effective stress, and, for the back stresses, their evolution along the flow at fixed direction:
-     * \f$ \partial\boldsymbol{\alpha}_{i,n+1}/\partial\Delta p = \boldsymbol{\Lambda} \f$ (Prager); with recovery
-     * (Armstrong-Frederick, Chaboche) \f$ (\boldsymbol{\Lambda} - D_i \boldsymbol{\alpha}_{i,n+1}) / (1 + D_i \Delta p) \f$,
+     * \f$ \partial\mathbf{a}_{i,n+1}/\partial\Delta p = \boldsymbol{\Lambda} \f$ (Prager); with recovery
+     * (Armstrong-Frederick, Chaboche) \f$ (\boldsymbol{\Lambda} - D_i \mathbf{a}_{i,n+1}) / (1 + D_i \Delta p) \f$,
      * the derivative of the backward-Euler update of the closest point (second order, 3e-7 on a
-     * non-proportional probe), and the secant \f$ \Delta\boldsymbol{\alpha}_i/\Delta p \f$ over the explicit
+     * non-proportional probe), and the secant \f$ \Delta\mathbf{a}_i/\Delta p \f$ over the explicit
      * iterates of the cutting plane (first order, 4e-5 on the same probe; the derivative of the last iterate
      * is worse there). The \f$ \boldsymbol{\sigma}:\Delta\mathbf{E}^p \f$ term is on the stress the
      * dissipation is written on (the damaged one under a damage mechanism, strain equivalence).

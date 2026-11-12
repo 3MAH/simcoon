@@ -239,7 +239,7 @@ public:
     // Damage-specific methods
 
     /**
-     * @brief Damage driving force \f$ Y = \psi_0 = \tfrac12\,\boldsymbol{\sigma}_{eff} : \mathbf{S} : \boldsymbol{\sigma}_{eff} \f$
+     * @brief Damage driving force \f$ Y = \Psi_0 = \tfrac12\,\boldsymbol{\sigma}_{eff} : \mathbf{S} : \boldsymbol{\sigma}_{eff} \f$
      * @param sigma_eff Effective stress (6-component Voigt)
      * @param S Compliance tensor (6x6, the cached one is used)
      * @return Damage driving force Y

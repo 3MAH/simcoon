@@ -272,7 +272,7 @@ public:
      * L_iso\f$(E_i, \nu_i)\f$, L0() entering only as the compliance \f$ \mathbf{L}_0^{-1} \f$.
      *
      * The temperature enters the potential as
-     * \f$ \psi = f(\theta)\,\bar{W}(\bar{\mathbf{b}}^{el}) + U(J^{el}) \f$ with
+     * \f$ \Psi = f(\theta)\,\bar{W}(\bar{\mathbf{b}}^{el}) + U(J^{el}) \f$ with
      * \f$ f(\theta) = 1 - \omega + \omega\,\theta/\theta_0 \f$ (Chadwick 1974; Holzapfel and Simo
      * 1996): \f$ \omega = 0 \f$ is energetic thermoelasticity (the moduli do not depend on
      * \f$ \theta \f$, the limit of the linear blocks), \f$ \omega = 1 \f$ the entropic elasticity
@@ -408,9 +408,9 @@ public:
      *       \f$ \mathbf{b}^{el} = (\mathbf{V}^{el})^2 \f$ and
      *       \f$ J^{el} = \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{el}) \f$. Two consequences:
      *       - The block defines a stored energy per REFERENCE volume,
-     *         \f$ \psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
+     *         \f$ \Psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
      *         returns the Kirchhoff stress of \f$ W \f$ at \f$ \mathbf{F} := \mathbf{V}^{el} \f$
-     *         -- the route's Kirchhoff stress. It equals \f$ \partial \psi / \partial
+     *         -- the route's Kirchhoff stress. It equals \f$ \partial \Psi / \partial
      *         \boldsymbol{\varepsilon}^{el} \f$ for an isotropic \f$ W \f$, and for an
      *         anisotropic one (HOLZA) only while it stays coaxial with \f$ \mathbf{V}^{el} \f$, exactly as ELISO
      *         returns \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$; the Cauchy output is
@@ -428,7 +428,7 @@ public:
      *
      *       - Under the total kinematic form (set_kinematic_form) the strain is
      *         \f$ \mathbf{H}^{el} \f$ in reference components and the block returns the stress
-     *         dual to it, \f$ \mathbf{T} = \partial \psi / \partial \mathbf{H}^{el} \f$
+     *         dual to it, \f$ \mathbf{T} = \partial \Psi / \partial \mathbf{H}^{el} \f$
      *         (Kirchoff2LogStressU() of the stress above at \f$ \mathbf{F} := \mathbf{V}^{el} \f$),
      *         with \f$ \partial \mathbf{T} / \partial \mathbf{H}^{el} \f$. This is exact for an
      *         anisotropic \f$ W \f$ too, coaxial or not.
@@ -448,10 +448,18 @@ public:
                   arma::vec& sigma, arma::mat& Lt) const;
 
     /**
-     * @brief Isochoric potential \f$ \bar{W} \f$ (unscaled) of a hyperelastic block at @p eps_el, without
-     *        its stress and tangent: the entropy of the thermomechanical face at the start of an increment
-     *        (ModularUMAT::start_iso_energy). 0 for a linear block.
+     * @brief Isochoric potential \f$ \bar{W}(\bar{\mathbf{b}}^{el}) \f$ of a hyperelastic block at @p eps_el,
+     *        without its stress and tangent.
+     *
+     * The value W_iso() caches at an evaluate(), at a strain of the caller's choice and at the cost of the
+     * kinematics only. It is the isochoric part of \f$ \Psi = f(\theta)\,\bar{W} + U(J^{el}) \f$
+     * (configure_hyper_invariants), unscaled by \f$ f(\theta) \f$: an entropic block
+     * (\f$ \omega \ne 0 \f$) has the entropy \f$ -\partial\Psi/\partial\theta = -(\omega/\theta_0)\,\bar{W} \f$, which the
+     * thermomechanical face needs at the start of an increment, where no evaluate() has run
+     * (ModularUMAT::start_iso_energy).
+     *
      * @param eps_el elastic strain (6-Voigt, engineering shear; 3D)
+     * @return \f$ \bar{W} \f$ per reference volume; 0 for a linear block
      */
     [[nodiscard]] double iso_energy(const arma::vec& eps_el) const;
 

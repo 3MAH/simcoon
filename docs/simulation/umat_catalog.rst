@@ -320,11 +320,11 @@ Unchanged dedicated implementations (out of the modular scope):
   with any mechanism. Composed with **damage** -- anisotropic tissue with softening --
   the kinematics are exact: damage subtracts no inelastic strain (it scales the
   stiffness instead), so the elastic stretch is the total one and the fibres follow it.
-  Its driving force is the thermodynamic force :math:`Y = -\partial\psi/\partial D = \psi_0`, the
+  Its driving force is the thermodynamic force :math:`Y = -\partial\Psi/\partial D = \Psi_0`, the
   undamaged energy, evaluated as
   :math:`\tfrac12\,\boldsymbol{\tau}_{eff} : \mathbf{M}_t : \boldsymbol{\tau}_{eff}` on the effective
   stress :math:`\boldsymbol{\tau}/(1-D)`: exact for a linear block, an approximation of
-  :math:`\psi_0` through the tangent compliance for this nonlinear potential.
+  :math:`\Psi_0` through the tangent compliance for this nonlinear potential.
 
   .. warning::
 
@@ -600,7 +600,7 @@ pair, :math:`\tfrac12(\mathbf{T}_n + \mathbf{T}_{n+1}):\Delta\mathbf{H}` with
 :math:`\partial\mathbf{T}/\partial\mathbf{H}`. The rate law ``HYPOO`` integrates from its start
 stress and is refused. ``MODUL`` is a log-strain box and is served: its mechanisms work on
 :math:`\mathbf{H}` and :math:`\mathbf{T}` as those of ``EPICP`` do, and its hyperelastic block
-returns :math:`\mathbf{T} = \partial\psi/\partial\mathbf{H}^{el}` with
+returns :math:`\mathbf{T} = \partial\Psi/\partial\mathbf{H}^{el}` with
 :math:`\partial\mathbf{T}/\partial\mathbf{H}^{el}`. A fibre block (Holzapfel) is then the law built
 on :math:`\mathbf{F}` at any step, where under corate 3 it converges to it at first order.
 ``"logarithmic"`` control is refused too (the stored strain is :math:`\ln\mathbf{U}`). The work of

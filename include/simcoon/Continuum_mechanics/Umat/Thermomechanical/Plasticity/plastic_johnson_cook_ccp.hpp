@@ -58,9 +58,9 @@ namespace simcoon{
  * the kernel carries \f$ \eta_{ir} = -\partial G^{ir}/\partial\theta = -f'_\theta\, B p^{n+1}/(n+1) \geq 0 \f$
  * (\f$ W_t^{ir} \f$ accumulates \f$ \theta_{n+1}\,\Delta\eta_{ir} \f$, the \f$ \theta_{n+1} \f$ of \f$ r \f$). No
  * Taylor-Quinney coefficient is introduced: \f$ r \f$ is the heat of the increment
- * \f$ r = \Delta\gamma - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment()), with
+ * \f$ r = \Delta\gamma_{loc} - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment()), with
  * \f$ \eta = \eta_r + \eta_{ir} \f$ and the dissipation the kernel adds to \f$ W_m^d \f$,
- * \f$ \Delta\gamma = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
+ * \f$ \Delta\gamma_{loc} = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
  * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$, \f$ A_p = -f_\theta B p^{n} \f$ (same energy split as
  * the mechanical kernel), both evaluated on the converged increment: at fixed \f$ \Delta t \f$
  * the rate-dependent \f$ \Delta p \f$ is a logarithmic function of the strain increment, which a

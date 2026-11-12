@@ -136,7 +136,7 @@ def test_heat_derivatives_match_finite_differences(mat, nstatev, tol, integrator
 
 def test_adiabatic_plastic_heating_balances_the_dissipation():
     """EPICP-like composition under Q = 0: T_{n+1} Delta eta = Delta Wm_d at every increment, with the
-    thermodynamic split (the hardening energy stored in Wm_ir, not dissipated)."""
+    thermodynamic split (isotropic hardening work in Wm_ir, back-stress energy in Wm_r, not dissipated)."""
     res = _run("MODUL", _props(AF), 14, "adiabatic")
     T, Wm = np.asarray(res["Temp"]).ravel(), np.asarray(res["Wm"])
     eta = RHO * C_P * np.log(T / T0) + ALPHA * np.asarray(res["Stress"])[:3].sum(axis=0)
@@ -413,3 +413,50 @@ def test_entropic_rubber_shows_the_thermoelastic_inversion():
     i = int(np.argmin(T))
     assert T[i] < T0 - 1e-4 and T[-1] > T0 + 1e-3, (T[i] - T0, T[-1] - T0)
     np.testing.assert_allclose(e[i], ALPHA_R * T0, rtol=0.2, err_msg=f"inversion at {e[i]}")
+
+
+# --- closed cycles: what is recovered and what is not
+
+def _cycle(name, props, nstatev, ends, ninc=200, ct="small_strain", form=None, **thermal):
+    steps = [StepThermomeca(control=UNI, value=[e, 0, 0, 0, 0, 0], ninc=ninc, **thermal) for e in ends]
+    extra = dict(kinematic_form=form) if form else {}
+    return solve(Block(steps=steps, control_type=ct), name, np.asarray(props, float), nstatev, T_init=T0,
+                 tangent_mode=2, **extra)
+
+
+@pytest.mark.parametrize("name, props, nstatev", [("MODUL", _props(PRAGER), PRAGER.nstatev), ("EPKCP", EPKCP, 14),
+                                                  ("EPKCP_closed", EPKCP, 14)])
+def test_back_stress_energy_is_recoverable(name, props, nstatev):
+    """Tension then compression with a Prager back stress X = kX a, isothermal: Wm_r is the elastic energy
+    plus the energy of the back stress, sigma^2 / 2E + 3/4 kX ep^2, a state function given back when the
+    plastic strain returns to zero; Wm_ir only holds the isotropic hardening work and never decreases."""
+    res = _cycle(name, props, nstatev, (0.02, -0.02), T_final=T0)
+    s, e, Wm = np.asarray(res["Stress"])[0], np.asarray(res["Strain"])[0], np.asarray(res["Wm"])
+    ep = e - s / E
+    W_el, W_kin = s**2 / (2 * E), 0.75 * KX * ep**2
+    np.testing.assert_allclose(Wm[1], W_el + W_kin, rtol=0, atol=1e-9 * Wm[0].max())
+    np.testing.assert_allclose(Wm[0], Wm[1:].sum(axis=0), rtol=1e-12, atol=1e-12)
+    i_peak = len(s) // 2
+    assert W_kin[i_peak] > 1. and W_kin[i_peak:].min() < 1e-3 * W_kin[i_peak]   # stored, then recovered
+    assert np.diff(Wm[2]).min() >= 0. and Wm[2, -1] > 0. and np.diff(Wm[3]).min() >= -1e-12
+
+
+@pytest.mark.parametrize("thermal", [dict(T_final=T0), dict(thermal_control="heat_flux", Q=0.)])
+def test_entropic_rubber_cycle_closes_without_hysteresis(thermal):
+    """omega = 1, stretch and release: no dissipation (Wm_ir = Wm_d = 0), so the cycle closes under
+    isothermal and adiabatic conditions, the work and the heat of the loading given back on unloading."""
+    res = _cycle("MODUL", _props(RUBBER), RUBBER.nstatev, (0.5, 0.), ct="green_lagrange", form="total", **thermal)
+    T, Wm, r = np.asarray(res["Temp"]).ravel(), np.asarray(res["Wm"]), np.asarray(res["r"]).ravel()
+    assert np.abs(Wm[2:]).max() == 0. and Wm[0].max() > 0.1
+    assert abs(Wm[0, -1]) < 1e-9 * Wm[0].max() and abs(T[-1] - T0) < 1e-6
+    assert abs(r.sum()) < 1e-5 * max(np.abs(r).sum(), Wm[0].max())
+
+
+def test_entropic_rubber_hysteresis_is_the_heat_exchanged():
+    """The same cycle with a convective exchange: the loop that opens is thermoelastic damping, not a
+    dissipation of the law (Wm_d = 0); it is booked in Wm_r and is the net heat given to the surroundings."""
+    res = _cycle("MODUL", _props(RUBBER), RUBBER.nstatev, (0.5, 0.), ct="green_lagrange", form="total",
+                 thermal_control="convection", q_conv=10.)
+    Wm = np.asarray(res["Wm"])
+    assert np.abs(Wm[2:]).max() == 0. and 1e-7 < Wm[0, -1] < 1e-3 * Wm[0].max()
+    assert Wm[1, -1] == Wm[0, -1]

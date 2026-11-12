@@ -296,8 +296,8 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
-    Wm_ir += -0.5*(A_p_start + A_p)*Dp - 0.5*sum((A_a_start + A_a)%Da);
+    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP)) - 0.5*sum((A_a_start + A_a)%Da);
+    Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
     
     Wt += (T+DT)*Deta;

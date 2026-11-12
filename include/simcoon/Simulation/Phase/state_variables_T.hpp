@@ -58,7 +58,7 @@ namespace simcoon{
         double Q; ///< heat flux (rate), set by the solver as -r/DTime (0 at DTime = 0); crosses g2l only
         /**
          * Heat of the increment per unit reference volume (MPa), storage included:
-         * \f$ r = \Delta\gamma - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment, tangent_assembly.hpp),
+         * \f$ r = \Delta\gamma_{loc} - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment, tangent_assembly.hpp),
          * i.e. the time increment times the heat source. \f$ r = 0 \f$ is the adiabatic condition, also at
          * \f$ \Delta t = 0 \f$. Kernel output, crosses l2g only.
          */

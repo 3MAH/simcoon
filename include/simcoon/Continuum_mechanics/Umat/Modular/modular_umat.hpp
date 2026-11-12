@@ -99,16 +99,10 @@ private:
     /// the stress was evaluated at, or Newton loses its quadratic rate.
     arma::mat::fixed<6, 6> L_cur_;
     arma::mat::fixed<6, 6> Lt_eff_;   ///< Tangent of the effective stress (before the damage stress_map), compute_tangent
-    /// Isochoric potential of a hyperelastic block at the start state of the increment (statev
-    /// rotated with DR as run() does, Etot, T), for the entropy of the thermomechanical face: the
-    /// memo below when it holds that state (the end state of the last run_T, or the same start
-    /// again), ElasticityModule::iso_energy otherwise (no stress, no tangent)
-    double start_iso_energy(const arma::vec& Etot, const arma::mat& DR, double T, int nstatev, const arma::vec& statev,
-                            bool start, int ndi, int nshr);
-    /// (Etot, DR, T, statev) -> W_iso memo of start_iso_energy: slot 0 the last start state it
+    /// Memo of start_iso_energy(), keyed on (Etot, DR, T, statev): slot 0 the last start state it
     /// evaluated, slot 1 the end state of the last run_T (the next start of a sequential path)
     std::vector<double> iso_key_[2], iso_key_scratch_;
-    double iso_W_[2] = {0., 0.};
+    double iso_W_[2] = {0., 0.};   ///< \f$ \bar{W} \f$ of the two memo slots
     bool stress_mapped_ = false;   ///< Whether compute_tangent applied a stress_map (Lt_eff_ then differs from Lt)
     /// The multiplier assembly of the last compute_tangent (algorithmic or closest-point operator):
     /// sensitivities, its rows (mechanism, constraint) and the flux / gradient vectors it was built
@@ -397,8 +391,8 @@ public:
      *
      * @p props is @c [rho, c_p, the MODUL stream] (configure_from_props at offset 2). The entropy
      * is \f$ \eta = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma} \f$, \f$ c_0 = \rho c_p \f$,
-     * the dissipation \f$ \Delta\gamma \f$ the @c Wm_d of the increment (PlasticityMechanism::compute_work)
-     * and the heat \f$ r = \Delta\gamma - \theta_{n+1}\Delta\eta \f$ (heat_source_increment()). The stress
+     * the dissipation \f$ \Delta\gamma_{loc} \f$ the @c Wm_d of the increment (PlasticityMechanism::compute_work)
+     * and the heat \f$ r = \Delta\gamma_{loc} - \theta_{n+1}\Delta\eta \f$ (heat_source_increment()). The stress
      * derivative \f$ \partial\boldsymbol{\sigma}/\partial\theta = \tilde{\mathbf{q}} - \sum_l
      * \tilde{\boldsymbol{\kappa}}^l P_\theta^l \f$ with \f$ P_\theta = \hat{B}^{-1}(\partial\Phi/\partial\theta +
      * \partial\Phi/\partial\boldsymbol{\sigma}:\tilde{\mathbf{q}}) \f$ on the rows of the committed state, where
@@ -627,6 +621,31 @@ private:
      */
     void refresh_stress(const arma::vec& Etot_end, double DT_init, int ndi,
                         int nshr, arma::vec& sigma);
+
+    /**
+     * @brief Isochoric potential \f$ \bar{W} \f$ of an entropic hyperelastic block (\f$ \omega \ne 0 \f$)
+     *        at the START state of the increment.
+     *
+     * The entropy of such a block carries \f$ -(\omega/\theta_0)\,\bar{W} \f$ and the heat of run_T() is
+     * \f$ r = \Delta\gamma_{loc} - \theta_{n+1}\,(\eta_{n+1} - \eta_n) \f$, so \f$ \bar{W} \f$ is needed at both ends of
+     * the increment. The end value is that of the committed state (ElasticityModule::W_iso); the start
+     * one is not a state variable, and is rebuilt here from the start state: the elastic strain
+     * \f$ \mathbf{H}_e = \boldsymbol{\varepsilon}_n - \boldsymbol{\alpha}\,(\theta_n - \theta_0) - \boldsymbol{\varepsilon}^{in}_n \f$
+     * (the mechanisms unpacked from @p statev and rotated with @p DR as run() does), then
+     * ElasticityModule::iso_energy (no stress, no tangent). A two-slot memo avoids the evaluation when
+     * the state is the end state of the last run_T() (a sequential path) or the same start again
+     * (the iterations of a global Newton).
+     *
+     * @param Etot total strain at the start of the increment
+     * @param DR rotation increment
+     * @param T temperature at the start of the increment
+     * @param nstatev number of state variables
+     * @param statev state variables at the start of the increment
+     * @param start whether this is the first increment (@p T is then the reference temperature)
+     * @return \f$ \bar{W} \f$ at the start state (unscaled by \f$ f(\theta) \f$)
+     */
+    double start_iso_energy(const arma::vec& Etot, const arma::mat& DR, double T, int nstatev, const arma::vec& statev,
+                            bool start);
 
     /**
      * @brief Compute the tangent modulus.

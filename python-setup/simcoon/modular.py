@@ -485,7 +485,7 @@ class _HyperInvariantsElasticity:
     positional arguments always fill the potential's parameters.
 
     ``omega`` is the entropic fraction of the isochoric potential,
-    :math:`\psi = (1 - \omega + \omega\,\theta/\theta_0)\,\bar{W} + U(J)`: 0 (default)
+    :math:`\Psi = (1 - \omega + \omega\,\theta/\theta_0)\,\bar{W} + U(J)`: 0 (default)
     is energetic thermoelasticity, the limit of the linear blocks; 1 the entropic
     elasticity of a rubber (:math:`\mu \propto \theta`, Gough-Joule heating). Read by
     the thermomechanical face and by the mechanical block when the temperature

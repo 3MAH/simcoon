@@ -144,7 +144,7 @@ The simcoon kernels return the heat of the increment :math:`r` (storage included
 Abaqus the rates it expects (zero at ``dtime = 0``).
 
 The whole thermomechanics stays in simcoon: ``rpl`` carries the complete heat of the
-model, :math:`r = \Delta\gamma - T_{n+1} \Delta\eta`, i.e. the dissipation, the
+model, :math:`r = \Delta\gamma_{loc} - T_{n+1} \Delta\eta`, i.e. the dissipation, the
 thermoelastic and latent couplings and the heat storage, and ``drpldt`` the matching
 heat capacity. The heat follows from the free energy of the law; it is not a
 Taylor-Quinney fraction of the plastic work, the stored energy :math:`W_m^{ir}` does

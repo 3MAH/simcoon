@@ -185,9 +185,9 @@ included,
 
 .. math::
 
-   r = \Delta\gamma - T_{n+1} \left( \eta_{n+1} - \eta_n \right),
+   r = \Delta\gamma_{loc} - T_{n+1} \left( \eta_{n+1} - \eta_n \right),
 
-with :math:`\Delta\gamma` the dissipation added to :math:`W_m^d` and
+with :math:`\Delta\gamma_{loc}` the dissipation added to :math:`W_m^d` and
 :math:`\eta = \rho c_p \ln(T/T_{init}) + \boldsymbol{\alpha} : \boldsymbol{\sigma} + \ldots`
 the entropy of the law. It is the time increment times the heat source, and is
 defined at :math:`\Delta t = 0`. The solver enforces the 0D heat balance of the RVE

@@ -262,15 +262,15 @@ ContinuumTangent compute_tangent_operator(
  * @brief Heat released over a thermomechanical increment and its exact derivatives.
  *
  * The thermomechanical UMATs return the heat of the increment, per unit reference volume,
- * \f[ R = \Delta t \, r = \Delta\gamma - \theta_{n+1} \left( \eta_{n+1} - \eta_n \right), \f]
- * with \f$ \Delta\gamma \f$ the dissipation the kernel adds to \f$ W_m^d \f$ and \f$ \eta \f$ its
+ * \f[ R = \Delta t \, r = \Delta\gamma_{loc} - \theta_{n+1} \left( \eta_{n+1} - \eta_n \right), \f]
+ * with \f$ \Delta\gamma_{loc} \f$ the dissipation the kernel adds to \f$ W_m^d \f$ and \f$ \eta \f$ its
  * entropy, a state function. \f$ R \f$ includes the thermal storage, \f$ R = 0 \f$ is the adiabatic
  * condition (also at \f$ \Delta t = 0 \f$, where it gives the instantaneous adiabatic temperature
  * jump) and a closed elastic cycle under \f$ R = 0 \f$ returns to its initial temperature. The
- * derivatives follow from those of \f$ \Delta\gamma \f$ and \f$ \eta_{n+1} \f$:
- * \f[ \frac{\partial R}{\partial \boldsymbol{\varepsilon}} = \frac{\partial \Delta\gamma}{\partial \boldsymbol{\varepsilon}}
+ * derivatives follow from those of \f$ \Delta\gamma_{loc} \f$ and \f$ \eta_{n+1} \f$:
+ * \f[ \frac{\partial R}{\partial \boldsymbol{\varepsilon}} = \frac{\partial \Delta\gamma_{loc}}{\partial \boldsymbol{\varepsilon}}
  *     - \theta_{n+1} \frac{\partial \eta_{n+1}}{\partial \boldsymbol{\varepsilon}}, \qquad
- *     \frac{\partial R}{\partial \theta} = \frac{\partial \Delta\gamma}{\partial \theta} - \Delta\eta
+ *     \frac{\partial R}{\partial \theta} = \frac{\partial \Delta\gamma_{loc}}{\partial \theta} - \Delta\eta
  *     - \theta_{n+1} \frac{\partial \eta_{n+1}}{\partial \theta}. \f]
  * For the Gibbs energies of the thermomechanical kernels,
  * \f$ \eta = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha} : \boldsymbol{\sigma} + \ldots \f$, so that
@@ -278,9 +278,9 @@ ContinuumTangent compute_tangent_operator(
  * \f$ c_0 - \theta \, \boldsymbol{\alpha} : \mathbf{L} : \boldsymbol{\alpha} \f$ (with \f$ c_0 = \rho c_p \f$
  * the heat capacity at constant stress).
  *
- * @param Dgamma dissipation of the increment, \f$ \Delta\gamma \f$
- * @param dDgamma_dE \f$ \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} \f$ (6)
- * @param dDgamma_dT \f$ \partial\Delta\gamma/\partial\theta \f$
+ * @param Dgamma dissipation of the increment, \f$ \Delta\gamma_{loc} \f$
+ * @param dDgamma_dE \f$ \partial\Delta\gamma_{loc}/\partial\boldsymbol{\varepsilon} \f$ (6)
+ * @param dDgamma_dT \f$ \partial\Delta\gamma_{loc}/\partial\theta \f$
  * @param Deta entropy increment \f$ \eta_{n+1} - \eta_n \f$
  * @param deta_dE \f$ \partial\eta_{n+1}/\partial\boldsymbol{\varepsilon} \f$ (6)
  * @param deta_dT \f$ \partial\eta_{n+1}/\partial\theta \f$
