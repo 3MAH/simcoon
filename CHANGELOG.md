@@ -55,6 +55,16 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-12
+
+The modular engine (`MODUL`) gains its thermomechanical face and the finite-strain
+thermomechanical route (#155), and becomes the default kernel of EPICP, EPCHA, PRONK and ZENER
+(the dedicated kernels stay under `NAME_closed`). One registry of the law names replaces the
+hand-kept dispatch tables (#156), the kernels take their natural fixed-size form with results at
+round-off (#154), and the closest point gets by-reference callbacks and `ncp="min"` (#157).
+Breaking at the C++ API only (closest-point callbacks, three removed accessors, convention
+types moved to `umat_registry.hpp`): see **Breaking changes**.
+
 ### Breaking changes
 
 - C++ API of the closest-point solver (`return_mapping.hpp`): the row callbacks of
@@ -498,7 +508,8 @@ See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.1).
 
 See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.0).
 
-[Unreleased]: https://github.com/3MAH/simcoon/compare/2.3.0...HEAD
+[Unreleased]: https://github.com/3MAH/simcoon/compare/2.4.0...HEAD
+[2.4.0]: https://github.com/3MAH/simcoon/compare/2.3.0...2.4.0
 [2.3.0]: https://github.com/3MAH/simcoon/compare/2.2.0...2.3.0
 [2.2.0]: https://github.com/3MAH/simcoon/compare/2.1.0...2.2.0
 [2.1.0]: https://github.com/3MAH/simcoon/compare/2.0.1...2.1.0
