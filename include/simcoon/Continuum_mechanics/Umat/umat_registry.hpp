@@ -121,7 +121,7 @@ enum class UmatKernel {
     plasticity_chaboche,        ///< umat_plasticity_chaboche (EPCHA_closed)
     johnson_cook,               ///< umat_plasticity_johnson_cook_CCP / _T (EPJCK)
     damage_LLD0,                ///< umat_damage_LLD_0 (LLDM0)
-    zener,                      ///< umat_zener_fast / _T (ZENER)
+    zener,                      ///< umat_zener_fast / _T (ZENER_closed)
     zener_N,                    ///< umat_zener_Nfast / _T (ZENNK)
     prony_N,                    ///< umat_prony_Nfast / _T (PRONK_closed)
     sma_unified,                ///< umat_sma_unified_T / _T_T (SMADI, SMADC, SMAAI, SMAAC)

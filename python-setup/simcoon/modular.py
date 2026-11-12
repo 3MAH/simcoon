@@ -62,7 +62,7 @@ __all__ = [
     "NoKinematicHardening", "PragerHardening",
     "ArmstrongFrederickHardening", "ChabocheHardening",
     # Mechanisms
-    "Plasticity", "Viscoelasticity", "Damage",
+    "Plasticity", "Viscoelasticity", "Damage", "zener_as_maxwell",
     # Type aliases
     "Elasticity", "YieldCriterion", "IsotropicHardening",
     "KinematicHardening", "Mechanism",
@@ -1281,6 +1281,23 @@ class Plasticity:
     def nstatev(self) -> int:
         """Number of state variables for this mechanism: p(1) + EP(6) + backstresses(6*N)."""
         return 7 + 6 * self.kinematic_hardening.num_backstresses
+
+
+def zener_as_maxwell(E0, nu0, E1, nu1, etaB, etaS):
+    """The ``ZENER`` law (a Kelvin unit in series with the spring) as one Prony branch.
+
+    Per isotropic mode X in (K, G) of the spring (X_0) and of the Kelvin unit (X_1), the Maxwell
+    branch that gives the same instantaneous and long-term moduli and the same relaxation time is
+    X_M = X_0**2 / (X_0 + X_1) with the viscosity eta_M = eta_K X_0**2 / (X_0 + X_1)**2. This is the
+    map the ``ZENER`` adapter applies (``legacy_adapters.cpp``); ``ZENER_closed`` runs the Kelvin
+    form directly. Returns the ``(E, nu, etaB, etaS)`` term of :class:`Viscoelasticity`, to be
+    composed on ``IsotropicElasticity(E0, nu0, alpha)``.
+    """
+    K0, G0 = E0 / (3 * (1 - 2 * nu0)), E0 / (2 * (1 + nu0))
+    K1, G1 = E1 / (3 * (1 - 2 * nu1)), E1 / (2 * (1 + nu1))
+    KM, GM = K0 ** 2 / (K0 + K1), G0 ** 2 / (G0 + G1)
+    return (9 * KM * GM / (3 * KM + GM), (3 * KM - 2 * GM) / (2 * (3 * KM + GM)),
+            etaB * K0 ** 2 / (K0 + K1) ** 2, etaS * G0 ** 2 / (G0 + G1) ** 2)
 
 
 @dataclass(frozen=True)

@@ -38,10 +38,14 @@ namespace simcoon{
  * \f[
     \begin{align}
     \bar{I}_1 = \textrm{tr} \bar{\mathbf{b}} \\
-    \bar{I}_2 = \frac{1}{2} \left( \left(\textrm{tr} \bar{\mathbf{b}} \right)^2 - \textrm{tr} \bar{\mathbf{b}}^2 \right) \\
+    \bar{I}_2 = \frac{1}{2} \left( \left(\textrm{tr} \bar{\mathbf{b}} \right)^2 - \textrm{tr} \bar{\mathbf{b}}^2 \right) = \textrm{tr} \, \textrm{cof} \bar{\mathbf{b}} \\
     \bar{I}_3 = \textrm{det} \bar{\mathbf{b}} = 1
     \end{align}
  * \f]
+ * \f$ \bar{I}_2 \f$ is evaluated in its cofactor form, the sum of the three principal 2x2 minors of
+ * \f$ \bar{\mathbf{b}} \f$ (equal to \f$ \textrm{tr} \bar{\mathbf{b}}^{-1} \f$ since \f$ \det \bar{\mathbf{b}} = 1 \f$):
+ * the difference form loses \f$ 3 \log_{10} \lambda \f$ digits at a stretch \f$ \lambda \f$, the
+ * cofactor form is exact to round-off in the principal frame.
  * 
  * @param b 3x3 matrix representing the left Cauchy-Green deformation tensor \f$\mathbf{b}\f$
  * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
@@ -419,9 +423,15 @@ arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::vec
         \mathbf{\tau}_{\textrm{iso}} = 2. \frac{\partial \bar{W} }{\partial \bar{I}_1 } \textrm{dev} \bar{\mathbf{b}} 
         + 2 \frac{\partial \bar{W} }{\partial \bar{I}_2 } \left( \textrm{tr} \bar{\mathbf{b}} \textrm{dev} \bar{\mathbf{b}}
         - \textrm{dev} \bar{\mathbf{b}}^2 \right)
+        = 2. \frac{\partial \bar{W} }{\partial \bar{I}_1 } \textrm{dev} \bar{\mathbf{b}}
+        - 2 \frac{\partial \bar{W} }{\partial \bar{I}_2 } \textrm{dev} \, \textrm{cof} \bar{\mathbf{b}}
          * \f]
  * where \f$ \frac{\partial \bar{W} }{\partial \bar{I}_1 } \f$ and \f$ \frac{\partial \bar{W} }{\partial \bar{I}_2 } \f$ are the derivatives of the isochoric strain energy, \f$\mathbf{b}\f$ is the
- * left Cauchy-Green deformation tensor and \f$\mathbf{I}\f$ is the 3x3 identity matrix.
+ * left Cauchy-Green deformation tensor and \f$\mathbf{I}\f$ is the 3x3 identity matrix. The
+ * \f$ \bar{I}_2 \f$ term is evaluated in its cofactor form (Cayley-Hamilton with
+ * \f$ \det \bar{\mathbf{b}} = 1 \f$: \f$ \bar{I}_1 \bar{\mathbf{b}} - \bar{\mathbf{b}}^2 = \bar{I}_2 \mathbf{I} - \bar{\mathbf{b}}^{-1} \f$),
+ * which does not cancel two \f$ O(\lambda^4) \f$ terms into an \f$ O(\lambda) \f$ result at a stretch
+ * \f$ \lambda \f$; L_iso_hyper_invariants uses the same form for its \f$ \bar{I}_2 \f$ operators.
  *
  * @param dWdI_1_bar The derivative of the isochoric strain energy with respect to the first isochoric invariant.
  * @param dWdI_2_bar The derivative of the isochoric strain energy with respect to the second isochoric invariant. 

@@ -151,7 +151,9 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         iv.get("EP").raw_voigt() = EP;
         mech.set_start();
         if (mech.yield_function(stress) > 0.) {   // an admissible trial is committed as is (Lt = L below)
-            rm = closest_point_return_mapping(stress, L, {&mech}, {0}, Ds_j, vec{sigmaY});
+            ReturnMappingControl control;
+            control.ncp = ncp;
+            rm = closest_point_return_mapping(stress, L, {&mech}, {0}, Ds_j, vec{sigmaY}, {}, control);
             if (rm.converged) {
                 stress = rm.sigma;
                 p = iv.get("p").scalar();

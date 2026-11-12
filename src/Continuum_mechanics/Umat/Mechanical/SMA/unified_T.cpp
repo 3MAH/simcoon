@@ -488,16 +488,16 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         std::vector<ReturnMechanism> mechs(2);
         mechs[0].Phi = PhiF_val;
         mechs[1].Phi = PhiR_val;
-        mechs[0].Lambda = LamF_val;
-        mechs[1].Lambda = LamR_val;
-        mechs[0].dPhi_dsigma = [&](const vec &sig) { linearise(sig); return dPhiF_ds; };
-        mechs[1].dPhi_dsigma = [&](const vec &sig) { linearise(sig); return dPhiR_ds; };
-        mechs[0].dLambda_dsigma = [&](const vec &sig) { linearise(sig); return dLamF_ds; };
-        mechs[1].dLambda_dsigma = [&](const vec &sig) { linearise(sig); return dLamR_ds; };
+        mechs[0].Lambda = [&](const vec &sig, vec &Lam) { Lam = LamF_val(sig); };
+        mechs[1].Lambda = [&](const vec &sig, vec &Lam) { Lam = LamR_val(sig); };
+        mechs[0].dPhi_dsigma = [&](const vec &sig, vec &n) { linearise(sig); n = dPhiF_ds; };
+        mechs[1].dPhi_dsigma = [&](const vec &sig, vec &n) { linearise(sig); n = dPhiR_ds; };
+        mechs[0].dLambda_dsigma = [&](const vec &sig, mat &D) { linearise(sig); D = dLamF_ds; };
+        mechs[1].dLambda_dsigma = [&](const vec &sig, mat &D) { linearise(sig); D = dLamR_ds; };
         ReturnStateHooks hooks;
         hooks.update_state = refresh_state;
-        hooks.K = [&](const vec &sig, const vec &) { linearise(sig); return K_cpp; };
-        hooks.flow_state_coupling = [&](const vec &sig, const vec &) { linearise(sig); return std::vector<vec>{c_F, zeros(6)}; };
+        hooks.K = [&](const vec &sig, const vec &, mat &K) { linearise(sig); K = K_cpp; };
+        hooks.flow_state_coupling = [&](const vec &sig, const vec &, mat &dLdDs) { linearise(sig); dLdDs.col(0) = c_F; dLdDs.col(1).zeros(); };
         vec Ycrit_cpp(2);
         // FB scales floored at an absolute material scale: both thresholds vanish in virgin states
         const double Yfloor = 0.1*std::max(Y0t + D*Hmax*sigmacaliber, 1.e-2);

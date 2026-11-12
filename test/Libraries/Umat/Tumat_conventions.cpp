@@ -74,7 +74,7 @@ TEST(UmatRegistry, ClosedNamesPairWithTheirAdapterName) {
         if (entry.finite != K::none)   // the same statev layout on the finite route (EPICP_closed = EPICP)
             EXPECT_EQ(entry.convention.material_frame, plain->convention.material_frame) << name;
     }
-    EXPECT_EQ(closed, 4);   // EPICP, EPCHA, PRONK, EPKCP (thermomechanical)
+    EXPECT_EQ(closed, 5);   // EPICP, EPCHA, PRONK, ZENER, EPKCP (thermomechanical)
 }
 
 // The one thing the convention table exists to prevent: a kernel on the finite route whose stress
@@ -150,7 +150,8 @@ TEST(UmatRegistry, CapabilitiesFollowTheKernels) {
     EXPECT_NO_THROW(check_integrator_serves("SMRDI", tangent_closest_point, false));
     EXPECT_NO_THROW(check_integrator_serves("EPKCP_closed", tangent_closest_point, true));
     EXPECT_THROW(check_integrator_serves("EPJCK", tangent_closest_point, true), std::invalid_argument);
-    EXPECT_THROW(check_integrator_serves("ZENER", tangent_closest_point, false), std::invalid_argument);
+    EXPECT_THROW(check_integrator_serves("ZENER_closed", tangent_closest_point, false), std::invalid_argument);   // the Kelvin kernel; ZENER runs the modular engine
+    EXPECT_NO_THROW(check_integrator_serves("ZENER", tangent_closest_point, false));
     EXPECT_THROW(check_integrator_serves("HOLZA", tangent_closest_point, false), std::invalid_argument);
 
     const std::map<std::string, int> schemes = {{"MIHEN", 100}, {"MIMTN", 101}, {"MISCN", 103}, {"MIPLN", 104}};

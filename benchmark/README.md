@@ -95,13 +95,13 @@ publishes its worst differences.
 ## Legacy kernels against their MODUL twins
 
 `bench_legacy_vs_modular.py` times a dedicated (closed-form) kernel against the
-equivalent MODUL configuration (interleaved A/B, minimum over repeats). Three
-dedicated kernels remain, under the names `EPICP_closed`, `EPCHA_closed` and
-`PRONK_closed`; every legacy name, these three included, is routed to the
-modular engine by a props adapter (code 201 in `umat_smart.cpp`), so for the
-other families (ELISO, ELIST, ELORT, EPKCP, EPHIL, EPHAC, EPANI, EPDFA, EPCHG,
+equivalent MODUL configuration (interleaved A/B, minimum over repeats). Four
+dedicated kernels remain, under the names `EPICP_closed`, `EPCHA_closed`,
+`PRONK_closed` and `ZENER_closed`; every legacy name, these four included, is routed
+to the modular engine by a props adapter (`legacy_modular` in the registry), so for
+the other families (ELISO, ELIST, ELORT, EPKCP, EPHIL, EPHAC, EPANI, EPDFA, EPCHG,
 EPHIN) the benchmark compares the modular engine with itself. By default it
-runs the three true pairs; `--all` adds the adapter families, flagged as such.
+runs the four true pairs; `--all` adds the adapter families, flagged as such.
 
 ## Hotspots of the February 2026 profiling: current state
 
@@ -152,8 +152,7 @@ the min-over-increments estimator picks the elastic increments and hides this.
 
 | Status | Laws |
 |---|---|
-| Routed to MODUL (adapter, code 201) | ELISO, ELIST, ELORT, EPICP, EPKCP, EPCHA, PRONK, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN (thermomechanical face: EPICP, EPKCP, PRONK) |
+| Routed to MODUL (adapter, `legacy_modular`) | ELISO, ELIST, ELORT, EPICP, EPKCP, EPCHA, PRONK, ZENER, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN (thermomechanical face: EPICP, EPKCP, PRONK, ZENER) |
 | MODUL equivalent exists, adapter to write | NEOHC, MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA (`HYPER_INVARIANTS` block, same `HyperPotential`); NEOHI to confirm (neo-Hookean with the quadratic volumetric term, kappa = 2/D1) |
-| Dedicated closed-form kernel kept under a `_closed` name (benchmark, comparison) | EPICP_closed, EPCHA_closed, PRONK_closed; EPKCP_closed on the thermomechanical face |
-| MODUL equivalent by parameter map, adapter to write | ZENER (one Maxwell branch: `X_1^M = X_0^2/(X_0 + X_1)`, `eta^M = eta^K X_0^2/(X_0 + X_1)^2` per isotropic mode, see `docs/simulation/modular_python.rst`) |
+| Dedicated closed-form kernel kept under a `_closed` name (benchmark, comparison) | EPICP_closed, EPCHA_closed, PRONK_closed, ZENER_closed (one Maxwell branch by parameter map, `simcoon.modular.zener_as_maxwell`); EPKCP_closed on the thermomechanical face |
 | No MODUL equivalent | OGDEN (principal stretches), SNTVE, HYPOO, EPJCK, LLDM0 (anisotropic damage), ZENNK (Kelvin chains, N >= 2), SMA family, micromechanics (MIHEN, MIMTN, MISCN, MIPLN) |

@@ -595,9 +595,9 @@ def test_closest_point_refused_for_laws_without_one():
     eye = np.asfortranarray(np.eye(3)[:, :, None])
     zener = [3000., 0.35, 0., 1500., 0.35, 3000., 1200.]
     step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
-    with pytest.raises(ValueError, match="'ZENER' has none"):
-        solve(step, "ZENER", zener, 8, T_init=290.0, integrator="closest_point")
-    for name in ("ZENER", "PYEXT"):
+    with pytest.raises(ValueError, match="'ZENER_closed' has none"):   # ZENER itself runs the modular engine
+        solve(step, "ZENER_closed", zener, 8, T_init=290.0, integrator="closest_point")
+    for name in ("ZENER_closed", "PYEXT"):
         with pytest.raises(ValueError, match=f"'{name}' has none"):
             sim.umat(name, col(np.zeros(6)), col([1e-3, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0),
                      col(np.zeros(6)), eye, col(zener), col(np.zeros(8)), 0.0, 1.0, col(np.zeros(4)),

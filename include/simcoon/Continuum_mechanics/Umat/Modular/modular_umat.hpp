@@ -125,7 +125,7 @@ private:
     // Return-mapping controls (local internal-equilibrium Newton loop)
     int maxiter_;           ///< Maximum iterations for return mapping
     double precision_;      ///< Convergence tolerance
-    NCPMethod ncp_ = NCPMethod::fischer_burmeister;   ///< complementarity function of the cutting plane (set_ncp)
+    NCPMethod ncp_ = NCPMethod::fischer_burmeister;   ///< complementarity function of the local Newton (set_ncp)
     bool nonlinear_kinematic_ = false;   ///< an Armstrong-Frederick back stress is configured (set_ncp refuses min-NCP)
 
     /// Composition invariant cached by initialize(): the flow-rule drift
@@ -280,14 +280,17 @@ public:
     }
 
     /**
-     * @brief Complementarity function of the cutting plane (the @c ncp option of the run).
+     * @brief Complementarity function of the local Newton (the @c ncp option of the run), read by
+     *        the cutting plane and by the closest point.
      *
-     * min-NCP is refused with an Armstrong-Frederick back stress: the cutting plane integrates it
-     * along its own iterates, so the full min-NCP steps give a different, and on coarse increments
-     * much less accurate, return than the damped Fischer-Burmeister ones (up to 0.46 off the
-     * closest-point update where Fischer-Burmeister stays at 0.04, on the Chaboche identification
-     * programmes), and the residual does not grow, so the fallback cannot catch it.
-     * @throw std::invalid_argument for min-NCP with an Armstrong-Frederick back stress
+     * Under the cutting plane min-NCP is refused with an Armstrong-Frederick back stress (run()
+     * throws): the cutting plane integrates it along its own iterates, so the full min-NCP steps
+     * give a different, and on coarse increments much less accurate, return than the damped
+     * Fischer-Burmeister ones (up to 0.46 off the closest-point update where Fischer-Burmeister
+     * stays at 0.04, on the Chaboche identification programmes), and the residual does not grow,
+     * so the fallback cannot catch it. The closest point solves one backward-Euler system whose
+     * root does not depend on the step function, so it takes min-NCP for every composition
+     * (measured against Fischer-Burmeister: the same return to the local tolerance).
      */
     void set_ncp(NCPMethod ncp);
 

@@ -115,15 +115,21 @@ def test_min_ncp_modular_with_inert_rows(extra):
     assert rel(res["Stress"], ref["Stress"]) < 1e-6
 
 
-def test_min_ncp_refuses_armstrong_frederick():
+def test_min_ncp_refuses_armstrong_frederick_under_the_cutting_plane_only():
     # the cutting plane integrates AF back stresses along its iterates: min-NCP would change the
-    # return far beyond the tolerance on coarse increments, so MODUL refuses the combination
+    # return far beyond the tolerance on coarse increments, so MODUL refuses the combination there;
+    # the closest point solves one backward-Euler system whose root does not depend on the step
+    # function, so it takes min-NCP (measured 1.5e-10 against Fischer-Burmeister on a coarse
+    # non-proportional path, where the cutting plane sits 4e-2 away)
     from simcoon.modular import ArmstrongFrederickHardening
     mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3),
                           [Plasticity(sigma_Y=300.0, kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=200.0))])
     run("MODUL", mat.props, mat.nstatev)
     with pytest.raises(Exception, match="Armstrong-Frederick"):
         run("MODUL", mat.props, mat.nstatev, ncp="min")
+    fb = run("MODUL", mat.props, mat.nstatev, integrator="closest_point")
+    mn = run("MODUL", mat.props, mat.nstatev, integrator="closest_point", ncp="min")
+    assert rel(mn["Stress"], fb["Stress"]) < 1e-8
 
 
 def test_ncp_values_and_laws_are_checked():
@@ -133,8 +139,12 @@ def test_ncp_values_and_laws_are_checked():
         run("EPICP", EPICP, 8, ncp=1)
     with pytest.raises(ValueError, match="EPCHA"):
         run("EPCHA", EPCHA, 33, ncp="min")
-    with pytest.raises(ValueError, match="cutting-plane"):
-        run("EPICP", EPICP, 8, ncp="min", integrator="closest_point")
+    # the closest point takes the min step on its reduced system: the same root
+    for name in ("EPICP", "EPICP_closed"):
+        fb = run(name, EPICP, 8, integrator="closest_point")
+        mn = run(name, EPICP, 8, ncp="min", integrator="closest_point")
+        assert not np.array_equal(mn["Stress"], fb["Stress"]) or name == "EPICP_closed"
+        assert rel(mn["Stress"], fb["Stress"]) < 1e-8
     with pytest.raises(ValueError, match="ncp"):
         sim.umat("EPCHA", np.zeros((6, 1)), np.zeros((6, 1)), np.array([]), np.array([]), np.zeros((6, 1)),
                  np.eye(3).reshape(3, 3, 1), np.asarray(EPCHA, float), np.zeros((33, 1)), 0.0, 1.0,

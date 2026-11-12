@@ -199,8 +199,7 @@ bool material_tangent_serves(const std::string &umat_name)
     return entry != nullptr && entry->convention.material_tangent;
 }
 
-void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical,
-                      const int &tangent_mode)
+void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical)
 {
     if (ncp_method_of(ncp, "ncp") == NCPMethod::fischer_burmeister) return;
     const umat_entry *entry = umat_entry_of(umat_name);
@@ -211,10 +210,6 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
         throw std::invalid_argument("ncp='min' serves the cutting planes of the modular engine (MODUL and the legacy "
                                     "names it serves, mechanical and thermomechanical) and of EPICP_closed; '"
                                     + umat_name + "'" + (thermomechanical ? " (thermomechanical)" : "") + " does not read it");
-    }
-    if (tangent_mode == tangent_closest_point) {
-        throw std::invalid_argument("ncp='min' serves the cutting-plane integrator only; the closest-point "
-                                    "integrator keeps Fischer-Burmeister");
     }
 }
 

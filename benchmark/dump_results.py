@@ -86,6 +86,20 @@ def _fields(res):
     return out
 
 
+def _heat_scale(fields):
+    """Reference scale of the heat of an increment: the heat is the dissipation minus the
+    reversible term T deta (the increments of Wm_d and of Wt), a small difference of large terms in
+    the SMA laws, so the heat tables are judged against |dWm_d| + |dWt| + |r| per increment."""
+    if "r" not in fields or "Wm" not in fields or "Wt" not in fields:
+        return None
+    Wm_d, Wt, r = fields["Wm"][3], fields["Wt"][0], fields["r"].ravel()
+    if Wm_d.shape != r.shape or Wt.shape != r.shape:
+        return None
+    dWm_d = np.diff(Wm_d, prepend=0.0)
+    dWt = np.diff(Wt, prepend=0.0)
+    return np.abs(dWm_d) + np.abs(dWt) + np.abs(r)
+
+
 def _run_example(path):
     """Run one example script; return the results of its ``sim.solver.solve`` calls."""
     import matplotlib
@@ -155,8 +169,14 @@ def dump_solver(out, examples):
     store = {}
 
     def keep(name, res):
-        for k, v in _fields(res).items():
+        fields = _fields(res)
+        for k, v in fields.items():
             store[f"{name}|{k}"] = v
+        scale = _heat_scale(fields)
+        if scale is not None:
+            for k in ("Q", "r"):
+                if k in fields:
+                    store[f"{name}|{k}_scale"] = scale
 
     for name, thunk in solver_cases():
         try:
@@ -280,11 +300,15 @@ def dump_batch_T(out, N=251, n_inc=6):
                     print(f"FAIL {case} inc {inc}: {type(e).__name__}: {str(e)[:100]}")
                     store[f"{case}/inc{inc}|__error__"] = np.array([1.0])
                     break
+                Wm_d0, Wt0 = np.array(Wm[3]), np.array(Wt[0])
                 sigma, statev, Wm, Wt = (F(np.asarray(v)) for v in res[:4])
                 etot = F(etot + Detot)
                 T = T + DT
                 for k, v in zip(fields, res):
                     store[f"{case}/inc{inc}|{k}"] = np.array(v)
+                # the heat is judged against the works it is a difference of (see _heat_scale)
+                store[f"{case}/inc{inc}|r_scale"] = (np.abs(np.asarray(Wm)[3] - Wm_d0) + np.abs(np.asarray(Wt)[0] - Wt0)
+                                                     + np.abs(np.asarray(res[4]).ravel()))
     np.savez(out, **store)
     print(f"saved {len(store)} arrays to {out}")
 
@@ -295,8 +319,10 @@ def dump_batch_T(out, N=251, n_inc=6):
 def compare(path_a, path_b, rtol=0.0, verbose=False, field_rtol=None):
     """Compare two dumps; return True when every array matches within rtol.
 
-    *field_rtol* maps a field name (the part after '|') to its own tolerance: the heat tables
-    Q and r of the thermomechanical laws are differences of large terms.
+    The heat tables Q and r are judged against the ``<field>_scale`` array the dumper stores
+    with them (|dWm_d| + |dWt| + |r|: the heat is a small difference of those works in the SMA
+    laws) when both dumps carry it; *field_rtol* maps a field name (the part after '|') to its
+    own tolerance for a table without a scale.
 
     Prints the cases that differ (all of them with *verbose*) and a summary line.
     """
@@ -323,7 +349,11 @@ def compare(path_a, path_b, rtol=0.0, verbose=False, field_rtol=None):
             n_exact += 1
             worst.setdefault(case, (0.0, ""))
             continue
-        scale = max(float(np.nanmax(np.abs(x))) if x.size else 0.0, 1e-300)
+        scale_key = f"{case}|{field}_scale"
+        if field in ("Q", "r") and scale_key in a.files and scale_key in b.files:
+            scale = max(float(np.nanmax(a[scale_key])), 1e-300)
+        else:
+            scale = max(float(np.nanmax(np.abs(x))) if x.size else 0.0, 1e-300)
         rel = float(np.nanmax(np.abs(x - y)) / scale)
         if np.isnan(rel):   # NaN on one side only
             rel = np.inf

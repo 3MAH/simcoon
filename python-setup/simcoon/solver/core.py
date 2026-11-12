@@ -104,10 +104,12 @@ def solve(
         on a single surface with a Fischer-Burmeister fallback: about half the
         local iterations for isotropic or linear (Prager) kinematic hardening,
         the same return to the local tolerance. Read by the modular engine
-        (MODUL and the legacy names it serves, mechanical and thermomechanical;
-        refused for an Armstrong-Frederick back stress) and by EPICP_closed;
-        any other law raises ValueError for 'min', as does the closest-point
-        integrator. See the UMAT catalog.
+        (MODUL and the legacy names it serves, mechanical and thermomechanical)
+        and by EPICP_closed, under either integrator; the cutting plane refuses
+        it for an Armstrong-Frederick back stress (its iterates integrate the
+        back stress), the closest point takes it for every composition (one
+        backward-Euler system, the same root). Any other law raises ValueError
+        for 'min'. See the UMAT catalog.
     integrator : str, optional
         Local integrator of the laws with a return mapping: 'cutting_plane'
         (the default) or 'closest_point', the backward-Euler closest-point

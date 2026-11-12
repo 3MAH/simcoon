@@ -180,6 +180,17 @@ def test_voce_plasticity_runs_end_to_end(work_in_examples):
     assert 400.0 < peak < 500.0, f"Voce peak {peak:.1f} outside expected band"
 
 
+def test_zener_adapter_matches_the_kelvin_kernel(work_in_examples):
+    """ZENER runs the modular engine on the mapped Maxwell branch (legacy_adapters.cpp); ZENER_closed
+    is the Kelvin kernel. Same instantaneous and long-term moduli and relaxation time, so the same
+    response on the relaxation path, to the round-off of the two inverses (measured 5e-15)."""
+    props = np.array([3000.0, 0.35, 0.0, 1500.0, 0.35, 3000.0, 1200.0])
+    adapter = _run_case("ZENER", props, 8, "PRONK_path.json")
+    kernel = _run_case("ZENER_closed", props, 8, "PRONK_path.json")
+    scale = np.abs(kernel).max()
+    assert np.abs(adapter - kernel).max() < 1e-10 * scale
+
+
 @pytest.mark.parametrize("pronk", ["PRONK", "PRONK_closed"])
 def test_viscoelastic_matches_pronk_reference(work_in_examples, pronk):
     """MODUL with a Viscoelasticity mechanism must reproduce the reference
@@ -657,8 +668,9 @@ def test_viscoelastic_survives_a_block_boundary():
         # generalized Maxwell (Prony): the elasticity block is the instantaneous stiffness
         "PRONK": (np.array([E0, nu0, 0.0, len(terms)] + branch), 7 + 7 * len(terms)),
         mat.umat_name: (mat.props, mat.nstatev),
-        # generalized Kelvin (Zener): a different rheology, same zero-time defect
+        # generalized Kelvin (Zener): a different rheology, same zero-time defect; the adapter and the kernel
         "ZENER": (np.array([E0, nu0, 0.0] + branch), 8),
+        "ZENER_closed": (np.array([E0, nu0, 0.0] + branch), 8),
         "ZENNK": (np.array([E0, nu0, 0.0, len(terms)] + branch), 7 + 7 * len(terms)),
     }
 
@@ -699,11 +711,13 @@ def test_thermomechanical_viscoelastic_matches_its_mechanical_twin():
 
     meca = {
         "ZENER": (np.array([E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
+        "ZENER_closed": (np.array([E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
         "PRONK": (np.array([E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
         "ZENNK": (np.array([E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
     }
     thermo = {
         "ZENER": (np.array([rho, c_p, E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
+        "ZENER_closed": (np.array([rho, c_p, E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
         "PRONK": (np.array([rho, c_p, E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
         "ZENNK": (np.array([rho, c_p, E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
     }
@@ -718,7 +732,7 @@ def test_thermomechanical_viscoelastic_matches_its_mechanical_twin():
                                                     ninc=ninc, time=t, T_final=T)
         return [mk(0.005, 0.05), mk(0.01, 0.05)] if halves else [mk(0.01, 0.1)]
 
-    for name in ("ZENER", "PRONK", "ZENNK"):
+    for name in ("ZENER", "ZENER_closed", "PRONK", "ZENNK"):
         p_m, n_m = meca[name]
         p_t, n_t = thermo[name]
         ref = float(np.asarray(sim.solver.solve(meca_steps(40, False), name, p_m, n_m,
@@ -818,15 +832,16 @@ def test_damage_driving_force_is_the_undamaged_energy():
     assert abs(wd[1] - exact) < 0.01 * exact
 
 
-@pytest.mark.parametrize("umat", ["ZENER", "ZENNK", "PRONK", "PRONK_closed"])
+@pytest.mark.parametrize("umat", ["ZENER_closed", "ZENNK", "PRONK", "PRONK_closed"])
 def test_viscoelastic_step_is_exact_backward_euler(umat):
     """The linear viscoelastic kernels take the closed-form implicit step: the stress is the
     backward-Euler solution, and Lt its exact derivative (central differences). The Prony case
     runs under its legacy name (the modular engine, branch i at statev 1 + 7 i: v_i then EV_i)
-    and as the dedicated kernel (EV_i at 8 + 7 i)."""
+    and as the dedicated kernel (EV_i at 8 + 7 i); the Kelvin step is the dedicated ZENER_closed
+    (under ZENER the statev holds the mapped Maxwell branch strain, not the Kelvin one)."""
     E0, nu0 = 3000., 0.35
     branches = [(1500., 0.35, 3000., 1200.), (800., 0.35, 30000., 12000.)]
-    if umat == "ZENER":
+    if umat == "ZENER_closed":
         branches = branches[:1]
         props, nstatev = np.array([E0, nu0, 0., *branches[0]]), 8
     else:
@@ -841,7 +856,7 @@ def test_viscoelastic_step_is_exact_backward_euler(umat):
     EVn = [1e-3 * rng.standard_normal(6) for _ in branches]
     sv = np.zeros(nstatev)
     sv[0] = 290.
-    if umat == "ZENER":
+    if umat == "ZENER_closed":
         sv[2:8] = EVn[0]
         sig = L0 @ (eps_n - EVn[0])
     else:
@@ -860,7 +875,7 @@ def test_viscoelastic_step_is_exact_backward_euler(umat):
 
     s, _, Wm, Lt = call(De)
     e1 = eps_n + De
-    if umat in ("ZENER", "ZENNK"):
+    if umat in ("ZENER_closed", "ZENNK"):
         C = [dt * np.linalg.inv(Hv(*b[2:]) + dt * L(*b[:2])) for b in branches]
         relaxed = [np.linalg.inv(Hv(*b[2:]) + dt * L(*b[:2])) @ Hv(*b[2:]) @ e for b, e in zip(branches, EVn)]
         ref = np.linalg.solve(np.eye(6) + L0 @ sum(C), L0 @ (e1 - sum(relaxed)))

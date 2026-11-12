@@ -52,8 +52,8 @@ struct J2Problem {
     ReturnMechanism mech() {
         ReturnMechanism m;
         m.Phi = [this](const vec &sig) { return Mises_stress(sig) - sigmaY - Hlin * p; };
-        m.dPhi_dsigma = [](const vec &sig) { return eta_stress(sig); };
-        m.dLambda_dsigma = [](const vec &sig) { return deta_stress(sig); };
+        m.dPhi_dsigma = [](const vec &sig, vec &n) { n = eta_stress(sig); };
+        m.dLambda_dsigma = [](const vec &sig, mat &D) { D = deta_stress(sig); };
         return m;
     }
     std::function<bool(const vec &, double)> update_state() {
@@ -131,15 +131,14 @@ TEST(Treturn_mapping, inactive_mechanism_masked)
     std::vector<ReturnMechanism> mechs(2);
     mechs[0] = pb.mech();
     mechs[1].Phi = [](const vec &sig) { return Mises_stress(sig) - 1.e6; };  // never active
-    mechs[1].dPhi_dsigma = [](const vec &sig) { return eta_stress(sig); };
-    mechs[1].dLambda_dsigma = [](const vec &sig) { return deta_stress(sig); };
+    mechs[1].dPhi_dsigma = [](const vec &sig, vec &n) { n = eta_stress(sig); };
+    mechs[1].dLambda_dsigma = [](const vec &sig, mat &D) { D = deta_stress(sig); };
 
     ReturnStateHooks hooks;
     hooks.update_state = [&pb](const vec &, const vec &Dl) { pb.p = pb.p_n + Dl(0); return true; };
-    hooks.K = [](const vec &, const vec &) {
-        mat K = zeros(2, 2);
+    hooks.K = [](const vec &, const vec &, mat &K) {
+        K.zeros();
         K(0, 0) = -Hlin;
-        return K;
     };
     vec Y_crit = {sigmaY, 1.e6};
 
@@ -164,8 +163,8 @@ TEST(Treturn_mapping, hill_anisotropic_q_quadratic)
 
     ReturnMechanism m;
     m.Phi = [&](const vec &sig) { return Hill_stress(sig, hill_p) - sigmaY - Hlin * p; };
-    m.dPhi_dsigma = [&](const vec &sig) { return dHill_stress(sig, hill_p); };
-    m.dLambda_dsigma = [&](const vec &sig) { return ddHill_stress(sig, hill_p); };
+    m.dPhi_dsigma = [&](const vec &sig, vec &n) { n = dHill_stress(sig, hill_p); };
+    m.dLambda_dsigma = [&](const vec &sig, mat &D) { D = ddHill_stress(sig, hill_p); };
 
     const vec Eps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 0.};
     const vec sigma_tr = L * Eps;
@@ -209,8 +208,8 @@ TEST(Treturn_mapping, hill_anisotropic_exact_consistent_tangent)
     auto solve_cpp = [&](const vec &Eps) {
         ReturnMechanism m;
         m.Phi = [&](const vec &sig) { return Hill_stress(sig, hill_p) - sigmaY - Hlin * p; };
-        m.dPhi_dsigma = [&](const vec &sig) { return dHill_stress(sig, hill_p); };
-        m.dLambda_dsigma = [&](const vec &sig) { return ddHill_stress(sig, hill_p); };
+        m.dPhi_dsigma = [&](const vec &sig, vec &n) { n = dHill_stress(sig, hill_p); };
+        m.dLambda_dsigma = [&](const vec &sig, mat &D) { D = ddHill_stress(sig, hill_p); };
         p = 0.;
         return closest_point_return_mapping(
             L * Eps, L, m,
@@ -258,12 +257,12 @@ TEST(Treturn_mapping, stress_dependent_flow_exact_tangent)
     auto solve_analytic = [&](const vec &Eps) {
         std::vector<ReturnMechanism> m(1);
         m[0].Phi = Phi;
-        m[0].Lambda = Lambda;
-        m[0].dPhi_dsigma = [](const vec &sig) { return eta_stress(sig); };
-        m[0].dLambda_dsigma = dLambda;
+        m[0].Lambda = [&](const vec &sig, vec &Lam) { Lam = Lambda(sig); };
+        m[0].dPhi_dsigma = [](const vec &sig, vec &n) { n = eta_stress(sig); };
+        m[0].dLambda_dsigma = [&](const vec &sig, mat &D) { D = dLambda(sig); };
         ReturnStateHooks hooks;
         hooks.update_state = refresh;
-        hooks.K = [](const vec &, const vec &) { return mat(1, 1, fill::value(-Hlin)); };
+        hooks.K = [](const vec &, const vec &, mat &K) { K(0, 0) = -Hlin; };
         p = 0.;
         return closest_point_return_mapping(L * Eps, L, m, hooks, vec{sigmaY});
     };

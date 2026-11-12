@@ -367,7 +367,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     + std::to_string(ctrl.tangent_mode));
     }
     const bool thermomechanical = std::any_of(blocks.begin(), blocks.end(), [](const block &b) { return b.type == 2; });
-    check_ncp_serves(umat_name, ctrl.ncp, thermomechanical, ctrl.tangent_mode);
+    check_ncp_serves(umat_name, ctrl.ncp, thermomechanical);
     // the thermomechanical laws accepted are mechanical ones too, so one check covers a mixed run
     check_integrator_serves(umat_name, ctrl.tangent_mode, thermomechanical);
     if (corate_type < 0 || corate_type > corate_type_total) {

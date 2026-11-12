@@ -1,19 +1,20 @@
 """Benchmark legacy UMATs against their MODUL (modular UMAT) twin configurations.
 
-Three dedicated (closed-form) kernels remain, answering the names EPICP_closed,
-EPCHA_closed and PRONK_closed; every legacy name, these three included, is served by
-the modular engine through a props adapter (code 201 in ``umat_smart.cpp``,
-``Modular/legacy_adapters.cpp``). The EPICP, EPCHA and PRONK families time the
-dedicated kernel against the modular composition; the others (ELISO, ELIST, ELORT,
+Four dedicated (closed-form) kernels remain, answering the names EPICP_closed,
+EPCHA_closed, PRONK_closed and ZENER_closed; every legacy name, these four included, is
+served by the modular engine through a props adapter (``legacy_modular`` in the
+registry, ``Modular/legacy_adapters.cpp``). The EPICP, EPCHA, PRONK and ZENER families
+time the dedicated kernel against the modular composition; the others (ELISO, ELIST, ELORT,
 EPKCP, EPHIL, EPHAC, EPANI, EPDFA, EPCHG, EPHIN) would compare the modular engine
 with itself, plus the adapter's props translation (ratio ~1.00, deviation 0), so they
 are benchmarked only on request (``--all`` or ``--families``) and flagged "adapter"
 in the table; they remain in ``FAMILIES`` because their legacy-name and MODUL runs
 are regression cases of ``benchmark/dump_results.py``.
 
-ZENER/ZENNK are intentionally absent: Zener_fast/Zener_Nfast are generalized
-KELVIN chains (branch driving force sigma - L_i EV_i), a different rheological
-model from the modular Prony (generalized Maxwell) — no twin exists.
+ZENER is the one-branch Maxwell composition with the Kelvin unit mapped per isotropic
+mode (``simcoon.modular.zener_as_maxwell``, the map of its adapter). ZENNK is absent:
+Zener_Nfast is a generalized KELVIN chain (branch driving force sigma - L_i EV_i), a
+different rheological model from the modular Prony (generalized Maxwell) for N >= 2.
 
 Methodology: INTERLEAVED A/B — each repetition runs the legacy kernel then the
 modular twin back-to-back, so load spikes hit both arms equally; the reported
@@ -56,6 +57,7 @@ from simcoon.modular import (
     PragerHardening,
     ChabocheHardening,
     Viscoelasticity,
+    zener_as_maxwell,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -74,7 +76,7 @@ def _mat(elasticity, mechanisms=()):
 
 # Families whose first arm is a dedicated (closed-form) kernel, the _closed names. Any
 # other name of FAMILIES is routed to the modular engine by a props adapter (code 201).
-LEGACY_KERNELS = ("EPICP", "EPCHA", "PRONK")
+LEGACY_KERNELS = ("EPICP", "EPCHA", "PRONK", "ZENER")
 
 # family -> (legacy_name, legacy_props, legacy_nstatev, path_file, ModularMaterial)
 FAMILIES = {
@@ -388,6 +390,16 @@ FAMILIES = {
         "PRONK_path.json",
         _mat(
             IsotropicElasticity(C1=3000.0, C2=0.35), [Viscoelasticity(terms=VE_TERMS)]
+        ),
+    ),
+    "ZENER": (
+        "ZENER_closed",
+        [3000.0, 0.35, 0.0] + list(VE_TERMS[0]),
+        8,
+        "PRONK_path.json",
+        _mat(
+            IsotropicElasticity(C1=3000.0, C2=0.35),
+            [Viscoelasticity(terms=[zener_as_maxwell(3000.0, 0.35, *VE_TERMS[0])])],
         ),
     ),
 }

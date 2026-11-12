@@ -526,17 +526,19 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         };
         std::vector<ReturnMechanism> mechs(3);
         mechs[0].Phi = PhiF_val;   mechs[1].Phi = PhiR_val;   mechs[2].Phi = PhiReo_val;
-        mechs[0].Lambda = LamF_val; mechs[1].Lambda = LamR_val; mechs[2].Lambda = LamReo_val;
-        mechs[0].dPhi_dsigma = [&](const vec &sig) { linearise(sig); return dPhiF_ds; };
-        mechs[1].dPhi_dsigma = [&](const vec &sig) { linearise(sig); return dPhiR_ds; };
-        mechs[2].dPhi_dsigma = [&](const vec &sig) { linearise(sig); return dPhiReo_ds; };
-        mechs[0].dLambda_dsigma = [&](const vec &sig) { linearise(sig); return dLamF_ds; };
-        mechs[1].dLambda_dsigma = [&](const vec &sig) { linearise(sig); return dLamR_ds; };
-        mechs[2].dLambda_dsigma = [&](const vec &sig) { linearise(sig); return dLamReo_ds; };
+        mechs[0].Lambda = [&](const vec &sig, vec &Lam) { Lam = LamF_val(sig); };
+        mechs[1].Lambda = [&](const vec &sig, vec &Lam) { Lam = LamR_val(sig); };
+        mechs[2].Lambda = [&](const vec &sig, vec &Lam) { Lam = LamReo_val(sig); };
+        mechs[0].dPhi_dsigma = [&](const vec &sig, vec &n) { linearise(sig); n = dPhiF_ds; };
+        mechs[1].dPhi_dsigma = [&](const vec &sig, vec &n) { linearise(sig); n = dPhiR_ds; };
+        mechs[2].dPhi_dsigma = [&](const vec &sig, vec &n) { linearise(sig); n = dPhiReo_ds; };
+        mechs[0].dLambda_dsigma = [&](const vec &sig, mat &D) { linearise(sig); D = dLamF_ds; };
+        mechs[1].dLambda_dsigma = [&](const vec &sig, mat &D) { linearise(sig); D = dLamR_ds; };
+        mechs[2].dLambda_dsigma = [&](const vec &sig, mat &D) { linearise(sig); D = dLamReo_ds; };
         ReturnStateHooks hooks;
         hooks.update_state = refresh_state;
-        hooks.K = [&](const vec &sig, const vec &) { linearise(sig); return K_cpp; };
-        hooks.flow_state_coupling = [&](const vec &sig, const vec &) { linearise(sig); return std::vector<vec>{c_F, zeros(6), c_Reo}; };
+        hooks.K = [&](const vec &sig, const vec &, mat &K) { linearise(sig); K = K_cpp; };
+        hooks.flow_state_coupling = [&](const vec &sig, const vec &, mat &dLdDs) { linearise(sig); dLdDs.col(0) = c_F; dLdDs.col(1).zeros(); dLdDs.col(2) = c_Reo; };
         // FB normalisation scales, floored at an absolute material scale (see unified_T).
         vec Ycrit_cpp(3);
         const double Yfloor = 0.1*std::max(Y0t + D*Hmax*sigmacaliber, 1.e-2);
