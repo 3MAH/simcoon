@@ -238,8 +238,7 @@ std::string abaqus_umat_name(const char *cmname) {
         if (closed_suffix) name.replace(k, closed.size(), closed);
     }
     // a descriptive tail on a law name (EPICP_STEEL): the first five letters, said once per name
-    if (name.size() > 5 && !closed_suffix && finite_umat_names().count(name) == 0
-        && small_strain_umat_names().count(name) == 0 && thermo_umat_id(name) < 0) {
+    if (name.size() > 5 && !closed_suffix && umat_entry_of(name) == nullptr) {
         static std::mutex said_mutex;
         static std::set<std::string> said;
         const std::lock_guard<std::mutex> lock(said_mutex);
@@ -282,9 +281,8 @@ bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int
         return false;
     if (thermomechanical)   // the finite thermomechanical dispatch serves every law of the small one under log_R
         return corate_type != corate_type_total || total_formulation_serves_T(umat_name);
-    const auto &names = finite_umat_names();
-    auto it = names.find(umat_name);
-    if (it == names.end())   // small-strain only, the external plugins included
+    const umat_entry *entry = umat_entry_of(umat_name);
+    if (entry == nullptr || entry->finite == UmatKernel::none)   // small-strain only, the external plugins included
         return false;
     return corate_type != corate_type_total || total_formulation_serves(umat_name);
 }

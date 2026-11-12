@@ -27,6 +27,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_L_elastic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_registry.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
@@ -43,9 +44,9 @@ namespace simcoon{
 void get_L_elastic(phase_characteristics &rve)
 {
     
-    static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
-    const auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
-    const int method = (it_umat != list_umat.end()) ? it_umat->second : 0;
+    const umat_entry *entry = umat_entry_of(rve.sptr_matprops->umat_name);
+    const UmatKernel stiffness = (entry != nullptr) ? entry->elastic_stiffness : UmatKernel::none;
+    const int method = mean_field_scheme(stiffness);
     
     //Mean-field models: the caller gave the sub-phases (the ellipsoidal schemes read the
     //quadrature of their Eshelby integrals, [mp, np], from the props at each pass)
@@ -58,16 +59,16 @@ void get_L_elastic(phase_characteristics &rve)
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
-    switch (method) {
+    switch (stiffness) {
             
-        case 1: {
+        case UmatKernel::elasticity_iso: {
             double E = rve.sptr_matprops->props(0);
             double nu = rve.sptr_matprops->props(1);
             
             umat_M->Lt = L_iso(E, nu, "Enu");
             break;
         }
-        case 2: {
+        case UmatKernel::elasticity_trans_iso: {
             double axis = rve.sptr_matprops->props(0);
             double EL = rve.sptr_matprops->props(1);
             double ET = rve.sptr_matprops->props(2);
@@ -78,7 +79,7 @@ void get_L_elastic(phase_characteristics &rve)
             umat_M->Lt = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
             break;
         }
-        case 3: {
+        case UmatKernel::elasticity_ortho: {
             double Ex = rve.sptr_matprops->props(0);
             double Ey = rve.sptr_matprops->props(1);
             double Ez = rve.sptr_matprops->props(2);
@@ -92,14 +93,14 @@ void get_L_elastic(phase_characteristics &rve)
             umat_M->Lt = L_ortho(Ex,Ey,Ez,nuxy,nuxz,nuyz,Gxy,Gxz,Gyz, "EnuG");
             break;
         }
-        case 100: {
+        case UmatKernel::mean_field_homogeneous: {
             for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                 get_L_elastic(rve.sub_phases[i]);
             }
             Lt_Homogeneous_E(rve);
             break;
         }
-        case 101: {
+        case UmatKernel::mean_field_mori_tanaka: {
             for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                 get_L_elastic(rve.sub_phases[i]);
             }
@@ -107,7 +108,7 @@ void get_L_elastic(phase_characteristics &rve)
             Lt_Mori_Tanaka(rve, n_matrix);
             break;	
         }
-        case 103: {
+        case UmatKernel::mean_field_self_consistent: {
             for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                 get_L_elastic(rve.sub_phases[i]);
             }
@@ -172,7 +173,7 @@ void get_L_elastic(phase_characteristics &rve)
              }
             break;
         }
-        case 104: {
+        case UmatKernel::mean_field_periodic_layer: {
             for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                 get_L_elastic(rve.sub_phases[i]);
             }
@@ -184,19 +185,13 @@ void get_L_elastic(phase_characteristics &rve)
         }
     }
     
-    switch (method) {
-            
-	    case 100: case 101: case 103: case 104: {
-
-            // Compute the effective tangent modulus, and the effective stress
-            umat_M->Lt = zeros(6,6);
-            for (auto &r : rve.sub_phases) {
-                umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
-                umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
-            }
-            break;
+    if (method > 0) {
+        // the effective tangent modulus of the sub-phases
+        umat_M->Lt = zeros(6,6);
+        for (auto &r : rve.sub_phases) {
+            umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
+            umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
         }
-        default: break;
     }
     rve.local2global();
     

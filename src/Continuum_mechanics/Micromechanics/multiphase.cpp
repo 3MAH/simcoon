@@ -43,13 +43,10 @@ namespace simcoon{
     
 
 int sub_phase_shape(const std::string &umat_name) {
-    if (umat_name == "MIHEN" || umat_name == "MIMTN" || umat_name == "MISCN") {
-        return 2;
-    }
-    if (umat_name == "MIPLN") {
-        return 1;
-    }
-    return 0;
+    const umat_entry *entry = umat_entry_of(umat_name);
+    const int scheme = (entry != nullptr) ? mean_field_scheme(entry->mechanical) : 0;
+    if (scheme == 104) return 1;   // layers
+    return (scheme > 0) ? 2 : 0;   // ellipsoids; a homogeneous law takes no sub-phases
 }
 
 int self_consistent_start(const phase_characteristics &phase) {

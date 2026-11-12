@@ -214,15 +214,10 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 }  // namespace
 
 	// The laws whose condensed point is validated against the 3D law at the stress-free strain, with
-	// the Schur complement of the law's own tangent (test_umat_condensed.py, which checks this table
-	// against its fixtures): as exact as that tangent, i.e. under tangent_mode=3 for EPHIL, EPKCP, EPCHA.
-	// condense='spatial_face' and 'material_face' serve the same laws (identical at small strain)
+	// the Schur complement of the law's own tangent (umat_entry::condensed; test_umat_condensed.py checks
+	// the registry against its fixtures): as exact as that tangent, i.e. under tangent_mode=3 for EPHIL,
+	// EPKCP, EPCHA. condense='spatial_face' and 'material_face' serve the same laws (identical at small strain)
 	bool condensation_serves(const std::string &umat_name, const int &ndi, const std::optional<int> &nshr_py, const py::object &kinematic_form_py) {
-		static const std::set<std::string> rate = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "EPCHA", "EPHIL", "EPJCK",
-		                                           "ZENER", "ZENNK", "PRONK", "SMADI", "MODUL",
-		                                           "NEOHC", "NEOHI", "SNTVE", "MOORI", "YEOHH"};
-		static const std::set<std::string> total = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "EPCHA", "EPHIL", "EPJCK",
-		                                            "MODUL", "NEOHC", "NEOHI", "SNTVE", "MOORI", "YEOHH"};
 		const int form = kinematic_code(kinematic_form_py);
 		if (ndi == 3) return true;
 		try {
@@ -233,7 +228,10 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		}
 		const bool total_form = (form == simcoon::corate_type_total);
 		if (!total_form && form >= 0 && form != 3) return false;   // validated under log_R only
-		return (total_form ? total : rate).count(umat_name) > 0;
+		const simcoon::umat_entry *entry = simcoon::umat_entry_of(umat_name);
+		if (entry == nullptr) return false;
+		return total_form ? entry->condensed == simcoon::CondensedForms::rate_and_total
+		                  : entry->condensed != simcoon::CondensedForms::none;
 	}
 	
 	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode_py, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py, const std::string &condense, const std::string &ncp_name, const std::string &integrator_py){
@@ -272,20 +270,20 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			throw std::invalid_argument("tangent_output must be 'box', 'material' or 'spatial'; got '" + tangent_output + "'");
 		}
 		const int tangent_out = it_tangent_out->second;
-		static const std::map<string, int> list_umat = { {"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",201},{"EPICP_closed",5},{"EPKCP",201},{"EPCHA",201},{"EPCHA_closed",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",201},{"PRONK_closed",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"HOLZA",27},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"EPJCK",33},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
-		// guarded lookup (serial context): an unknown name throws here, outside the parallel region
-		const auto it_umat = list_umat.find(umat_name_py);
-		if (it_umat == list_umat.end()) {
-			if (simcoon::is_external_plugin(umat_name_py))
-				throw std::invalid_argument("umat: '" + umat_name_py + "' is an external plugin, served by the solver "
-				                            "(simcoon.solver.solve), not by sim.umat");
+		// the registry (umat_registry.hpp): a name on both mechanical faces has one kernel, fed the
+		// small strain or the box strain by this entry. Guarded here, in serial context: an unknown
+		// name throws outside the parallel region
+		const simcoon::umat_entry *entry = simcoon::umat_entry_of(umat_name_py);
+		if (entry == nullptr) {
 			throw std::invalid_argument("Unknown umat name: " + umat_name_py);
 		}
-		const int id_umat = it_umat->second;
+		if (simcoon::is_external_plugin(umat_name_py)) {
+			throw std::invalid_argument("umat: '" + umat_name_py + "' is an external plugin, served by the solver "
+			                            "(simcoon.solver.solve), not by sim.umat");
+		}
+		const simcoon::UmatKernel kernel = (entry->finite != simcoon::UmatKernel::none) ? entry->finite : entry->mechanical;
 		int arguments_type; //depends on the argument used in the umat
-		// PYEXT (Python callback law) re-enters the interpreter: it must run on the calling
-		// thread, never inside the GCD/OpenMP region (parallel.hpp contract).
-		const bool serial = (id_umat == 300);
+		const bool serial = (kernel == simcoon::UmatKernel::python_callback);
 
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
@@ -365,92 +363,92 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		int nprops = list_props.n_rows;
 		int nstatev = list_statev.n_rows;
 
-		switch (id_umat) {
-			case 201: { // legacy names served by the modular adapter
+		switch (kernel) {
+			case simcoon::UmatKernel::legacy_modular: { // legacy names served by the modular adapter
 				// one shared id (mirrors umat_smart): the adapter dispatches on
 				// umat_name, so every legacy-modular name takes this case
 				arguments_type = 4;   // called by name: it takes the ncp option
 				break;
 			}
-			case 5: {
+			case simcoon::UmatKernel::plasticity_iso: {
 				arguments_type = 5;   // EPICP, called by name: it takes the ncp option
 				break;
 			}
-			case 33: {
+			case simcoon::UmatKernel::johnson_cook: {
 				umat_function = &simcoon::umat_plasticity_johnson_cook_CCP;
 				arguments_type = 1;
 				break;
 			}
-			case 7: {
+			case simcoon::UmatKernel::plasticity_chaboche: {
 				umat_function = &simcoon::umat_plasticity_chaboche;
 				arguments_type = 1;
 				break;
 			}
-			case 13: {
+			case simcoon::UmatKernel::sma_unified: {
 				umat_function = &simcoon::umat_sma_unified_T;
 				arguments_type = 1;
 				break;
 			}
-			case 28: { // SMA_TR (unified reduced-tangent model)
+			case simcoon::UmatKernel::sma_unified_R: { // SMA_TR (unified reduced-tangent model)
 				umat_function = &simcoon::umat_sma_unified_TR;
 				arguments_type = 1;
 				break;
 			}
-			case 15: {
+			case simcoon::UmatKernel::damage_LLD0: {
 				umat_function = &simcoon::umat_damage_LLD_0;
 				arguments_type = 1;
 				break;
 			}
-			case 16: {
+			case simcoon::UmatKernel::zener: {
 				umat_function = &simcoon::umat_zener_fast;
 				arguments_type = 1;
 				break;
 			}
-			case 17: {
+			case simcoon::UmatKernel::zener_N: {
 				umat_function = &simcoon::umat_zener_Nfast;
 				arguments_type = 1;
 				break;
 			}
-			case 18: {
+			case simcoon::UmatKernel::prony_N: {
 				umat_function = &simcoon::umat_prony_Nfast;
 				arguments_type = 1;
 				break;
 			}
-			case 19: case 20: {
+			case simcoon::UmatKernel::sma_mono: {
 				umat_function = &simcoon::umat_sma_mono;
 				arguments_type = 1;
 				break;
 			}
-			case 200: { // MODUL (modular UMAT, small-strain)
+			case simcoon::UmatKernel::modular: { // MODUL (modular UMAT, small-strain)
 				arguments_type = 3;   // called by name: it takes the kinematic form
 				break;
 			}
-			case 21: case 22: case 23: case 24: case 25: case 26: case 27: {
+			case simcoon::UmatKernel::hyper_invariants: {
 				umat_function_finite = &simcoon::umat_generic_hyper_invariants;
 				arguments_type = 2;
 				break;
 			}
-			case 32: { // HYPOO (hypoelastic orthotropic, finite): corotational Kirchhoff rate
+			case simcoon::UmatKernel::hypoelasticity_ortho: { // HYPOO (hypoelastic orthotropic, finite): corotational Kirchhoff rate
 				umat_function_finite = &simcoon::umat_hypoelasticity_ortho;
 				arguments_type = 2;
 				break;
 			}
-			case 29: { // SNTVE (Saint-Venant-Kirchhoff, finite)
+			case simcoon::UmatKernel::saint_venant: { // SNTVE (Saint-Venant-Kirchhoff, finite)
 				umat_function_finite = &simcoon::umat_saint_venant;
 				arguments_type = 2;
 				break;
 			}
-			case 30: { // NEOHI (Neo-Hookean incompressible, finite)
+			case simcoon::UmatKernel::neo_hookean_incomp: { // NEOHI (Neo-Hookean incompressible, finite)
 				umat_function_finite = &simcoon::umat_neo_hookean_incomp;
 				arguments_type = 2;
 				break;
 			}
-			case 31: { // OGDEN (isochoric principal stretches, finite)
+			case simcoon::UmatKernel::hyper_pstretch: { // OGDEN (isochoric principal stretches, finite)
 				umat_function_finite = &simcoon::umat_generic_hyper_pstretch;
 				arguments_type = 2;
 				break;
 			}
-			case 300: {
+			case simcoon::UmatKernel::python_callback: {
 				// PYEXT: process-wide callback UMAT (umat_callback.hpp), i.e. a Python law.
 				// It re-enters the interpreter, so it runs serially on the calling thread.
 				umat_function = &simcoon::umat_callback_M;
@@ -458,7 +456,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			default: {
-				throw std::invalid_argument( "The choice of Umat could not be found in the umat library." );
+				// the mean-field schemes (sub-phases) are served by the solver only
+				throw std::invalid_argument("umat: '" + umat_name_py + "' is not served by sim.umat");
 			}
 		}
 
@@ -778,8 +777,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		const int ncp = ncp_code(ncp_name, "umat_T");
 		simcoon::check_ncp_serves(umat_name_py, ncp, true, tangent_mode);
 		simcoon::check_integrator_serves(umat_name_py, tangent_mode, true);
-		const int id_umat = simcoon::thermo_umat_id(umat_name_py);   // the dispatch map of select_umat_T
-		if (id_umat < 0) {
+		const simcoon::umat_entry *entry = simcoon::umat_entry_of(umat_name_py);   // the registry select_umat_T reads
+		if (entry == nullptr || entry->thermomechanical == simcoon::UmatKernel::none) {
 			throw std::invalid_argument("The choice of thermomechanical Umat could not be found in the umat library: " + umat_name_py);
 		}
 		int arguments_type; //depends on the argument used in the umat
@@ -885,67 +884,67 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		int nprops = list_props.n_rows;
 		int nstatev = list_statev.n_rows;
 
-		switch (id_umat) {
-			case 1: {
+		switch (entry->thermomechanical) {
+			case simcoon::UmatKernel::elasticity_iso: {
 				umat_function = &simcoon::umat_elasticity_iso_T;
 				arguments_type = 1;
 				break;
 			}
-			case 2: {
+			case simcoon::UmatKernel::elasticity_trans_iso: {
 				umat_function = &simcoon::umat_elasticity_trans_iso_T;
 				arguments_type = 1;
 				break;
 			}
-			case 3: {
+			case simcoon::UmatKernel::elasticity_ortho: {
 				umat_function = &simcoon::umat_elasticity_ortho_T;
 				arguments_type = 1;
 				break;
 			}
-			case 4: {
+			case simcoon::UmatKernel::plasticity_iso: {
 				umat_function = &simcoon::umat_plasticity_iso_T;
 				arguments_type = 1;
 				break;
 			}
-			case 10: {
+			case simcoon::UmatKernel::johnson_cook: {
 				umat_function = &simcoon::umat_plasticity_johnson_cook_CCP_T;
 				arguments_type = 1;
 				break;
 			}
-			case 5: {
+			case simcoon::UmatKernel::plasticity_kin_iso: {
 				umat_function = &simcoon::umat_plasticity_kin_iso_T;
 				arguments_type = 1;
 				break;
 			}
-			case 6: {
+			case simcoon::UmatKernel::zener: {
 				umat_function = &simcoon::umat_zener_fast_T;
 				arguments_type = 1;
 				break;
 			}
-			case 7: {
+			case simcoon::UmatKernel::zener_N: {
 				umat_function = &simcoon::umat_zener_Nfast_T;
 				arguments_type = 1;
 				break;
 			}
-			case 8: {
+			case simcoon::UmatKernel::prony_N: {
 				umat_function = &simcoon::umat_prony_Nfast_T;
 				arguments_type = 1;
 				break;
 			}
-			case 9: {
+			case simcoon::UmatKernel::sma_unified: {
 				umat_function_named = &simcoon::umat_sma_unified_T_T;
 				arguments_type = 2;
 				break;
 			}
-			case 200: {
+			case simcoon::UmatKernel::modular: {
 				arguments_type = 3;   // the modular face, props [rho, c_p, stream]
 				break;
 			}
-			case 201: {
+			case simcoon::UmatKernel::legacy_modular: {
 				arguments_type = 4;   // legacy names served by the modular face (legacy_adapters.cpp)
 				break;
 			}
 			default: {
-				throw std::invalid_argument( "The choice of thermomechanical Umat could not be found in the umat library." );
+				throw std::logic_error("umat_T: no kernel case for '" + umat_name_py + "' (the registry and the switch disagree)");
 			}
 		}
 

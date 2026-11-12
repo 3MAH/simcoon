@@ -3,7 +3,12 @@ Constitutive model (UMAT) catalog
 ====================================
 
 Every constitutive law is selected by its ``umat_name`` (five letters, or the ``_closed``
-name of a kept dedicated kernel). Since the
+name of a kept dedicated kernel). The names live in one table, the registry of
+``umat_registry.cpp`` (``umat_registry()``, one row per name): the kernel that serves the name on
+each face of the dispatch (small-strain mechanical, finite-strain mechanical, thermomechanical),
+its finite-strain conventions and its capabilities (condensed stress states of ``sim.umat``, the
+elastic stiffness of the mean-field schemes). Every route reads it: the solver, ``sim.umat`` /
+``sim.umat_T``, the Abaqus and Ansys bridges, the micromechanics. Since the
 modular UMAT framework, four kinds of implementation coexist behind those
 names — **the calling convention is identical for all of them** (same
 ``umat_name``, same props, same solver/FEA usage):
@@ -415,8 +420,9 @@ is the route stress, and the Cauchy stress is the derived output
 solver's output sinks and the Python wrapper. Nothing on the route carries Cauchy.
 
 **The stress measure** a kernel writes into ``sigma`` is declared, one entry per kernel, in
-``output_convention_of`` (``umat_smart.cpp``). A kernel that fails to declare it is
-rejected rather than given a default -- a missing declaration is an error of exactly
+the registry (``umat_entry::convention``, ``umat_registry.cpp``; read through
+``output_convention_of``). A name without a finite-strain kernel is rejected by the finite
+route rather than given a default -- a missing declaration is an error of exactly
 :math:`J`, and invisible near :math:`J = 1`:
 
 - ``kirchhoff`` -- every native kernel.
@@ -477,7 +483,7 @@ isotropic laws (both finite-difference verified).
    frame-relative increment is the identity, so a kernel is called with
    :math:`\Delta\mathbf{R} = \mathbf{I}`); for 4, lower-convected strain-like and upper-convected
    stress-like quantities; for 5, similarity. For 4 and 5 the dispatcher applies it to the
-   internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
+   internal variables each kernel declares in the registry (``umat_registry.cpp``: EPICP,
    EPJCK, EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
    plasticity names served by the modular engine, ``PYEXT``) is refused under corates 4 and 5,
    and ``MODUL`` under any corate but 3 (it runs under the total formulation). Under the total formulation nothing is transported

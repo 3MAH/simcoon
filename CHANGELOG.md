@@ -65,6 +65,17 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Breaking changes
 
+- One registry of the law names (`umat_registry.hpp`, `umat_registry()`: for each name the kernel
+  of each face of the dispatch as a `UmatKernel`, its finite-strain `umat_convention`, the
+  condensed stress states `sim.umat` has validated and the elastic stiffness of `L_eff`)
+  replaces the seven tables that were kept by hand: the three name-to-id maps of the dispatch,
+  the convention table, the capability sets of the closest point, `ncp` and the total form, the
+  `L_eff` map and the two of the Python wrapper. The dispatch switches read the kernel, never an
+  integer code; a row without its `case` is a thrown `std::logic_error`. C++ API: `finite_umat_names()`,
+  `small_strain_umat_names()` and `thermo_umat_id()` are removed (`umat_entry_of(name)` answers
+  all three), `StressMeasure`, `StatevTensor` and `umat_convention` move to `umat_registry.hpp`
+  (included by `umat_smart.hpp`), `sub_phase_shape` and `get_L_elastic` read the registry.
+  Results are bit-identical; the names, props and ids of the Python API are unchanged.
 - The modular engine is the default for every legacy name: EPICP, EPCHA and PRONK (mechanical)
   and EPICP, EPKCP and PRONK (thermomechanical) are served by the modular adapters (code 201,
   `legacy_adapters.cpp`, the thermomechanical face through `umat_legacy_modular_T`), as EPKCP

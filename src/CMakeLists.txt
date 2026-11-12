@@ -97,6 +97,7 @@ target_sources(simcoon PRIVATE
   # Continuum Mechanics - UMAT Core
   Continuum_mechanics/Umat/fea_transfer.cpp
   Continuum_mechanics/Umat/umat_L_elastic.cpp
+  Continuum_mechanics/Umat/umat_registry.cpp
   Continuum_mechanics/Umat/umat_smart.cpp
   Continuum_mechanics/Umat/umat_callback.cpp
 

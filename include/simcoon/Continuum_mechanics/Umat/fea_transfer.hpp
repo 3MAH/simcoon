@@ -229,8 +229,8 @@ bool abaqus_nlgeom(const double *dfgrd1);
  *        (80 at most), without the kinematic-form suffix `_R` of abaqus_kinematic_form().
  *        `EPICP_closed_R` names the law `EPICP_closed` in its rate form; the `_closed` suffix is
  *        recognised in any case (Abaqus upper-cases material names: `EPICP_CLOSED`). A token
- *        longer than five characters that is in none of the name tables (finite_umat_names(),
- *        small_strain_umat_names(), thermo_umat_id()) and does not end with `_closed` carries a
+ *        longer than five characters that the registry (umat_registry()) does not hold and that
+ *        does not end with `_closed` carries a
  *        descriptive tail (`EPICP_STEEL`): its first five characters are the law, said once per
  *        name on the error stream. A token that then still names no law stops the analysis.
  * @param cmname the CMNAME argument of the UMAT (space padded, 80 characters)
@@ -293,7 +293,8 @@ bool fea_numerical_failure(const std::exception &e);
  *        select_umat_M_finite / the thermomechanical finite dispatch).
  * @details True for an NLGEOM step (abaqus_nlgeom()) and a law the finite dispatch serves in
  *          the requested form (every thermomechanical law under the rate form, the total form
- *          where total_formulation_serves_T(); the mechanical ones of finite_umat_names(), the
+ *          where total_formulation_serves_T(); the mechanical ones with a finite kernel in the
+ *          registry (umat_entry::finite), the
  *          total form only where total_formulation_serves()), whatever (NDI, NSHR): a condensed
  *          state (plane stress, beams) solves its free stretches on the finite route
  *          (run_umat_M / run_umat_T, condensed_F). Otherwise the bridge keeps the corotational

@@ -21,7 +21,6 @@
 
 #include <iostream>
 #include <map>
-#include <set>
 #include <string>
 #include <stdexcept>
 #include <fstream>
@@ -152,121 +151,41 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
     
 }
 
-const std::map<string, int> &finite_umat_names()
-{
-    // The finite dispatch's name -> id map. A file-scope accessor rather than a
-    // function-local static inside select_umat_M_finite so the convention test can iterate it.
-    static const std::map<string, int> list_umat = {{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",201},{"EPICP_closed",6},{"EPCHA",201},{"EPCHA_closed",7},{"PRONK",201},{"EPJCK",17},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
-    return list_umat;
-}
-
-// The small-strain mechanical dispatch's name -> id map (select_umat_M_3D); ids 0-2 are the plugins
-const std::map<string, int> &small_strain_umat_names()
-{
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"UMANS",2},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",201},{"EPICP_closed",5},{"EPKCP",201},{"EPCHA",201},{"EPCHA_closed",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",201},{"PRONK_closed",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"EPJCK",25},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200},{"PYEXT",300}};
-    return list_umat;
-}
-
 bool is_external_plugin(const std::string &umat_name)
 {
-    const auto it = small_strain_umat_names().find(umat_name);
-    return it != small_strain_umat_names().end() && it->second <= 2;
+    const umat_entry *entry = umat_entry_of(umat_name);
+    if (entry == nullptr) return false;
+    const UmatKernel k = entry->mechanical;
+    return k == UmatKernel::plugin_ext || k == UmatKernel::plugin_abaqus || k == UmatKernel::plugin_ansys;
 }
 
 namespace {
 
-// plain types only: no arma static (destructor at DLL unload, Windows)
-const std::map<string, umat_convention> &umat_conventions()
+// the row of a name on the finite-strain route, nullptr when that route does not serve it
+const umat_entry *finite_entry_of(const std::string &umat_name)
 {
-    using SM = StressMeasure;
-
-    // groups differ in how the tangent reaches the solver's corate and in the frame the kernel runs in
-    static const std::map<string, umat_convention> conventions = {
-        // --- log-strain boxes: fed the corotated strain, run in the material frame ---
-        // {measure, material_frame, layout_declared, tensorial statev {offset, Tensor2Type}}
-        {"ELISO", {SM::kirchhoff, true, true, {}}},
-        {"ELIST", {SM::kirchhoff, true, true, {}}},
-        {"ELORT", {SM::kirchhoff, true, true, {}}},
-        {"EPICP_closed", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},           // EP
-        {"EPJCK", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP (same layout as EPICP_closed)
-        {"EPCHA_closed", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain},              // EP
-                                               {8, Tensor2Type::strain},                     // a_1
-                                               {14, Tensor2Type::strain},                    // a_2
-                                               {20, Tensor2Type::stress},                    // X_1
-                                               {26, Tensor2Type::stress}}}},                 // X_2
-        // 201 adapters (modular engine) with a declared modular statev layout: [T_init, p, EP, a_i...]
-        {"EPICP", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP (the dedicated layout)
-        {"EPCHA", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain},                     // EP
-                                               {8, Tensor2Type::strain},                     // a_1 (the back stresses are not stored)
-                                               {14, Tensor2Type::strain}}}},                 // a_2
-        // 201 adapters: layout not declared (PRONK: one block per branch) -> refused under corates 4/5
-        {"PRONK", {SM::kirchhoff, true, false, {}}},
-        {"EPKCP", {SM::kirchhoff, true, false, {}}},
-        {"EPHIL", {SM::kirchhoff, true, false, {}}},
-        {"EPTRI", {SM::kirchhoff, true, false, {}}},
-        {"EPHAC", {SM::kirchhoff, true, false, {}}},
-        {"EPANI", {SM::kirchhoff, true, false, {}}},
-        {"EPDFA", {SM::kirchhoff, true, false, {}}},
-        {"EPCHG", {SM::kirchhoff, true, false, {}}},
-        {"EPHIN", {SM::kirchhoff, true, false, {}}},
-        // MODUL builds its tangent from V_el, so its log box IS d(tau)/d(eps_el); it enforces
-        // corate 3, and in the material frame its fibres rotate with the body.
-        {"MODUL", {SM::kirchhoff, true, false, {}}},
-        // PYEXT: fed the log strain, returns tau (see umat_callback.hpp)
-        {"PYEXT", {SM::kirchhoff, true, false, {}}},
-        // HYPOO: the rate counterpart of ELORT, tau_{n+1} = tau_n + L : DEel
-        {"HYPOO", {SM::kirchhoff, true, true, {}}},
-
-        // --- finite kernels: tangent built from F (native dS/dE), converted to corate_type ---
-        {"SNTVE", {SM::kirchhoff, false, false, {}, true}},
-        {"NEOHI", {SM::kirchhoff, false, false, {}, true}},
-        {"NEOHC", {SM::kirchhoff, false, false, {}, true}},
-        {"MOORI", {SM::kirchhoff, false, false, {}, true}},
-        {"YEOHH", {SM::kirchhoff, false, false, {}, true}},
-        {"ISHAH", {SM::kirchhoff, false, false, {}, true}},
-        {"GETHH", {SM::kirchhoff, false, false, {}, true}},
-        {"SWANH", {SM::kirchhoff, false, false, {}, true}},
-        {"OGDEN", {SM::kirchhoff, false, false, {}, true}},
-        {"HOLZA", {SM::kirchhoff, false, false, {}, true}},
-
-        // --- foreign conventions (plugin adapters, host contract: Abaqus DDSDDE is Cauchy) ---
-    };
-    return conventions;
-}
-
-}  // namespace
-
-namespace {
-
-// The declaration itself, by reference into the table (no copy of its statev tensor list on the
-// per-point finite dispatch)
-const umat_convention &declared_convention(const std::string &umat_name)
-{
-    const auto &conventions = umat_conventions();
-    auto it = conventions.find(umat_name);
-    if (it == conventions.end()) {
-        throw std::invalid_argument(
-            "output_convention_of: the umat '" + umat_name + "' has not declared what its raw "
-            "outputs are expressed in. Add it to the table in umat_smart.cpp: a missing stress "
-            "measure is an error of exactly J, a missing tangent rate is a wrong rate, and both "
-            "are silent.");
-    }
-    return it->second;
+    const umat_entry *entry = umat_entry_of(umat_name);
+    return (entry != nullptr && entry->finite != UmatKernel::none) ? entry : nullptr;
 }
 
 }  // namespace
 
 umat_convention output_convention_of(const std::string &umat_name)
 {
-    return declared_convention(umat_name);
+    const umat_entry *entry = finite_entry_of(umat_name);
+    if (entry == nullptr) {
+        throw std::invalid_argument(
+            "output_convention_of: the finite-strain route does not serve '" + umat_name + "' (the registry of "
+            "umat_registry.cpp has no finite kernel for it): a missing stress measure is an error of exactly J, "
+            "a missing tangent rate is a wrong rate, and both are silent.");
+    }
+    return entry->convention;
 }
 
 bool stress_output_is_kirchhoff(const std::string &umat_name)
 {
-    // shares the table instead of calling output_convention_of: no thrown exception per call
-    const auto &conventions = umat_conventions();
-    auto it = conventions.find(umat_name);
-    return it != conventions.end() && it->second.stress == StressMeasure::kirchhoff;
+    const umat_entry *entry = finite_entry_of(umat_name);
+    return entry != nullptr && entry->convention.stress == StressMeasure::kirchhoff;
 }
 
 bool total_formulation_serves(const std::string &umat_name)
@@ -276,26 +195,18 @@ bool total_formulation_serves(const std::string &umat_name)
 
 bool material_tangent_serves(const std::string &umat_name)
 {
-    const auto &conventions = umat_conventions();
-    auto it = conventions.find(umat_name);
-    return it != conventions.end() && it->second.material_tangent;
+    const umat_entry *entry = finite_entry_of(umat_name);
+    return entry != nullptr && entry->convention.material_tangent;
 }
 
 void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical,
                       const int &tangent_mode)
 {
     if (ncp_method_of(ncp, "ncp") == NCPMethod::fischer_burmeister) return;
-    // the cutting planes that read it: the modular engine (MODUL and the names it serves, both faces)
-    // and the dedicated EPICP_closed
-    bool serves;
-    if (thermomechanical) {
-        const int id = thermo_umat_id(umat_name);
-        serves = (id == 200 || id == 201);
-    } else {
-        const auto &names = finite_umat_names();
-        const auto it = names.find(umat_name);
-        serves = umat_name == "MODUL" || umat_name == "EPICP_closed" || (it != names.end() && it->second == 201);
-    }
+    const umat_entry *entry = umat_entry_of(umat_name);
+    const bool serves = entry != nullptr
+        && (thermomechanical ? kernel_reads_ncp(entry->thermomechanical, true)
+                             : (kernel_reads_ncp(entry->mechanical, false) || kernel_reads_ncp(entry->finite, false)));
     if (!serves) {
         throw std::invalid_argument("ncp='min' serves the cutting planes of the modular engine (MODUL and the legacy "
                                     "names it serves, mechanical and thermomechanical) and of EPICP_closed; '"
@@ -310,19 +221,11 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
 void check_integrator_serves(const std::string &umat_name, const int &tangent_mode, const bool &thermomechanical)
 {
     if (tangent_mode != tangent_closest_point) return;
-    // the laws with a closest-point update, or whose cutting plane is one by construction (EPJCK)
-    static const std::set<std::string> mechanical = {"EPICP_closed", "EPCHA_closed", "EPJCK", "MODUL",
-                                                     "SMADI", "SMADC", "SMAAI", "SMAAC",
-                                                     "SMRDI", "SMRDC", "SMRAI", "SMRAC"};
-    static const std::set<std::string> thermo = {"EPICP_closed", "EPKCP_closed", "MODUL"};
-    bool serves;
-    if (thermomechanical) {
-        serves = thermo.count(umat_name) > 0 || thermo_umat_id(umat_name) == 201;   // modular adapters
-    } else {
-        const auto &names = finite_umat_names();
-        const auto it = names.find(umat_name);
-        serves = mechanical.count(umat_name) > 0 || (it != names.end() && it->second == 201);   // modular adapters
-    }
+    const umat_entry *entry = umat_entry_of(umat_name);
+    const bool serves = entry != nullptr
+        && (thermomechanical ? kernel_serves_closest_point(entry->thermomechanical, true)
+                             : (kernel_serves_closest_point(entry->mechanical, false)
+                                || kernel_serves_closest_point(entry->finite, false)));
     if (!serves) {
         throw std::invalid_argument("integrator='closest_point' serves the laws with a closest-point update only "
                                     "(mechanical: EPICP_closed, EPCHA_closed, EPJCK, MODUL and the legacy names it serves, "
@@ -358,10 +261,9 @@ int kernel_tangent_mode(const int &integrator, const int &tangent_mode)
 
 bool total_formulation_serves_T(const std::string &umat_name)
 {
-    static const std::set<std::string> served = {"ELISO", "ELIST", "ELORT", "EPICP", "EPICP_closed", "EPKCP",
-                                                 "EPKCP_closed", "ZENER", "ZENNK", "PRONK", "PRONK_closed",
-                                                 "SMADI", "SMADC", "SMAAI", "SMAAC", "EPJCK", "MODUL"};
-    return served.count(umat_name) > 0;
+    // every thermomechanical kernel is a log-strain box: the face is the admission
+    const umat_entry *entry = umat_entry_of(umat_name);
+    return entry != nullptr && entry->thermomechanical != UmatKernel::none;
 }
 
 vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, const bool &box, double &dW)
@@ -374,70 +276,64 @@ vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, con
     return sigma;
 }
 
-int thermo_umat_id(const std::string &umat_name)
-{
-    static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",201},{"EPICP_closed",4},{"EPKCP",201},{"EPKCP_closed",5},{"ZENER",6},{"ZENNK",7},{"PRONK",201},{"PRONK_closed",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10},{"MODUL",200}};
-    auto it_umat = list_umat.find(umat_name);
-    return (it_umat != list_umat.end()) ? it_umat->second : -1;
-}
-
 namespace {
 
 // One call of the thermomechanical kernel, fed the strain pair of the route: (Etot, DEtot) under
 // small strain, the box strain (etot, Detot) under finite strain
-void call_umat_T(const int &id_umat, phase_characteristics &rve, state_variables_T &sv, const vec &strain, const vec &Dstrain, const mat &DR, const KinematicForm &form, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, double &tnew_dt)
+void call_umat_T(const UmatKernel &kernel, phase_characteristics &rve, state_variables_T &sv, const vec &strain, const vec &Dstrain, const mat &DR, const KinematicForm &form, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, double &tnew_dt)
 {
-    switch (id_umat) {
-        case 1: {
+    switch (kernel) {
+        case UmatKernel::elasticity_iso: {
             umat_elasticity_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 2: {
+        case UmatKernel::elasticity_trans_iso: {
             umat_elasticity_trans_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 3: {
+        case UmatKernel::elasticity_ortho: {
             umat_elasticity_ortho_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 4: {
+        case UmatKernel::plasticity_iso: {
             umat_plasticity_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 10: {
+        case UmatKernel::johnson_cook: {
             umat_plasticity_johnson_cook_CCP_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 200: {
+        case UmatKernel::modular: {
             umat_modular_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode, form, sv.ncp);
             break;
         }
-        case 201: {   // legacy names served by the modular engine (legacy_adapters.cpp)
+        case UmatKernel::legacy_modular: {   // legacy names served by the modular engine (legacy_adapters.cpp)
             umat_legacy_modular_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode, form, sv.ncp);
             break;
         }
-        case 5: {
+        case UmatKernel::plasticity_kin_iso: {
             umat_plasticity_kin_iso_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
            break;
         }
-        case 6: {
+        case UmatKernel::zener: {
             umat_zener_fast_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 7: {
+        case UmatKernel::zener_N: {
             umat_zener_Nfast_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 8: {
+        case UmatKernel::prony_N: {
             umat_prony_Nfast_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
-        case 9: {
+        case UmatKernel::sma_unified: {
             umat_sma_unified_T_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
             break;
         }
         default: {
-            throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
+            throw std::logic_error("call_umat_T: no kernel case for '" + rve.sptr_matprops->umat_name
+                                   + "' (the registry and the switch disagree)");
         }
     }
 }
@@ -452,7 +348,11 @@ static void select_umat_T_3D(phase_characteristics &rve, const mat &DR_global,co
     rve.sptr_sv_global->DR = DR_global;
     rve.global2local();
     auto umat_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_local);
-    call_umat_T(thermo_umat_id(rve.sptr_matprops->umat_name), rve, *umat_T, umat_T->Etot, umat_T->DEtot, umat_T->DR, KinematicForm::rate, Time, DTime, ndi, nshr, start, tnew_dt);
+    const umat_entry *entry = umat_entry_of(rve.sptr_matprops->umat_name);
+    if (entry == nullptr || entry->thermomechanical == UmatKernel::none) {
+        throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
+    }
+    call_umat_T(entry->thermomechanical, rve, *umat_T, umat_T->Etot, umat_T->DEtot, umat_T->DR, KinematicForm::rate, Time, DTime, ndi, nshr, start, tnew_dt);
     // small strain (F = I): tau = PKII = sigma, else the Kirchhoff-route consumers read an empty tau
     umat_T->tau = umat_T->sigma;
     umat_T->PKII = umat_T->sigma;
@@ -552,7 +452,7 @@ finite_box enter_finite_box(state_variables &sv, const umat_convention &conv, co
                 throw simcoon::exception_solver(
                     "corate_type " + std::to_string(corate_type) + " requires the tensorial "
                     "internal variables of '" + umat_name + "' to be declared "
-                    "(umat_conventions, umat_smart.cpp); use corate_type 3");
+                    "(umat_entry::convention, umat_registry.cpp); use corate_type 3");
             }
             const mat M = box.R_hat.t()*DR*R_hat_n;
             for (const StatevTensor &t : conv.statev_tensors) {
@@ -607,21 +507,19 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     if (ndi < 3) {
         throw std::invalid_argument("select_umat_M_finite: condensed stress states (ndi < 3) are solved around the finite dispatch (run_umat_M)");
     }
-    const std::map<string, int> &list_umat = finite_umat_names();
-
     const std::string &law = rve.sptr_matprops->umat_name;
-    auto it_umat = list_umat.find(law);
-    if (it_umat == list_umat.end()) {
+    const umat_entry *entry = umat_entry_of(law);
+    if (entry == nullptr || entry->finite == UmatKernel::none) {
         if (is_external_plugin(law)) {
             throw std::invalid_argument("'" + law + "' is an external plugin: the plugin API has no "
                                         "finite-strain entry, it serves the small-strain route only");
         }
-        if (small_strain_umat_names().count(law)) {
+        if (entry != nullptr) {
             throw std::invalid_argument("'" + law + "' serves the small-strain route only (no finite-strain kernel)");
         }
         throw std::invalid_argument("Unknown umat name in the finite-strain dispatch: " + law);
     }
-    const int id_umat = it_umat->second;
+    const UmatKernel kernel = entry->finite;
 
     // The caller provides DR in global coordinates; rotate it with the other
     // state variables so that the local UMAT receives a consistent increment.
@@ -635,7 +533,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     // dS/dE when asked for and declared (a kernel built on F: the corate shapes nothing else)
     const int corate_Lt = (material_tangent && conv.material_tangent) ? corate_type_material_tangent : corate_type;
 
-    if (id_umat == 200) {   // MODUL
+    if (kernel == UmatKernel::modular) {
         // tau = d psi / d eps_el is a stored-energy law only when the accumulated strain is ln V:
         // corate 3, or 2 in closed form. Only 3 is accepted (policy: the production rate).
         if (corate_type != 3 && corate_type != corate_type_total) {
@@ -648,13 +546,13 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
 
     // Total formulation: admission and stress contract in total_formulation_serves().
     const bool total = (corate_type == corate_type_total);
-    if (total && id_umat >= 0 && !total_formulation_serves(rve.sptr_matprops->umat_name)) {
+    if (total && !total_formulation_serves(rve.sptr_matprops->umat_name)) {
         throw simcoon::exception_solver(
             "the total formulation (strain space) does not serve '"
             + rve.sptr_matprops->umat_name + "'; use the rate formulation");
     }
 
-    if (id_umat == 7 && corate_type == 4) {   // EPCHA_closed
+    if (kernel == UmatKernel::plasticity_chaboche && corate_type == 4) {   // EPCHA_closed
         // X_i = 2/3 C_i a_i is stored: Truesdell convects a (strain) and X (stress) differently,
         // so the pair would drift apart. log_F transports both by the same similarity.
         throw simcoon::exception_solver(
@@ -665,62 +563,62 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     const finite_box box = enter_finite_box(*umat_M, conv, rve.sptr_matprops->umat_name, corate_type);
     const mat &DR_kernel = box.DR_kernel;
 
-    switch (id_umat) {
+    switch (kernel) {
 
-            case 5: {
+            case UmatKernel::hypoelasticity_ortho: {
                 umat_hypoelasticity_ortho(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
-             case 6: {
+             case UmatKernel::plasticity_iso: {
                 umat_plasticity_iso(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp);
                  break;
              }
-            case 17: {
+            case UmatKernel::johnson_cook: {
                 // Johnson-Cook on the log-strain/Kirchhoff box route, same as EPICP
                 umat_plasticity_johnson_cook_CCP(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
-             case 7: {
+             case UmatKernel::plasticity_chaboche: {
                 // Chaboche on the log-strain/Kirchhoff box route, same as EPICP
                 umat_plasticity_chaboche(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                  break;
              }
-            case 8: {
+            case UmatKernel::saint_venant: {
                 umat_saint_venant(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }
-            case 201: {
+            case UmatKernel::legacy_modular: {
                 // Legacy names served by the modular engine on the log-strain box, like EPICP:
                 // run in the material frame, so their anisotropy axes follow the body.
                 umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp);
                 break;
             }
-            case 200: {
+            case UmatKernel::modular: {
                 // MODUL under NLGEOM is a Hencky hyperelastic composition:
                 umat_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, total ? KinematicForm::total : KinematicForm::rate, umat_M->ncp);
                 break;
             }
-            case 9: {
+            case UmatKernel::neo_hookean_incomp: {
                 umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }                         
-            case 10: case 11: case 12: case 13: case 14: case 15: case 16: {
+            case UmatKernel::hyper_invariants: {
                 umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }
-            case 22: {
+            case UmatKernel::hyper_pstretch: {
                 umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_Lt, umat_M->tangent_mode);
                 break;
             }
-            case 300: {
+            case UmatKernel::python_callback: {
                 // PYEXT: process-wide callback UMAT (umat_callback.hpp; registered by the Python
                 // bindings). Small-strain convention on the log-strain / Kirchhoff box, as EPICP.
                 umat_callback_M(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
             default: {
-                throw std::logic_error("select_umat_M_finite: no kernel case for the id " + std::to_string(id_umat)
-                                       + " of '" + law + "' (finite_umat_names and the switch disagree)");
+                throw std::logic_error("select_umat_M_finite: no kernel case for '" + law
+                                       + "' (the registry and the switch disagree)");
             }
         }
     
@@ -748,8 +646,8 @@ static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_globa
             "thermomechanical finite strain serves corate_type 3 (log_R) or the total "
             "formulation; got corate_type = " + std::to_string(corate_type));
     }
-    const int id_umat = thermo_umat_id(rve.sptr_matprops->umat_name);
-    if (id_umat < 0) {
+    const umat_entry *entry = umat_entry_of(rve.sptr_matprops->umat_name);
+    if (entry == nullptr || entry->thermomechanical == UmatKernel::none) {
         throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
     }
     if (corate_type == corate_type_total && !total_formulation_serves_T(rve.sptr_matprops->umat_name)) {
@@ -765,7 +663,7 @@ static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_globa
     // thermo kernels: Kirchhoff boxes in the material frame, no statev layout (corates 4/5 refused above)
     const umat_convention conv{StressMeasure::kirchhoff, true, false, {}};
     const finite_box box = enter_finite_box(*umat_T, conv, rve.sptr_matprops->umat_name, corate_type);
-    call_umat_T(id_umat, rve, *umat_T, umat_T->etot, umat_T->Detot, box.DR_kernel, box.total ? KinematicForm::total : KinematicForm::rate, Time, DTime, ndi, nshr, start, tnew_dt);
+    call_umat_T(entry->thermomechanical, rve, *umat_T, umat_T->etot, umat_T->Detot, box.DR_kernel, box.total ? KinematicForm::total : KinematicForm::rate, Time, DTime, ndi, nshr, start, tnew_dt);
 
     // Back from the material frame: dSdT and drdE rotate with the stress operator (as in rotate_l2g)
     umat_T->dSdE = rotate_stiffness(umat_T->dSdE, box.R_hat);
@@ -794,7 +692,10 @@ static Api &plugin(const char *path)
 static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
 
-    const std::map<string, int> &list_umat = small_strain_umat_names();
+    const umat_entry *entry = umat_entry_of(rve.sptr_matprops->umat_name);
+    if (entry == nullptr || entry->mechanical == UmatKernel::none) {
+        throw std::invalid_argument("Unknown umat name in the small-strain dispatch: " + rve.sptr_matprops->umat_name);
+    }
 
     // caller's DR is global: rotated with the state so the local UMAT gets the material-frame increment
     rve.sptr_sv_global->DR = DR_global;
@@ -802,85 +703,86 @@ static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,co
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
     const mat &DR = umat_M->DR;
 
-    auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
-    switch (it_umat != list_umat.end() ? it_umat->second : -1) {
+    switch (entry->mechanical) {
 
-        case 0: {
+        case UmatKernel::plugin_ext: {
             // plugin ABI predates tangent_mode: never forward it (symbol mismatch); bump umat_plugin_ext_api to add it
             plugin<umat_plugin_ext_api>("external/umat_plugin_ext").umat_external_M(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt);
             break;
         }
-        case 1: {
+        case UmatKernel::plugin_abaqus: {
             plugin<umat_plugin_aba_api>("external/umat_plugin_aba").umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
-        case 2: {
+        case UmatKernel::plugin_ansys: {
             plugin<umat_plugin_ans_api>("external/umat_plugin_ans").umat_ansys(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
-        case 5: {
+        case UmatKernel::plasticity_iso: {
             umat_plasticity_iso(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp);
             break;
         }
-        case 25: {
+        case UmatKernel::johnson_cook: {
             umat_plasticity_johnson_cook_CCP(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 7: {
+        case UmatKernel::plasticity_chaboche: {
             umat_plasticity_chaboche(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 8: {
+        case UmatKernel::sma_unified: {
             umat_sma_unified_T(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 9: {
+        case UmatKernel::sma_unified_R: {
             umat_sma_unified_TR(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 10: {
+        case UmatKernel::damage_LLD0: {
             umat_damage_LLD_0(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 11: {
+        case UmatKernel::zener: {
             umat_zener_fast(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 12: {
+        case UmatKernel::zener_N: {
             umat_zener_Nfast(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 13: {
+        case UmatKernel::prony_N: {
             umat_prony_Nfast(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 23: case 24: {
+        case UmatKernel::sma_mono: {
             // SMAMO (isotropic) and SMAMC (cubic) both use unified umat_sma_mono
             umat_sma_mono(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
-        case 200: {
+        case UmatKernel::modular: {
             // Modular UMAT - composable constitutive model
             umat_modular(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, KinematicForm::rate, umat_M->ncp);
             break;
         }
-        case 201: {
+        case UmatKernel::legacy_modular: {
             // legacy names on the modular engine: props translated per name (legacy_adapters.cpp)
             umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp);
             break;
         }
-        case 100: case 101: case 103: case 104: {
-            umat_multi(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, it_umat->second);
+        case UmatKernel::mean_field_homogeneous: case UmatKernel::mean_field_mori_tanaka:
+        case UmatKernel::mean_field_self_consistent: case UmatKernel::mean_field_periodic_layer: {
+            umat_multi(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, mean_field_scheme(entry->mechanical));
             break;
         }
-        case 300: {
+        case UmatKernel::python_callback: {
             // PYEXT: process-wide callback UMAT (umat_callback.hpp; registered by the Python
             // bindings). Small-strain convention on the small-strain box, as EPICP.
             umat_callback_M(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
         default: {
-            throw std::invalid_argument("Unknown umat name in the small-strain dispatch: " + rve.sptr_matprops->umat_name);
+            throw std::logic_error("select_umat_M_3D: no kernel case for '" + rve.sptr_matprops->umat_name
+                                   + "' (the registry and the switch disagree)");
         }
     }
     // small strain: F = I, J = 1, so the box stress is both Cauchy and Kirchhoff
