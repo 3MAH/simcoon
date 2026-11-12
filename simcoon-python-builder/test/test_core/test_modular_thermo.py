@@ -248,7 +248,8 @@ def test_zener_T_is_a_one_branch_maxwell_composition(thermal):
     """ZENER_closed_T (a Kelvin branch in series with the spring) is the Maxwell composition with the
     mapped branch: same state ODE under a linear change of the viscous strain, so the same stress,
     works, entropy and heat (to the round-off of the two inverses). ZENER itself is that composition
-    through the adapter (the map in C++), to the round-off of the translated props."""
+    through the adapter (the map in C++), to the round-off of the translated props (2e-13 on Wt,
+    a cumulative T deta, on the Windows runner)."""
     mat = ModularMaterial(IsotropicElasticity(E_V, NU_V, ALPHA_V), [Viscoelasticity((zener_as_maxwell(E_V, NU_V, *BRANCH),))])
     a = _run("MODUL", _props_v(mat), 8, thermal, time=2.)
     b = _run("ZENER_closed", ZENER, 8, thermal, time=2.)
@@ -256,7 +257,7 @@ def test_zener_T_is_a_one_branch_maxwell_composition(thermal):
     if thermal == "imposed":
         _same(a, b, keys=("r",), tol=1e-10)
     c = _run("ZENER", ZENER, 8, thermal, time=2.)
-    _same(a, c, tol=1e-13)
+    _same(a, c, tol=1e-10)
 
 
 @pytest.mark.parametrize("mat, nstatev, tol", [(VISCO, 8, 1e-8), (VISCO_PRAGER, 21, 1e-5)])
