@@ -29,6 +29,7 @@
 #include <armadillo>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_registry.hpp>
 
 extern "C"{
 /**
@@ -463,105 +464,26 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
 void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
 
 /**
- * @brief What a kernel's raw @c sigma out-parameter holds.
- *
- * Every NATIVE simcoon kernel is @c kirchhoff: in the logarithmic framework the potential
- * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume. It is the default route 
- * stress, and \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed at the output
- * boundaries only. @c cauchy is the contract of a kernel whose convention belongs to a host code
- * (none on the finite route today: the external plugins serve the small-strain route only).
- */
-enum class StressMeasure { kirchhoff, cauchy };
-
-/**
  * @brief True for the external plugin names (UMEXT, UMABA, UMANS): laws loaded from a library at
  *        run time, served by the solver's small-strain route only.
  */
 bool is_external_plugin(const std::string &umat_name);
 
-// Declared in Functions/tensor.hpp (kept out of this widely included header).
-enum class Tensor2Type;
-
 /**
- * @brief One tensorial internal variable of a kernel's @c statev: 6 engineering Voigt
- *        components starting at @c offset, with its Tensor2Type (@c strain: engineering shear;
- *        @c stress). The type selects the transport, through tensor2 (see umat_convention).
- */
-struct StatevTensor {
-    int offset;
-    Tensor2Type type;
-};
-
-/**
- * @brief The conventions a kernel's raw outputs are expressed in.
+ * @brief The output conventions of a kernel on the finite-strain route (umat_entry::convention).
  *
- * The tangent rate is deliberately absent: every kernel is handed the solver's
- * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it. Unlike the stress measure, the
- * rate is therefore a public contract, not a per-kernel declaration.
- *
- * @c material_frame marks a kernel fed the logarithmic strain (a "box" kernel): on the finite
- * route it runs in the frame that follows the material, \f$ \hat{\mathbf{R}}_{n+1} \f$ (the
- * accumulated corate rotation for corates 0-3, the polar rotation of \f$ \mathbf{F}_1 \f$ for 4
- * and 5), so its anisotropy axes rotate with the body and its @c statev is stored in that
- * frame. It is then called with \f$ \Delta\mathbf{R} = \mathbf{I} \f$. Kernels built from
- * \f$ \mathbf{F} \f$ are objective by construction and keep the lab frame.
- *
- * For corates 4 and 5 the frame-relative increment is a rotation-free stretch, and the
- * dispatcher transports the tensors listed in @c statev_tensors with it, each with its variance.
- * @c layout_declared says the list is complete (an empty list: no tensorial state); a material
- * frame kernel that has not declared it is refused under corates 4 and 5.
- *
- * @c material_tangent marks a kernel built on \f$ \mathbf{F} \f$ whose native tangent is the
- * material one, \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ (a pull-back of its spatial tangent):
- * called with corate_type_material_tangent it returns that tangent instead of a box, and its
- * stress and work do not depend on the corate it is given. A caller that needs
- * \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ asks for it (select_umat_M_finite) instead of
- * converting the box back.
- *
- * @see output_convention_of
- */
-struct umat_convention {
-    StressMeasure stress;
-    bool material_frame = false;
-    bool layout_declared = false;
-    std::vector<StatevTensor> statev_tensors = {};
-    bool material_tangent = false;
-};
-
-/**
- * @brief The declared output conventions of a mechanical kernel.
- *
- * @param umat_name the 5-letter kernel name
- * @throw std::invalid_argument if the kernel has not declared its conventions
+ * @param umat_name the law name
+ * @throw std::invalid_argument for a name the finite-strain route does not serve (unknown, or
+ *        small-strain only): never a default, a missing stress measure is an error of exactly J
  */
 umat_convention output_convention_of(const std::string &umat_name);
 
 /**
- * @brief The name -> dispatch id map that select_umat_M_finite switches on.
- *
- * Exposed so a test can assert that every kernel the finite dispatch serves has declared
- * its conventions, without duplicating the list.
- */
-const std::map<std::string, int> &finite_umat_names();
-
-/**
- * @brief The name -> dispatch id map of the small-strain mechanical dispatch (select_umat_M);
- *        ids 0-2 are the plugins.
- */
-const std::map<std::string, int> &small_strain_umat_names();
-
-/**
- * @brief The thermomechanical name -> dispatch id map of select_umat_T (small and finite strain);
- *        -1 for a name it does not hold. The Python wrapper of umat_T dispatches on it.
- */
-int thermo_umat_id(const std::string &umat_name);
-
-/**
  * @brief True when the named umat kernel's raw in/out stress is the KIRCHHOFF stress.
  *
- * Reads the same convention table as output_convention_of but never throws: a name with no
- * finite convention (the small-strain-only kernels) returns false, i.e. the stress is left
- * alone. Used by the python wrapper for every name it serves.
+ * Reads the registry as output_convention_of but never throws: a name off the finite-strain
+ * route (unknown, or small-strain only) returns false, i.e. the stress is left alone. Used by
+ * the python wrapper for every name it serves.
  */
 bool stress_output_is_kirchhoff(const std::string &umat_name);
 
