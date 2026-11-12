@@ -137,12 +137,12 @@ def test_yeoh_ground_state_is_L_iso():
 
 
 def test_props_roundtrip_layout():
-    """[potential, n_params, params..., alpha] preceded by the elasticity type."""
+    """[potential, n_params, params..., alpha, omega] preceded by the elasticity type."""
     block = YeohElasticity(C10=1.0, C20=2.0, C30=3.0, kappa=4.0, alpha=5.0)
-    assert block.to_props() == [2.0, 5.0, 1.0, 2.0, 3.0, 4.0, 0.0, 5.0]
-    assert block.nprops == 8
+    assert block.to_props() == [2.0, 5.0, 1.0, 2.0, 3.0, 4.0, 0.0, 5.0, 0.0]
+    assert block.nprops == 9
     quad = YeohElasticity(C10=1.0, C20=2.0, C30=3.0, kappa=4.0, volumetric="quadratic")
-    assert quad.to_props() == [2.0, 5.0, 1.0, 2.0, 3.0, 4.0, 1.0, 0.0]
+    assert quad.to_props() == [2.0, 5.0, 1.0, 2.0, 3.0, 4.0, 1.0, 0.0, 0.0]
     mat = ModularMaterial(elasticity=block)
     # elasticity_type, then the block, then the mechanism count
     assert list(np.asarray(mat.props)) == [4.0] + block.to_props() + [0.0]

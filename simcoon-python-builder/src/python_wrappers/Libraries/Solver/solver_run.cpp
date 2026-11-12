@@ -256,7 +256,7 @@ public:
                 dSdE.push(sv_T->dSdE);
                 dSdT.push(sv_T->dSdT);
                 drdE.push(sv_T->drdE);
-                drdT.push(sv_T->drdT);
+                drdT.push(arma::vec{sv_T->drdT});
             }
         }
         else if (sv_M != nullptr) {

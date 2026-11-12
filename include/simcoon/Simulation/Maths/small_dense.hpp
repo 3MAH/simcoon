@@ -50,6 +50,26 @@ inline void mul6(const arma::mat &A, const arma::vec &x, arma::vec &y) {
     mul6(A.memptr(), x.memptr(), y.memptr());
 }
 
+/**
+ * @brief \f$ \mathbf{y} = \mathbf{A}^T\mathbf{x} \f$ for a column-major 6x6 @p A and a 6-vector @p x, without
+ *        forming the transpose: the products of the heat derivatives, \f$ \partial\boldsymbol{\sigma}/\partial
+ *        \boldsymbol{\varepsilon}^T \boldsymbol{\alpha} \f$. Fixed summation order (see mul6); @p y may not alias @p x.
+ */
+inline void mul6_At(const double *A, const double *x, double *y) {
+    for (int j = 0; j < 6; ++j) {
+        double s = 0.0;
+        for (int i = 0; i < 6; ++i) s += A[i + 6*j]*x[i];
+        y[j] = s;
+    }
+}
+
+/// \f$ \mathbf{A}^T\mathbf{x} \f$ for a 6x6 @p A and a 6-vector @p x (see the pointer form).
+inline arma::vec::fixed<6> mul6_At(const arma::mat &A, const arma::vec &x) {
+    arma::vec::fixed<6> y;
+    mul6_At(A.memptr(), x.memptr(), y.memptr());
+    return y;
+}
+
 /// \f$ \mathbf{C} = \mathbf{A}\,\mathbf{B} \f$ for 6x6 operands, fixed summation order (see mul6).
 inline arma::mat::fixed<6,6> mul66(const arma::mat &A, const arma::mat &B) {
     const double *a = A.memptr();

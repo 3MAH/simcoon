@@ -924,6 +924,23 @@ std::vector<arma::mat> structure_tensors_push_forward(const arma::mat &F, const 
 hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J, const std::vector<arma::mat> &A = {});
 
 /**
+ * @brief Value of the isochoric part \f$ \bar{W} \f$ of an isochoric-invariant potential, zero at
+ *        the ground state (\f$ \bar{I}_1 = \bar{I}_2 = 3 \f$, unstretched fibres); the volumetric
+ *        \f$ U(J) \f$ is not included.
+ *
+ * Same props, invariants and structure tensors as hyper_potential_derivatives (the fibre
+ * pseudo-invariants read off \f$ \textrm{tr}\,\mathbf{A}_i \f$, same tension-only switch). Read by the
+ * thermomechanical face of the modular engine: the entropic part of the entropy is
+ * \f$ -(\omega/\theta_0)\,\bar{W} \f$ (ElasticityModule::configure_hyper_invariants).
+ * @param potential the potential
+ * @param props its parameters
+ * @param I_bar the isochoric invariants
+ * @param A the pushed-forward structure tensors, one per fibre family (empty if isotropic)
+ * @return \f$ \bar{W} \f$ per reference volume
+ */
+double hyper_potential_energy(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const std::vector<arma::mat> &A = {});
+
+/**
  * @brief Kirchhoff stress and canonical box tangent of an invariant potential.
  *
  * Assembles \f$ \boldsymbol{\tau} \f$ and \f$ \partial \hat{\boldsymbol{\tau}} /

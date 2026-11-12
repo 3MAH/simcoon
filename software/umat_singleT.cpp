@@ -112,7 +112,7 @@ try {
     vec props_smart = zeros(nprops);
     mat DR;
     
-    const string umat_name(cmname, 5);   // CMNAME carries no terminator: the law is its first five characters
+    const string umat_name = abaqus_umat_name(cmname);
 	   
     phase_characteristics rve;
     rve.construct(0,2);
@@ -128,13 +128,13 @@ try {
     if (abaqus_finite_route(umat_name, ndi, corate_type, true, dfgrd1)) {
         // NLGEOM: the law runs on the deformation gradient (total form, or log_R with _R); the
         // heat goes out per unit current volume and time
-        abaqus2smart_finite(*rve_sv_T, drot, dfgrd0, dfgrd1, kin_statev, corate_type, DTime);
+        abaqus2smart_finite(*rve_sv_T, drot, dfgrd0, dfgrd1, kin_statev, corate_type, DTime, make_condensed_state(ndi, nshr));
         run_umat_T(rve, rve_sv_T->DR, Time, DTime, ndi, nshr, start, solver_type, 5, corate_type, pnewdt);
         vec sigma_abaqus, ddsddt_abaqus, drplde_abaqus;
         mat ddsdde_abaqus;
         double rpl_abaqus = 0., drpldt_abaqus = 0.;
         smart2abaqus_finite_T(*rve_sv_T, corate_type, DTime, sigma_abaqus, ddsdde_abaqus, ddsddt_abaqus, rpl_abaqus, drplde_abaqus, drpldt_abaqus, kin_statev);
-        smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma_abaqus, rve_sv_T->statev, rpl_abaqus, rve_sv_T->Wm, rve_sv_T->Wt, ddsdde_abaqus, ddsddt_abaqus, drplde_abaqus, mat({drpldt_abaqus}), false);
+        smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma_abaqus, rve_sv_T->statev, rpl_abaqus, rve_sv_T->Wm, rve_sv_T->Wt, ddsdde_abaqus, ddsddt_abaqus, drplde_abaqus, drpldt_abaqus, false, finite_box_strain_end(*rve_sv_T, corate_type));
         return;
     }
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);

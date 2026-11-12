@@ -38,16 +38,6 @@ namespace simcoon{
 
 namespace {
 
-// flow c x / n with the shear entries scaled by shear (2 for a strain-like output), zero at n = 0
-inline vec::fixed<6> flow(const double *x, const double n, const double c, const double shear) {
-    if (n <= 0.) return vec::fixed<6>(fill::zeros);
-    const double k = c/n;
-    vec::fixed<6> eta;
-    for (int i=0; i<3; i++) eta[i] = k*x[i];
-    for (int i=3; i<6; i++) eta[i] = shear*k*x[i];
-    return eta;
-}
-
 // P_Mises = 3/2 Idev2 in engineering Voigt (rows strain-like, columns stress-like), as constants: deta_stress runs per Newton iteration
 constexpr double P_Mises[6][6] = {{  1., -0.5, -0.5, 0., 0., 0.},
                                   {-0.5,   1., -0.5, 0., 0., 0.},
@@ -126,7 +116,7 @@ vec::fixed<6> eta_stress(const vec &v) {
 	assert(v.size()==6);
 	double d[6];
 	const double n = mises_voigt(v.memptr(), Tensor2Type::stress, d);
-	return flow(d, n, 3./2., 2.);   // strain-like output
+	return flow_voigt(d, n, 3./2., 2.);   // strain-like output
 }
 
 mat::fixed<6,6> deta_stress(const vec &v) {
@@ -135,7 +125,7 @@ mat::fixed<6,6> deta_stress(const vec &v) {
 	const double sigeq = mises_voigt(v.memptr(), Tensor2Type::stress, d);
 	mat::fixed<6,6> deta(fill::zeros);
 	if (sigeq < simcoon::iota) return deta;
-	const vec::fixed<6> eta = flow(d, sigeq, 3./2., 2.);
+	const vec::fixed<6> eta = flow_voigt(d, sigeq, 3./2., 2.);
 	const double inv_sigeq = 1./sigeq;
 	for (int j=0; j<6; j++)
 		for (int i=0; i<6; i++)
@@ -145,12 +135,12 @@ mat::fixed<6,6> deta_stress(const vec &v) {
 
 vec::fixed<6> eta_norm_stress(const vec &v) {
     assert(v.size()==6);
-    return flow(v.memptr(), norm_voigt(v, Tensor2Type::stress), 1., 2.);   // strain-like output
+    return flow_voigt(v.memptr(), norm_voigt(v, Tensor2Type::stress), 1., 2.);   // strain-like output
 }
 
 vec::fixed<6> eta_norm_strain(const vec &v) {
     assert(v.size()==6);
-    return flow(v.memptr(), norm_voigt(v, Tensor2Type::strain), 1., 1.);   // kept in the strain convention of the input
+    return flow_voigt(v.memptr(), norm_voigt(v, Tensor2Type::strain), 1., 1.);   // kept in the strain convention of the input
 }
 
 double norm_stress(const vec &v) {
@@ -173,7 +163,7 @@ vec::fixed<6> eta_strain(const vec &v) {
 	assert(v.size()==6);
 	double d[6];
 	const double n = mises_voigt(v.memptr(), Tensor2Type::strain, d);
-	return flow(d, n, 2./3., 1.);   // kept in the strain convention of the input
+	return flow_voigt(d, n, 2./3., 1.);   // kept in the strain convention of the input
 }
 
 double J2_stress(const vec &v) {

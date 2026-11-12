@@ -20,17 +20,18 @@ SMA = [5.5, 0.5, 0.5, 0, 67538., 67538., 0.349, 0.349, 1e-6, 1e-6, 0., 0.0418, 0
        300., 290., 295., 305., 0.2, 0.2, 0.2, 0.2, 300., 0.2, 2., 1e-6, 1e-3, 1., 1e8]
 
 # name: (props, nstatev, strain reached before the probe, T_init, tolerance on drdE (drdT: a tenth))
-# Exact for the elastic and viscoelastic kernels; the plastic and SMA ones hold the flow /
-# transformation direction fixed over the increment in the derivative of the dissipation.
+# Exact for the elastic, viscoelastic and J2 plastic kernels (the turning of the flow direction over
+# the increment is in the derivative); EPKCP holds the back-stress direction fixed (1e-6 on the
+# non-proportional probe below), the SMA kernel its transformation direction (1e-3).
 CASES = {
     "ELISO": ([RHO, C_P, 210000., 0.3, ALPHA], 1, 1e-3, 293.15, 1e-8),
     "ELIST": ([RHO, C_P, 1, 140000., 9000., 0.3, 0.4, 4500., 1e-6, 3e-5], 1, 1e-3, 293.15, 1e-8),
     "ELORT": ([RHO, C_P, 140000., 9000., 9500., 0.3, 0.32, 0.4, 4500., 4600., 3000., 1e-6, 3e-5, 2.5e-5],
               1, 1e-3, 293.15, 1e-8),
-    "EPICP": ([RHO, C_P, 210000., 0.3, ALPHA, 300., 500., 0.4], 8, 0.01, 293.15, 1e-3),
-    "EPKCP": ([RHO, C_P, 210000., 0.3, ALPHA, 300., 500., 0.4, 20000.], 14, 0.01, 293.15, 1e-3),
+    "EPICP": ([RHO, C_P, 210000., 0.3, ALPHA, 300., 500., 0.4], 8, 0.01, 293.15, 1e-8),
+    "EPKCP": ([RHO, C_P, 210000., 0.3, ALPHA, 300., 500., 0.4, 20000.], 14, 0.01, 293.15, 1e-5),
     "EPJCK": ([7.85e-9, 4.75e8, 200000.0, 0.33, 1.0e-5, 792.0, 510.0, 0.26, 0.014, 1.0, 1.03, 293.0, 1793.0],
-              9, 0.02, 293.15, 1e-3),
+              9, 0.02, 293.15, 1e-8),
     "ZENER": ([4.4, 0.656, 3000., 0.35, 1e-4, 1500., 0.35, 3000., 1200.], 8, 0.01, 293.15, 1e-8),
     "PRONK": ([4.4, 0.656, 3000., 0.35, 1e-4, 1., 1500., 0.35, 3000., 1200.], 14, 0.01, 293.15, 1e-8),
     "SMADI": (SMA, 17, 0.02, 320., 1e-3),

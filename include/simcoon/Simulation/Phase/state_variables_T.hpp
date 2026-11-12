@@ -54,11 +54,11 @@ namespace simcoon{
 		
         arma::mat::fixed<6,6> dSdE; ///< mechanical tangent; kernel output, crosses l2g only
         arma::mat::fixed<6,6> dSdEt; ///< read by nobody, never crosses
-        arma::mat dSdT; ///< thermal stress tangent, a Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel output, crosses l2g only
+        arma::vec::fixed<6> dSdT; ///< thermal stress tangent (Voigt); kernel output, crosses l2g only
         double Q; ///< heat flux (rate), set by the solver as -r/DTime (0 at DTime = 0); crosses g2l only
         /**
          * Heat of the increment per unit reference volume (MPa), storage included:
-         * \f$ r = \Delta\gamma - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment, tangent_assembly.hpp),
+         * \f$ r = \Delta\gamma_{loc} - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment, tangent_assembly.hpp),
          * i.e. the time increment times the heat source. \f$ r = 0 \f$ is the adiabatic condition, also at
          * \f$ \Delta t = 0 \f$. Kernel output, crosses l2g only.
          */
@@ -66,15 +66,14 @@ namespace simcoon{
         double r_in; ///< never crosses
     
         /**
-         * Strain derivative of the heat of the increment, \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$, a
-         * Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel
-         * output, crosses l2g only. Dual to the engineering strain, it rotates with the STRESS
+         * Strain derivative of the heat of the increment, \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$ (Voigt);
+         * kernel output, crosses l2g only. Dual to the engineering strain, it rotates with the STRESS
          * operator \f$ \mathbf{Q}_S = \mathbf{Q}_E^{-T} \f$: \f$ \partial r/\partial \boldsymbol{\varepsilon}'
          * = \mathbf{Q}_E^{-T} \, \partial r/\partial \boldsymbol{\varepsilon} \f$ for
          * \f$ \boldsymbol{\varepsilon}' = \mathbf{Q}_E \boldsymbol{\varepsilon} \f$.
          */
-        arma::mat drdE;
-        arma::mat drdT; ///< temperature derivative of the heat of the increment r; kernel output, crosses l2g only
+        arma::vec::fixed<6> drdE;
+        double drdT; ///< temperature derivative of the heat of the increment r; kernel output, crosses l2g only
 
 		/** @brief Default constructor (zero strains and stresses, identity F, U, R, DR). */
 		state_variables_T();
@@ -110,11 +109,11 @@ namespace simcoon{
          * @param Wt_start thermal works at start (size 3)
          * @param dSdE mechanical tangent (6x6)
          * @param dSdEt stored as is (6x6, read by nobody)
-         * @param dSdT thermal stress tangent (1x6)
-         * @param drdE strain derivative of r (1x6)
-         * @param drdT temperature derivative of r (1x1)
+         * @param dSdT thermal stress tangent (6)
+         * @param drdE strain derivative of r (6)
+         * @param drdT temperature derivative of r
          */
-        state_variables_T(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const double &Q, const double &r, const double &r_in, const arma::vec &Wm, const arma::vec &Wt, const arma::vec &Wm_start, const arma::vec &Wt_start, const arma::mat &dSdE, const arma::mat &dSdEt, const arma::mat &dSdT, const arma::mat &drdE, const arma::mat &drdT);
+        state_variables_T(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const double &Q, const double &r, const double &r_in, const arma::vec &Wm, const arma::vec &Wt, const arma::vec &Wm_start, const arma::vec &Wt_start, const arma::mat &dSdE, const arma::mat &dSdEt, const arma::vec &dSdT, const arma::vec &drdE, const double &drdT);
 		/** @brief Copy constructor. */
 		state_variables_T(const state_variables_T &);
 		/** @brief Destructor. */
@@ -132,7 +131,7 @@ namespace simcoon{
 		virtual state_variables_T& copy_fields_T (const state_variables_T&);
 		
 		using state_variables::update;
-		virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
+		virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &);
         virtual void to_start(); //rollback: Wm_start & Wt_start go to Wm & Wt, respectively
         virtual void set_start(const int &); //accept: Wm & Wt go to Wm_start & Wt_start, respectively
     

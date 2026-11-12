@@ -158,7 +158,7 @@ TEST(Ttangent_assembly, parity_zero_dLambda_singleMech)
         Bhat, kappa, dPhi, Ds, L, zeros(6, 6));
 
     EXPECT_LT(norm(ct.Lt - at.Lt, "fro"), 1e-12);
-    EXPECT_LT(norm(ct.P_epsilon[0] - at.P_epsilon[0], 2), 1e-12);
+    EXPECT_LT(norm(ct.P_epsilon - at.P_epsilon, "fro"), 1e-12);
     EXPECT_LT(std::abs(ct.invBhat(0,0) - at.invBhat(0,0)), 1e-12);
 }
 
@@ -167,30 +167,24 @@ TEST(Ttangent_assembly, parity_zero_dLambda_multiMech)
     // Two-mechanism dummy problem; verifies the parity holds for Nmech > 1
     // and for an off-diagonal Bhat.
     const mat L = L_iso(70000., 0.3, "Enu");
-    std::vector<vec> kappa = {
-        L * vec({ 1., -0.5, -0.5, 0.2, 0.0, 0.0 }),
-        L * vec({ 0., 0.0, 0.0, 0.5, 0.5, 0.5 })
-    };
-    std::vector<vec> dPhi = {
-        { 1., -0.5, -0.5, 0.4, 0.0, 0.0 },
-        { 0.0, 0.0, 0.0, 1.0, 1.0, 1.0 }
-    };
+    const mat kappa = join_rows(L * vec({ 1., -0.5, -0.5, 0.2, 0.0, 0.0 }),
+                                L * vec({ 0., 0.0, 0.0, 0.5, 0.5, 0.5 }));
+    const mat dPhi = join_rows(vec({ 1., -0.5, -0.5, 0.4, 0.0, 0.0 }),
+                               vec({ 0.0, 0.0, 0.0, 1.0, 1.0, 1.0 }));
     mat Bhat(2, 2);
-    Bhat(0, 0) = dot(dPhi[0], kappa[0]) + 100.;
-    Bhat(0, 1) = dot(dPhi[0], kappa[1]) - 10.;
-    Bhat(1, 0) = dot(dPhi[1], kappa[0]) - 10.;
-    Bhat(1, 1) = dot(dPhi[1], kappa[1]) + 50.;
+    Bhat(0, 0) = dot(dPhi.col(0), kappa.col(0)) + 100.;
+    Bhat(0, 1) = dot(dPhi.col(0), kappa.col(1)) - 10.;
+    Bhat(1, 0) = dot(dPhi.col(1), kappa.col(0)) - 10.;
+    Bhat(1, 1) = dot(dPhi.col(1), kappa.col(1)) + 50.;
     const vec Ds = { 1e-3, 5e-4 };
 
-    std::vector<mat> dLambda_zero = { zeros(6, 6), zeros(6, 6) };
+    const mat dLambda_zero = zeros(6, 12);
 
     auto ct = assemble_continuum_tangent(Bhat, kappa, dPhi, Ds, L);
     auto at = assemble_algorithmic_tangent(Bhat, kappa, dPhi, Ds, L, dLambda_zero);
 
     EXPECT_LT(norm(ct.Lt - at.Lt, "fro"), 1e-10);
-    for (size_t l = 0; l < 2; ++l) {
-        EXPECT_LT(norm(ct.P_epsilon[l] - at.P_epsilon[l], 2), 1e-10);
-    }
+    EXPECT_LT(norm(ct.P_epsilon - at.P_epsilon, "fro"), 1e-10);
     EXPECT_LT(norm(ct.invBhat - at.invBhat, "fro"), 1e-12);
 }
 
@@ -200,32 +194,24 @@ TEST(Ttangent_assembly, multiMech_nonsymmetric_Bhat_eliminates_multipliers)
     // the column), as in the SMR* laws when reverse transformation and reorientation are
     // active together. Reference: direct elimination of ds from Bhat ds = dPhi:L:de.
     const mat L = L_iso(70000., 0.3, "Enu");
-    std::vector<vec> kappa = {
-        L * vec({ 1., -0.5, -0.5, 0.2, 0.0, 0.0 }),
-        L * vec({ -0.3, 0.6, -0.3, 0.0, 0.4, 0.0 })
-    };
-    std::vector<vec> dPhi = {
-        { 1., -0.5, -0.5, 0.4, 0.0, 0.0 },
-        { -0.2, 0.7, -0.5, 0.0, 0.3, 0.1 }
-    };
+    const mat kappa = join_rows(L * vec({ 1., -0.5, -0.5, 0.2, 0.0, 0.0 }),
+                                L * vec({ -0.3, 0.6, -0.3, 0.0, 0.4, 0.0 }));
+    const mat dPhi = join_rows(vec({ 1., -0.5, -0.5, 0.4, 0.0, 0.0 }),
+                               vec({ -0.2, 0.7, -0.5, 0.0, 0.3, 0.1 }));
     mat Bhat(2, 2);
-    Bhat(0, 0) = dot(dPhi[0], kappa[0]) + 300.;
-    Bhat(0, 1) = dot(dPhi[0], kappa[1]) + 1400.;
-    Bhat(1, 0) = dot(dPhi[1], kappa[0]) - 3600.;
-    Bhat(1, 1) = dot(dPhi[1], kappa[1]) + 20000.;
+    Bhat(0, 0) = dot(dPhi.col(0), kappa.col(0)) + 300.;
+    Bhat(0, 1) = dot(dPhi.col(0), kappa.col(1)) + 1400.;
+    Bhat(1, 0) = dot(dPhi.col(1), kappa.col(0)) - 3600.;
+    Bhat(1, 1) = dot(dPhi.col(1), kappa.col(1)) + 20000.;
     const vec Ds = { 1e-3, 5e-4 };
 
-    mat DP(6, 2), K6(6, 2);
-    for (uword m = 0; m < 2; ++m) { DP.col(m) = dPhi[m]; K6.col(m) = kappa[m]; }
-    const mat ds_de = solve(Bhat, DP.t() * L);        // 2 x 6: ds^l = ds_de.row(l) . de
-    const mat Lt_ref = L - K6 * ds_de;
+    const mat ds_de = solve(Bhat, dPhi.t() * L);        // 2 x 6: ds^l = ds_de.row(l) . de
+    const mat Lt_ref = L - kappa * ds_de;
 
     auto ct = assemble_continuum_tangent(Bhat, kappa, dPhi, Ds, L);
 
     EXPECT_LT(norm(ct.Lt - Lt_ref, "fro"), 1e-9 * norm(L, "fro"));
-    for (uword l = 0; l < 2; ++l) {
-        EXPECT_LT(norm(ct.P_epsilon[l] - ds_de.row(l).t(), 2), 1e-9 * norm(ds_de, "fro"));
-    }
+    EXPECT_LT(norm(ct.P_epsilon - ds_de.t(), "fro"), 1e-9 * norm(ds_de, "fro"));
 }
 
 TEST(Ttangent_assembly, algorithmic_nonsymmetric_flow_derivative)
@@ -253,23 +239,22 @@ TEST(Ttangent_assembly, algorithmic_nonsymmetric_flow_derivative)
     const vec Ds = { 3e-3, 2e-3 };
 
     for (uword N : { uword(1), uword(2) }) {
-        std::vector<vec> kappa(N), n_l(N);
-        std::vector<mat> D(N);
+        mat kappa(6, N), n_l(6, N), D(6, 6 * N);
         mat M = eye(6, 6), Bhat(N, N);
         for (uword j = 0; j < N; ++j) {
-            kappa[j] = L * Lambda[j];
-            n_l[j] = dPhi[j];
-            D[j] = dLambda[j];
-            M += Ds(j) * (L * D[j]);
+            kappa.col(j) = L * Lambda[j];
+            n_l.col(j) = dPhi[j];
+            D.cols(6 * j, 6 * j + 5) = dLambda[j];
+            M += Ds(j) * (L * dLambda[j]);
         }
         for (uword l = 0; l < N; ++l)
-            for (uword j = 0; j < N; ++j) Bhat(l, j) = dot(n_l[l], kappa[j]) - K(l, j);
+            for (uword j = 0; j < N; ++j) Bhat(l, j) = dot(n_l.col(l), kappa.col(j)) - K(l, j);
 
         mat A = zeros(6 + N, 6 + N), rhs = zeros(6 + N, 6);
         A.submat(0, 0, 5, 5) = M;
         for (uword j = 0; j < N; ++j) {
-            A.submat(0, 6 + j, 5, 6 + j) = kappa[j];
-            A.submat(6 + j, 0, 6 + j, 5) = n_l[j].t();
+            A.submat(0, 6 + j, 5, 6 + j) = kappa.col(j);
+            A.submat(6 + j, 0, 6 + j, 5) = n_l.col(j).t();
             for (uword k = 0; k < N; ++k) A(6 + j, 6 + k) = K(j, k);
         }
         rhs.rows(0, 5) = L;
@@ -280,10 +265,10 @@ TEST(Ttangent_assembly, algorithmic_nonsymmetric_flow_derivative)
         auto ct = assemble_algorithmic_tangent(Bhat, kappa, n_l, Ds_N, L, D);
         EXPECT_LT(norm(ct.Lt - Lt_ref, "fro"), 1e-10 * norm(L, "fro")) << "N = " << N;
         for (uword l = 0; l < N; ++l) {
-            EXPECT_LT(norm(ct.P_epsilon[l] - sol.row(6 + l).t(), 2), 1e-10 * norm(sol.rows(6, 5 + N), "fro")) << "N = " << N;
+            EXPECT_LT(norm(ct.P_epsilon.col(l) - sol.row(6 + l).t(), 2), 1e-10 * norm(sol.rows(6, 5 + N), "fro")) << "N = " << N;
         }
         if (N == 1) {
-            auto ct1 = assemble_algorithmic_tangent(Bhat(0, 0), kappa[0], n_l[0], Ds(0), L, D[0]);
+            auto ct1 = assemble_algorithmic_tangent(Bhat(0, 0), vec(kappa.col(0)), vec(n_l.col(0)), Ds(0), L, dLambda[0]);
             EXPECT_LT(norm(ct1.Lt - Lt_ref, "fro"), 1e-10 * norm(L, "fro"));
         }
     }
@@ -293,14 +278,10 @@ TEST(Ttangent_assembly, parity_inactive_mechanism_masked_out)
 {
     // Confirm the active-set mask still works in the algorithmic helper.
     const mat L = L_iso(70000., 0.3, "Enu");
-    std::vector<vec> kappa = {
-        L * vec({ 1., -0.5, -0.5, 0.0, 0.0, 0.0 }),
-        L * vec({ 0., 0.0, 0.0, 1.0, 0.0, 0.0 })
-    };
-    std::vector<vec> dPhi = {
-        { 1., -0.5, -0.5, 0.0, 0.0, 0.0 },
-        { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0 }
-    };
+    const mat kappa = join_rows(L * vec({ 1., -0.5, -0.5, 0.0, 0.0, 0.0 }),
+                                L * vec({ 0., 0.0, 0.0, 1.0, 0.0, 0.0 }));
+    const mat dPhi = join_rows(vec({ 1., -0.5, -0.5, 0.0, 0.0, 0.0 }),
+                               vec({ 0.0, 0.0, 0.0, 1.0, 0.0, 0.0 }));
     mat Bhat(2, 2);
     Bhat(0, 0) = 1e3;
     Bhat(1, 1) = 1e3;
@@ -308,7 +289,7 @@ TEST(Ttangent_assembly, parity_inactive_mechanism_masked_out)
     Bhat(1, 0) = -1.;
     const vec Ds = { 1e-3, 0.0 }; // mechanism 2 inactive
 
-    std::vector<mat> dL = { mat(6,6,fill::randu)*1e-4, zeros(6,6) };
+    const mat dL = join_rows(mat(6,6,fill::randu)*1e-4, zeros(6,6));
 
     auto at = assemble_algorithmic_tangent(Bhat, kappa, dPhi, Ds, L, dL);
 
@@ -317,7 +298,7 @@ TEST(Ttangent_assembly, parity_inactive_mechanism_masked_out)
     EXPECT_LT(std::abs(at.invBhat(0, 1)), 1e-14);
     EXPECT_LT(std::abs(at.invBhat(1, 1)), 1e-14);
     // Inactive P_eps must be zero.
-    EXPECT_LT(norm(at.P_epsilon[1], 2), 1e-14);
+    EXPECT_LT(norm(at.P_epsilon.col(1), 2), 1e-14);
 }
 
 // -------------------------------------------------------------------------

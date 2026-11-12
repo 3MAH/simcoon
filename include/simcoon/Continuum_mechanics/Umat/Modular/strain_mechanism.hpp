@@ -93,6 +93,8 @@ struct ClosestPointIngredients {
  */
 class StrainMechanism {
 protected:
+    arma::mat no_map_;   ///< the empty total_strain_map() of a mechanism without such a dependence
+    arma::mat no_columns_;   ///< the empty dPhi_dsigma of a strain-form Phi (no column)
     std::string name_;                  ///< Mechanism name for debugging
     InternalVariableCollection ivc_;    ///< Mechanism-owned internal variables
 
@@ -228,25 +230,25 @@ public:
      * \f[ B_{lj} = - \frac{\partial \Phi^l}{\partial \boldsymbol{\sigma}}
      *              \cdot \boldsymbol{\kappa}^j \f]
      * The contraction is evaluated on the engineering Voigt components
-     * (arma::dot of .voigt()), the work-conjugate pairing of a strain-typed
+     * (arma::dot of the columns), the work-conjugate pairing of a strain-typed
      * dPhi with a stress-typed kappa.
      *
-     * Typing: dPhi/dsigma is strain-typed (Tensor2Type::strain — the dEq_stress
-     * convention, shear slots carry the doubled gamma components).
+     * Layout: a 6 x N matrix, one column per constraint, engineering Voigt in the
+     * strain convention (the dEq_stress convention, shear slots carry the doubled
+     * gamma components).
      *
      * Returned by const-ref into mechanism-internal storage populated during
      * compute_constraints — callers must not retain the reference past the
      * next call to compute_constraints on this mechanism.
      *
-     * Default: empty — meaning Phi does not depend on sigma (as in the
+     * Default: empty (no column) — meaning Phi does not depend on sigma (as in the
      * Prony_Nfast-style viscoelastic mechanism, whose Phi is written in
      * terms of strain and branch-internal EV_i only).
      */
-    virtual const std::vector<tensor2>& dPhi_dsigma(
+    virtual const arma::mat& dPhi_dsigma(
         const arma::vec& sigma) const {
         (void)sigma;
-        static const std::vector<tensor2> empty;
-        return empty;
+        return no_columns_;
     }
 
     /**
@@ -255,15 +257,17 @@ public:
      *
      * kappa^j is the "total stress-influence tensor" of lead variable s^j,
      * i.e., delta_sigma += -kappa^j * delta_s^j during the return mapping.
-     * Length must equal num_constraints(). Same const-ref lifetime contract
-     * as dPhi_dsigma — reference is valid until the next compute_constraints.
+     * A 6 x num_constraints() matrix, one column per lead variable. Same
+     * const-ref lifetime contract as dPhi_dsigma — reference is valid until the
+     * next compute_constraints.
      *
-     * Typing: stress-typed (Tensor2Type::stress) for plasticity/viscoelasticity
-     * (kappa = L·Lambda). DamageMechanism returns a strain-typed kappa
-     * (kappa = ∂M/∂D · σ, an M·σ product) — see its override for why the
-     * orchestrator's engineering-Voigt dot is kept for that pairing too.
+     * Convention: engineering Voigt in the stress convention for
+     * plasticity/viscoelasticity (kappa = L·Lambda). DamageMechanism returns a
+     * strain-convention kappa (kappa = ∂M/∂D · σ, an M·σ product) — see its
+     * override for why the orchestrator's engineering-Voigt dot is kept for that
+     * pairing too.
      */
-    virtual const std::vector<tensor2>& kappa(
+    virtual const arma::mat& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref) const = 0;
@@ -307,16 +311,18 @@ public:
      * @brief Flow-direction Hessians \f$ \mathrm{d}\boldsymbol{\Lambda}_\varepsilon^j/
      * \mathrm{d}\boldsymbol{\sigma} \f$ per constraint, for tangent_mode >= tangent_algorithmic.
      *
-     * Compliance-typed tensor4 (a stress → strain map, so the engineering↔Mandel
-     * congruence carries the correct shear factors by construction — the Hessian
-     * shear coefficient is 1, not 2/3). Evaluated at the same (shifted) stress as
-     * dPhi_dsigma; same const-ref lifetime contract.
+     * A 6 x 6N engineering-Voigt matrix, column block c (columns 6c..6c+5) the Hessian of
+     * constraint c as a stress → strain map (rows strain-like, columns stress-like, shear
+     * coefficient 1, not 2/3: the deta_stress / ddHill convention), the form
+     * \f$ M = I + L \sum_j \Delta s^j\, d\Lambda^j/d\sigma \f$ of the algorithmic assembly
+     * expects. Evaluated at the same (shifted) stress as dPhi_dsigma; same const-ref
+     * lifetime contract.
      *
      * Default: nullptr — the mechanism opts out and keeps its continuum
      * tangent_contribution() in every tangent_mode (correct for mechanisms whose
      * flow does not depend on stress: Prony viscoelasticity, scalar damage).
      */
-    [[nodiscard]] virtual const std::vector<tensor4>* dLambda_dsigma(
+    [[nodiscard]] virtual const arma::mat* dLambda_dsigma(
         const arma::vec& sigma) const {
         (void)sigma;
         return nullptr;
@@ -483,11 +489,13 @@ public:
         return 1.0;
     }
 
+
     /**
      * @brief Get inelastic strain from this mechanism
-     * @return Inelastic strain tensor (6 Voigt)
+     * @return Inelastic strain tensor (6 Voigt), a reference into the mechanism's state
+     *         or buffer, valid until its next state change
      */
-    virtual arma::vec inelastic_strain() const = 0;
+    virtual const arma::vec& inelastic_strain() const = 0;
 
     /**
      * @brief Update internal variables given multiplier increments
@@ -526,8 +534,8 @@ public:
      * @return \f$ \mathbf{I} - \partial\boldsymbol{\varepsilon}^{in}/\partial\boldsymbol{\varepsilon} \f$ (6x6), or an
      *         empty matrix (default) when the mechanism has no such dependence
      */
-    [[nodiscard]] virtual arma::mat total_strain_map() const {
-        return arma::mat();
+    [[nodiscard]] virtual const arma::mat& total_strain_map() const {
+        return no_map_;
     }
 
     /**
@@ -549,10 +557,12 @@ public:
     /**
      * @brief Closed-form part of the step, taken once before the elastic prediction.
      *
-     * For a mechanism whose state is an explicit function of the total strain (the
-     * viscoelastic branches), so that the other mechanisms' return mapping starts from its
-     * final state. Default: nothing.
-     * @param E_total_end total strain at the end of the increment
+     * For a mechanism whose state is an explicit function of the strain (the viscoelastic
+     * branches), so that the other mechanisms' return mapping starts from its final state.
+     * Default: nothing.
+     * @param E_total_end strain at the end of the increment, the thermal part removed:
+     *        \f$ \boldsymbol{\varepsilon}_{n+1} - \boldsymbol{\alpha}\,(\theta_{n+1} - \theta_0) \f$,
+     *        the strain the branches of PRONK see
      * @param DTime time increment
      */
     virtual void predict(const arma::vec& E_total_end, double DTime) {
@@ -580,11 +590,12 @@ public:
      * @brief Compute work decomposition
      * @param sigma_start Stress at start of increment
      * @param sigma Current stress
-     * @param E_start Total strain at start of increment (the strain the
-     *        constraints see, without the thermal part removed)
-     * @param E_end Total strain at end of increment
-     * @param Wm_r Output: recoverable work increment
-     * @param Wm_ir Output: irrecoverable (stored) work increment
+     * @param E_start Strain at the start of the increment, the thermal part removed
+     *        (\f$ \boldsymbol{\varepsilon}_n - \boldsymbol{\alpha}\,(\theta_n - \theta_0) \f$, as predict())
+     * @param E_end The same at the end of the increment
+     * @param Wm_r Output: recoverable work increment stored by the mechanism itself (the back stresses of a
+     *        plasticity mechanism), 0 otherwise; the elastic one is the closure of ModularUMAT
+     * @param Wm_ir Output: irrecoverable (stored, never given back) work increment
      * @param Wm_d Output: dissipated work increment
      */
     virtual void compute_work(
@@ -596,6 +607,45 @@ public:
         double& Wm_ir,
         double& Wm_d
     ) const = 0;
+
+    /**
+     * @brief The inputs of dissipation_sensitivity(), references into the orchestrator's increment:
+     * the stress the dissipation is written on (the damaged stress under a damage mechanism) and its
+     * derivatives, the effective stress every mechanism works on (ModularUMAT: @c sigma_eff_, the
+     * same stress without a damage mechanism) and its derivatives, the strains with the thermal
+     * part removed (as compute_work) and the sensitivities of the mechanism's multiplier rows,
+     * \f$ \mathrm{d}\Delta s = \mathbf{P}_\varepsilon:\mathrm{d}\boldsymbol{\varepsilon} + P_\theta\,\mathrm{d}\theta \f$
+     * (one column / entry per row, in row order).
+     */
+    struct DissipationInputs {
+        const arma::vec& sigma_start;       ///< stress the dissipation is written on, start of the increment
+        const arma::vec& sigma;             ///< the same, committed
+        const arma::vec& sigma_eff;         ///< effective stress, committed
+        const arma::vec& E_start;           ///< strain at the start, thermal part removed
+        const arma::vec& E_end;             ///< the same at the end
+        const arma::mat& dSdE;              ///< \f$ \partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon} \f$ (6x6)
+        const arma::vec& dSdT;              ///< \f$ \partial\boldsymbol{\sigma}/\partial\theta \f$ (6)
+        const arma::mat& dSdE_eff;          ///< \f$ \partial\boldsymbol{\sigma}_{eff}/\partial\boldsymbol{\varepsilon} \f$ (6x6)
+        const arma::vec& dSdT_eff;          ///< \f$ \partial\boldsymbol{\sigma}_{eff}/\partial\theta \f$ (6)
+        const arma::mat& P_epsilon;         ///< strain sensitivity of the rows' multipliers (6 x num_constraints)
+        const arma::vec& P_theta;           ///< temperature sensitivity of the rows' multipliers (num_constraints)
+    };
+
+    /**
+     * @brief Derivatives of the dissipation of the increment (the @c Wm_d of compute_work) with
+     * respect to the strain and the temperature, for the heat of the thermomechanical face
+     * (ModularUMAT::run_T): through the stresses and through the multipliers of the mechanism's
+     * rows (DissipationInputs). Default: the mechanism has no thermomechanical face (throws).
+     *
+     * @param in the stresses, strains, tangents and multiplier sensitivities of the increment
+     * @param[out] dDgamma_dE \f$ \partial\Delta\gamma_{loc}/\partial\boldsymbol{\varepsilon} \f$ (6)
+     * @param[out] dDgamma_dT \f$ \partial\Delta\gamma_{loc}/\partial\theta \f$
+     */
+    virtual void dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE, double& dDgamma_dT) const {
+        (void)in; (void)dDgamma_dE; (void)dDgamma_dT;
+        throw std::invalid_argument("the thermomechanical face of MODUL serves plasticity and viscoelastic mechanisms; '"
+                                    + name_ + "' has no heat of its own yet");
+    }
 };
 
 } // namespace simcoon

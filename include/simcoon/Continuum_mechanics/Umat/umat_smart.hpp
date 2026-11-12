@@ -104,7 +104,7 @@ extern "C"{
         int kinc = 0;
         double ddsdde[36];
         double ddsddt[6];
-        char cmname[5];
+        char cmname[80];   // CMNAME as Abaqus passes it: space padded, no terminator
         int nprops = 2
         double props[nprops];
         int nstatev = 1
@@ -254,8 +254,9 @@ void phases_2_statev(arma::vec &statev, unsigned int &pos, const phase_character
         int kinc = 0;
         double ddsdde[36];
         double ddsddt[6];
-        char cmname[5];
-        strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
+        char cmname[80];   // CMNAME as Abaqus passes it: space padded, no terminator
+        std::memset(cmname, ' ', sizeof(cmname));
+        std::memcpy(cmname, rve.sptr_matprops->umat_name.data(), std::min<std::size_t>(rve.sptr_matprops->umat_name.size(), sizeof(cmname)));
         int nprops = rve.sptr_matprops->nprops;
         double props[nprops];
         int nstatev = rve.sptr_sv_global->nstatev;
@@ -361,9 +362,9 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
  * @param drot rotation increment matrix (dimension 3*3)
  * @param sigma arma::vec containing the components of the stress tensor
  * @param dSdE arma::mat containing the mechanical tangent operator
- * @param dSdT arma::mat containing the mechanical tangent operator
- * @param drpldE arma::mat containing the heat source/strain tangent operator
- * @param drpldT arma::mat containing the heat source/temperature tangent operator
+ * @param dSdT arma::vec, the stress-temperature derivative (6)
+ * @param drpldE arma::vec, the heat source-strain derivative (6)
+ * @param drpldT the heat source-temperature derivative
  * @param Etot arma::vec containing total strain component at the beginning of increment
  * @param DEtot arma::vec containing the component of total strain increment
  * @param T temperature value at the beginning of increment
@@ -391,9 +392,9 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
     vec Etot = zeros(6);
     vec DEtot = zeros(6);    
     mat dSdE = zeros(6,6);
-    mat dSdT = zeros(6,1);
-    mat drpldE = zeros(6,1);
-    mat drpldT = zeros(1,1);
+    vec dSdT = zeros(6);
+    vec drpldE = zeros(6);
+    double drpldT = 0.;
     mat DR = zeros(3,3);
     vec Wm = zeros(4);
     vec Wt = zeros(3);
@@ -404,7 +405,7 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
 	abaqus2smart_T(stress, ddsdde, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, sigma, dSdE, dSdT, drpldE, drpldT, Etot, DEtot, T, DT, Time, DTime, props_smart, Wm, Wt, statev_smart, DR, start);
  * @endcode
 */
-void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, arma::vec &sigma, arma::mat &dSdE, arma::mat &dSdT, arma::mat &drpldE, arma::mat &drpldT, arma::vec &Etot, arma::vec &DEtot, double &T, double &DT, double &Time, double &DTime, arma::vec &props_smart, arma::vec &Wm, arma::vec &Wt, arma::vec &statev_smart, arma::mat &DR, bool &start);
+void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, arma::vec &sigma, arma::mat &dSdE, arma::vec &dSdT, arma::vec &drpldE, double &drpldT, arma::vec &Etot, arma::vec &DEtot, double &T, double &DT, double &Time, double &DTime, arma::vec &props_smart, arma::vec &Wm, arma::vec &Wt, arma::vec &statev_smart, arma::mat &DR, bool &start);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the thermo-mechanical response
@@ -436,9 +437,9 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
     vec Etot = zeros(6);
     vec DEtot = zeros(6);
     mat dSdE = zeros(6,6);
-    mat dSdT = zeros(1,6);
-    mat drpldE = zeros(6,1);
-    mat drpldT = zeros(1,1);
+    vec dSdT = zeros(6);
+    vec drpldE = zeros(6);
+    double drpldT = 0.;
     mat DR = zeros(3,3);
     vec Wm = zeros(4);
     vec Wt = zeros(3);
@@ -542,6 +543,18 @@ umat_convention output_convention_of(const std::string &umat_name);
  * its conventions, without duplicating the list.
  */
 const std::map<std::string, int> &finite_umat_names();
+
+/**
+ * @brief The name -> dispatch id map of the small-strain mechanical dispatch (select_umat_M);
+ *        ids 0-2 are the plugins.
+ */
+const std::map<std::string, int> &small_strain_umat_names();
+
+/**
+ * @brief The thermomechanical name -> dispatch id map of select_umat_T (small and finite strain);
+ *        -1 for a name it does not hold. The Python wrapper of umat_T dispatches on it.
+ */
+int thermo_umat_id(const std::string &umat_name);
 
 /**
  * @brief True when the named umat kernel's raw in/out stress is the KIRCHHOFF stress.
@@ -931,9 +944,9 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
  * @param Wm variables related to mechanical work
  * @param Wt variables related to thermal work 
  * @param dSdE arma::mat containing the mechanical tangent operator
- * @param dSdT arma::mat containing the mechanical tangent operator
- * @param drpldE arma::mat containing the heat source/strain tangent operator
- * @param drpldT arma::mat containing the heat source/temperature tangent operator
+ * @param dSdT arma::vec, the stress-temperature derivative (6)
+ * @param drpldE arma::vec, the heat source-strain derivative (6)
+ * @param drpldT the heat source-temperature derivative
  * @details Example: 
  * @code 
     bool start = false;
@@ -949,9 +962,9 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     vec Etot = zeros(6);
     vec DEtot = zeros(6);
     mat dSdE = zeros(6,6);
-    mat dSdT = zeros(1,6);
-    mat drpldE = zeros(6,1);
-    mat drpldT = zeros(1,1);
+    vec dSdT = zeros(6);
+    vec drpldE = zeros(6);
+    double drpldT = 0.;
     mat DR = zeros(3,3);
     vec Wm = zeros(4);
     vec Wt = zeros(3);
@@ -976,7 +989,7 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r*inv_dtime, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE*inv_dtime, rve_sv_T->drdT*inv_dtime);
  * @endcode
 */ 
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom, const arma::vec &Etot_end);
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::vec &dSdT, const arma::vec &drpldE, const double &drpldT, const bool &nlgeom, const arma::vec &Etot_end);
             
 
 /** @} */ // end of umat_mechanical group

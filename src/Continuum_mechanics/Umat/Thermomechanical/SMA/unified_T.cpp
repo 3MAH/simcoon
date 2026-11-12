@@ -41,7 +41,7 @@ using namespace arma;
 
 namespace simcoon {
 
-void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
+void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -588,15 +588,14 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
-    const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
     // none/algorithmic/closest-point clamped to continuum: P_epsilon, invBhat feed r (see header)
     const int tangent_mode_eff = (tangent_mode == tangent_none ||
                                   tangent_mode == tangent_algorithmic ||
                                   tangent_mode == tangent_closest_point)
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
-        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
-        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+        tangent_mode_eff, Bhat, join_rows(kappa_j[0], kappa_j[1]), join_rows(dPhiFdsigma, dPhiRdsigma), Ds_j, L,
+        [&]() -> mat {  // lazy: evaluated only in algorithmic mode
             // Simo-Hughes: dLambda^F/dsigma by central FD + DM, ETMean held fixed; dSdE only
             auto lambdaTF_at = [&](const vec &s) -> vec {
                 return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
@@ -612,11 +611,10 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
                 dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
             }
             dLambdaF += DM;
-            const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
-            return dLambda_dsigma_l;
+            return join_rows(dLambdaF, -1. * DM);
         });
     dSdE = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& P_epsilon = ct.P_epsilon;
     const mat& invBhat = ct.invBhat;
 
     // Delta s = invBhat * rhs, Bhat(l, j) = criterion l, mechanism j
@@ -658,9 +656,9 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     const double f_F = 0.5*(sum((sigma_start+sigma)%lambdaTF) + A_xiF_start + A_xiF);
     const double f_R = 0.5*(sum((sigma_start+sigma)%lambdaTR) + A_xiR_start + A_xiR);
     const vec dDgamma_dE = 0.5*(dSdE.t()*DET
-        + (dSdE.t()*dA_xiFdsigma + dA_xiFdxiF*P_epsilon[0] + dA_xiFdxiR*P_epsilon[1])*DxiF
-        + (dSdE.t()*dA_xiRdsigma + dA_xiRdxiF*P_epsilon[0] + dA_xiRdxiR*P_epsilon[1])*DxiR)
-        + f_F*P_epsilon[0] + f_R*P_epsilon[1];
+        + (dSdE.t()*dA_xiFdsigma + dA_xiFdxiF*P_epsilon.col(0) + dA_xiFdxiR*P_epsilon.col(1))*DxiF
+        + (dSdE.t()*dA_xiRdsigma + dA_xiRdxiF*P_epsilon.col(0) + dA_xiRdxiR*P_epsilon.col(1))*DxiR)
+        + f_F*P_epsilon.col(0) + f_R*P_epsilon.col(1);
     const double dDgamma_dT = 0.5*(sum(dSdT%DET)
         + (dA_xiFdtheta + sum(dA_xiFdsigma%dSdT) + dA_xiFdxiF*P_theta[0] + dA_xiFdxiR*P_theta[1])*DxiF
         + (dA_xiRdtheta + sum(dA_xiRdsigma%dSdT) + dA_xiRdxiF*P_theta[0] + dA_xiRdxiR*P_theta[1])*DxiR)
@@ -668,7 +666,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
 
     // Entropy derivatives at the end of the increment, eta = c_0(xi) ln(T/T_init) + alpha(xi):sigma + rho Ds0 xi
     const double T1 = T + DT;
-    const vec deta_dE = dSdE.t()*dA_thetadsigma + dA_thetadxiF*P_epsilon[0] + dA_thetadxiR*P_epsilon[1];
+    const vec deta_dE = dSdE.t()*dA_thetadsigma + dA_thetadxiF*P_epsilon.col(0) + dA_thetadxiR*P_epsilon.col(1);
     const double deta_dT = c_0/T1 + sum(dSdT%dA_thetadsigma) + dA_thetadxiF*P_theta[0] + dA_thetadxiR*P_theta[1];
 
     // heat of the increment and its derivatives (heat_source_increment)

@@ -33,13 +33,14 @@
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
     
-void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
     
     UNUSED(nprops);
@@ -183,7 +184,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
                 const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
                 dPhidsigma = ing.dPhi_dsigma;
                 Lambdap = Lambdaa = ing.Lambda;
-                kappa_j = rm.kappa_j;
+                kappa_j[0] = rm.kappa_j.col(0);
             }
             else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
                 tnew_dt = 0.5;
@@ -237,19 +238,20 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     // tangent_none -> continuum: P_epsilon / invBhat feed the physical heat source r
+    // J2: dLambda/dsigma = deta_stress, one evaluation for the tangent (algorithmic mode) and the turning term
+    mat H_flow;
+    const auto flow_hessian = [&]() -> const mat& {
+        if (H_flow.is_empty()) H_flow = mat(deta_stress(sigma - X));
+        return H_flow;
+    };
     const int tangent_mode_eff = (tangent_mode == tangent_none)
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
-        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
-        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // J2 flow on sigma-X; only dSdE is corrected, thermal blocks stay continuum
-            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma - X) };
-            return dLambda_dsigma_l;
-        });
+        tangent_mode_eff, Bhat, kappa_j[0], dPhidsigma, Ds_j, L,
+        [&]() -> mat { return flow_hessian(); });   // lazy: evaluated only in algorithmic mode
     dSdE = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
     // P_theta = invBhat (dPhi/dtheta - dPhi/dsigma:L:alpha), 1/K; invBhat masked so elastic gives 0
@@ -277,16 +279,19 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     mat dA_ada = -1.*kX*Ireal();
 
     // Dissipation of the increment (the quantity Wm_d accumulates) and its derivatives through
-    // dDp = P, dDEP = Lambdap P and dDa = Lambdaa P (flow directions held fixed over the increment)
+    // dDp = P, dDEP = Lambdap P + Dp dLambda/dxi dxi, dDa likewise (xi = sigma - X; xi_n+1 : dLambda/dxi = 0)
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp + 0.5*sum((A_a_start + A_a)%Da);
     const double f_p = 0.5*(sum((sigma_start+sigma)%Lambdap) + A_p_start + A_p + sum((A_a_start + A_a)%Lambdaa)
                             + dA_pdp*Dp + sum((dA_ada*Lambdaa)%Da));
-    const vec dDgamma_dE = 0.5*dSdE.t()*DEP + f_p*P_epsilon[0];
-    const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0];
+    const vec xi_start = sigma_start - X_start;
+    const vec g_turn = (Dp > 0.) ? vec(0.5*Dp*(flow_hessian()*xi_start)) : vec(zeros(6));
+    const double g_X = kX*sum(g_turn%(Ir05()%Lambdaa));   // the back stress follows the flow: dX = kX Ir05 % Lambdaa dDp
+    const vec dDgamma_dE = 0.5*mul6_At(dSdE, DEP) + f_p*P_epsilon.col(0) + mul6_At(dSdE, g_turn) - g_X*P_epsilon.col(0);
+    const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0] + sum(dSdT%g_turn) - g_X*P_theta[0];
 
     // heat of the increment and its derivatives (heat_source_increment)
     const double T1 = T + DT;
-    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, dSdE.t()*alpha, c_0/T1 + sum(dSdT%alpha),
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, mul6_At(dSdE, alpha), c_0/T1 + sum(dSdT%alpha),
                           T1, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities

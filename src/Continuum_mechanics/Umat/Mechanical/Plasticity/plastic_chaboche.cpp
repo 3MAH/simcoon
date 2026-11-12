@@ -212,10 +212,10 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
                 EP = iv.get("EP").raw_voigt();
                 a_1 = iv.get("a_0").raw_voigt();
                 a_2 = iv.get("a_1").raw_voigt();
-                std::vector<tensor2> X_i;
+                mat X_i;
                 mech.kinematic_hardening().compute_backstresses(iv, X_i);
-                X_1 = X_i[0].to_arma_voigt();
-                X_2 = X_i[1].to_arma_voigt();
+                X_1 = X_i.col(0);
+                X_2 = X_i.col(1);
                 X = X_1 + X_2;
                 Hp = hardening.R(p);
             }
@@ -281,14 +281,11 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
-        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
-        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+        tangent_mode, Bhat, kappa_j[0], dPhidsigma, Ds_j, L,
+        [&]() -> mat {  // lazy: evaluated only in algorithmic mode
             // J2 flow on sigma-X; the backstress coupling is only in the closest-point branch
-            std::vector<mat> dLambda_dsigma_l(1);
-            dLambda_dsigma_l[0] = deta_stress(stress - X);
-            return dLambda_dsigma_l;
+            return mat(deta_stress(stress - X));
         });
     Lt = ct.Lt;
     

@@ -58,15 +58,17 @@ namespace simcoon{
  * the kernel carries \f$ \eta_{ir} = -\partial G^{ir}/\partial\theta = -f'_\theta\, B p^{n+1}/(n+1) \geq 0 \f$
  * (\f$ W_t^{ir} \f$ accumulates \f$ \theta_{n+1}\,\Delta\eta_{ir} \f$, the \f$ \theta_{n+1} \f$ of \f$ r \f$). No
  * Taylor-Quinney coefficient is introduced: \f$ r \f$ is the heat of the increment
- * \f$ r = \Delta\gamma - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment()), with
+ * \f$ r = \Delta\gamma_{loc} - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment()), with
  * \f$ \eta = \eta_r + \eta_{ir} \f$ and the dissipation the kernel adds to \f$ W_m^d \f$,
- * \f$ \Delta\gamma = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
+ * \f$ \Delta\gamma_{loc} = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
  * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$, \f$ A_p = -f_\theta B p^{n} \f$ (same energy split as
  * the mechanical kernel), both evaluated on the converged increment: at fixed \f$ \Delta t \f$
  * the rate-dependent \f$ \Delta p \f$ is a logarithmic function of the strain increment, which a
  * linearization would miss. \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ and
  * \f$ \partial r/\partial\theta \f$ differentiate it through \f$ \mathbf{P}_\varepsilon \f$,
- * \f$ P_\theta \f$, with the flow direction held fixed over the increment, and
+ * \f$ P_\theta \f$, the turning of the flow direction over the increment included
+ * (\f$ \tfrac12\,\Delta p\;\partial\boldsymbol{\Lambda}/\partial\boldsymbol{\sigma}:\boldsymbol{\sigma}^n \f$,
+ * the end stress dropping out by homogeneity), and
  * \f$ \partial\eta_{ir}/\partial\theta = -f''_\theta B p^{n+1}/(n+1) \f$,
  * \f$ \partial\eta_{ir}/\partial p = -f'_\theta B p^n \f$. Under adiabatic loading
  * (\f$ r = 0 \f$) every increment satisfies \f$ \theta_{n+1}\Delta\eta = \Delta W_m^d \f$.
@@ -102,9 +104,9 @@ namespace simcoon{
  * @param sigma Stress [input/output] (6x1 Voigt)
  * @param r Heat of the increment per reference volume, storage included (heat_source_increment()) [output]
  * @param dSdE Mechanical tangent \f$ \partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon} \f$ [output] (6x6)
- * @param dSdT Thermal stress sensitivity \f$ \partial\boldsymbol{\sigma}/\partial\theta \f$ [output] (6x1)
- * @param drdE Strain derivative of the heat of the increment \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ [output] (6x1)
- * @param drdT Temperature derivative of the heat of the increment \f$ \partial r/\partial\theta \f$ [output] (1x1)
+ * @param dSdT Thermal stress sensitivity \f$ \partial\boldsymbol{\sigma}/\partial\theta \f$ [output] (6)
+ * @param drdE Strain derivative of the heat of the increment \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ [output] (6)
+ * @param drdT Temperature derivative of the heat of the increment \f$ \partial r/\partial\theta \f$ [output] (scalar)
  * @param DR Rotation increment (3x3)
  * @param nprops Number of material properties (13)
  * @param props Material properties vector
@@ -128,7 +130,7 @@ namespace simcoon{
  * @param tangent_mode Tangent assembly mode (parameter.hpp); tangent_none is promoted to
  *        tangent_continuum, see above
  */
-void umat_plasticity_johnson_cook_CCP_T(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::mat &dSdT, arma::mat &drdE, arma::mat &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_plasticity_johnson_cook_CCP_T(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::vec &dSdT, arma::vec &drdE, double &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_thermomechanical group
 

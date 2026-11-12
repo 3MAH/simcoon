@@ -328,7 +328,7 @@ Thermomechanical coupling
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Ansys bridge is mechanical only. The heat a simcoon law produces,
-:math:`r = \Delta\gamma - \theta\,\Delta\eta` with its exact derivatives, is not passed to
+:math:`r = \Delta\gamma_{loc} - \theta\,\Delta\eta` with its exact derivatives, is not passed to
 Ansys: USERMAT has no documented way to return a heat source.
 
 .. warning::

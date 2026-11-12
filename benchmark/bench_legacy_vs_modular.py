@@ -1,14 +1,15 @@
 """Benchmark legacy UMATs against their MODUL (modular UMAT) twin configurations.
 
-Only three legacy names still run a legacy kernel: EPICP, EPCHA and PRONK. All the
-others listed below (ELISO, ELIST, ELORT, EPKCP, EPHIL, EPHAC, EPANI, EPDFA, EPCHG,
-EPHIN) are dispatched to the modular engine through a props adapter (code 201 in
-``umat_smart.cpp``, ``Modular/legacy_adapters.cpp``): timing them against MODUL
-compares the modular engine with itself, plus the adapter's props translation
-(ratio ~1.00, deviation 0). Those families are therefore benchmarked only on
-request (``--all`` or ``--families``) and flagged "adapter" in the table; they
-remain in ``FAMILIES`` because their legacy-name and MODUL runs are regression
-cases of ``benchmark/dump_results.py``.
+Three dedicated (closed-form) kernels remain, answering the names EPICP_closed,
+EPCHA_closed and PRONK_closed; every legacy name, these three included, is served by
+the modular engine through a props adapter (code 201 in ``umat_smart.cpp``,
+``Modular/legacy_adapters.cpp``). The EPICP, EPCHA and PRONK families time the
+dedicated kernel against the modular composition; the others (ELISO, ELIST, ELORT,
+EPKCP, EPHIL, EPHAC, EPANI, EPDFA, EPCHG, EPHIN) would compare the modular engine
+with itself, plus the adapter's props translation (ratio ~1.00, deviation 0), so they
+are benchmarked only on request (``--all`` or ``--families``) and flagged "adapter"
+in the table; they remain in ``FAMILIES`` because their legacy-name and MODUL runs
+are regression cases of ``benchmark/dump_results.py``.
 
 ZENER/ZENNK are intentionally absent: Zener_fast/Zener_Nfast are generalized
 KELVIN chains (branch driving force sigma - L_i EV_i), a different rheological
@@ -71,8 +72,8 @@ def _mat(elasticity, mechanisms=()):
     return ModularMaterial(elasticity=elasticity, mechanisms=list(mechanisms))
 
 
-# Legacy names that still run their own (non-modular) kernel. Any other name of
-# FAMILIES is routed to the modular engine by a props adapter (code 201).
+# Families whose first arm is a dedicated (closed-form) kernel, the _closed names. Any
+# other name of FAMILIES is routed to the modular engine by a props adapter (code 201).
 LEGACY_KERNELS = ("EPICP", "EPCHA", "PRONK")
 
 # family -> (legacy_name, legacy_props, legacy_nstatev, path_file, ModularMaterial)
@@ -131,7 +132,7 @@ FAMILIES = {
         ),
     ),
     "EPICP": (
-        "EPICP",
+        "EPICP_closed",
         [210000.0, 0.3, 0.0, 300.0, 1000.0, 0.3],
         8,
         "MODUL_path.json",
@@ -162,7 +163,7 @@ FAMILIES = {
         ),
     ),
     "EPCHA": (
-        "EPCHA",
+        "EPCHA_closed",
         [210000.0, 0.3, 0.0, 300.0, 200.0, 20.0, 30000.0, 172.0, 19500.0, 301.0],
         33,
         "MODUL_path.json",
@@ -381,7 +382,7 @@ FAMILIES = {
         ),
     ),
     "PRONK": (
-        "PRONK",
+        "PRONK_closed",
         [3000.0, 0.35, 0.0, 3] + [x for t in VE_TERMS for x in t],
         7 + 7 * 3,
         "PRONK_path.json",

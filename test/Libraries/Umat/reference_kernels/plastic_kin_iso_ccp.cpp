@@ -241,19 +241,18 @@ void umat_plasticity_kin_iso_CCP(const string &umat_name, const vec &Etot, const
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     ContinuumTangent ct;
     if (tangent_mode == 1) {
         // Simo-Hughes algorithmic tangent (closest-point). J2 flow on effective stress (sigma-X):
         // dLambda_eps/dsigma = deta_stress(stress-X). Backstress state-coupling (dLambda/dX . dX/dsigma)
         // is deferred to the closest-point (CPP) return-map rework, future release.
-        const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress - X) };
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+        const mat dLambda_dsigma_l = deta_stress(stress - X);
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j[0], dPhidsigma, Ds_j, L, dLambda_dsigma_l);
     } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+        ct = assemble_continuum_tangent(Bhat, kappa_j[0], dPhidsigma, Ds_j, L);
     }
     Lt = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
     P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));

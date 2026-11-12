@@ -76,7 +76,7 @@ namespace simcoon {
  *
  * @see umat_zener_Nfast_T() the N-unit version (props shifted by the N slot, statev 7 + 7N)
  */
-void umat_zener_fast_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
+void umat_zener_fast_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
 
 /** @} */ // end of umat_thermomechanical group
 

@@ -395,15 +395,16 @@ protected:
 namespace {
 
 // props for a mechanism-free MODUL: el_type=HYPER_INVARIANTS, potential,
-// n_params, params..., alpha, n_mechanisms=0
+// n_params, params..., alpha, omega=0, n_mechanisms=0
 vec modul_hyper_props(HyperPotential potential, const vec& p, double alpha) {
-    vec v(5 + p.n_elem, fill::zeros);
+    vec v(6 + p.n_elem, fill::zeros);
     v(0) = static_cast<double>(ElasticityType::HYPER_INVARIANTS);
     v(1) = static_cast<double>(potential);
     v(2) = static_cast<double>(p.n_elem);
     v.subvec(3, 2 + p.n_elem) = p;
     v(3 + p.n_elem) = alpha;
-    v(4 + p.n_elem) = 0.0;  // no mechanism
+    v(4 + p.n_elem) = 0.0;  // omega: energetic
+    v(5 + p.n_elem) = 0.0;  // no mechanism
     return v;
 }
 
@@ -465,7 +466,7 @@ TEST(ModularHyperelastic, YeohMatchesStandaloneKernel) {
 }
 
 // Yeoh ELASTICITY block alone: potential, n_params, C10, C20, C30, kappa, alpha
-const vec yeoh_block = {2.0, 4.0, 0.30, -0.010, 0.0005, 1000.0, 0.0};
+const vec yeoh_block = {2.0, 4.0, 0.30, -0.010, 0.0005, 1000.0, 0.0, 0.0};   // ..., alpha, omega
 
 // One parameter set per potential of the shared table
 const std::vector<std::pair<HyperPotential, vec>> hyper_potentials = {
@@ -499,7 +500,7 @@ TEST(ModularHyperelastic, GroundStateStiffnessMatchesEvaluate) {
     ElasticityModule em;
     int offset = 0;
     em.configure(ElasticityType::HYPER_INVARIANTS, yeoh_block, offset);
-    EXPECT_EQ(offset, 7);
+    EXPECT_EQ(offset, 8);
     const mat L_ref = L_iso(1000.0, 2.0 * 0.30, "Kmu");
     EXPECT_LT(norm(em.L0() - L_ref, "fro") / norm(L_ref, "fro"), 1e-9);
 }
@@ -550,9 +551,9 @@ TEST(ModularHyperelastic, IsiharaGroundShearModulus) {
 
 TEST(ModularHyperelastic, RejectsUnknownPotentialAndMissingParameters) {
     const std::vector<vec> bad = {
-        {7.0, 2.0, 0.5, 1000.0, 0.0},                       // no potential 7
-        {2.0, 2.0, 0.30, -0.010, 0.0},                      // Yeoh needs 4 parameters
-        {5.0, 6.0, 2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.0},   // Swanson: 2 terms announced, 1 given
+        {7.0, 2.0, 0.5, 1000.0, 0.0, 0.0},                       // no potential 7
+        {2.0, 2.0, 0.30, -0.010, 0.0, 0.0},                      // Yeoh needs 4 parameters
+        {5.0, 6.0, 2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.0, 0.0},   // Swanson: 2 terms announced, 1 given
     };
     for (size_t k = 0; k < bad.size(); ++k) {
         ElasticityModule em;
@@ -1015,8 +1016,8 @@ TEST_F(KinematicHardeningTest, ChabocheDuplicateEqualsDoubledAF) {
     const double dp = 1e-4;
 
     for (int step = 0; step < 100; ++step) {
-        af->update(dp, n, ivc_af);
-        cha->update(dp, n, ivc_cha);
+        af->update(dp, n.voigt(), ivc_af);
+        cha->update(dp, n.voigt(), ivc_cha);
 
         vec X_af  = af->total_backstress(ivc_af).to_arma_voigt();
         vec X_cha = cha->total_backstress(ivc_cha).to_arma_voigt();

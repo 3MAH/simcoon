@@ -224,6 +224,12 @@ void YieldCriterion::equivalent_stress_and_flow(const arma::vec& sigma, double& 
             }
             return;
         }
+        case YieldType::VON_MISES: {   // Mises_stress and eta_stress on one deviator
+            double d[6];
+            sigma_eq = mises_voigt(sigma.memptr(), Tensor2Type::stress, d);
+            flow = flow_voigt(d, sigma_eq, 3./2., 2.);
+            return;
+        }
         default:
             sigma_eq = equivalent_stress(sigma);
             flow = flow_direction(sigma);

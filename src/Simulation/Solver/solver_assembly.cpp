@@ -50,14 +50,14 @@ void Lt_2_K(const mat &Lt, mat &K, const Col<int> &cBC_meca, const double &lambd
     }
 }
 
-void Lth_2_K(const mat &dSdE, mat &dSdT, mat &dQdE, mat &dQdT, mat &K, const Col<int> &cBC_meca, const int &cBC_T, const double &lambda)
+void Lth_2_K(const mat &dSdE, const vec &dSdT, const vec &dQdE, const double &dQdT, mat &K, const Col<int> &cBC_meca, const int &cBC_T, const double &lambda)
 {
 	K = zeros(7,7);
 
     K.submat(0, 0, 5, 5) = dSdE;
     K.submat(0, 6, 5, 6) = dSdT;
-    K.submat(6, 0, 6, 5) = dQdE;
-    K.submat(6, 6, 6, 6) = dQdT;
+    K.submat(6, 0, 6, 5) = dQdE.t();
+    K(6, 6) = dQdT;
 
     for (int i=0; i<6; i++) {
         if (cBC_meca(i) == 0) {

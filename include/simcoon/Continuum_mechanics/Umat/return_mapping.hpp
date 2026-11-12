@@ -173,9 +173,9 @@ struct ReturnMappingResult {
     double    error = 0.;                     ///< final merit (FB + \f$ \|R_\sigma\|/\sigma_{ref} \f$)
     std::vector<double> error_history;        ///< merit per iteration (rate diagnostics)
     arma::mat Bhat_continuum;                 ///< \f$ \hat{B}^{lj} = n^l:\kappa^j - K^{lj} \f$ (NxN)
-    std::vector<arma::vec> kappa_j;           ///< \f$ \mathbf{L}:\boldsymbol{\Lambda}^j \f$ (each 6)
-    std::vector<arma::vec> dPhidsigma_l;      ///< \f$ n^l \f$ (each 6)
-    std::vector<arma::mat> dLambda_dsigma_l;  ///< \f$ D^j \f$ (each 6x6)
+    arma::mat kappa_j;                        ///< \f$ \mathbf{L}:\boldsymbol{\Lambda}^j \f$ (+ the state coupling), one column per mechanism (6xN)
+    arma::mat dPhidsigma_l;                   ///< \f$ n^l \f$, one column per criterion (6xN)
+    arma::mat dLambda_dsigma_l;               ///< \f$ D^j \f$ side by side, columns 6j..6j+5 (6x6N)
 };
 
 /**

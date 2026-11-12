@@ -31,13 +31,14 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_johnson_cook_ccp.hpp>   // johnson_cook_softening
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
 
-void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(nprops);
@@ -264,19 +265,20 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     // tangent_none -> continuum: P_epsilon / invBhat feed the physical heat source r
+    // J2: dLambda/dsigma = deta_stress, one evaluation for the tangent (algorithmic mode) and the turning term
+    mat H_flow;
+    const auto flow_hessian = [&]() -> const mat& {
+        if (H_flow.is_empty()) H_flow = mat(deta_stress(sigma));
+        return H_flow;
+    };
     const int tangent_mode_eff = (tangent_mode == tangent_none)
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
-        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
-        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // J2: dLambda/dsigma = deta_stress; only dSdE is corrected, thermal blocks stay continuum
-            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
-            return dLambda_dsigma_l;
-        });
+        tangent_mode_eff, Bhat, kappa_j[0], dPhidsigma, Ds_j, L,
+        [&]() -> mat { return flow_hessian(); });   // lazy: evaluated only in algorithmic mode
     dSdE = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
     // P_theta = invBhat (dPhi/dtheta - dPhi/dsigma:L:alpha); invBhat masked so elastic gives 0
@@ -306,14 +308,15 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     double dA_pdtheta = -dthermal_dT_end*Hp;
 
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
-    // flow direction held fixed over the increment, plus the explicit softening of A_p
+    // d(Dgamma)/d(Dp) at fixed direction, with the explicit softening of A_p
     const double f_p = 0.5*(sum((sigma_start+sigma)%Lambdap) + A_p_start + A_p + dA_pdp*Dp);
-    const vec dDgamma_dE = 0.5*dSdE.t()*DEP + f_p*P_epsilon[0];
-    const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0] + 0.5*dA_pdtheta*Dp;
+    const vec g_turn = (Dp > 0.) ? vec(0.5*Dp*(flow_hessian()*sigma_start)) : vec(zeros(6));   // turning flow direction, sigma_n+1 : dLambda/dsigma = 0
+    const vec dDgamma_dE = 0.5*mul6_At(dSdE, DEP) + f_p*P_epsilon.col(0) + mul6_At(dSdE, g_turn);
+    const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0] + 0.5*dA_pdtheta*Dp + sum(dSdT%g_turn);
 
     // Entropy derivatives at the end of the increment, eta = c_0 ln(T/T_init) + alpha:sigma + eta_ir(T, p)
     const double T1 = T + DT;
-    const vec deta_dE = dSdE.t()*alpha + deta_ir_dp*P_epsilon[0];
+    const vec deta_dE = mul6_At(dSdE, alpha) + deta_ir_dp*P_epsilon.col(0);
     const double deta_dT = c_0/T1 + sum(dSdT%alpha) - d2thermal_dT2_end*stored_hardening(p) + deta_ir_dp*P_theta[0];
 
     // heat of the increment and its derivatives (heat_source_increment)

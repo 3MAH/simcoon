@@ -425,8 +425,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
     mat DR = eye(3,3);
     mat R = eye(3,3);
 
-    mat dQdE = zeros(6,1);
-    mat dQdT = zeros(1,1);
+    vec dQdE = zeros(6);
+    double dQdT = 0.;
 
     ///Material properties
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
@@ -832,11 +832,12 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 sv_T->tangent_mode = tangent_mode;
+                sv_T->ncp = ctrl.ncp;
                 
                 sv_T->dSdE = zeros(6,6);
-                sv_T->dSdT = zeros(6,1);
-                dQdE = zeros(1,6);
-                dQdT = zeros(1,1);
+                sv_T->dSdT.zeros();
+                dQdE.zeros();
+                dQdT = 0.;
                 
                 DR = eye(3,3);
                 DTime = 0.;
@@ -857,7 +858,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 // r is the heat of the increment (MPa): the balance is written on increments,
                 // -r = DTime Q, so DTime = 0 is the adiabatic r = 0
                 sv_T->Q = 0.;
-                dQdE = -1.*sv_T->drdE.t();
+                dQdE = -1.*sv_T->drdE;
                 dQdT = -1.*sv_T->drdT;
                 
                 shared_ptr<step_thermomeca> sptr_thermomeca;
@@ -978,7 +979,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         rve.to_start();
                                         run_umat_T(rve, sv_T->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                                         sv_T->Q = (DTime > simcoon::iota) ? -1.*sv_T->r/DTime : 0.;   // output: heat flux (rate)
-                                        double dres_dT = -sv_T->drdT(0,0);
+                                        double dres_dT = -sv_T->drdT;
                                         if (sptr_thermomeca->cBC_T == 1) {
                                             residual(6) = -1.*sv_T->r - DTime*sptr_thermomeca->Ts(inc);
                                         }
@@ -1039,8 +1040,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     const bool finite_ct = (blocks[i].control_type != 1);
                                     vec dSdT_c, drdE_c;
                                     if (finite_ct) {
-                                        control_thermal(*sv_T, vectorise(sv_T->dSdT), vectorise(sv_T->drdE), blocks[i].control_type, corate_type, dSdT_c, drdE_c);
-                                        dQdE = -1.*drdE_c.t();
+                                        control_thermal(*sv_T, sv_T->dSdT, sv_T->drdE, blocks[i].control_type, corate_type, dSdT_c, drdE_c);
+                                        dQdE = -1.*drdE_c;
                                     }
 
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
@@ -1088,11 +1089,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         // -r - DTime Q_imposed = 0, r the heat of the increment
                                         sv_T->Q = (DTime > simcoon::iota) ? -1.*sv_T->r/DTime : 0.;   // output: heat flux (rate)
                                         if (finite_ct) {
-                                            control_thermal(*sv_T, vectorise(sv_T->dSdT), vectorise(sv_T->drdE), blocks[i].control_type, corate_type, dSdT_c, drdE_c);
-                                            dQdE = -1.*drdE_c.t();
+                                            control_thermal(*sv_T, sv_T->dSdT, sv_T->drdE, blocks[i].control_type, corate_type, dSdT_c, drdE_c);
+                                            dQdE = -1.*drdE_c;
                                         }
                                         else
-                                            dQdE = -1.*sv_T->drdE.t();
+                                            dQdE = -1.*sv_T->drdE;
                                         dQdT = -1.*sv_T->drdT;
                                         if (sptr_thermomeca->cBC_T == 3) {
                                             dQdT += DTime*q_conv;
@@ -1197,6 +1198,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
+                                // The inforce path skips the branches above: recompute DTime from the accepted fraction.
+                                DTime = Dtinc*sptr_thermomeca->times(inc);
                                 if (blocks[i].control_type == 1) {
                                     // small strain: the logarithmic strain is the infinitesimal one
                                     sv_T->Detot = sv_T->DEtot;

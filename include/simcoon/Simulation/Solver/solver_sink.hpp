@@ -114,7 +114,9 @@ public:
     std::vector<arma::vec> Wt;                            ///< [Wt, Wt_r, Wt_ir], thermomechanical only
     std::vector<arma::vec> statev;
     std::vector<arma::mat> Lt;                            ///< 6x6, mechanical only
-    std::vector<arma::mat> dSdE, dSdT, drdE, drdT;        ///< thermomechanical only
+    std::vector<arma::mat> dSdE;                          ///< 6x6, thermomechanical only
+    std::vector<arma::vec> dSdT, drdE;                    ///< 6, thermomechanical only
+    std::vector<double> drdT;                             ///< thermomechanical only
 
     void init(phase_characteristics &rve) override;
     void record(phase_characteristics &rve, const solver_output &so,

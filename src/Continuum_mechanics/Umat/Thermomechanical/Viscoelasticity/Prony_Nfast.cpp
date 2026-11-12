@@ -29,12 +29,13 @@
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
 using namespace std;
 using namespace arma;
 
 namespace simcoon {
     
-void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
     
     UNUSED(nprops);
@@ -183,13 +184,13 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         const mat &dEVdE = st.dEVdE_i[i];
         const vec &dEVdT = st.dEVdT_i[i];
         Dgamma_loc += 0.5*sum(A_mid2%DEV_i[i]);
-        dDgamma_dE += 0.5*((L_i[i]*(eye(6,6) - dEVdE)).t()*DEV_i[i] + dEVdE.t()*A_mid2);
+        dDgamma_dE += 0.5*(mul6_At(mul66(L_i[i], eye(6,6) - dEVdE), DEV_i[i]) + mul6_At(dEVdE, A_mid2));
         dDgamma_dT += 0.5*(-sum((L_i[i]*(alpha + dEVdT))%DEV_i[i]) + sum(dEVdT%A_mid2));
     }
 
     // heat of the increment and its derivatives (heat_source_increment)
     const double T1 = T + DT;
-    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, st.dSdE.t()*alpha,
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, mul6_At(st.dSdE, alpha),
                           c_0/T1 + dot(alpha, st.dSdT), T1, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities

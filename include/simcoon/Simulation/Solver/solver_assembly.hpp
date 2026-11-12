@@ -47,13 +47,13 @@ void Lt_2_K(const arma::mat &, arma::mat &, const arma::Col<int> &, const double
 /**
  * @brief Thermomechanical counterpart of Lt_2_K: the 7x7 Jacobian with the heat equation.
  *
- * @param[in] dSdE, dSdT, dQdE, dQdT the four coupled tangent blocks
+ * @param[in] dSdE, dSdT, dQdE, dQdT the four coupled tangent blocks (6x6, 6, 6, scalar)
  * @param[out] K the 7x7 Jacobian
  * @param[in] cBC_meca per-component mechanical control flags
  * @param[in] cBC_T temperature control flag
  * @param[in] lambda diagonal stiffness given to the prescribed components
  */
-void Lth_2_K(const arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::Col<int> &, const int &, const double &);
+void Lth_2_K(const arma::mat &, const arma::vec &, const arma::vec &, const double &, arma::mat &, const arma::Col<int> &, const int &, const double &);
 
 /**
  * @brief Check a loading programme against its output settings.

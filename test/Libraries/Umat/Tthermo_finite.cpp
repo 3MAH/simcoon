@@ -52,6 +52,8 @@ const std::map<string, law> &laws() {
         {"EPJCK", {{7.85e-9, 4.75e8, 200000.0, 0.33, 1.0e-5, 792.0, 510.0, 0.26, 0.014, 1.0, 1.03, 293.0, 1793.0}, 9, 293.15}},
         {"ZENER", {{4.4, 0.656, 3000., 0.35, 1e-4, 1500., 0.35, 3000., 1200.}, 8, 293.15}},
         {"PRONK", {{4.4, 0.656, 3000., 0.35, 1e-4, 1., 1500., 0.35, 3000., 1200.}, 14, 293.15}},
+        // the modular face: [rho, c_p, stream] = isotropic Enu + von Mises, power-law isotropic + Prager (EPKCP)
+        {"MODUL", {{rho, c_p, 0, 0, E_, nu_, alpha, 1, 0, 0, 0, 1, 1, 300., 500., 0.4, 30000.}, 14, 293.15}},
         {"SMADI", {{5.5, 0.5, 0.5, 0, 67538., 67538., 0.349, 0.349, 1e-6, 1e-6, 0., 0.0418, 0.021, 0., 10., 10.,
                     300., 290., 295., 305., 0.2, 0.2, 0.2, 0.2, 300., 0.2, 2., 1e-6, 1e-3, 1., 1e8}, 17, 320.}},
     };
@@ -70,7 +72,7 @@ shared_ptr<state_variables_T> one_increment(const string &name, const vec &De, c
     sv->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6),
                F, F, eye(3,3), eye(3,3), R, eye(3,3), L.T0, 0., L.nstatev, zeros(L.nstatev), zeros(L.nstatev));
     sv->dSdE = zeros(6,6);
-    sv->dSdT = zeros(6,1);
+    sv->dSdT.zeros();
     sv->tangent_mode = 2;
     sv->DEtot = De;
     sv->Detot = De;
@@ -86,7 +88,7 @@ void expect_same(const shared_ptr<state_variables_T> &a, const shared_ptr<state_
     const double s = std::max(norm(a->sigma, "inf"), 1.);
     EXPECT_LT(norm(a->tau - b->tau, "inf"), 1e-12*s) << name;
     EXPECT_LT(norm(a->dSdE - b->dSdE, "inf"), 1e-12*std::max(norm(a->dSdE, "inf"), 1.)) << name;
-    EXPECT_LT(norm(vectorise(a->dSdT) - vectorise(b->dSdT), "inf"), 1e-12*std::max(norm(vectorise(a->dSdT), "inf"), 1e-12)) << name;
+    EXPECT_LT(norm(a->dSdT - b->dSdT, "inf"), 1e-12*std::max(norm(a->dSdT, "inf"), 1e-12)) << name;
     EXPECT_LT(fabs(a->r - b->r), 1e-12*std::max(fabs(a->r), 1e-12)) << name;
     // Wm(0), Wm(1): under log_R the work is replaced by the stress power of F0 -> F1, here none
     EXPECT_LT(norm(a->Wm.tail(2) - b->Wm.tail(2), "inf"), 1e-12*std::max(norm(a->Wm, "inf"), 1e-12)) << name;
@@ -133,8 +135,8 @@ TEST(ThermoFinite, OtherRatesAreRefused) {
 TEST(ThermoFinite, TotalFormAdmission) {
     for (const auto &kv : laws())
         EXPECT_TRUE(total_formulation_serves_T(kv.first)) << kv.first;
-    for (const string name : {"ZENNK", "SMADC", "SMAAI", "SMAAC"})
+    for (const string name : {"ZENNK", "SMADC", "SMAAI", "SMAAC", "MODUL"})
         EXPECT_TRUE(total_formulation_serves_T(name)) << name;
-    for (const string name : {"HYPOO", "NEOHC", "MODUL", "UMEXT", "XXXXX"})
+    for (const string name : {"HYPOO", "NEOHC", "UMEXT", "XXXXX"})
         EXPECT_FALSE(total_formulation_serves_T(name)) << name;
 }

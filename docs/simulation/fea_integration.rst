@@ -56,7 +56,7 @@ Key Differences
      - ``umat_()``
      - ``usermat_()``
    * - Model selection
-     - Material name (first 5 chars)
+     - Material name (``CMNAME``, read whole)
      - Model code in props[0]
    * - Voigt notation
      - (11,22,33,12,13,23)

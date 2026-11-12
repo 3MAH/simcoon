@@ -55,7 +55,7 @@ enum class ElasticityType {
     CUBIC = 1,                  ///< Cubic: conv, C1, C2, C3, alpha (3 independent elastic constants)
     TRANSVERSE_ISOTROPIC = 2,   ///< Transverse isotropic: conv, EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis
     ORTHOTROPIC = 3,            ///< Orthotropic: conv, C1..C9, alpha1, alpha2, alpha3
-    HYPER_INVARIANTS = 4        ///< Hyperelastic potential in isochoric invariants: potential, n_params, params..., alpha
+    HYPER_INVARIANTS = 4        ///< Hyperelastic potential in isochoric invariants: potential, n_params, params..., alpha, omega
 };
 
 /**
@@ -139,6 +139,15 @@ private:
     tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
     bool configured_;
     KinematicForm kinematic_form_ = KinematicForm::rate;  ///< HYPER_INVARIANTS: which stress and tangent evaluate() returns
+    double omega_ = 0.;              ///< HYPER_INVARIANTS: entropic fraction of the isochoric potential (0: energetic)
+    double entropic_factor_ = 1.;    ///< HYPER_INVARIANTS: f(theta) = 1 - omega + omega theta/theta_0, set by set_entropic_factor
+    mutable double W_iso_ = 0.;      ///< HYPER_INVARIANTS: isochoric potential at the last evaluate (unscaled; omega != 0 only)
+    mutable double p_vol_ = 0.;      ///< HYPER_INVARIANTS: J U'(J) at the last evaluate, the volumetric stress is p_vol I
+
+    /// Kinematics of a hyperelastic block at eps_el (V_el = exp(eps_el) plays F): the spectral data of
+    /// eps_el, b_el, J, the pushed structure tensors and the isochoric invariants; evaluate() and iso_energy()
+    void hyper_kinematics(const arma::vec& eps_el, arma::vec::fixed<3>& e, arma::mat::fixed<3, 3>& N, arma::mat& V_el,
+                          arma::mat& b_el, double& J_el, std::vector<arma::mat>& A, arma::vec& I_bar) const;
 
     /// Rebuild the typed L/M mirrors after L_/M_ change; every configure_*
     /// path must call this so L_tensor()/M_tensor() stay cheap const-refs.
@@ -262,12 +271,24 @@ public:
      * and the Prony branches are isotropic because each is built as
      * L_iso\f$(E_i, \nu_i)\f$, L0() entering only as the compliance \f$ \mathbf{L}_0^{-1} \f$.
      *
+     * The temperature enters the potential as
+     * \f$ \Psi = f(\theta)\,\bar{W}(\bar{\mathbf{b}}^{el}) + U(J^{el}) \f$ with
+     * \f$ f(\theta) = 1 - \omega + \omega\,\theta/\theta_0 \f$ (Chadwick 1974; Holzapfel and Simo
+     * 1996): \f$ \omega = 0 \f$ is energetic thermoelasticity (the moduli do not depend on
+     * \f$ \theta \f$, the limit of the linear blocks), \f$ \omega = 1 \f$ the entropic elasticity
+     * of a rubber (\f$ \mu \propto \theta \f$, Gough-Joule heating under adiabatic stretch,
+     * thermoelastic inversion at \f$ \lambda - 1 \simeq \alpha\theta_0 \f$). The volumetric term
+     * stays energetic. \f$ f \f$ linear in \f$ \theta \f$ keeps the heat capacity at fixed
+     * deformation equal to \f$ c_0 \f$. The orchestrator sets \f$ f \f$ before every evaluate()
+     * (set_entropic_factor); L0() stays the ground-state tangent at \f$ \theta_0 \f$.
+     *
      * @param potential the potential (see HyperPotential for its parameters)
      * @param params the potential's parameters
      * @param alpha_scalar isotropic CTE
+     * @param omega entropic fraction \f$ \omega \f$ (default 0)
      */
     void configure_hyper_invariants(HyperPotential potential, const arma::vec& params,
-                                    double alpha_scalar);
+                                    double alpha_scalar, double omega = 0.);
 
     /**
      * @brief Configure from props array
@@ -278,7 +299,7 @@ public:
      * Linear block layout: [conv, constants..., alphas...] (+ axis for
      * TRANSVERSE_ISOTROPIC). The conv slot is validated against the type's
      * convention enum and selects the interpretation of the constant slots.
-     * HYPER_INVARIANTS layout: [potential, n_params, params..., alpha]. See
+     * HYPER_INVARIANTS layout: [potential, n_params, params..., alpha, omega]. See
      * props_count() for per-type totals.
      */
     void configure(ElasticityType type, const arma::vec& props, int& offset);
@@ -295,6 +316,16 @@ public:
     /// hyperelastic potential, whose tangent moves with the strain: the closest-point branch
     /// then evaluates the block at every iterate instead of using L0().
     [[nodiscard]] bool has_constant_stiffness() const noexcept { return type_ != ElasticityType::HYPER_INVARIANTS; }
+    /// Entropic fraction \f$ \omega \f$ of a hyperelastic block (0 for the linear blocks)
+    [[nodiscard]] double omega() const noexcept { return omega_; }
+    /// \f$ f(\theta) \f$ the isochoric derivatives are scaled by in evaluate() (set_entropic_factor)
+    [[nodiscard]] double entropic_factor() const noexcept { return entropic_factor_; }
+    /// Sets \f$ f(\theta) = 1 - \omega + \omega\,\theta/\theta_0 \f$ for the next evaluate() (hyperelastic block)
+    void set_entropic_factor(double f) noexcept { entropic_factor_ = f; }
+    /// Isochoric potential \f$ \bar{W} \f$ (unscaled) of the last evaluate(), formed when \f$ \omega \ne 0 \f$
+    [[nodiscard]] double W_iso() const noexcept { return W_iso_; }
+    /// \f$ J^{el} U'(J^{el}) \f$ of the last evaluate(): the volumetric stress is \f$ p_{vol}\,\mathbf{I} \f$
+    [[nodiscard]] double vol_pressure() const noexcept { return p_vol_; }
 
     /**
      * @brief Kinematic form the block is evaluated in (default: rate).
@@ -377,9 +408,9 @@ public:
      *       \f$ \mathbf{b}^{el} = (\mathbf{V}^{el})^2 \f$ and
      *       \f$ J^{el} = \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{el}) \f$. Two consequences:
      *       - The block defines a stored energy per REFERENCE volume,
-     *         \f$ \psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
+     *         \f$ \Psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
      *         returns the Kirchhoff stress of \f$ W \f$ at \f$ \mathbf{F} := \mathbf{V}^{el} \f$
-     *         -- the route's Kirchhoff stress. It equals \f$ \partial \psi / \partial
+     *         -- the route's Kirchhoff stress. It equals \f$ \partial \Psi / \partial
      *         \boldsymbol{\varepsilon}^{el} \f$ for an isotropic \f$ W \f$, and for an
      *         anisotropic one (HOLZA) only while it stays coaxial with \f$ \mathbf{V}^{el} \f$, exactly as ELISO
      *         returns \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$; the Cauchy output is
@@ -397,7 +428,7 @@ public:
      *
      *       - Under the total kinematic form (set_kinematic_form) the strain is
      *         \f$ \mathbf{H}^{el} \f$ in reference components and the block returns the stress
-     *         dual to it, \f$ \mathbf{T} = \partial \psi / \partial \mathbf{H}^{el} \f$
+     *         dual to it, \f$ \mathbf{T} = \partial \Psi / \partial \mathbf{H}^{el} \f$
      *         (Kirchoff2LogStressU() of the stress above at \f$ \mathbf{F} := \mathbf{V}^{el} \f$),
      *         with \f$ \partial \mathbf{T} / \partial \mathbf{H}^{el} \f$. This is exact for an
      *         anisotropic \f$ W \f$ too, coaxial or not.
@@ -415,6 +446,22 @@ public:
      */
     void evaluate(const arma::vec& eps_el, int ndi, int nshr,
                   arma::vec& sigma, arma::mat& Lt) const;
+
+    /**
+     * @brief Isochoric potential \f$ \bar{W}(\bar{\mathbf{b}}^{el}) \f$ of a hyperelastic block at @p eps_el,
+     *        without its stress and tangent.
+     *
+     * The value W_iso() caches at an evaluate(), at a strain of the caller's choice and at the cost of the
+     * kinematics only. It is the isochoric part of \f$ \Psi = f(\theta)\,\bar{W} + U(J^{el}) \f$
+     * (configure_hyper_invariants), unscaled by \f$ f(\theta) \f$: an entropic block
+     * (\f$ \omega \ne 0 \f$) has the entropy \f$ -\partial\Psi/\partial\theta = -(\omega/\theta_0)\,\bar{W} \f$, which the
+     * thermomechanical face needs at the start of an increment, where no evaluate() has run
+     * (ModularUMAT::start_iso_energy).
+     *
+     * @param eps_el elastic strain (6-Voigt, engineering shear; 3D)
+     * @return \f$ \bar{W} \f$ per reference volume; 0 for a linear block
+     */
+    [[nodiscard]] double iso_energy(const arma::vec& eps_el) const;
 
     // ========== Derived Quantities ==========
 
@@ -442,7 +489,7 @@ public:
             case ElasticityType::CUBIC:                return 5;   // conv, C1..C3, alpha
             case ElasticityType::TRANSVERSE_ISOTROPIC: return 9;   // conv, EL..GLT, alpha_L, alpha_T, axis
             case ElasticityType::ORTHOTROPIC:          return 13;  // conv, C1..C9, alpha1..3
-            case ElasticityType::HYPER_INVARIANTS:     return 3 + n_params;  // potential, n_params, params..., alpha
+            case ElasticityType::HYPER_INVARIANTS:     return 4 + n_params;  // potential, n_params, params..., alpha, omega
         }
         return 0;
     }

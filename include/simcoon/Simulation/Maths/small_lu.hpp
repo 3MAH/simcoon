@@ -39,7 +39,8 @@ namespace simcoon{
  * For the per-point linear systems of the integrators (the 6x6 / 7x7 global Newton Jacobian, the
  * 6x6 condensation of the closest-point return mapping): a LAPACK inverse (getrf + getri) and the
  * products with it cost 0.5 to 0.7 us on a 6x6, far more than the arithmetic, and allocate.
- * factor() once, then solve() for each right-hand side. A pivot below
+ * factor() once, then solve() for each right-hand side; both run their loops on the compile-time
+ * size when n == Nmax (factor_n<Nmax>, solve_n<Nmax>) and on the runtime one otherwise. A pivot below
  * \f$ n\,\epsilon \max|A_{ij}| \f$, or a non-finite entry, reports a singular matrix.
  */
 template <int Nmax>
@@ -49,48 +50,12 @@ public:
     bool factor(const arma::mat &A) {
         n_ = static_cast<int>(A.n_rows);
         if (n_ > Nmax || static_cast<int>(A.n_cols) != n_) return false;
-        double amax = 0.;
-        for (int i = 0; i < n_; ++i) {
-            for (int j = 0; j < n_; ++j) {
-                LU_[i][j] = A(i, j);
-                if (!std::isfinite(LU_[i][j])) return false;
-                amax = std::max(amax, std::fabs(LU_[i][j]));
-            }
-        }
-        const double tiny = amax*n_*std::numeric_limits<double>::epsilon();
-        for (int k = 0; k < n_; ++k) {
-            int p = k;
-            for (int i = k + 1; i < n_; ++i)
-                if (std::fabs(LU_[i][k]) > std::fabs(LU_[p][k])) p = i;
-            piv_[k] = p;
-            if (!(std::fabs(LU_[p][k]) > tiny)) return false;
-            if (p != k)
-                for (int j = 0; j < n_; ++j) std::swap(LU_[k][j], LU_[p][j]);
-            const double inv_piv = 1./LU_[k][k];
-            for (int i = k + 1; i < n_; ++i) {
-                const double f = LU_[i][k]*inv_piv;
-                LU_[i][k] = f;
-                if (f == 0.) continue;
-                for (int j = k + 1; j < n_; ++j) LU_[i][j] -= f*LU_[k][j];
-            }
-        }
-        return true;
+        return (n_ == Nmax) ? factor_n<Nmax>(A) : factor_n<0>(A);
     }
 
     /// Solves A x = b in place (b: n values), after a successful factor().
     void solve_in_place(double *b) const {
-        for (int k = 0; k < n_; ++k)
-            if (piv_[k] != k) std::swap(b[k], b[piv_[k]]);
-        for (int i = 1; i < n_; ++i) {
-            double v = b[i];
-            for (int j = 0; j < i; ++j) v -= LU_[i][j]*b[j];
-            b[i] = v;
-        }
-        for (int i = n_ - 1; i >= 0; --i) {
-            double v = b[i];
-            for (int j = i + 1; j < n_; ++j) v -= LU_[i][j]*b[j];
-            b[i] = v/LU_[i][i];
-        }
+        if (n_ == Nmax) solve_n<Nmax>(b); else solve_n<0>(b);
     }
 
     /// X <- A^-1 X column by column, in place (X: n rows), after a successful factor().
@@ -115,6 +80,54 @@ public:
     int n_rows() const { return n_; }
 
 private:
+    /// NS > 0: loops of compile-time length (n == Nmax); NS = 0: the runtime n_
+    template <int NS> bool factor_n(const arma::mat &A) {
+        const int n = (NS > 0) ? NS : n_;
+        double amax = 0.;
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                LU_[i][j] = A(i, j);
+                if (!std::isfinite(LU_[i][j])) return false;
+                amax = std::max(amax, std::fabs(LU_[i][j]));
+            }
+        }
+        const double tiny = amax*n*std::numeric_limits<double>::epsilon();
+        for (int k = 0; k < n; ++k) {
+            int p = k;
+            for (int i = k + 1; i < n; ++i)
+                if (std::fabs(LU_[i][k]) > std::fabs(LU_[p][k])) p = i;
+            piv_[k] = p;
+            if (!(std::fabs(LU_[p][k]) > tiny)) return false;
+            if (p != k)
+                for (int j = 0; j < n; ++j) std::swap(LU_[k][j], LU_[p][j]);
+            const double inv_piv = 1./LU_[k][k];
+            for (int i = k + 1; i < n; ++i) {
+                const double f = LU_[i][k]*inv_piv;
+                LU_[i][k] = f;
+                if (f == 0.) continue;
+                for (int j = k + 1; j < n; ++j) LU_[i][j] -= f*LU_[k][j];
+            }
+        }
+        return true;
+    }
+
+    /// NS > 0: loops of compile-time length (n == Nmax); NS = 0: the runtime n_
+    template <int NS> void solve_n(double *b) const {
+        const int n = (NS > 0) ? NS : n_;
+        for (int k = 0; k < n; ++k)
+            if (piv_[k] != k) std::swap(b[k], b[piv_[k]]);
+        for (int i = 1; i < n; ++i) {
+            double v = b[i];
+            for (int j = 0; j < i; ++j) v -= LU_[i][j]*b[j];
+            b[i] = v;
+        }
+        for (int i = n - 1; i >= 0; --i) {
+            double v = b[i];
+            for (int j = i + 1; j < n; ++j) v -= LU_[i][j]*b[j];
+            b[i] = v/LU_[i][i];
+        }
+    }
+
     double LU_[Nmax][Nmax];
     int piv_[Nmax];
     int n_ = 0;

@@ -16,7 +16,7 @@
 |---|---|
 | `benchmark_solver.py` | the 0D solver, in-memory route against the path-file route |
 | `benchmark_batch.py` | the batch APIs (N points per call) and fedoo-like iteration sequences |
-| `dump_results.py` | output arrays of the solver and of the batch `umat`, compared between two builds |
+| `dump_results.py` | output arrays of the solver and of the batch `umat` / `umat_T`, compared between two builds |
 | `bench_legacy_vs_modular.py` | the legacy kernels against their MODUL twins |
 
 ## Solver benchmark
@@ -73,7 +73,11 @@ compares two such dumps:
   `solve` call of five gallery examples (EPCHA, MODUL closest point, SMA_T,
   SMA_TR, thermomechanical SMA_T) — 1435 arrays;
 - `batch`: `sim.umat` on 997 points over six loading/unloading increments, for
-  ELISO, EPICP, EPKCP, MODUL and EPCHG, serial and parallel — 240 arrays.
+  ELISO, EPICP, EPKCP, MODUL and EPCHG, serial and parallel — 240 arrays;
+- `batch_T`: `sim.umat_T` on 251 points over six increments with a temperature
+  ramp, for EPICP_T, EPKCP_T and six MODUL compositions (J2, Prager, Chaboche,
+  Prony + Prager, damage, entropic neo-Hookean), cutting plane and closest
+  point: stress, state, works, heat and its four derivatives.
 
 ```bash
 python benchmark/dump_results.py solver ref.npz      # reference build
@@ -90,13 +94,14 @@ publishes its worst differences.
 
 ## Legacy kernels against their MODUL twins
 
-`bench_legacy_vs_modular.py` times a legacy UMAT against the equivalent
-MODUL configuration (interleaved A/B, minimum over repeats). Only EPICP, EPCHA
-and PRONK still run a legacy kernel: ELISO, ELIST, ELORT, EPKCP, EPHIL, EPHAC,
-EPANI, EPDFA, EPCHG and EPHIN are routed to the modular engine by a props
-adapter (code 201 in `umat_smart.cpp`), so for them the benchmark compares the
-modular engine with itself. By default it runs the three true pairs; `--all`
-adds the adapter families, flagged as such.
+`bench_legacy_vs_modular.py` times a dedicated (closed-form) kernel against the
+equivalent MODUL configuration (interleaved A/B, minimum over repeats). Three
+dedicated kernels remain, under the names `EPICP_closed`, `EPCHA_closed` and
+`PRONK_closed`; every legacy name, these three included, is routed to the
+modular engine by a props adapter (code 201 in `umat_smart.cpp`), so for the
+other families (ELISO, ELIST, ELORT, EPKCP, EPHIL, EPHAC, EPANI, EPDFA, EPCHG,
+EPHIN) the benchmark compares the modular engine with itself. By default it
+runs the three true pairs; `--all` adds the adapter families, flagged as such.
 
 ## Hotspots of the February 2026 profiling: current state
 
@@ -124,12 +129,31 @@ LAPACK inverse of the algorithmic tangent. Measure with `benchmark_solver.py` (m
 
 ## Migration of the laws to the modular engine
 
-State of the mechanical dispatch (`umat_smart.cpp`); the thermomechanical one
-(`umat_T`) has no adapter yet, every law there runs its legacy kernel.
+State of both dispatches (`umat_smart.cpp`): the thermomechanical one
+(`umat_T`) serves `MODUL` by name and the legacy names EPICP, EPKCP and PRONK
+through the `_T` adapter, their dedicated kernels answering the `_closed`
+names. Measured on `sim.umat_T`, 2000 points, 60 increments of a cyclic plastic
+path, 1 thread, median over the plastic increments, `MODUL` costs 1.86 us per
+point against 1.46 for EPICP_closed (1.28x) and 2.30 against 2.16 for
+EPKCP_closed (1.07x) under the cutting plane; under the closest point 4.9
+against 5.1 and 7.5 against 8.1 (0.9x, both on the generic solver) (Nov 2026,
+after the natural-form lots of the modular engine and the perf pass of the
+thermomechanical faces: the cycle took `MODUL` from 3.34 / 3.94 us and the
+legacy thermomechanical kernels from 1.68 / 2.35 through the shared tangent
+assembly and `mul6_At`). The thermal face is not
+where the time goes: it costs about 0.3 us on top of the mechanical `MODUL` run
+(0.4 us for EPICP_T on top of EPICP, whose kernel is the closed radial-return
+tangent), since it reads the multiplier assembly `compute_tangent` kept; the
+J2 gap is the mechanical engine, 1.37 us against 1.0 for EPICP on the same
+increments: the generic algorithmic assembly (`small_lu` of
+`M = I + Dp L dLambda/dsigma`) that EPICP replaces by its closed form, which
+MODUL keeps generic by design. Profile with `sample` on a `sim.umat_T` loop;
+the min-over-increments estimator picks the elastic increments and hides this.
 
 | Status | Laws |
 |---|---|
-| Routed to MODUL (adapter, code 201) | ELISO, ELIST, ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN |
+| Routed to MODUL (adapter, code 201) | ELISO, ELIST, ELORT, EPICP, EPKCP, EPCHA, PRONK, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN (thermomechanical face: EPICP, EPKCP, PRONK) |
 | MODUL equivalent exists, adapter to write | NEOHC, MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA (`HYPER_INVARIANTS` block, same `HyperPotential`); NEOHI to confirm (neo-Hookean with the quadratic volumetric term, kappa = 2/D1) |
-| MODUL equivalent exists, legacy kept while faster | EPICP, EPCHA, PRONK |
-| No MODUL equivalent | OGDEN (principal stretches), SNTVE, HYPOO, EPJCK, LLDM0 (anisotropic damage), ZENER, ZENNK (Kelvin chains), SMA family, micromechanics (MIHEN, MIMTN, MISCN, MIPLN) |
+| Dedicated closed-form kernel kept under a `_closed` name (benchmark, comparison) | EPICP_closed, EPCHA_closed, PRONK_closed; EPKCP_closed on the thermomechanical face |
+| MODUL equivalent by parameter map, adapter to write | ZENER (one Maxwell branch: `X_1^M = X_0^2/(X_0 + X_1)`, `eta^M = eta^K X_0^2/(X_0 + X_1)^2` per isotropic mode, see `docs/simulation/modular_python.rst`) |
+| No MODUL equivalent | OGDEN (principal stretches), SNTVE, HYPOO, EPJCK, LLDM0 (anisotropic damage), ZENNK (Kelvin chains, N >= 2), SMA family, micromechanics (MIHEN, MIMTN, MISCN, MIPLN) |

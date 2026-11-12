@@ -212,14 +212,12 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     // lazy: needed in algorithmic mode with an active multiplier only
     HessianProvider dLambda_dsigma = nullptr;
     if (Ds_j(0) > simcoon::iota) {
-        dLambda_dsigma = [&]() -> std::vector<mat> {
+        dLambda_dsigma = [&]() -> mat {
             // J2 associated flow: dLambda/dsigma = deta_stress, complete (no internal-variable coupling)
-            const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress) };
-            return dLambda_dsigma_l;
+            return mat(deta_stress(stress));
         };
     }
     if (!use_cpp && tangent_mode == simcoon::tangent_algorithmic && Ds_j(0) > simcoon::iota) {
@@ -237,7 +235,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     }
     else {
         const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
-            tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma);
+            tangent_mode, Bhat, kappa_j[0], dPhidsigma, Ds_j, L, dLambda_dsigma);
         Lt = ct.Lt;
     }
 

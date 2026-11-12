@@ -74,9 +74,9 @@ namespace simcoon {
  * @param sigma Stress (Voigt notation: \f$6 \times 1\f$ vector) [input/output]
  * @param r Heat of the increment per reference volume, storage included (heat_source_increment()) [output]
  * @param dSdE Consistent mechanical tangent \f$ \partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon} \f$ (\f$6 \times 6\f$) [output]
- * @param dSdT Stress sensitivity to temperature \f$ \partial \boldsymbol{\sigma} / \partial T \f$ (\f$6 \times 1\f$) [output]
- * @param drdE Strain derivative of the heat of the increment \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$ (\f$1 \times 6\f$) [output]
- * @param drdT Temperature derivative of the heat of the increment \f$ \partial r / \partial T \f$ (\f$1 \times 1\f$) [output]
+ * @param dSdT Stress sensitivity to temperature \f$ \partial \boldsymbol{\sigma} / \partial T \f$ (6) [output]
+ * @param drdE Strain derivative of the heat of the increment \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$ (6) [output]
+ * @param drdT Temperature derivative of the heat of the increment \f$ \partial r / \partial T \f$ (scalar) [output]
  * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
@@ -103,7 +103,7 @@ namespace simcoon {
  *
  * @see umat_prony_Nfast() the mechanical twin
  */
-void umat_prony_Nfast_T(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::mat &dSdT, arma::mat &drdE, arma::mat &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_prony_Nfast_T(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::vec &dSdT, arma::vec &drdE, double &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_thermomechanical group
 

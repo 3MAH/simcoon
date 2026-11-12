@@ -50,7 +50,11 @@ namespace simcoon{
  * The backstress is not stored: it follows from the back-strain \f$ \mathbf{a} \f$ (engineering
  * shear components, rotated as a strain) as
  * \f$ \mathbf{X} = k_X\,(\mathbf{a} \circ \mathbf{I}_{r05}) \f$, i.e. Prager hardening with
- * \f$ C = 3 k_X / 2 \f$.
+ * \f$ C = 3 k_X / 2 \f$. \f$ W_m^{ir} \f$ books the hardening energy
+ * \f$ \tfrac12(R_n+R_{n+1})\Delta p + \tfrac12(\mathbf{X}_n+\mathbf{X}_{n+1}):\Delta\mathbf{a} \f$,
+ * \f$ W_m^d \f$ the rest of the plastic work; drdE / drdT carry the turning of the flow direction
+ * on \f$ \boldsymbol{\sigma}-\mathbf{X} \f$ and hold the back-stress direction fixed (1e-6 on a
+ * non-proportional probe).
  *
  * **Material properties** (9; MPa, K):
  * | Index | Symbol | Description |
@@ -73,7 +77,7 @@ namespace simcoon{
  * | statev[2..7] | \f$ \boldsymbol{\varepsilon}^p \f$ | plastic strain |
  * | statev[8..13] | \f$ \mathbf{a} \f$ | kinematic back-strain (the backstress is \f$ \mathbf{X} = k_X\,(\mathbf{a} \circ \mathbf{I}_{r05}) \f$) |
  */
-void umat_plasticity_kin_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
+void umat_plasticity_kin_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
     
 
 /** @} */ // end of umat_thermomechanical group

@@ -60,7 +60,7 @@ namespace simcoon{
  * |-------|--------|-------------|
  * | statev[0] | \f$ T_{init} \f$ | initial (reference) temperature |
  */
-void umat_elasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
+void umat_elasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
     
 
 /** @} */ // end of umat_thermomechanical group

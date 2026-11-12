@@ -116,7 +116,7 @@ try {
     vec props_smart = zeros(nprops);
 	mat DR;
     
-	const string umat_name(cmname, 5);   // CMNAME carries no terminator: the law is its first five characters
+	const string umat_name = abaqus_umat_name(cmname);
 	   
     phase_characteristics rve;
     rve.construct(0,1);
@@ -130,12 +130,12 @@ try {
     if (abaqus_finite_route(umat_name, ndi, corate_type, false, dfgrd1)) {
         // NLGEOM: the law runs on the deformation gradient (total form, or log_R with _R) and
         // returns the Cauchy stress with Abaqus's Jaumann Jacobian
-        abaqus2smart_finite(*rve_sv_M, drot, dfgrd0, dfgrd1, kin_statev, corate_type, DTime);
+        abaqus2smart_finite(*rve_sv_M, drot, dfgrd0, dfgrd1, kin_statev, corate_type, DTime, make_condensed_state(ndi, nshr));
         run_umat_M(rve, rve_sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, 5, corate_type, pnewdt);
         vec sigma_abaqus;
         mat ddsdde_abaqus;
         smart2abaqus_finite_M(*rve_sv_M, rve_sv_M->Lt, corate_type, sigma_abaqus, ddsdde_abaqus, kin_statev);
-        smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma_abaqus, rve_sv_M->statev, rve_sv_M->Wm, ddsdde_abaqus, false);
+        smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma_abaqus, rve_sv_M->statev, rve_sv_M->Wm, ddsdde_abaqus, false, finite_box_strain_end(*rve_sv_M, corate_type));
         return;
     }
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);

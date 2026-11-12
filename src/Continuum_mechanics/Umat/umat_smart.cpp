@@ -156,14 +156,14 @@ const std::map<string, int> &finite_umat_names()
 {
     // The finite dispatch's name -> id map. A file-scope accessor rather than a
     // function-local static inside select_umat_M_finite so the convention test can iterate it.
-    static const std::map<string, int> list_umat = {{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPJCK",17},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
+    static const std::map<string, int> list_umat = {{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",201},{"EPICP_closed",6},{"EPCHA",201},{"EPCHA_closed",7},{"PRONK",201},{"EPJCK",17},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
     return list_umat;
 }
 
 // The small-strain mechanical dispatch's name -> id map (select_umat_M_3D); ids 0-2 are the plugins
-static const std::map<string, int> &small_strain_umat_names()
+const std::map<string, int> &small_strain_umat_names()
 {
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"UMANS",2},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"EPJCK",25},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200},{"PYEXT",300}};
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"UMANS",2},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",201},{"EPICP_closed",5},{"EPKCP",201},{"EPCHA",201},{"EPCHA_closed",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",201},{"PRONK_closed",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"EPJCK",25},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200},{"PYEXT",300}};
     return list_umat;
 }
 
@@ -187,14 +187,20 @@ const std::map<string, umat_convention> &umat_conventions()
         {"ELISO", {SM::kirchhoff, true, true, {}}},
         {"ELIST", {SM::kirchhoff, true, true, {}}},
         {"ELORT", {SM::kirchhoff, true, true, {}}},
-        {"EPICP", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP
-        {"EPJCK", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP (same layout as EPICP)
-        {"EPCHA", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain},                     // EP
+        {"EPICP_closed", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},           // EP
+        {"EPJCK", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP (same layout as EPICP_closed)
+        {"EPCHA_closed", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain},              // EP
                                                {8, Tensor2Type::strain},                     // a_1
                                                {14, Tensor2Type::strain},                    // a_2
                                                {20, Tensor2Type::stress},                    // X_1
                                                {26, Tensor2Type::stress}}}},                 // X_2
-        // 201 adapters (modular engine): layout not declared -> refused under corates 4/5
+        // 201 adapters (modular engine) with a declared modular statev layout: [T_init, p, EP, a_i...]
+        {"EPICP", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP (the dedicated layout)
+        {"EPCHA", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain},                     // EP
+                                               {8, Tensor2Type::strain},                     // a_1 (the back stresses are not stored)
+                                               {14, Tensor2Type::strain}}}},                 // a_2
+        // 201 adapters: layout not declared (PRONK: one block per branch) -> refused under corates 4/5
+        {"PRONK", {SM::kirchhoff, true, false, {}}},
         {"EPKCP", {SM::kirchhoff, true, false, {}}},
         {"EPHIL", {SM::kirchhoff, true, false, {}}},
         {"EPTRI", {SM::kirchhoff, true, false, {}}},
@@ -279,8 +285,20 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
                       const int &tangent_mode)
 {
     if (ncp_method_of(ncp, "ncp") == NCPMethod::fischer_burmeister) return;
-    if (thermomechanical || (umat_name != "EPICP" && umat_name != "EPKCP" && umat_name != "MODUL")) {
-        throw std::invalid_argument("ncp='min' serves the mechanical cutting planes of EPICP, EPKCP and MODUL only; '"
+    // the cutting planes that read it: the modular engine (MODUL and the names it serves, both faces)
+    // and the dedicated EPICP_closed
+    bool serves;
+    if (thermomechanical) {
+        const int id = thermo_umat_id(umat_name);
+        serves = (id == 200 || id == 201);
+    } else {
+        const auto &names = finite_umat_names();
+        const auto it = names.find(umat_name);
+        serves = umat_name == "MODUL" || umat_name == "EPICP_closed" || (it != names.end() && it->second == 201);
+    }
+    if (!serves) {
+        throw std::invalid_argument("ncp='min' serves the cutting planes of the modular engine (MODUL and the legacy "
+                                    "names it serves, mechanical and thermomechanical) and of EPICP_closed; '"
                                     + umat_name + "'" + (thermomechanical ? " (thermomechanical)" : "") + " does not read it");
     }
     if (tangent_mode == tangent_closest_point) {
@@ -293,13 +311,13 @@ void check_integrator_serves(const std::string &umat_name, const int &tangent_mo
 {
     if (tangent_mode != tangent_closest_point) return;
     // the laws with a closest-point update, or whose cutting plane is one by construction (EPJCK)
-    static const std::set<std::string> mechanical = {"EPICP", "EPCHA", "EPJCK", "MODUL",
+    static const std::set<std::string> mechanical = {"EPICP_closed", "EPCHA_closed", "EPJCK", "MODUL",
                                                      "SMADI", "SMADC", "SMAAI", "SMAAC",
                                                      "SMRDI", "SMRDC", "SMRAI", "SMRAC"};
-    static const std::set<std::string> thermo = {"EPICP", "EPKCP"};
+    static const std::set<std::string> thermo = {"EPICP_closed", "EPKCP_closed", "MODUL"};
     bool serves;
     if (thermomechanical) {
-        serves = thermo.count(umat_name) > 0;
+        serves = thermo.count(umat_name) > 0 || thermo_umat_id(umat_name) == 201;   // modular adapters
     } else {
         const auto &names = finite_umat_names();
         const auto it = names.find(umat_name);
@@ -307,8 +325,9 @@ void check_integrator_serves(const std::string &umat_name, const int &tangent_mo
     }
     if (!serves) {
         throw std::invalid_argument("integrator='closest_point' serves the laws with a closest-point update only "
-                                    "(mechanical: EPICP, EPCHA, EPJCK, MODUL and its adapters, the SMA kernels; "
-                                    "thermomechanical: EPICP, EPKCP); '" + umat_name + "'"
+                                    "(mechanical: EPICP_closed, EPCHA_closed, EPJCK, MODUL and the legacy names it serves, "
+                                    "the SMA kernels; thermomechanical: EPICP_closed, EPKCP_closed, MODUL and the legacy "
+                                    "names it serves); '" + umat_name + "'"
                                     + (thermomechanical ? " (thermomechanical)" : "") + " has none");
     }
 }
@@ -339,8 +358,9 @@ int kernel_tangent_mode(const int &integrator, const int &tangent_mode)
 
 bool total_formulation_serves_T(const std::string &umat_name)
 {
-    static const std::set<std::string> served = {"ELISO", "ELIST", "ELORT", "EPICP", "EPKCP", "ZENER", "ZENNK",
-                                                 "PRONK", "SMADI", "SMADC", "SMAAI", "SMAAC", "EPJCK"};
+    static const std::set<std::string> served = {"ELISO", "ELIST", "ELORT", "EPICP", "EPICP_closed", "EPKCP",
+                                                 "EPKCP_closed", "ZENER", "ZENNK", "PRONK", "PRONK_closed",
+                                                 "SMADI", "SMADC", "SMAAI", "SMAAC", "EPJCK", "MODUL"};
     return served.count(umat_name) > 0;
 }
 
@@ -354,20 +374,18 @@ vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, con
     return sigma;
 }
 
-namespace {
-
-// The thermomechanical name -> dispatch id map, shared by the small- and finite-strain dispatches;
-// -1 for a name it does not hold
 int thermo_umat_id(const std::string &umat_name)
 {
-    static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10}};
+    static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",201},{"EPICP_closed",4},{"EPKCP",201},{"EPKCP_closed",5},{"ZENER",6},{"ZENNK",7},{"PRONK",201},{"PRONK_closed",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9},{"EPJCK",10},{"MODUL",200}};
     auto it_umat = list_umat.find(umat_name);
     return (it_umat != list_umat.end()) ? it_umat->second : -1;
 }
 
+namespace {
+
 // One call of the thermomechanical kernel, fed the strain pair of the route: (Etot, DEtot) under
 // small strain, the box strain (etot, Detot) under finite strain
-void call_umat_T(const int &id_umat, phase_characteristics &rve, state_variables_T &sv, const vec &strain, const vec &Dstrain, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, double &tnew_dt)
+void call_umat_T(const int &id_umat, phase_characteristics &rve, state_variables_T &sv, const vec &strain, const vec &Dstrain, const mat &DR, const KinematicForm &form, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, double &tnew_dt)
 {
     switch (id_umat) {
         case 1: {
@@ -388,6 +406,14 @@ void call_umat_T(const int &id_umat, phase_characteristics &rve, state_variables
         }
         case 10: {
             umat_plasticity_johnson_cook_CCP_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            break;
+        }
+        case 200: {
+            umat_modular_T(strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode, form, sv.ncp);
+            break;
+        }
+        case 201: {   // legacy names served by the modular engine (legacy_adapters.cpp)
+            umat_legacy_modular_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode, form, sv.ncp);
             break;
         }
         case 5: {
@@ -426,7 +452,7 @@ static void select_umat_T_3D(phase_characteristics &rve, const mat &DR_global,co
     rve.sptr_sv_global->DR = DR_global;
     rve.global2local();
     auto umat_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_local);
-    call_umat_T(thermo_umat_id(rve.sptr_matprops->umat_name), rve, *umat_T, umat_T->Etot, umat_T->DEtot, umat_T->DR, Time, DTime, ndi, nshr, start, tnew_dt);
+    call_umat_T(thermo_umat_id(rve.sptr_matprops->umat_name), rve, *umat_T, umat_T->Etot, umat_T->DEtot, umat_T->DR, KinematicForm::rate, Time, DTime, ndi, nshr, start, tnew_dt);
     // small strain (F = I): tau = PKII = sigma, else the Kirchhoff-route consumers read an empty tau
     umat_T->tau = umat_T->sigma;
     umat_T->PKII = umat_T->sigma;
@@ -577,10 +603,9 @@ void leave_finite_box(state_variables &sv, const finite_box &box, const int &cor
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt, const bool &material_tangent)
 {
-    // The finite route runs 3D (the solver imposes stress-free components through mixed boundary
-    // conditions); condensed states go through select_umat_M or sim.umat.
+    // The finite dispatch runs 3D: a condensed state is solved around it (run_umat_M, select_finite_condensed)
     if (ndi < 3) {
-        throw std::invalid_argument("select_umat_M_finite: condensed stress states (ndi < 3) are not supported on the finite route");
+        throw std::invalid_argument("select_umat_M_finite: condensed stress states (ndi < 3) are solved around the finite dispatch (run_umat_M)");
     }
     const std::map<string, int> &list_umat = finite_umat_names();
 
@@ -629,11 +654,11 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             + rve.sptr_matprops->umat_name + "'; use the rate formulation");
     }
 
-    if (id_umat == 7 && corate_type == 4) {   // EPCHA
+    if (id_umat == 7 && corate_type == 4) {   // EPCHA_closed
         // X_i = 2/3 C_i a_i is stored: Truesdell convects a (strain) and X (stress) differently,
         // so the pair would drift apart. log_F transports both by the same similarity.
         throw simcoon::exception_solver(
-            "EPCHA stores its back stresses X_i = 2/3 C_i a_i, which the Truesdell rate "
+            "EPCHA_closed stores its back stresses X_i = 2/3 C_i a_i, which the Truesdell rate "
             "(corate_type 4) cannot keep consistent; use corate_type 3 (or 5)");
     }
 
@@ -714,7 +739,7 @@ static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_globa
 {
     UNUSED(solver_type);
     if (ndi < 3) {
-        throw std::invalid_argument("select_umat_T_finite: condensed stress states (ndi < 3) are not supported on the finite route");
+        throw std::invalid_argument("select_umat_T_finite: condensed stress states (ndi < 3) are solved around the finite dispatch (run_umat_T)");
     }
     // log_R (3) and total only: under 4/5 the stretched start stress shifts eta_start (spurious heat),
     // 0-2 are not the production rate
@@ -740,18 +765,17 @@ static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_globa
     // thermo kernels: Kirchhoff boxes in the material frame, no statev layout (corates 4/5 refused above)
     const umat_convention conv{StressMeasure::kirchhoff, true, false, {}};
     const finite_box box = enter_finite_box(*umat_T, conv, rve.sptr_matprops->umat_name, corate_type);
-    call_umat_T(id_umat, rve, *umat_T, umat_T->etot, umat_T->Detot, box.DR_kernel, Time, DTime, ndi, nshr, start, tnew_dt);
+    call_umat_T(id_umat, rve, *umat_T, umat_T->etot, umat_T->Detot, box.DR_kernel, box.total ? KinematicForm::total : KinematicForm::rate, Time, DTime, ndi, nshr, start, tnew_dt);
 
-    // Back from the material frame: dSdT and drdE are Voigt vectors stored as a mat (as in
-    // rotate_l2g), both rotated with the stress operator
+    // Back from the material frame: dSdT and drdE rotate with the stress operator (as in rotate_l2g)
     umat_T->dSdE = rotate_stiffness(umat_T->dSdE, box.R_hat);
-    umat_T->dSdT = reshape(rotate_stress(vec(vectorise(umat_T->dSdT)), box.R_hat), size(umat_T->dSdT));
-    umat_T->drdE = reshape(rotate_stress(vec(vectorise(umat_T->drdE)), box.R_hat), size(umat_T->drdE));
+    umat_T->dSdT = rotate_stress(umat_T->dSdT, box.R_hat);
+    umat_T->drdE = rotate_stress(umat_T->drdE, box.R_hat);
     leave_finite_box(*umat_T, box, corate_type, umat_T->Wm);
     // total form: dtau/dtheta at fixed F is the map of dT/dtheta (linear at fixed F); dSdE and
     // drdE stay box derivatives, r per reference volume
     if (box.total)
-        umat_T->dSdT = reshape(t2v_stress(LogStressU2Kirchoff(v2t_stress(vec(vectorise(umat_T->dSdT))), umat_T->F1)), size(umat_T->dSdT));
+        umat_T->dSdT = t2v_stress(LogStressU2Kirchoff(v2t_stress(umat_T->dSdT), umat_T->F1));
     rve.local2global();
 }
     
@@ -974,6 +998,36 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
     }
 }
 
+namespace {
+
+// Condensed state on the finite route: Newton on the free components of the box strain increment
+// (solve_condensed), the stress the law returns vanishing on them; F1 follows the strain state
+// (condensed_F, from the F1 of the start free stretches that abaqus2smart_finite built). The box
+// tangent is the Jacobian (dT/dH under the total form: a secant there, the residual is exact).
+template <class Run>
+bool select_finite_condensed(phase_characteristics &rve, const condensed_state &cs, const int &corate_type,
+                             bool &start, double &tnew_dt, const mat &Lt, Run &&run_3D) {
+    state_variables &sv = *rve.sptr_sv_global;
+    const condensed_F F1_of(sv.F1);
+    const phase_snapshot snap = take_snapshot(rve);
+    const bool start0 = start;
+    auto restore = [&]() {
+        restore_snapshot(snap);
+        start = start0;
+    };
+    auto run = [&](double &tn) {
+        const vec e1 = sv.etot + sv.Detot;
+        sv.F1 = (corate_type == corate_type_total) ? F1_of.total(e1) : F1_of(cs, e1);
+        run_3D(start, tn);
+    };
+    if (!solve_condensed(cs, sv.Detot, sv.sigma, Lt, run, restore, tnew_dt))
+        return false;
+    sv.tau.elem(cs.C).zeros();
+    return true;
+}
+
+}  // namespace
+
 void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt)
 {
     
@@ -989,7 +1043,15 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
         }
         case 2: case 3: case 4: case 5: case 6: {
             try {
-                select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt);
+                if (ndi < 3) {
+                    const condensed_state cs = make_condensed_state(ndi, nshr);
+                    auto sv = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
+                    if (select_finite_condensed(rve, cs, corate_type, start, tnew_dt, sv->dSdE,
+                            [&](bool &st, double &tn) { select_umat_T_finite(rve, DR, Time, DTime, 3, 3, st, solver_type, corate_type, tn); }))
+                        condense_tangent_T(cs, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT);
+                }
+                else
+                    select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt);
             } catch (const std::out_of_range &e) {
                 rethrow_statev_bounds(e, rve);
             }
@@ -1016,7 +1078,15 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
         }
         case 2: case 3: case 4: case 5: case 6: {
             try {
-                select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt, material_tangent);
+                if (ndi < 3) {
+                    const condensed_state cs = make_condensed_state(ndi, nshr);
+                    auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
+                    if (select_finite_condensed(rve, cs, corate_type, start, tnew_dt, sv->Lt,
+                            [&](bool &st, double &tn) { select_umat_M_finite(rve, DR, Time, DTime, 3, 3, st, solver_type, corate_type, tn, material_tangent); }))
+                        condense_tangent(cs, sv->Lt);
+                }
+                else
+                    select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt, material_tangent);
             } catch (const std::out_of_range &e) {
                 rethrow_statev_bounds(e, rve);
             }

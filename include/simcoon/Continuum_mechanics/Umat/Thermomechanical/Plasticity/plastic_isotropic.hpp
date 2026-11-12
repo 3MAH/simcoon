@@ -59,7 +59,11 @@ namespace simcoon{
  * Under tangent_none the kernel still assembles the continuum operator: the sensitivities
  * \f$ P_{\varepsilon} \f$ and \f$ P_\theta \f$ feed the physical heat source \f$ r \f$ and its
  * linearization, not only the Newton operator. Under tangent_algorithmic only dSdE carries the
- * consistent correction; dSdT, drdE and drdT keep the continuum form.
+ * consistent correction; dSdT, drdE and drdT keep the continuum form. drdE and drdT
+ * differentiate the dissipation through \f$ \mathbf{P}_\varepsilon \f$, \f$ P_\theta \f$ and the
+ * turning of the flow direction over the increment
+ * (\f$ \tfrac12\Delta p\,\partial\boldsymbol{\Lambda}/\partial\boldsymbol{\sigma}:\boldsymbol{\sigma}^n \f$):
+ * exact to round-off against finite differences.
  *
  * **Material Parameters (props, 8):**
  * | Index | Symbol | Description | Units |
@@ -80,7 +84,7 @@ namespace simcoon{
  * | statev[1] | \f$ p \f$ | Accumulated plastic strain |
  * | statev[2..7] | \f$ \boldsymbol{\varepsilon}^p \f$ | Plastic strain, Voigt [11,22,33,12,13,23], engineering shear (\f$\times 2\f$) |
  */
-void umat_plasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
+void umat_plasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
     
 
 /** @} */ // end of umat_thermomechanical group

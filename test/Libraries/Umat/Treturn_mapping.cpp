@@ -272,7 +272,8 @@ TEST(Treturn_mapping, stress_dependent_flow_exact_tangent)
     auto r = solve_analytic(Eps);
     ASSERT_TRUE(r.converged);
     ASSERT_GT(r.Dlambda(0), 1e-4);
-    ASSERT_GT(norm(r.dLambda_dsigma_l[0] - r.dLambda_dsigma_l[0].t(), "fro"), 1e-3 * norm(r.dLambda_dsigma_l[0], "fro"));
+    const mat D0 = r.dLambda_dsigma_l.cols(0, 5);
+    ASSERT_GT(norm(D0 - D0.t(), "fro"), 1e-3 * norm(D0, "fro"));
     const ContinuumTangent ct = cpp_consistent_tangent(r, L);
 
     const double h = 1.e-7;
