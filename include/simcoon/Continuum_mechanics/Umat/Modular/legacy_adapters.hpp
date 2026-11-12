@@ -30,7 +30,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * always large enough); trailing legacy slots are left untouched — column
  * MEANING may differ from the dedicated implementation (table below). The
  * dedicated kernels that still exist answer the `_closed` names (EPICP_closed,
- * EPCHA_closed, PRONK_closed, EPKCP_closed on the thermomechanical face).
+ * EPCHA_closed, PRONK_closed, ZENER_closed, EPKCP_closed on the thermomechanical face).
  *
  * Name  | legacy props                               | MODUL stream (translate_NAME)                            | modular statev
  * ------|--------------------------------------------|----------------------------------------------------------|---------------
@@ -38,6 +38,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * EPKCP | E nu alpha sigmaY k m kX                   | ..., Prager C = 1.5 kX                                   | [T_init, p, EP, a] (14)
  * EPCHA | E nu alpha sigmaY Q b C1 D1 C2 D2          | ..., Voce, Chaboche (C1, D1), (C2, D2)                   | [T_init, p, EP, a_1, a_2] (20)
  * PRONK | E0 nu0 alpha N (E_i nu_i etaB_i etaS_i)xN  | isotropic block; one viscoelastic mechanism, N branches  | [T_init, (v_i, EV_i) x N] (1 + 7N)
+ * ZENER | E0 nu0 alpha E1 nu1 etaB1 etaS1            | isotropic block; one Maxwell branch, the Kelvin unit mapped per isotropic mode X in {K, mu}: X_M = X0^2/(X0 + X1), eta_M = eta_K X0^2/(X0 + X1)^2 | [T_init, v, EV] (8), EV the Maxwell branch strain (not the Kelvin viscous strain of ZENER_closed)
  *
  * The other families (ELISO/ELIST/ELORT, EPHIL/EPTRI/EPHAC/EPANI/EPDFA/EPCHG/EPHIN) are listed in
  * docs/simulation/umat_catalog.rst; a_i are back-strains (engineering shear), EV_i branch strains.

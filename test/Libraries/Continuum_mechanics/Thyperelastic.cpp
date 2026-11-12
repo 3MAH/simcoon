@@ -349,7 +349,27 @@ TEST(Thyperelastic, L_iso_hyper_invariants_skips_only_zero_terms)
     for (const auto &c : coefs) {
         const mat L = L_iso_hyper_invariants(c[0], c[1], c[2], c[3], c[4], b, J);
         const mat L_ref = L_iso_hyper_invariants_full(c[0], c[1], c[2], c[3], c[4], b, J);
-        EXPECT_LT(abs(L - L_ref).max(), 1.E-15*abs(L_ref).max());
+        EXPECT_LT(abs(L - L_ref).max(), 1.E-13*abs(L_ref).max());   // the reference keeps the difference form of the I_2 terms
+    }
+}
+
+TEST(Thyperelastic, I2_terms_exact_at_large_stretch)
+{
+    // Uniaxial stretch lambda along e1 at constant volume: b_bar = diag(l^2, 1/l, 1/l), I_2 = 2 l + 1/l^2,
+    // tr(b_bar) dev(b_bar) - dev(b_bar^2) = -dev(b_bar^-1) = -dev(diag(1/l^2, l, l)). The difference form
+    // cancels two O(l^4) terms into O(l) and keeps 16 - 3 log10(l) digits; the cofactor form keeps 16.
+    for (const double l : {10., 100., 1000.}) {
+        const mat b = diagmat(vec({l*l, 1./l, 1./l}));
+        const vec I = isochoric_invariants(b, 1.);
+        EXPECT_LT(fabs(I(1) - (2.*l + 1./(l*l))), 1.E-15*I(1)) << l;
+        const mat tau = tau_iso_hyper_invariants(0., 1., b, 1.);
+        const mat inv_b = diagmat(vec({1./(l*l), l, l}));
+        const mat tau_ref = -2.*dev(inv_b);
+        EXPECT_LT(abs(tau - tau_ref).max(), 1.E-15*abs(tau_ref).max()) << l;
+        // gamma_22 = 4 dd (x) dd with dd the same vector: its (1,1) entry is 4 (dd_11)^2, dd_11 = -(1/l^2 - I_2/3)
+        const mat L = L_iso_hyper_invariants(0., 0., 0., 0., 1., b, 1.);
+        const double dd_11 = -(1./(l*l) - I(1)/3.);
+        EXPECT_LT(fabs(L(0,0) - 4.*dd_11*dd_11), 1.E-14*fabs(L(0,0))) << l;
     }
 }
 

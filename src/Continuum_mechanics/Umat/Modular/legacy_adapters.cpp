@@ -79,6 +79,25 @@ vec translate_PRONK(const vec& p) {
     return out;
 }
 
+vec translate_ZENER(const vec& p) {
+    // legacy: E0 nu0 alpha E1 nu1 etaB1 etaS1 (a Kelvin unit in series with the spring)  ->  the one-branch
+    // Maxwell composition, per isotropic mode X in {K, mu}: X_M = X0^2/(X0 + X1), eta_M = eta_K X0^2/(X0 + X1)^2
+    const double E0 = p(0), nu0 = p(1), E1 = p(3), nu1 = p(4);
+    const double K0 = E0/(3.*(1. - 2.*nu0)), mu0 = E0/(2.*(1. + nu0));
+    const double K1 = E1/(3.*(1. - 2.*nu1)), mu1 = E1/(2.*(1. + nu1));
+    const double KM = K0*K0/(K0 + K1), muM = mu0*mu0/(mu0 + mu1);
+    vec out(12);
+    out(0) = 0; out(1) = 0;
+    out(2) = E0; out(3) = nu0; out(4) = p(2);
+    out(5) = 1;
+    out(6) = 1; out(7) = 1;
+    out(8) = 9.*KM*muM/(3.*KM + muM);
+    out(9) = (3.*KM - 2.*muM)/(2.*(3.*KM + muM));
+    out(10) = p(5)*K0*K0/((K0 + K1)*(K0 + K1));
+    out(11) = p(6)*mu0*mu0/((mu0 + mu1)*(mu0 + mu1));
+    return out;
+}
+
 vec translate_EPKCP(const vec& p) {
     // legacy: E nu alpha sigmaY k m kX; legacy Prager X = kX*a (tensorial),
     // modular X = (2/3) C a  ->  C = 1.5 kX
@@ -204,6 +223,7 @@ const std::map<std::string, LegacyPropsTranslator>& registry() {
         {"EPICP", translate_EPICP},
         {"EPCHA", translate_EPCHA},
         {"PRONK", translate_PRONK},
+        {"ZENER", translate_ZENER},
         {"EPKCP", translate_EPKCP},
         {"EPHIL", translate_EPHIL},
         {"EPTRI", translate_EPHIL},

@@ -131,13 +131,12 @@ RunStats run_cpp(const CaseDef &cd, const mat &L, const vec &Eps) {
 
     ReturnMechanism m;
     m.Phi = [&](const vec &sig) { return cd.eqs(sig - X) - cd.H * p - sigY; };
-    m.dPhi_dsigma = [&](const vec &sig) { return cd.deqs(sig - X); };
+    m.dPhi_dsigma = [&](const vec &sig, vec &n) { n = cd.deqs(sig - X); };
     if (cd.kind == 2) {
         // Total derivative through the inner-consistent backstress (central FD of the map).
-        m.dLambda_dsigma = [&, sigma_tr](const vec &sig) {
+        m.dLambda_dsigma = [&, sigma_tr](const vec &sig, mat &D) {
             // capture-by-ref of p, a, X; the FD probes re-run the inner solve at fixed Dlambda = p
             const double h = 1.e-5 * (norm(sig, 2) + 1.);
-            mat D(6, 6);
             const double Dl = p;  // p = p_n(=0) + Dlambda at the current iterate
             auto solveX = [&](const vec &s) {
                 // fixed point on X: a' = (a_n + Dl*n(s-X'))/(1+Dl*D_kin), X' = C*(a'%Ir05)
@@ -157,10 +156,9 @@ RunStats run_cpp(const CaseDef &cd, const mat &L, const vec &Eps) {
                 sm(c6) -= h;
                 D.col(c6) = (solveX(sp) - solveX(sm)) / (2. * h);
             }
-            return D;
         };
     } else {
-        m.dLambda_dsigma = [&](const vec &sig) { return cd.ddeqs(sig - X); };
+        m.dLambda_dsigma = [&](const vec &sig, mat &D) { D = cd.ddeqs(sig - X); };
     }
 
     auto update_state = [&](const vec &sig, double Dl) {

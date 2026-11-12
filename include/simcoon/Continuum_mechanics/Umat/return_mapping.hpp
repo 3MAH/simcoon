@@ -75,6 +75,13 @@
  * needs its own combinatorial safeguard. Both would be variants of this function, not of
  * its callers.
  *
+ * @note The step on the reduced system goes through ncp_step with control.ncp: Fischer-Burmeister
+ * by default, the min step with its Fischer-Burmeister fallback under NCPMethod::min_fb_fallback.
+ * The root is the same whatever the function (the backward-Euler system above is path
+ * independent, unlike the cutting plane, which integrates the state along its iterates), so the
+ * min step is admitted here for every composition, Armstrong-Frederick back stresses included;
+ * the merit stays the Fischer-Burmeister residual.
+ *
  * @note The callbacks map one-to-one onto the modular StrainMechanism interface —
  * compute_constraints -> Phi, closest_point_ingredients -> dPhi_dsigma / dLambda_dsigma / K /
  * flow_state_coupling, refresh_state -> update_state — the overload over StrainMechanism rows
@@ -98,24 +105,27 @@ namespace simcoon {
  *
  * The internal state \f$ \mathbf{V} \f$ is OWNED BY THE CALLER (captured by reference in the
  * lambdas) and is refreshed through ReturnStateHooks::update_state before any of these
- * callbacks is invoked, so each callback only needs the stress argument.
+ * callbacks is invoked, so each callback only needs the stress argument. The callbacks write
+ * into buffers the solver owns (sized once per call, fixed 6 and 6x6): nothing is returned by
+ * value, no temporary is built per iteration.
  */
 struct ReturnMechanism {
     /// REQUIRED. Criterion value \f$ \Phi^j(\boldsymbol{\sigma}, \mathbf{V}) \f$.
     std::function<double(const arma::vec &sigma)> Phi;
-    /// REQUIRED. Criterion gradient \f$ \partial\Phi^j/\partial\boldsymbol{\sigma} \f$ (6).
-    std::function<arma::vec(const arma::vec &sigma)> dPhi_dsigma;
-    /// OPTIONAL. Strain-flow direction \f$ \boldsymbol{\Lambda}_\varepsilon^j \f$ (6).
-    /// Empty => associated flow (Lambda = dPhi_dsigma).
-    std::function<arma::vec(const arma::vec &sigma)> Lambda;
-    /// REQUIRED. TOTAL derivative \f$ \mathrm{d}\boldsymbol{\Lambda}_\varepsilon^j/
-    /// \mathrm{d}\boldsymbol{\sigma} \f$ (6x6, compliance-like Voigt type; not symmetric in
-    /// general): the Hessian of the criterion (deta_stress / ddHill_stress / ddDFA_stress /
-    /// ddAni_stress / ddDrucker_stress) for an associated flow without state, and for a
-    /// state-coupled mechanism the derivative of the inner-consistent map
+    /// REQUIRED. Writes the criterion gradient \f$ \partial\Phi^j/\partial\boldsymbol{\sigma} \f$
+    /// into @p n (6, sized by the solver).
+    std::function<void(const arma::vec &sigma, arma::vec &n)> dPhi_dsigma;
+    /// OPTIONAL. Writes the strain-flow direction \f$ \boldsymbol{\Lambda}_\varepsilon^j \f$
+    /// into @p Lambda (6). Empty => associated flow (Lambda = dPhi_dsigma).
+    std::function<void(const arma::vec &sigma, arma::vec &Lambda)> Lambda;
+    /// REQUIRED. Writes the TOTAL derivative \f$ \mathrm{d}\boldsymbol{\Lambda}_\varepsilon^j/
+    /// \mathrm{d}\boldsymbol{\sigma} \f$ into @p D (6x6, compliance-like Voigt type; not
+    /// symmetric in general): the Hessian of the criterion (deta_stress / ddHill_stress /
+    /// ddDFA_stress / ddAni_stress / ddDrucker_stress) for an associated flow without state, and
+    /// for a state-coupled mechanism the derivative of the inner-consistent map
     /// \f$ \boldsymbol{\sigma}' \mapsto \boldsymbol{\Lambda}(\boldsymbol{\sigma}',
     /// \hat{\mathbf{V}}(\boldsymbol{\sigma}', \Delta s)) \f$, state chain included.
-    std::function<arma::mat(const arma::vec &sigma)> dLambda_dsigma;
+    std::function<void(const arma::vec &sigma, arma::mat &D)> dLambda_dsigma;
 };
 
 /**
@@ -128,11 +138,12 @@ struct ReturnStateHooks {
     /// May be empty for state-free (perfect-plasticity-like) problems. Return false on inner
     /// non-convergence (aborts the outer iteration with converged = false).
     std::function<bool(const arma::vec &sigma, const arma::vec &Dlambda)> update_state;
-    /// REQUIRED. Hardening/state block \f$ \mathbf{K}^{lj} = \partial\Phi^l/\partial\mathbf{V}
-    /// \cdot \partial\mathbf{V}/\partial\Delta s^j \f$ (NxN) at the current iterate — the same
-    /// rows the CCP loops assemble.
-    std::function<arma::mat(const arma::vec &sigma, const arma::vec &Dlambda)> K;
-    /// OPTIONAL multiplier-side flow/state chain, N vectors of 6 (strain-typed):
+    /// REQUIRED. Writes the hardening/state block \f$ \mathbf{K}^{lj} = \partial\Phi^l/\partial\mathbf{V}
+    /// \cdot \partial\mathbf{V}/\partial\Delta s^j \f$ at the current iterate into @p K (NxN,
+    /// sized by the solver, every entry written) — the same rows the CCP loops assemble.
+    std::function<void(const arma::vec &sigma, const arma::vec &Dlambda, arma::mat &K)> K;
+    /// OPTIONAL multiplier-side flow/state chain, written column by column into @p dLambda_dDs
+    /// (6xN, sized by the solver, every column written; strain-typed):
     /// \f$ \sum_k \Delta s^k\,\partial\boldsymbol{\Lambda}^k/\partial\Delta s^j|_\sigma \f$ — the
     /// dependence of the inelastic flux on multiplier j through the state (backstress relaxation
     /// for its own flow; cross terms when the flow of another row reads that state). The function
@@ -140,7 +151,7 @@ struct ReturnStateHooks {
     /// tangent at the iterate and adds it to \f$ \boldsymbol{\kappa}^j \f$ in the Newton and in
     /// the tangent ingredients. Empty => omitted (superlinear instead of quadratic for
     /// state-coupled mechanisms; converged solution unaffected).
-    std::function<std::vector<arma::vec>(const arma::vec &sigma, const arma::vec &Dlambda)> flow_state_coupling;
+    std::function<void(const arma::vec &sigma, const arma::vec &Dlambda, arma::mat &dLambda_dDs)> flow_state_coupling;
     /// OPTIONAL nonlinear elastic block: given the elastic strain (6, engineering Voigt),
     /// return the stress (6) and the tangent (6x6). Empty => linear block, \f$ \mathbf{F} =
     /// \mathbf{L}\boldsymbol{\varepsilon}_e \f$ with the L of the call. When set, the caller
@@ -155,7 +166,7 @@ struct ReturnMappingControl {
     int    maxiter = 0;             ///< 0 => simcoon::maxiter_umat
     double precision = 0.;          ///< 0 => simcoon::precision_umat
     int    max_backtrack = 5;       ///< halvings of the Newton step when the merit grows by more than x2
-    NCPMethod ncp = NCPMethod::fischer_burmeister;   ///< complementarity function of the cutting plane (see ncp_step)
+    NCPMethod ncp = NCPMethod::fischer_burmeister;   ///< complementarity function of the local Newton, both integrators (see ncp_step)
 };
 
 /**

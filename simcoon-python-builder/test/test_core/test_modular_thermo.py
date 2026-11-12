@@ -13,7 +13,7 @@ import pytest
 import simcoon as sim
 from simcoon.modular import (ArmstrongFrederickHardening, Damage, IsotropicElasticity, ModularMaterial,
                              NeoHookeanElasticity, Plasticity, PowerLawHardening, PragerHardening,
-                             Viscoelasticity, VoceHardening, VonMisesYield)
+                             Viscoelasticity, VoceHardening, VonMisesYield, zener_as_maxwell)
 from simcoon.solver import Block, StepMeca, StepThermomeca, solve
 
 E, NU, ALPHA, SY, K, M, KX = 210000., 0.3, 1.2e-5, 300., 500., 0.4, 20000.
@@ -217,15 +217,7 @@ def _props_v(mat):
     return np.r_[RHO_V, C_P_V, mat.props]
 
 
-def _zener_as_maxwell(E0, nu0, E1, nu1, etaB, etaS):
-    """The Kelvin branch (L_1, H_1) in series with L_0 as the Maxwell branch in parallel with it, per
-    isotropic mode X in (K, G): X_1^M = X_0^2 / (X_0 + X_1), eta^M = eta^K X_0^2 / (X_0 + X_1)^2 (same
-    instantaneous and long-term moduli, same relaxation time)."""
-    K0, G0 = E0 / (3 * (1 - 2 * nu0)), E0 / (2 * (1 + nu0))
-    K1, G1 = E1 / (3 * (1 - 2 * nu1)), E1 / (2 * (1 + nu1))
-    K1m, G1m = K0 ** 2 / (K0 + K1), G0 ** 2 / (G0 + G1)
-    return (9 * K1m * G1m / (3 * K1m + G1m), (3 * K1m - 2 * G1m) / (2 * (3 * K1m + G1m)),
-            etaB * K0 ** 2 / (K0 + K1) ** 2, etaS * G0 ** 2 / (G0 + G1) ** 2)
+
 
 
 @pytest.mark.parametrize("thermal", ["adiabatic", "imposed"])
@@ -253,15 +245,18 @@ def test_viscoelastic_face_under_finite_strain_is_pronk_T(engine, form):
 
 @pytest.mark.parametrize("thermal", ["adiabatic", "imposed"])
 def test_zener_T_is_a_one_branch_maxwell_composition(thermal):
-    """ZENER_T (a Kelvin branch in series with the spring) is the Maxwell composition with the mapped
-    branch: same state ODE under a linear change of the viscous strain, so the same stress, works,
-    entropy and heat (to the round-off of the two inverses)."""
-    mat = ModularMaterial(IsotropicElasticity(E_V, NU_V, ALPHA_V), [Viscoelasticity((_zener_as_maxwell(E_V, NU_V, *BRANCH),))])
+    """ZENER_closed_T (a Kelvin branch in series with the spring) is the Maxwell composition with the
+    mapped branch: same state ODE under a linear change of the viscous strain, so the same stress,
+    works, entropy and heat (to the round-off of the two inverses). ZENER itself is that composition
+    through the adapter (the map in C++), to the round-off of the translated props."""
+    mat = ModularMaterial(IsotropicElasticity(E_V, NU_V, ALPHA_V), [Viscoelasticity((zener_as_maxwell(E_V, NU_V, *BRANCH),))])
     a = _run("MODUL", _props_v(mat), 8, thermal, time=2.)
-    b = _run("ZENER", ZENER, 8, thermal, time=2.)
+    b = _run("ZENER_closed", ZENER, 8, thermal, time=2.)
     _same(a, b, tol=1e-10)
     if thermal == "imposed":
         _same(a, b, keys=("r",), tol=1e-10)
+    c = _run("ZENER", ZENER, 8, thermal, time=2.)
+    _same(a, c, tol=1e-13)
 
 
 @pytest.mark.parametrize("mat, nstatev, tol", [(VISCO, 8, 1e-8), (VISCO_PRAGER, 21, 1e-5)])

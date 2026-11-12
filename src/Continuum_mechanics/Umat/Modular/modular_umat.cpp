@@ -105,10 +105,6 @@ DamageMechanism& ModularUMAT::add_damage(
 }
 
 void ModularUMAT::set_ncp(NCPMethod ncp) {
-    if (ncp == NCPMethod::min_fb_fallback && nonlinear_kinematic_) {
-        throw std::invalid_argument("MODUL: ncp='min' serves isotropic and linear (Prager) kinematic "
-                                    "hardening only, not Armstrong-Frederick back stresses");
-    }
     ncp_ = ncp;
 }
 
@@ -317,6 +313,12 @@ void ModularUMAT::run(
         for (auto& mech : mechanisms_) {
             mech->unpack(statev);
         }
+    }
+
+    if (ncp_ == NCPMethod::min_fb_fallback && nonlinear_kinematic_ && tangent_mode != tangent_closest_point) {
+        throw std::invalid_argument("MODUL: ncp='min' serves isotropic and linear (Prager) kinematic hardening "
+                                    "only under the cutting plane, not Armstrong-Frederick back stresses "
+                                    "(the closest point takes it)");   // the cutting plane integrates them along its iterates (set_ncp)
     }
 
     // Apply rotation for objectivity (DR = I under small strain: nothing to do)
@@ -605,28 +607,24 @@ ReturnMappingResult closest_point_return_mapping(
         }
         return true;
     };
-    hooks.K = [&](const arma::vec&, const arma::vec&) {
-        arma::mat K(N, N);
+    hooks.K = [&](const arma::vec&, const arma::vec&, arma::mat& K) {
         for (int l = 0; l < N; ++l) {
             for (int j = 0; j < N; ++j) {
                 K(l, j) = (l == j) ? ing[l]->K
                                    : mechanisms[row_mech[l]]->K_cross(row_c[l], *mechanisms[row_mech[j]], row_c[j]);
             }
         }
-        return K;
     };
-    hooks.flow_state_coupling = [&](const arma::vec&, const arma::vec& Dl) {
-        std::vector<arma::vec> c(N);
-        for (int k = 0; k < N; ++k) c[k] = Dl(k) * ing[k]->dLambda_dDs;
-        return c;
+    hooks.flow_state_coupling = [&](const arma::vec&, const arma::vec& Dl, arma::mat& dLdDs) {
+        for (int k = 0; k < N; ++k) dLdDs.col(k) = Dl(k) * ing[k]->dLambda_dDs;
     };
 
     std::vector<ReturnMechanism> mechs(N);
     for (int k = 0; k < N; ++k) {
         mechs[k].Phi = [&, k](const arma::vec&) { return ing[k]->Phi; };
-        mechs[k].dPhi_dsigma = [&, k](const arma::vec&) { return ing[k]->dPhi_dsigma; };
-        mechs[k].Lambda = [&, k](const arma::vec&) { return ing[k]->Lambda; };
-        mechs[k].dLambda_dsigma = [&, k](const arma::vec&) { return ing[k]->dLambda_dsigma; };
+        mechs[k].dPhi_dsigma = [&, k](const arma::vec&, arma::vec& n) { n = ing[k]->dPhi_dsigma; };
+        mechs[k].Lambda = [&, k](const arma::vec&, arma::vec& Lambda) { Lambda = ing[k]->Lambda; };
+        mechs[k].dLambda_dsigma = [&, k](const arma::vec&, arma::mat& D) { D = ing[k]->dLambda_dsigma; };
     }
 
     ReturnMappingResult r = closest_point_return_mapping(sigma_tr, L, mechs, hooks,
@@ -662,6 +660,7 @@ bool ModularUMAT::return_mapping_cpp(
     ReturnMappingControl control;
     control.maxiter = maxiter_;
     control.precision = precision_;
+    control.ncp = ncp_;
     // sigma_eff_ is the trial effective stress, L_cur_ the elastic tangent there.
     ReturnMappingResult r = closest_point_return_mapping(sigma_eff_, L_cur_, rows, mech_offset_,
                                                          Ds_total, Y_crit_all, std::move(hooks), control);

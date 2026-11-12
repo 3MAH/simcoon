@@ -36,6 +36,16 @@ namespace {
 int resolved_maxiter(const ReturnMappingControl &c) { return (c.maxiter > 0) ? c.maxiter : simcoon::maxiter_umat; }
 double resolved_precision(const ReturnMappingControl &c) { return (c.precision > 0.) ? c.precision : simcoon::precision_umat; }
 
+// per-row buffers of the Newton, sized once per call: the callbacks write into them
+struct RowScratch {
+    vec::fixed<6> n;          // criterion gradient n^l
+    vec::fixed<6> Lambda;     // flow direction
+    vec::fixed<6> kappa;      // L : Lambda
+    vec::fixed<6> c;          // L : (multiplier-side state chain)
+    vec::fixed<6> Minv_kc;    // M^-1 (kappa + c)
+    mat::fixed<6,6> D;        // dLambda/dsigma
+};
+
 // M += a A B for 6x6 operands, in place: no 6x6 temporary on the heap
 void add_scaled_product(mat::fixed<6,6> &M, const double a, const mat &A, const mat &B) {
     for (int k = 0; k < 6; k++) {
@@ -73,9 +83,9 @@ ReturnMappingResult closest_point_return_mapping(
 
     // Per-iterate evaluations at a state-consistent point.
     vec Phi(N);
-    std::vector<vec> n_l(N), Lambda_j(N), kappa(N);
-    std::vector<mat> D_j(N);
-    vec R_sigma(6);
+    std::vector<RowScratch> row(N);
+    mat K(N, N), dLdDs(6, N);
+    vec::fixed<6> R_sigma;
 
     // Elastic block: Lc is its tangent at the iterate (the given L for a linear block).
     mat Lc = L;
@@ -86,25 +96,29 @@ ReturnMappingResult closest_point_return_mapping(
     auto eval_basic = [&](const vec &sig, const vec &Dl) {
         for (int j = 0; j < N; j++) {
             Phi(j) = mechanisms[j].Phi(sig);
-            Lambda_j[j] = mechanisms[j].Lambda ? mechanisms[j].Lambda(sig) : mechanisms[j].dPhi_dsigma(sig);
+            if (mechanisms[j].Lambda) mechanisms[j].Lambda(sig, row[j].Lambda);
+            else mechanisms[j].dPhi_dsigma(sig, row[j].Lambda);
         }
         if (nonlinear_block) {
             eps_el = hooks.eps_el_tr;
-            for (int j = 0; j < N; j++) eps_el -= Dl(j) * Lambda_j[j];
+            for (int j = 0; j < N; j++) eps_el -= Dl(j) * row[j].Lambda;
             hooks.elastic_response(eps_el, sigma_F, Lc);
             R_sigma = sig - sigma_F;
-            for (int j = 0; j < N; j++) kappa[j] = Lc * Lambda_j[j];
+            for (int j = 0; j < N; j++) row[j].kappa = Lc * row[j].Lambda;
         } else {
             R_sigma = sig - sigma_tr;
             for (int j = 0; j < N; j++) {
-                kappa[j] = L * Lambda_j[j];
-                R_sigma += Dl(j) * kappa[j];
+                row[j].kappa = L * row[j].Lambda;
+                R_sigma += Dl(j) * row[j].kappa;
             }
         }
     };
 
     auto eval_gradients = [&](const vec &sig) {
-        for (int j = 0; j < N; j++) n_l[j] = mechanisms[j].Lambda ? mechanisms[j].dPhi_dsigma(sig) : Lambda_j[j];
+        for (int j = 0; j < N; j++) {
+            if (mechanisms[j].Lambda) mechanisms[j].dPhi_dsigma(sig, row[j].n);
+            else row[j].n = row[j].Lambda;
+        }
     };
 
     if (!refresh(r.sigma, r.Dlambda)) return r;
@@ -112,26 +126,32 @@ ReturnMappingResult closest_point_return_mapping(
 
     // Tangent ingredients at the converged iterate from the pieces the Newton just built
     // (kappa_eff = kappa + c: the multiplier-side state chain enters through the flux).
-    auto fill_tangent_pieces = [&](const mat &K, const std::vector<mat> &D, const std::vector<vec> &c) {
+    auto fill_tangent_pieces = [&]() {
         r.Bhat_continuum.set_size(N, N);
         r.kappa_j.set_size(6, N);
         r.dPhidsigma_l.set_size(6, N);
         r.dLambda_dsigma_l.set_size(6, 6 * N);
+        vec::fixed<6> kappa_c;
         for (int j = 0; j < N; j++) {
-            const vec kappa_c = kappa[j] + c[j];
+            kappa_c = row[j].kappa + row[j].c;
             r.kappa_j.col(j) = kappa_c;
-            r.dPhidsigma_l.col(j) = n_l[j];
-            r.dLambda_dsigma_l.cols(6 * j, 6 * j + 5) = D[j];
+            r.dPhidsigma_l.col(j) = row[j].n;
+            r.dLambda_dsigma_l.cols(6 * j, 6 * j + 5) = row[j].D;
             for (int l = 0; l < N; l++) {
-                r.Bhat_continuum(l, j) = sum(n_l[l] % kappa_c) - K(l, j);
+                r.Bhat_continuum(l, j) = sum(row[l].n % kappa_c) - K(l, j);
             }
         }
     };
 
     // admissible trial: return it; Dlambda = 0 masks every mechanism, so no state callbacks
     if (Phi.max() <= 0.) {
-        n_l.assign(N, zeros(6));   // masked by Dlambda = 0 in the assembly: the gradients are not evaluated
-        fill_tangent_pieces(zeros(N, N), std::vector<mat>(N, zeros(6, 6)), std::vector<vec>(N, zeros(6)));
+        for (int j = 0; j < N; j++) {   // masked by Dlambda = 0 in the assembly: the gradients are not evaluated
+            row[j].n.zeros();
+            row[j].D.zeros();
+            row[j].c.zeros();
+        }
+        K.zeros();
+        fill_tangent_pieces();
         r.converged = true;
         return r;
     }
@@ -139,49 +159,43 @@ ReturnMappingResult closest_point_return_mapping(
     const int snap_niter = 20;   // plain Newton gets this many iterations before the snap may act
     r.error_history.reserve(8);  // a converging solve takes a handful of iterations
 
-    // buffers sized once; M factorized on the stack (small_lu)
-    std::vector<vec> c(N, zeros(6));
-    std::vector<vec> Minv_kc(N, zeros(6));   // M^-1 (kappa_j + c_j), for B_red and the stress step
+    // M factorized on the stack (small_lu)
     mat::fixed<6,6> M;
     small_lu<6> lu_M;
     vec Phi_red(N), dDl(N), Dl_old(N), Dl_fb, dDl_a;
     mat B_red(N, N);
     vec::fixed<6> MinvR, dsigma, sigma_old;
     uvec active(N);
-
+    ncp_step local_step(control.ncp);   // Fischer-Burmeister, or the min step with its fallback: the same root
     for (r.niter = 0; r.niter < maxiter; r.niter++) {
 
         // Newton ingredients at the current (state-consistent) iterate.
         eval_gradients(r.sigma);
-        mat K = hooks.K ? hooks.K(r.sigma, r.Dlambda) : zeros(N, N);
+        if (hooks.K) hooks.K(r.sigma, r.Dlambda, K);
+        else K.zeros();
         M.eye();
         for (int j = 0; j < N; j++) {
-            if (mechanisms[j].dLambda_dsigma) {
-                D_j[j] = mechanisms[j].dLambda_dsigma(r.sigma);
-            }
-            else {
-                D_j[j].zeros(6, 6);
-            }
-            add_scaled_product(M, r.Dlambda(j), Lc, D_j[j]);
+            if (mechanisms[j].dLambda_dsigma) mechanisms[j].dLambda_dsigma(r.sigma, row[j].D);
+            else row[j].D.zeros();
+            add_scaled_product(M, r.Dlambda(j), Lc, row[j].D);
         }
         if (!lu_M.factor(M)) return r;   // condensation breakdown: caller step-cuts
-
-        for (int j = 0; j < N; j++) c[j].zeros();
         if (hooks.flow_state_coupling) {
-            const std::vector<vec> dLambda = hooks.flow_state_coupling(r.sigma, r.Dlambda);
-            for (int j = 0; j < N && j < int(dLambda.size()); j++) c[j] = Lc * dLambda[j];
+            hooks.flow_state_coupling(r.sigma, r.Dlambda, dLdDs);
+            for (int j = 0; j < N; j++) row[j].c = Lc * dLdDs.col(j);
+        } else {
+            for (int j = 0; j < N; j++) row[j].c.zeros();
         }
-
         MinvR = R_sigma;
         lu_M.solve_in_place(MinvR.memptr());
         for (int j = 0; j < N; j++) {
-            Minv_kc[j] = kappa[j] + c[j];
-            lu_M.solve_in_place(Minv_kc[j].memptr());
+            row[j].Minv_kc = row[j].kappa + row[j].c;
+            lu_M.solve_in_place(row[j].Minv_kc.memptr());
         }
         for (int l = 0; l < N; l++) {
-            Phi_red(l) = Phi(l) - sum(n_l[l] % MinvR);
+            Phi_red(l) = Phi(l) - sum(row[l].n % MinvR);
             for (int j = 0; j < N; j++) {
-                B_red(l, j) = -sum(n_l[l] % Minv_kc[j]) + K(l, j);
+                B_red(l, j) = -sum(row[l].n % row[j].Minv_kc) + K(l, j);
             }
         }
 
@@ -191,7 +205,7 @@ ReturnMappingResult closest_point_return_mapping(
         r.error_history.push_back(err);
         r.error = err;
         if (err < precision) {
-            fill_tangent_pieces(K, D_j, c);
+            fill_tangent_pieces();
             r.converged = true;
             return r;
         }
@@ -207,12 +221,12 @@ ReturnMappingResult closest_point_return_mapping(
             try {
                 if (int(n_active) == N) {   // every row active: no gather
                     Dl_fb = r.Dlambda;
-                    Fischer_Burmeister_m(Phi_red, Y_crit, B_red, Dl_fb, dDl, err_fb_unused);
+                    local_step(Phi_red, Y_crit, B_red, Dl_fb, dDl, err_fb_unused);
                 } else {
                     const uvec act = active.head(n_active);
                     Dl_fb = r.Dlambda(act);
                     dDl_a.set_size(n_active);
-                    Fischer_Burmeister_m(Phi_red(act), Y_crit(act), B_red(act, act), Dl_fb, dDl_a, err_fb_unused);
+                    local_step(Phi_red(act), Y_crit(act), B_red(act, act), Dl_fb, dDl_a, err_fb_unused);
                     dDl(act) = dDl_a;
                 }
             } catch (const std::exception &) {
@@ -221,7 +235,7 @@ ReturnMappingResult closest_point_return_mapping(
         }
 
         dsigma = -MinvR;
-        for (int j = 0; j < N; j++) dsigma -= dDl(j) * Minv_kc[j];
+        for (int j = 0; j < N; j++) dsigma -= dDl(j) * row[j].Minv_kc;
 
         // Backtracking on the merit: semi-smooth iterations are locally non-monotone, so the
         // step is halved only when the merit grows by more than x2.
@@ -281,14 +295,12 @@ ReturnMappingResult closest_point_return_mapping(
             return update_state(sig, Dl(0));
         };
     }
-    hooks.K = [&K_scalar](const vec &sig, const vec &Dl) {
-        mat K(1, 1);
+    hooks.K = [&K_scalar](const vec &sig, const vec &Dl, mat &K) {
         K(0, 0) = K_scalar ? K_scalar(sig, Dl(0)) : 0.;
-        return K;
     };
     if (flow_state_coupling) {
-        hooks.flow_state_coupling = [&flow_state_coupling](const vec &sig, const vec &Dl) {
-            return std::vector<vec>{flow_state_coupling(sig, Dl(0))};
+        hooks.flow_state_coupling = [&flow_state_coupling](const vec &sig, const vec &Dl, mat &dLdDs) {
+            dLdDs.col(0) = flow_state_coupling(sig, Dl(0));
         };
     }
     vec Y(1);

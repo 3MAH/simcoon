@@ -10,9 +10,6 @@ under **Unreleased**; the section takes the version number at the release.
 Known gaps and planned work, not yet in a release. An item moves to
 **Unreleased** with the pull request that closes it.
 
-- `ncp="min"` is refused with Armstrong-Frederick back stresses under the
-  cutting plane (path dependent); whether the closest point, which restarts
-  from the start of the step, lifts this is not verified.
 - `integrator="closest_point"` is provided with its algorithmic tangent only
   (`tangent_mode="algorithmic"`): its continuum operator is not implemented.
 - Other complementarity functions to measure against Fischer-Burmeister and
@@ -25,12 +22,9 @@ Known gaps and planned work, not yet in a release. An item moves to
   entry in the plugin API (law fed the logarithmic strain, returning tau, as the internal
   kernels) would let them run under NLGEOM.
 - Under the rounding policy of 2.4 (results move at the round-off level; the gate is
-  `dump_results.py compare --rtol 1e-11 --field-rtol Q=1e-5,r=1e-5`, the heat tables of the
-  thermomechanical SMA laws being differences of large terms; the zero-tolerance pass stays
-  available to pin a defect), still to do: the Fastor to Armadillo rewrite; the cofactor form `D = -dev(b_bar^-1)` of the I2 derivative of the
-  hyperelastic tangent, which loses 3 log10(lambda) digits in its current difference form at
-  large stretch; a reference scale emitted by the dumper for the heat tables instead of the
-  per-field tolerance. `mul6`/`mul66` keep their fixed order: they replace the BLAS, they do
+  `dump_results.py compare --rtol 1e-11`, the heat tables judged against the scale the dumper
+  stores with them; the zero-tolerance pass stays available to pin a defect), still to do: the
+  Fastor to Armadillo rewrite. `mul6`/`mul66` keep their fixed order: they replace the BLAS, they do
   not imitate it.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
@@ -39,14 +33,12 @@ Known gaps and planned work, not yet in a release. An item moves to
     MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA; NEOHI to confirm);
   - no MODUL equivalent yet: OGDEN, SNTVE, HYPOO, EPJCK, LLDM0, ZENNK (N >= 2: the
     Kelvin-to-Maxwell map has no closed form), the SMA family, the micromechanics schemes;
-    ZENER is a one-branch Maxwell composition by parameter map, no adapter written;
   - the thermomechanical dispatch (`umat_T`): `MODUL` has its face (every block, every
     mechanism) and serves EPICP, EPKCP and PRONK through adapters; under the cutting plane
     `MODUL` is 1.3x slower than EPICP_closed on plastic increments (J2: the generic algorithmic
     assembly where the dedicated kernel has the closed radial-return form) and within 10 % of
     EPKCP_closed (Prager) and PRONK_closed; under the closest point it is faster than the
-    dedicated kernels (0.9x), both running the generic solver (`benchmark/README.md`). Left on
-    that solver: its row callbacks return by value (one allocation per call).
+    dedicated kernels (0.9x), both running the generic solver (`benchmark/README.md`).
 
 ## Planned for 3.0
 
@@ -65,6 +57,12 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Breaking changes
 
+- C++ API of the closest-point solver (`return_mapping.hpp`): the row callbacks of
+  `ReturnMechanism` (`dPhi_dsigma`, `Lambda`, `dLambda_dsigma`) and the hooks `K` and
+  `flow_state_coupling` of `ReturnStateHooks` write into buffers the solver owns (a 6, a 6x6,
+  the NxN block, the 6xN state chain, sized once per call) instead of returning a `vec`, a
+  `mat` or a `std::vector<vec>` by value. `Phi`, `update_state`, `elastic_response` and the
+  single-mechanism overload are unchanged.
 - One registry of the law names (`umat_registry.hpp`, `umat_registry()`: for each name the kernel
   of each face of the dispatch as a `UmatKernel`, its finite-strain `umat_convention`, the
   condensed stress states `sim.umat` has validated and the elastic stiffness of `L_eff`)
@@ -163,6 +161,54 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Changed
 
+- `ncp="min"` under `integrator="closest_point"`: the closest point takes the min step (with its
+  Fischer-Burmeister fallback) on its reduced Newton system, for every composition the modular
+  engine serves and for `EPICP_closed`, Armstrong-Frederick back stresses included: one
+  backward-Euler system, the same root as Fischer-Burmeister. Measured on a coarse
+  non-proportional path (tension then shear, 5 and 20 increments): 1.5e-10 to 4e-10 relative
+  between the two steps for AF, Prager, J2 and EPICP_closed, where the cutting plane with
+  Fischer-Burmeister sits 1.3e-2 to 3.8e-2 from the closest point for AF. The refusal of
+  `ncp="min"` with an Armstrong-Frederick back stress stays under the cutting plane (it is
+  raised by `ModularUMAT::run` now, not `set_ncp`); the closest-point refusal of `ncp="min"`
+  is lifted (`check_ncp_serves` loses its `tangent_mode` argument). The Fischer-Burmeister
+  path is bit for bit. Measured on a batch of 997 points under the closest point (`sim.umat`,
+  one thread, six increments): MODUL with an Armstrong-Frederick back stress 34.0 to 25.5 ms
+  (-25 %), EPICP_closed 23.6 to 18.7 ms (-21 %), the two returns 4e-11 apart.
+- `benchmark/dump_results.py` stores a reference scale with the heat tables: `r_scale` for each
+  thermomechanical batch increment and `Q_scale` / `r_scale` for each solver history,
+  `|dWm_d| + |dWt| + |r|` per increment, the works the heat is a difference of; `compare`
+  judges `Q` and `r` against it when both dumps carry it, so the gate of the rounding policy is
+  `--rtol 1e-11` alone (`--field-rtol` stays for a table without a scale).
+- `ZENER` runs the modular engine (adapter `translate_ZENER`, `legacy_adapters.cpp`) on every
+  face: the Kelvin unit in series with the spring becomes one Maxwell branch, per isotropic mode
+  `X_M = X_0^2/(X_0 + X_1)`, `eta_M = eta_K X_0^2/(X_0 + X_1)^2` (`simcoon.modular.zener_as_maxwell`
+  gives the branch). The dedicated Kelvin kernel answers `ZENER_closed` (mechanical and
+  thermomechanical). Same instantaneous and long-term moduli and relaxation time: the response
+  moves at the round-off of the two inverses (measured 5e-15 relative on the relaxation path of
+  `PRONK_path.json`, below 1e-10 on the thermomechanical face, works and heat included). The statev layout keeps its count
+  (8) but `EV` (statev 2..7) is the Maxwell branch strain, not the Kelvin viscous strain of
+  `ZENER_closed`; `ZENER` gains the finite-strain route (log_R and the total form, as PRONK).
+  `bench_legacy_vs_modular.py` times the pair.
+- Speed of the closest point, bit for bit: the solver keeps one fixed-size scratch per row
+  (gradient, flow, `kappa`, state chain, `M^-1 kappa`, `dLambda/dsigma`) and the callbacks
+  write into it; no temporary, no `std::vector<vec>`, no `zeros(N, N)` per iteration. Measured
+  on the `sim.umat` / `sim.umat_T` loops of `benchmark/README.md` (2000 points, 1 thread,
+  median per plastic increment): EPICP_closed 4.92 to 4.23 us (-14 %, thermomechanical -15 %), MODUL
+  J2 4.85 to 3.71 us (-24 %, -16 %), EPKCP_closed thermomechanical -9 %, MODUL Prager -15 % /
+  -11 %, MODUL hyperelastic + J2 -11 % / -8 %. The MODUL/EPICP_closed ratio under the closest
+  point is now 0.88 (mechanical) and 0.96 (thermomechanical).
+- The `I_2` terms of the isochoric hyperelastic response (`isochoric_invariants`,
+  `tau_iso_hyper_invariants`, `L_iso_hyper_invariants`, hence every invariant-based kernel and
+  the hyperelastic block of `MODUL`) are evaluated in their cofactor form,
+  `I_1 dev(b_bar) - dev(b_bar^2) = -dev(cof b_bar)` and `I_2 = tr cof(b_bar)`, instead of the
+  difference of two `O(lambda^4)` terms. Measured against an extended-precision reference at a
+  stretch `lambda`: the difference form keeps `16 - 3 log10(lambda)` digits (1.5e-7 relative at
+  `lambda = 1000`), the cofactor form is exact to round-off in the principal frame and 3 to 10
+  times better in a rotated frame, where the representation of `b` itself sets the limit. Results
+  of the laws with an `I_2` dependence (MOORI, ISHAH, GETHH, SWANH) move at the round-off level
+  (measured on a uniaxial path to a log strain of 1.5: tangent below 6e-15 relative, work below
+  4e-16, stress below 2e-11 through the Newton of the stress-free components); every other law is
+  bit for bit.
 - Speed of the thermomechanical faces and of the closest point, results at round-off
   (`dump_results.py compare --rtol 1e-11` passes; the mechanical cutting plane is bit for
   bit): the transposed products of the heat derivatives go through `mul6_At`

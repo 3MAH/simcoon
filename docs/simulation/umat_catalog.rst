@@ -136,16 +136,21 @@ Small-strain mechanical models
        multiple surfaces correctly, so N >= 2 is now functional.
    * - ZENER
      - Standard linear solid, Poynting-Thomson (Kelvin) form: spring in series with one Kelvin-Voigt unit
-     - legacy (kept)
+     - modular (adapter); ``ZENER_closed`` runs the dedicated kernel
      - E0, nu0, alpha, E1, nu1, etaB1, etaS1
-     - No modular equivalent (Kelvin branches in series; the modular
-       viscoelasticity is a generalized Maxwell/Prony model)
+     - The adapter runs the one-branch Maxwell composition with the Kelvin unit
+       mapped per isotropic mode (:math:`X_M = X_0^2/(X_0 + X_1)`,
+       :math:`\eta_M = \eta_K X_0^2/(X_0 + X_1)^2`, ``simcoon.modular.zener_as_maxwell``):
+       same response to the round-off of the two inverses; the statev ``EV`` is then
+       the Maxwell branch strain, not the Kelvin viscous strain of the dedicated
+       kernel (``ZENER_closed``, mechanical and thermomechanical)
    * - ZENNK
      - Generalized KELVIN chain, N branches
      - legacy (kept)
      - E0, nu0, alpha, N, then per branch: E_i, nu_i, etaB_i, etaS_i
-     - Same rheology note as ZENER — NOT equivalent to PRONK despite the
-       identical props layout (measured 86% response difference)
+     - Kelvin units in series: NOT equivalent to PRONK despite the identical
+       props layout (measured 86% response difference); the Kelvin-to-Maxwell
+       map of ZENER has no closed form for N >= 2
    * - PRONK
      - Generalized Maxwell (Prony series), N branches
      - modular (adapter); ``PRONK_closed`` runs the dedicated kernel
@@ -706,8 +711,8 @@ by name, and the ``props`` stay those of the law.
 of the cutting plane from Fischer-Burmeister (``ncp="fischer_burmeister"``, the default, the
 historical results bit for bit) to the min function, the classic cutting-plane step. The modular
 engine (``MODUL`` and the legacy names it serves, mechanical and thermomechanical) and
-``EPICP_closed`` read it, in their cutting plane. Any other law, a mean-field model or the
-closest-point integrator raises ``ValueError`` for ``ncp="min"``.
+``EPICP_closed`` read it, in their cutting plane and in their closest point (the step of the
+reduced Newton). Any other law or a mean-field model raises ``ValueError`` for ``ncp="min"``.
 
 **Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
 The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
@@ -812,11 +817,15 @@ rows are coupled (off-diagonal terms of :math:`B`) and keep Fischer-Burmeister.
    * - ``MODUL`` with several yield surfaces (coupled)
      - no effect: Fischer-Burmeister is kept
    * - ``MODUL`` with an Armstrong-Frederick back stress
-     - refused (``ValueError``), see above
+     - refused (``ValueError``) under the cutting plane, see above; taken under the closest point
    * - any other law, any other thermomechanical block, a mean-field model
      - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
    * - ``integrator="closest_point"``
-     - refused (``ValueError``): the closest-point integrator keeps Fischer-Burmeister
+     - the min step on the reduced Newton system of the closest point, every composition
+       (Armstrong-Frederick included): one backward-Euler system, the same root as
+       Fischer-Burmeister (measured 1e-10 to 4e-10 on a coarse non-proportional path, the
+       local tolerance), where the cutting plane with Fischer-Burmeister sits 1 to 4 % away
+       for an Armstrong-Frederick back stress
 
 On a batch of :math:`10^4` EPICP points (``sim.umat``, one thread), one increment takes 20 ms
 with Fischer-Burmeister and 14 ms with ``ncp="min"``. On a cyclic uniaxial ``MODUL`` solve

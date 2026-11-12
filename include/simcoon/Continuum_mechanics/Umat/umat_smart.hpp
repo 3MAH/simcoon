@@ -510,15 +510,16 @@ bool material_tangent_serves(const std::string &umat_name);
 /**
  * @brief Checks the complementarity option of a run (solver_params::ncp, the @c ncp of
  *        @c sim.umat) against the law it drives: the default (0) passes for every law; min-NCP
- *        (1) only for the mechanical kernels whose cutting plane reads it, EPICP, EPKCP and MODUL
- *        (MODUL refuses it further for an Armstrong-Frederick back stress, ModularUMAT::set_ncp).
+ *        (1) only for the kernels whose local Newton reads it (kernel_reads_ncp: the modular
+ *        engine and the names it serves on both faces, EPICP_closed on the mechanical one), under
+ *        either integrator (MODUL refuses it further for an Armstrong-Frederick back stress under
+ *        the cutting plane, ModularUMAT::set_ncp).
  * @param umat_name the law of the run
  * @param ncp the NCPMethod code
- * @param thermomechanical a thermomechanical run (no thermomechanical kernel reads it)
+ * @param thermomechanical a thermomechanical run
  * @throw std::invalid_argument for a code other than 0 or 1, or a law that does not read it
  */
-void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical,
-                      const int &tangent_mode = tangent_default);
+void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical);
 
 /**
  * @brief Checks the closest-point integrator (kernel code tangent_closest_point) against the law it

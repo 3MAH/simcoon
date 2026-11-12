@@ -55,10 +55,22 @@ inline m33 b_bar_of(const mat &b, const double &J) {
     return b_bar;
 }
 
-// The first two isochoric invariants of b_bar, as isochoric_invariants
+// cof(b_bar) = b_bar^-1 (det b_bar = 1): six 2x2 minors, no difference of O(lambda^4) terms
+inline m33 cofactor_sym(const m33 &b) {
+    m33 c;
+    c(0,0) = b(1,1)*b(2,2) - b(1,2)*b(1,2);
+    c(1,1) = b(0,0)*b(2,2) - b(0,2)*b(0,2);
+    c(2,2) = b(0,0)*b(1,1) - b(0,1)*b(0,1);
+    c(0,1) = c(1,0) = b(0,2)*b(1,2) - b(0,1)*b(2,2);
+    c(0,2) = c(2,0) = b(0,1)*b(1,2) - b(0,2)*b(1,1);
+    c(1,2) = c(2,1) = b(0,1)*b(0,2) - b(0,0)*b(1,2);
+    return c;
+}
+
+// The first two isochoric invariants of b_bar, as isochoric_invariants: I2 = tr cof(b_bar)
 inline void bar_invariants(const m33 &b_bar, double &I1, double &I2) {
     I1 = trace(b_bar);
-    I2 = 0.5*(I1*I1 - trace(mul3(b_bar, b_bar)));
+    I2 = trace(cofactor_sym(b_bar));
 }
 
 double J_of_b(const mat &b, const double &mJ, const char *where) {
@@ -74,12 +86,11 @@ double J_of_b(const mat &b, const double &mJ, const char *where) {
     return J;
 }
 
-// 2 dW/dI1 dev(b_bar) + 2 dW/dI2 (tr(b_bar) dev(b_bar) - dev(b_bar^2)); a zero derivative skips its term
+// 2 dW/dI1 dev(b_bar) - 2 dW/dI2 dev(cof b_bar), the cofactor form of tr(b_bar) dev(b_bar) - dev(b_bar^2); a zero derivative skips its term
 m33 tau_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, const m33 &b_bar) {
-    const m33 dev_b_bar = dev(b_bar);
-    m33 tau = 2.*dWdI_1_bar*dev_b_bar;
+    m33 tau = 2.*dWdI_1_bar*dev(b_bar);
     if (dWdI_2_bar != 0.) {
-        tau += 2.*dWdI_2_bar*(trace(b_bar)*dev_b_bar - dev(mul3(b_bar, b_bar)));
+        tau -= 2.*dWdI_2_bar*dev(cofactor_sym(b_bar));
     }
     return tau;
 }
@@ -91,9 +102,8 @@ inline m66 sym_I(const double *a) {
 
 // L_iso_hyper_invariants without the 1/J, on the stack: the five gamma operators, each skipped with a zero derivative
 m66 L_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const m33 &b_bar) {
-    double I1, I2;
-    bar_invariants(b_bar, I1, I2);
-    double bv[6], a[6], a2[6], dd[6];
+    const double I1 = trace(b_bar);
+    double bv[6], a[6], dd[6];
     voigt_from_mat(bv, b_bar, voigt_shear_out(Tensor2Type::stress));
     dev_voigt(bv, a);
     m66 Lt(fill::zeros);
@@ -101,13 +111,14 @@ m66 L_iso_invariants_fixed(const double &dWdI_1_bar, const double &dWdI_2_bar, c
         Lt += (4./3.)*dWdI_1_bar*(I1*Idev() - sym_I(a));   // gamma_1
     }
     if (dWdI_2_bar != 0. || dW2dI_12_bar != 0. || dW2dI_22_bar != 0.) {
-        double b2v[6];
-        voigt_from_mat(b2v, mul3(b_bar, b_bar), voigt_shear_out(Tensor2Type::stress));
-        dev_voigt(b2v, a2);
-        for (int i = 0; i < 6; ++i) dd[i] = I1*a[i] - a2[i];   // Voigt form of I1 dev(b_bar) - dev(b_bar^2)
+        const m33 cof = cofactor_sym(b_bar);
+        double cv[6];
+        voigt_from_mat(cv, cof, voigt_shear_out(Tensor2Type::stress));
+        dev_voigt(cv, dd);
+        for (int i = 0; i < 6; ++i) dd[i] = -dd[i];   // I1 dev(b_bar) - dev(b_bar^2) = -dev(cof b_bar)
         if (dWdI_2_bar != 0.) {
-            // gamma_2 = (8/3) (I2 (I_real - 2 I_vol) - I1 (a (x) I + I (x) a) + (a2 (x) I + I (x) a2)) + 4 (b (x) b - H(b))
-            Lt += dWdI_2_bar*((8./3.)*(I2*(Ireal() - 2.*Ivol()) - I1*sym_I(a) + sym_I(a2))
+            // gamma_2 = (8/3) (I2 (I_real - 2 I_vol) - (dd (x) I + I (x) dd)) + 4 (b (x) b - H(b)), I2 = tr cof(b_bar)
+            Lt += dWdI_2_bar*((8./3.)*(trace(cof)*(Ireal() - 2.*Ivol()) - sym_I(dd))
                               + 4.*(outer6(bv, bv) - auto_sym_dyadic_operator(b_bar)));
         }
     }

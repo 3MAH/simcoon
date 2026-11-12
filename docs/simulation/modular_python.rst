@@ -288,7 +288,8 @@ forces :math:`\mathbf{A}_i = \mathbf{L}_i (\boldsymbol{\varepsilon} - \boldsymbo
 \mathbf{E}^v_i)`, its heat derivatives exact (linear branches, nothing held fixed): a Maxwell
 composition is ``PRONK`` to round-off, and ``ZENER`` (a Kelvin branch in series with the spring)
 is the one-branch Maxwell composition with, per isotropic mode :math:`X \in \{K, G\}`,
-:math:`X_1^M = X_0^2/(X_0 + X_1)` and :math:`\eta^M = \eta^K X_0^2/(X_0 + X_1)^2`.
+:math:`X_1^M = X_0^2/(X_0 + X_1)` and :math:`\eta^M = \eta^K X_0^2/(X_0 + X_1)^2` (the map
+its adapter applies; :func:`simcoon.modular.zener_as_maxwell` gives the branch).
 A damage mechanism dissipates the trapezoid :math:`\tfrac12 (Y_n + Y_{n+1})\,\Delta D` on its
 driving force (exact for the linear law), its heat derivatives written on the effective stress.
 A hyperelastic block carries its temperature dependence through the ``omega`` keyword of the

@@ -247,7 +247,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
 		// ncp: complementarity function of the local cutting plane, by name (NCPMethod)
 		const int ncp = ncp_code(ncp_name, "umat");
-		simcoon::check_ncp_serves(umat_name_py, ncp, false, tangent_mode);
+		simcoon::check_ncp_serves(umat_name_py, ncp, false);
 		simcoon::check_integrator_serves(umat_name_py, tangent_mode, false);
 		// kinematic_form and corate (its former name) are one value; the dispatch carries the
 		// total formulation in the corate slot
@@ -775,7 +775,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
 		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
 		const int ncp = ncp_code(ncp_name, "umat_T");
-		simcoon::check_ncp_serves(umat_name_py, ncp, true, tangent_mode);
+		simcoon::check_ncp_serves(umat_name_py, ncp, true);
 		simcoon::check_integrator_serves(umat_name_py, tangent_mode, true);
 		const simcoon::umat_entry *entry = simcoon::umat_entry_of(umat_name_py);   // the registry select_umat_T reads
 		if (entry == nullptr || entry->thermomechanical == simcoon::UmatKernel::none) {

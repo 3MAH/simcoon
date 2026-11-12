@@ -102,7 +102,8 @@ const std::map<std::string, umat_entry> &umat_registry()
         {"SMAMC",       {K::sma_mono,          K::none,               K::none}},
         {"LLDM0",       {K::damage_LLD0,       K::none,               K::none}},
         // --- viscoelasticity ---
-        {"ZENER",       {K::zener,             K::none,               K::zener,                {},                                 C::rate}},
+        {"ZENER",       {K::legacy_modular,    K::legacy_modular,     K::legacy_modular,       box_undeclared(),                   C::rate}},   // one Maxwell branch by parameter map
+        {"ZENER_closed",{K::zener,             K::none,               K::zener}},
         {"ZENNK",       {K::zener_N,           K::none,               K::zener_N,              {},                                 C::rate}},
         {"PRONK",       {K::legacy_modular,    K::legacy_modular,     K::legacy_modular,       box_undeclared(),                   C::rate}},   // one block per branch: no declared layout
         {"PRONK_closed",{K::prony_N,           K::none,               K::prony_N}},
