@@ -10,9 +10,30 @@ You can develop such an external plugin using the Simcoon API. Three plugin form
 
 Examples are provided in the ``external/`` folder.
 
-The plugins serve the small-strain route of the solver: under finite strain (control ``green_lagrange``,
-``logarithmic``, ``biot``, ``F`` or ``gradU``) the solver refuses them, since the plugin
-API has no finite-strain entry.
+The plugins serve the small-strain route of the solver and, since 2.5, its finite-strain route
+(control ``green_lagrange``, ``logarithmic``, ``biot``, ``F`` or ``gradU``) as log-strain boxes in
+the material frame, with the same entry points:
+
+- **UMEXT** receives the logarithmic strain :math:`\mathbf{e} = \ln \mathbf{V}` in ``Etot`` /
+  ``DEtot`` and must return the Kirchhoff stress :math:`\boldsymbol{\tau}` in ``sigma`` and the box
+  tangent in ``Lt``, exactly like the built-in small-strain kernels and ``PYEXT``: a law written for
+  small strains runs unchanged under NLGEOM.
+- **UMABA** and **UMANS** keep their host conventions: the logarithmic strain comes in the strain
+  slots, the start stress is the Cauchy stress :math:`\boldsymbol{\tau}_n / J_n`, they return the
+  Cauchy stress (the route forms :math:`\boldsymbol{\tau} = J \boldsymbol{\sigma}`) and their own
+  Jacobian, converted to the box of the solver's corate: Abaqus ``DDSDDE`` is
+  :math:`\frac{1}{J}\,\partial(J\boldsymbol{\sigma})/\partial\boldsymbol{\varepsilon}` in the Jaumann rate
+  (a UMAT written for NLGEOM carries the :math:`\boldsymbol{\sigma} \otimes \mathbf{I}` term, as the
+  sample ``UMAT_ABAQUS_ELASTIC.f`` does), Ansys ``dsdePl`` is
+  :math:`\partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon}` in the Green-Naghdi rate. Both
+  rates are fixed by the host, not options. The hosts return symmetric Jacobians, so the converted
+  box is the symmetric part of the exact tangent (an exact Newton for a hyperelastic host law, a
+  symmetric approximation for a hypoelastic one). ``Wm`` is the Kirchhoff work; ``Wm_ir`` and
+  ``Wm_d`` are the host's.
+
+The statev layout of a plugin is not declared: corates 0 to 3 are served, and the total formulation
+for UMEXT; the convected rates 4 and 5 are refused by name. ``sim.umat`` does not serve the plugins
+(the solver does).
 
 UMEXT Plugin Format
 -------------------

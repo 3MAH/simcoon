@@ -78,15 +78,20 @@ TEST(UmatRegistry, ClosedNamesPairWithTheirAdapterName) {
 }
 
 // The one thing the convention table exists to prevent: a kernel on the finite route whose stress
-// and tangent meanings are not stated. Every finite kernel is Kirchhoff-native (HYPOO included: it
-// integrates the Kirchhoff rate), a box kernel runs in the material frame, a kernel built on F
-// has the material tangent, and the external plugins stay off the finite route.
+// and tangent meanings are not stated. Every native finite kernel is Kirchhoff-native (HYPOO included:
+// it integrates the Kirchhoff rate), a box kernel runs in the material frame, a kernel built on F
+// has the material tangent. The external plugins are boxes without a declared layout: UMEXT in the
+// simcoon convention (Kirchhoff, as PYEXT), the host plugins in theirs (Cauchy, converted by the dispatch).
 TEST(UmatRegistry, EveryFiniteKernelDeclaresKirchhoffConventions) {
     int finite = 0;
     for (const auto &[name, entry] : umat_registry()) {
         if (is_plugin(entry.mechanical)) {
-            EXPECT_EQ(entry.finite, K::none) << name << " must stay off the finite route";
-            EXPECT_FALSE(stress_output_is_kirchhoff(name)) << name;
+            EXPECT_EQ(entry.finite, entry.mechanical) << name << " serves the finite route as a box";
+            const umat_convention conv = output_convention_of(name);
+            EXPECT_TRUE(conv.material_frame && !conv.layout_declared && !conv.material_tangent) << name;
+            const bool kirchhoff = (entry.mechanical == K::plugin_ext);
+            EXPECT_EQ(conv.stress, kirchhoff ? StressMeasure::kirchhoff : StressMeasure::cauchy) << name;
+            EXPECT_EQ(stress_output_is_kirchhoff(name), kirchhoff) << name;
             continue;
         }
         if (entry.finite == K::none) {

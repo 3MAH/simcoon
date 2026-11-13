@@ -45,7 +45,8 @@ namespace simcoon{
  * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume. It is the default route
  * stress, and \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed at the output
  * boundaries only. @c cauchy is the contract of a kernel whose convention belongs to a host code
- * (none on the finite route today: the external plugins serve the small-strain route only).
+ * (the Abaqus and Ansys plugins): the finite dispatch hands it \f$ \sigma_n = \tau_n / J_n \f$ and
+ * converts its stress back (\f$ \tau = J \sigma \f$) and its tangent (the host's rate) to the route.
  */
 enum class StressMeasure { kirchhoff, cauchy };
 

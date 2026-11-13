@@ -15,6 +15,7 @@
 !     name incorrectly, the compiler won't catch your typo.
 !
       CHARACTER*80 CMNAME
+      LOGICAL nlgeom
       DIMENSION STRESS(NTENS),STATEV(NSTATV),
      1 DDSDDE(NTENS,NTENS),DDSDDT(NTENS),DRPLDE(NTENS),
      2 STRAN(NTENS),DSTRAN(NTENS),TIME(2),PREDEF(1),DPRED(1),
@@ -296,6 +297,28 @@
           stress(i) = stress(i) + ddsdde(i,j)*dstran(j)
         end do
        end do
+!
+!     Under NLGEOM (DFGRD1 is not the identity) the Jacobian is
+!     (1/J) d(J sigma)/d eps = d sigma/d eps + sigma (x) I: add the symmetric
+!     part of the second term (the default symmetric solver keeps it)
+      nlgeom = .false.
+      do i = 1,3
+        do j = 1,3
+          if (i.eq.j) then
+            if (abs(dfgrd1(i,j)-1.d0).gt.1.d-12) nlgeom = .true.
+          else
+            if (abs(dfgrd1(i,j)).gt.1.d-12) nlgeom = .true.
+          endif
+        end do
+      end do
+      if (nlgeom) then
+       do i = 1,ntens
+        do j = 1,ndi
+          ddsdde(i,j) = ddsdde(i,j) + 0.5d0*stress(i)
+          ddsdde(j,i) = ddsdde(j,i) + 0.5d0*stress(i)
+        end do
+       end do
+      endif
 
       do i = 1,ntens
         statev(1) = statev(1) + 0.5*stress(i)*dstran(i) !Wm
