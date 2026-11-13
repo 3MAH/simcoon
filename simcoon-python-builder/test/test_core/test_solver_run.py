@@ -623,7 +623,9 @@ _ELASTIC = np.array([70000., 0.3, 0.])
 def _plugin_cwd(name, monkeypatch):
     d = _PLUGIN_DIR[name]
     lib = "umat_plugin_ext" if name == "UMEXT" else ("umat_plugin_aba" if name == "UMABA" else "umat_plugin_ans")
-    if not any((d / "external").glob(f"*{lib}*")):
+    # the built library only (the sources sit next to it): lib<name>.so / .dylib, <name>.dll
+    built = [f for suffix in (".so", ".dylib", ".dll") for f in (d / "external").glob(f"*{lib}{suffix}")]
+    if not built:
         pytest.skip(f"{name}: plugin library not built in {d / 'external'}")
     monkeypatch.chdir(d)
 
