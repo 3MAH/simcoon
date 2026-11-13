@@ -21,7 +21,6 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
-#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/Simulation/Maths/small_voigt.hpp>
@@ -29,7 +28,6 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
-#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
@@ -367,12 +365,10 @@ mat dyadic_4vectors_sym(const vec &n_a, const vec &n_b, const std::string  &conv
 }
 
 mat dyadic(const mat &A, const mat &B) {
-    // C_ijkl = A_ij * B_kl — full outer product, then extract Voigt 6x6
-    auto A_ = arma_to_fastor2(mat::fixed<3,3>(A));  // auto-detects symmetry
-    auto B_ = arma_to_fastor2(mat::fixed<3,3>(B));
-    enum {i,j,k,l};
-    auto C = Fastor::einsum<Fastor::Index<i,j>, Fastor::Index<k,l>>(A_, B_);
-    return fastor4_to_voigt(C);
+    // C_ijkl = A_ij B_kl on the symmetric parts (t2v_sym averages the off-diagonal pair)
+    vec A_v = t2v_sym(A);
+    vec B_v = t2v_sym(B);
+    return outer6(A_v.memptr(), B_v.memptr());
 }
 
 mat::fixed<6,6> auto_sym_dyadic_operator(const mat::fixed<3,3> &A) {

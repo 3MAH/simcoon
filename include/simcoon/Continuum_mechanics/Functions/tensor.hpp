@@ -20,8 +20,6 @@
 #include <armadillo>
 #include <string>
 #include <stdexcept>
-#include <optional>
-#include <Fastor/Fastor.h>
 #include <simcoon/Simulation/Maths/small_voigt.hpp>
 #include <simcoon/Simulation/Maths/small_dense.hpp>
 
@@ -331,11 +329,6 @@ public:
      */
     arma::vec::fixed<6> mandel() const;
 
-    /**
-     * @brief Convert to Fastor::Tensor<double,3,3>, handling row/col-major layout.
-     */
-    Fastor::Tensor<double,3,3> fastor() const;
-
     /// True if the stored 3x3 is symmetric within @p tol.
     bool is_symmetric(double tol = 1e-12) const;
 
@@ -469,14 +462,16 @@ tensor2 abs(const tensor2 &t);
 tensor2 trans(const tensor2 &t);
 
 /**
- * @brief A 4th-order tensor stored in the Kelvin-Mandel convention, with a type tag and lazy Fastor cache.
+ * @brief A 4th-order tensor stored in the Kelvin-Mandel convention, with a type tag.
  *
  * Storage: arma::mat::fixed<6,6> in Mandel (sqrt2 on shear rows/cols), so matrix algebra
  * equals tensor algebra (identity = eye(6), inverse = arma::inv, rotation = orthogonal
  * R6 * X * R6^T). The engineering Voigt form is exposed at the boundary via mat()/set_mat();
  * the per-type engineering<->Mandel congruence is documented on Tensor4Type.
- * Fastor Tensor<double,3,3,3,3> (the convention-free full-index tensor) is lazily computed
- * and cached for push_forward/pull_back.
+ *
+ * Every transport is a Mandel congruence \f$ \mathbb{Q}\,\mathbb{C}\,\mathbb{Q}^T \f$ with
+ * \f$ \mathbb{Q} \f$ the 6x6 Mandel matrix of \f$ \mathbf{X} \mapsto \mathbf{Q}\mathbf{X}\mathbf{Q}^T \f$
+ * (see push_forward): the full-index products of the theory are never formed.
  *
  * @details **Basis.** As for tensor2, the components are those in the fixed orthonormal lab
  * basis. The Kelvin-Mandel shortcuts above (identity = eye(6), projectors, rotation as an
@@ -486,19 +481,12 @@ tensor2 trans(const tensor2 &t);
  * `push_forward` / `pull_back`: stiffness contravariant on its four indices, compliance
  * covariant, concentration tensors mixed.
  *
- * @warning NOT thread-safe. The mutable Fastor cache is lazily populated by const
- *          methods (fastor(), push_forward(), pull_back()) without synchronization.
- *          Do not share a single tensor4 instance across threads without external
- *          locking. Creating separate tensor4 objects per thread is safe.
+ * Const methods do not mutate the object: a tensor4 can be read from several threads.
  */
 class tensor4 {
 private:
     arma::mat::fixed<6,6> _mandel;   ///< Kelvin-Mandel 6x6 (sqrt2 on shear); engineering form via mat()
     Tensor4Type _type;
-    mutable std::optional<Fastor::Tensor<double,3,3,3,3>> _fastor;
-
-    void _invalidate_fastor() { _fastor.reset(); }
-    void _ensure_fastor() const;
 
 public:
     /// Wrap an already-Mandel 6x6 directly (skips the engineering->Mandel congruence).
@@ -534,8 +522,6 @@ public:
     /// Zero tensor factory.
     static tensor4 zeros(Tensor4Type type = Tensor4Type::stiffness);
 
-    // Copy/move (memberwise is correct: the _fastor cache is derived from _mandel,
-    // which is copied/moved in the same operation)
     tensor4(const tensor4 &other) = default;
     tensor4(tensor4 &&other) noexcept = default;
     tensor4& operator=(const tensor4 &other) = default;
@@ -559,11 +545,6 @@ public:
     /// The tensor4 type tag.
     Tensor4Type type() const { return _type; }
 
-    /**
-     * @brief Get the cached Fastor 3x3x3x3 tensor (lazy recomputation if dirty).
-     */
-    const Fastor::Tensor<double,3,3,3,3>& fastor() const;
-
     // Conversion
     arma::mat to_arma_mat() const { return arma::mat(mat()); }
 
@@ -583,14 +564,25 @@ public:
     /**
      * @brief Push-forward to the spatial configuration. Kernel branches on Tensor4Type:
      *   - stiffness / generic (contravariant):
-     *       C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN, scaled by 1/J if metric=true
+     *       \f$ C'^{ijkl} = F_{iA} F_{jB} F_{kC} F_{lD}\, C^{ABCD} \f$, scaled by \f$ 1/J \f$ if metric=true
      *   - compliance (covariant):
-     *       M'_isrp = (F^{-T})_iL (F^{-T})_sJ (F^{-T})_rM (F^{-T})_pN M_LJMN, scaled by J
+     *       \f$ M'_{ijkl} = F^{-T}_{iA} F^{-T}_{jB} F^{-T}_{kC} F^{-T}_{lD}\, M_{ABCD} \f$, scaled by \f$ J \f$
      *   - strain_concentration / stress_concentration: not implemented (mixed indices)
      *
-     * The compliance kernel is what makes inverse(K).push_forward(F) ≡ inverse(K.push_forward(F))
+     * Computed as the Mandel congruence \f$ \mathbb{Q}_{\mathbf{K}}\,\mathbb{C}\,\mathbb{Q}_{\mathbf{K}}^T \f$,
+     * \f$ \mathbf{K} \f$ the kernel above (\f$ \mathbf{F} \f$ or \f$ \mathbf{F}^{-T} \f$) and
+     * \f[
+     *   (\mathbb{Q}_{\mathbf{K}})_{IJ} = \frac{c_I}{c_J}\left( K_{ik} K_{jl} + (1-\delta_{kl})\, K_{il} K_{jk} \right),
+     *   \quad I = (ij),\ J = (kl),\ c = (1,1,1,\sqrt2,\sqrt2,\sqrt2),
+     * \f]
+     * the Mandel matrix of \f$ \mathbf{X} \mapsto \mathbf{K}\mathbf{X}\mathbf{K}^T \f$ on symmetric
+     * \f$ \mathbf{X} \f$: exact for a tensor with both minor symmetries, orthogonal when
+     * \f$ \mathbf{K} \f$ is a rotation (rotate() is the same congruence).
+     *
+     * The compliance kernel is what makes inverse(K).push_forward(F) == inverse(K.push_forward(F))
      * for non-orthogonal F.
      *
+     * @param F deformation gradient (3x3)
      * @param metric If true (default), includes the J=det(F) Piola scaling
      * @throws std::runtime_error for concentration tensor types
      */
@@ -621,6 +613,7 @@ public:
      *   - compliance:         kernel is F^T,    scaled by 1/J
      *   - concentration types: not implemented (mixed indices)
      *
+     * @param F deformation gradient (3x3)
      * @param metric If true (default), includes the J=det(F) Piola scaling
      * @throws std::runtime_error for concentration tensor types
      */

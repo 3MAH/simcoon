@@ -141,6 +141,48 @@ Two things the default is **not**:
   strain-typed :math:`\ln \mathbf{V}` is accepted by the type tag and has no
   meaning.
 
+Transport in index and Mandel notation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The transports of the table are the classical index products. For a kernel
+:math:`\mathbf{K}` (:math:`\mathbf{F}` on a contravariant index, :math:`\mathbf{F}^{-T}`
+on a covariant one), a second-order tensor and a fourth-order tensor with both
+minor symmetries transport as
+
+.. math::
+
+   t'_{ij} = K_{ia} K_{jb}\, t_{ab},
+   \qquad
+   C'_{ijkl} = K_{ia} K_{jb} K_{kc} K_{ld}\, C_{abcd}.
+
+simcoon never forms the :math:`3^4` components. In the Kelvin-Mandel basis of the
+symmetric second-order tensors, :math:`e_{(ij)} = (\mathbf{e}_i \otimes \mathbf{e}_j
++ \mathbf{e}_j \otimes \mathbf{e}_i)/\sqrt2` for :math:`i<j`, the map
+:math:`\mathbf{X} \mapsto \mathbf{K}\mathbf{X}\mathbf{K}^T` is the :math:`6 \times 6`
+matrix
+
+.. math::
+
+   (\mathbb{Q}_{\mathbf{K}})_{IJ} = \frac{c_I}{c_J}\left( K_{ik} K_{jl} + (1-\delta_{kl})\, K_{il} K_{jk} \right),
+   \qquad I = (ij),\ J = (kl),\ c = (1,1,1,\sqrt2,\sqrt2,\sqrt2),
+
+and the two transports read
+
+.. math::
+
+   \{t'\} = \mathbb{Q}_{\mathbf{K}}\, \{t\},
+   \qquad
+   \mathbb{C}' = \mathbb{Q}_{\mathbf{K}}\, \mathbb{C}\, \mathbb{Q}_{\mathbf{K}}^T,
+
+exactly (no approximation enters: the Mandel components are tensor components in an
+orthonormal basis). :math:`\mathbb{Q}_{\mathbf{K}}` is orthogonal when
+:math:`\mathbf{K}` is a rotation, which is why ``rotate`` and ``push_forward`` are
+one and the same congruence. The dyadic products of ``contimech`` follow the same
+rule: :math:`C_{ijkl} = a_{ij} b_{kl}` is the outer product of the two Voigt
+vectors, and :math:`\partial \mathbf{S}^{-1} / \partial \mathbf{S} =
+-\tfrac12 (S^{-1}_{ik} S^{-1}_{jl} + S^{-1}_{il} S^{-1}_{jk})` is the symmetric
+dyadic operator of :math:`\mathbf{S}^{-1}`, negated.
+
 Two-point tensors have no basis
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

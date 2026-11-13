@@ -26,7 +26,6 @@
  * Build (macOS example):
  *   g++ -shared -fPIC -O3 -std=c++20 \
  *       -I<simcoon_root>/include \
- *       -isystem <simcoon_build>/_deps/fastor-src \
  *       -I/opt/homebrew/include \
  *       -L/opt/homebrew/lib -L<simcoon_build> -lsimcoon -larmadillo \
  *       -o umat_plugin_ext.dylib umat_plugin_ext.cpp

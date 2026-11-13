@@ -748,7 +748,15 @@ constexpr auto dyadic = R"pbdoc(
 
     Details
     -------
-    This function computes the dyadic product of two tensors, resulting in a higher-order tensor.
+    This function computes the dyadic product of two tensors, resulting in a higher-order tensor:
+
+    .. math::
+
+        C_{ijkl} = a_{ij}\, b_{kl}
+
+    returned as the 6x6 Voigt matrix (stiffness convention, pairs :math:`i \le j`, :math:`k \le l`),
+    i.e. the outer product :math:`\{a\}\{b\}^T` of the Voigt vectors of the symmetric parts of
+    :math:`\mathbf{a}` and :math:`\mathbf{b}`.
 
     Examples
     --------

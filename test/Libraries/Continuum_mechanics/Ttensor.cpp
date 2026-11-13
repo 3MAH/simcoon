@@ -174,22 +174,6 @@ TEST(Ttensor2, SymmetryCheck)
 }
 
 // ============================================================================
-// tensor2 Fastor zero-copy map
-// ============================================================================
-
-TEST(Ttensor2, FastorMap)
-{
-    mat::fixed<3,3> m = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
-    tensor2 t(m, Tensor2Type::none);
-
-    auto fmap = t.fastor();
-    // Check a few elements (Fastor and armadillo are both column-major)
-    EXPECT_DOUBLE_EQ(fmap(0,0), 1.0);
-    EXPECT_DOUBLE_EQ(fmap(1,1), 5.0);
-    EXPECT_DOUBLE_EQ(fmap(2,2), 9.0);
-}
-
-// ============================================================================
 // tensor2 free functions
 // ============================================================================
 
@@ -485,20 +469,21 @@ TEST(Ttensor4, StiffnessComplianceInverse)
 }
 
 // ============================================================================
-// tensor4 Fastor cache
+// tensor4 Mandel storage
 // ============================================================================
 
-TEST(Ttensor4, FastorCacheLazyCompute)
+TEST(Ttensor4, StiffnessMandelStorage)
 {
+    // Mandel stores the tensor components scaled by sqrt2 per shear index:
+    // M(I,J) = c_I c_J C_ijkl with c = (1,1,1,sqrt2,sqrt2,sqrt2); stiffness Voigt is factor-free
     mat::fixed<6,6> L = L_iso(70000., 0.3, "Enu");
     tensor4 t(L, Tensor4Type::stiffness);
 
-    // First access computes the Fastor tensor
-    const auto& f = t.fastor();
-    // Check a diagonal element: C_0000 = L(0,0)
-    EXPECT_NEAR(f(0,0,0,0), L(0,0), 1e-12);
-    // Check a shear element: C_0101 = L(3,3) for stiffness convention
-    EXPECT_NEAR(f(0,1,0,1), L(3,3), 1e-12);
+    const arma::mat::fixed<6,6> &M = t.mandel();
+    EXPECT_NEAR(M(0,0), L(0,0), 1e-9 * L(0,0));
+    EXPECT_NEAR(M(0,3), std::sqrt(2.0) * L(0,3), 1e-9 * L(0,0));
+    EXPECT_NEAR(M(3,3), 2.0 * L(3,3), 1e-9 * L(0,0));
+    EXPECT_NEAR(norm(mat(t.mat()) - mat(L), "fro"), 0.0, 1e-9 * L(0,0));
 }
 
 // ============================================================================
@@ -612,42 +597,27 @@ TEST(Ttensor4, RotationAnisotropicComplianceRoundtrip)
 }
 
 // ============================================================================
-// tensor4 Fastor cache — type-dependent factor correctness
+// tensor4 Mandel storage, type-dependent factors
 // ============================================================================
 
-TEST(Ttensor4, ComplianceFastorFactors)
+TEST(Ttensor4, ComplianceMandelStorage)
 {
-    // Compliance: M(I,J) = factor * S_ij(I)kl(J)
-    // factor = 1 (norm-norm), 2 (mixed), 4 (shear-shear)
+    // Engineering compliance M(I,J) = factor * S_ijkl, factor = 1 (normal-normal), 2 (mixed),
+    // 4 (shear-shear); Mandel stores sqrt2 per shear index, so Mandel = M / factor * c_I c_J
     double E = 70000.0;
     double nu = 0.3;
     mat::fixed<6,6> M = M_iso(E, nu, "Enu");
     tensor4 comp(M, Tensor4Type::compliance);
 
-    const auto& S = comp.fastor();
-
-    // Normal-normal: S(0,0,0,0) = M(0,0) / 1 = 1/E
-    EXPECT_NEAR(S(0,0,0,0), M(0,0), 1e-14);
-    EXPECT_NEAR(S(0,0,1,1), M(0,1), 1e-14);
-
-    // Shear-shear: S(0,1,0,1) = M(3,3) / 4
-    EXPECT_NEAR(S(0,1,0,1), M(3,3) / 4.0, 1e-14);
-    EXPECT_NEAR(S(0,2,0,2), M(4,4) / 4.0, 1e-14);
-    EXPECT_NEAR(S(1,2,1,2), M(5,5) / 4.0, 1e-14);
-}
-
-TEST(Ttensor4, StiffnessFastorFactors)
-{
-    // Stiffness: C(i,j,k,l) = L(I,J) / 1 (no factors)
-    double E = 70000.0;
-    double nu = 0.3;
-    mat::fixed<6,6> L = L_iso(E, nu, "Enu");
-    tensor4 stiff(L, Tensor4Type::stiffness);
-
-    const auto& C = stiff.fastor();
-
-    EXPECT_NEAR(C(0,0,0,0), L(0,0), 1e-12);
-    EXPECT_NEAR(C(0,1,0,1), L(3,3), 1e-12);
+    const arma::mat::fixed<6,6> &K = comp.mandel();
+    EXPECT_NEAR(K(0,0), M(0,0), 1e-14);
+    EXPECT_NEAR(K(0,1), M(0,1), 1e-14);
+    EXPECT_NEAR(K(3,3), M(3,3) / 2.0, 1e-14);   // 4 S_1212 -> 2 S_1212
+    EXPECT_NEAR(K(4,4), M(4,4) / 2.0, 1e-14);
+    EXPECT_NEAR(K(5,5), M(5,5) / 2.0, 1e-14);
+    // the compliance stays the Mandel inverse of the stiffness
+    tensor4 stiff(L_iso(E, nu, "Enu"), Tensor4Type::stiffness);
+    EXPECT_NEAR(norm(mat(K * stiff.mandel()) - eye(6,6), "fro"), 0.0, 1e-9);
 }
 
 // ============================================================================

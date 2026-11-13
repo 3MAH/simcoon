@@ -214,6 +214,10 @@ arma::mat ddetSdS(const arma::mat &S);
  * \frac{\partial S^{-1}_{ij}}{\partial S_{kl}} = -\frac{1}{2}\left( S^{-1}_{ik} S^{-1}_{jl} + S^{-1}_{il} S^{-1}_{jk} \right)
  * \f]
  *
+ * In Voigt notation (stiffness convention, no shear factors) this is the symmetric dyadic
+ * operator of \f$ \mathbf{S}^{-1} \f$, negated: \f$ -\tfrac12 (S^{-1}_{ik} S^{-1}_{jl} + S^{-1}_{il} S^{-1}_{jk}) \f$
+ * read for the pairs \f$ (ij), (kl) \f$ (auto_sym_dyadic_operator).
+ *
  * @param S Input symmetric tensor (3×3 matrix), must be invertible
  * @return 6×6 Voigt matrix representing the fourth-order derivative \f$ \partial S^{-1}_{ij} / \partial S_{kl} \f$
  *

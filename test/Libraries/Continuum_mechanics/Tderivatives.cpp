@@ -107,7 +107,7 @@ TEST(Tderivatives, dinvSdSsym_basic)
 
     // Value checks distinguishing the exact (NEGATIVE) minor-symmetric d(inv S)/dS,
     //   dinvSdS_ijkl = -0.5*(invS_ik*invS_jl + invS_il*invS_jk),
-    // from the dyad-collapse bug invS_ij*invS_kl. fastor4_to_voigt uses the stiffness
+    // from the dyad-collapse bug invS_ij*invS_kl. The 6x6 is in the stiffness Voigt
     // convention (no factor-2), so:
     //   Voigt[0,1] = dinvSdS_1122 = -invS_12^2                          (dyad would give -invS_11*invS_22)
     //   Voigt[3,3] = dinvSdS_1212 = -0.5*(invS_11*invS_22 + invS_12^2)  (dyad would give -invS_12^2)

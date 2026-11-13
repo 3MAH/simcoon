@@ -24,12 +24,10 @@
 #include <cstring>
 #include <limits>
 #include <armadillo>
-#include <Fastor/Fastor.h>
 #include <simcoon/Simulation/Maths/small_dense.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/parallel.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
-#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -102,13 +100,13 @@ static arma::mat::fixed<3,3> tensor4_kernel(const arma::mat::fixed<3,3> &F,
     return F; // unreachable
 }
 
-// ==== Kelvin-Mandel: tensor4 stores Mandel (eng<->Mandel: tensor.hpp; Mandel<->full-index: fastor_bridge.hpp) ====
+// ==== Kelvin-Mandel: tensor4 stores Mandel (eng<->Mandel: tensor.hpp) ====
 
 static const double SQ2 = std::sqrt(2.0);
 
-// R6 is orthogonal: R6 X R6^T rotates every Tensor4Type exactly
-// R6(I,J) = (c_I/c_J)(Q_ik Q_jl + (1-delta_kl) Q_il Q_jk), c = (1,1,1,sqrt2,sqrt2,sqrt2)
-static arma::mat::fixed<6,6> mandel_rotation(const arma::mat::fixed<3,3> &Q) {
+// Mandel matrix of X -> Q X Q^T on symmetric X: Q6 C Q6^T transports every Tensor4Type exactly
+// (orthogonal when Q is a rotation). Q6(I,J) = (c_I/c_J)(Q_ik Q_jl + (1-delta_kl) Q_il Q_jk)
+static arma::mat::fixed<6,6> mandel_congruence(const arma::mat::fixed<3,3> &Q) {
     static const int pi[6] = {0,1,2,0,0,1};   // Voigt order [11,22,33,12,13,23]
     static const int pj[6] = {0,1,2,1,2,2};
     arma::mat::fixed<6,6> R6;
@@ -257,10 +255,6 @@ arma::vec::fixed<6> tensor2::mandel() const {
     v(4) = SQ2 * 0.5 * (_mat(0,2) + _mat(2,0));
     v(5) = SQ2 * 0.5 * (_mat(1,2) + _mat(2,1));
     return v;
-}
-
-Fastor::Tensor<double,3,3> tensor2::fastor() const {
-    return arma_to_fastor2(_mat, _vtype != Tensor2Type::none);
 }
 
 bool tensor2::is_symmetric(double tol) const {
@@ -600,7 +594,6 @@ arma::mat::fixed<6,6> tensor4::mat() const {
 
 void tensor4::set_mat(const arma::mat::fixed<6,6> &m) {
     _mandel = eng_to_mandel(m, _type);
-    _invalidate_fastor();
 }
 
 void tensor4::set_mat(const arma::mat &m) {
@@ -609,20 +602,7 @@ void tensor4::set_mat(const arma::mat &m) {
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
     _mandel = m;
     eng_to_mandel_inplace(_mandel, _type);
-    _invalidate_fastor();
 }
-
-void tensor4::_ensure_fastor() const {
-    if (!_fastor) {
-        _fastor.emplace(mandel_to_fastor4(_mandel));
-    }
-}
-
-const Fastor::Tensor<double,3,3,3,3>& tensor4::fastor() const {
-    _ensure_fastor();
-    return *_fastor;
-}
-
 tensor2 tensor4::contract(const tensor2 &t) const {
     // Plain Mandel matrix-vector product; both operands and result are convention-symmetric.
     arma::vec::fixed<6> v_out = _mandel * t.mandel();
@@ -630,14 +610,9 @@ tensor2 tensor4::contract(const tensor2 &t) const {
 }
 
 tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
-    _ensure_fastor();
-
     // Kernel branches on _type (mirrors tensor2::push_forward).
-    arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/true);
-    auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
-    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
-    arma::mat::fixed<6,6> mandel_result = fastor4_to_mandel(result);
-
+    const arma::mat::fixed<6,6> Q6 = mandel_congruence(tensor4_kernel(F, _type, /*forward=*/true));
+    arma::mat::fixed<6,6> mandel_result = mul66_ABt(mul66(Q6, _mandel), Q6);
     if (metric) {
         double J = arma::det(F);
         // Piola scaling: stiffness→1/J, compliance→J (scalar, commutes with the congruence).
@@ -648,14 +623,9 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const
 }
 
 tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
-    _ensure_fastor();
-
     // Pull-back inverts push-forward.
-    arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/false);
-    auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
-    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
-    arma::mat::fixed<6,6> mandel_result = fastor4_to_mandel(result);
-
+    const arma::mat::fixed<6,6> Q6 = mandel_congruence(tensor4_kernel(F, _type, /*forward=*/false));
+    arma::mat::fixed<6,6> mandel_result = mul66_ABt(mul66(Q6, _mandel), Q6);
     if (metric) {
         double J = arma::det(F);
         mandel_result *= (_type == Tensor4Type::compliance) ? (1.0 / J) : J;
@@ -690,12 +660,9 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
             "correction is only defined for stiffness/generic tangents");
     }
 
-    // Truesdell push-forward without metric (Lie-rate Kirchhoff); B-correction before metric scaling
-    auto F_fastor = arma_to_fastor2(F, false);
-    _ensure_fastor();
-    Fastor::Tensor<double,3,3,3,3> lie_full = push_forward_4(*_fastor, F_fastor);
+    // Truesdell push-forward without metric (Lie-rate Kirchhoff); B-correction before metric scaling.
     // The Dtau_* corrections below operate on the ENGINEERING Voigt (solver convention).
-    arma::mat Lt_v = fastor4_to_voigt(lie_full, _type);
+    arma::mat Lt_v = push_forward(F, false).mat();
     const arma::mat::fixed<3,3> tau_mat = tau.mat();
 
     // corate correction through the solver's own Dtau_LieDD_2_DtauDe_corate: one kernel
@@ -731,7 +698,7 @@ tensor4 tensor4::rotate(const Rotation &R, bool active) const {
     // one Mandel congruence R6 X R6^T, valid for every type
     arma::mat::fixed<3,3> Q = R.as_matrix();
     if (!active) Q = arma::mat::fixed<3,3>(Q.t());
-    const arma::mat::fixed<6,6> R6 = mandel_rotation(Q);
+    const arma::mat::fixed<6,6> R6 = mandel_congruence(Q);
     return tensor4::from_mandel(mul66_ABt(mul66(R6, _mandel), R6), _type);
 }
 
@@ -790,19 +757,16 @@ tensor4 tensor4::operator/(double scalar) const {
 
 tensor4& tensor4::operator+=(const tensor4 &other) {
     _mandel += other._mandel;
-    _invalidate_fastor();
     return *this;
 }
 
 tensor4& tensor4::operator-=(const tensor4 &other) {
     _mandel -= other._mandel;
-    _invalidate_fastor();
     return *this;
 }
 
 tensor4& tensor4::operator*=(double scalar) {
     _mandel *= scalar;
-    _invalidate_fastor();
     return *this;
 }
 
@@ -810,7 +774,6 @@ tensor4& tensor4::operator/=(double scalar) {
     if (scalar == 0.0)
         throw std::runtime_error("tensor4: division by zero scalar");
     _mandel /= scalar;
-    _invalidate_fastor();
     return *this;
 }
 
