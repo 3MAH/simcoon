@@ -11,6 +11,7 @@ the physics imposes (free thermal expansion, cycle bookkeeping, plastic flow,
 the rotation history) is checked directly.
 """
 
+import pathlib
 import subprocess
 import sys
 import textwrap
@@ -610,18 +611,117 @@ def test_closest_point_refused_for_laws_without_one():
 
 
 
+# --- the external plugins on the finite route ------------------------------------------------------
+# The plugin libraries are built next to the C++ tests (testBin/Umats/<NAME>/external, the loader
+# reads them from the working directory); UMABA/UMANS need the Fortran samples (not on MSVC).
+
+_PLUGIN_DIR = {name: pathlib.Path(__file__).resolve().parents[3] / "testBin" / "Umats" / ("UMEXT" if name == "UMEXT" else "UMABA")
+               for name in ("UMEXT", "UMABA", "UMANS")}
+_ELASTIC = np.array([70000., 0.3, 0.])
+
+
+def _plugin_cwd(name, monkeypatch):
+    d = _PLUGIN_DIR[name]
+    lib = "umat_plugin_ext" if name == "UMEXT" else ("umat_plugin_aba" if name == "UMABA" else "umat_plugin_ans")
+    # the built library only (the sources sit next to it): lib<name>.so / .dylib, <name>.dll
+    built = [f for suffix in (".so", ".dylib", ".dll") for f in (d / "external").glob(f"*{lib}{suffix}")]
+    if not built:
+        pytest.skip(f"{name}: plugin library not built in {d / 'external'}")
+    monkeypatch.chdir(d)
+
+
+def _log_strain_path(name, eps, ninc=20, corate=3, record_tangent=False):
+    st = StepMeca(control=_UNIAXIAL, value=[eps, 0, 0, 0, 0, 0], ninc=ninc, time=1.)
+    return solve(Block(steps=[st], control_type="logarithmic"), name, _ELASTIC, 1, T_init=290.,
+                 corate=corate, record_tangent=record_tangent)
+
+
 @pytest.mark.parametrize("name", ["UMEXT", "UMABA", "UMANS"])
-def test_external_plugins_refused_under_finite_strain(name):
-    """The plugin API has no finite-strain entry: the finite route refuses the plugins instead of
-    returning an unchanged (zero) stress."""
-    step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
-    with pytest.raises(ValueError, match="small-strain route only"):
-        solve(Block(steps=[step], control_type="logarithmic"), name, np.array([70000., 0.3]), 1, T_init=290.0)
+def test_external_plugins_run_the_finite_route(name, monkeypatch):
+    """UMEXT runs on the log-strain / Kirchhoff box exactly like PYEXT and EPICP: the elastic test plugin
+    IS ELISO under finite strain. The host plugins (Abaqus, Ansys) keep their conventions: the sample
+    Fortran laws integrate sigma += C : Delta eps in Cauchy, so they return the Cauchy stress C : e
+    (ln V) and the route carries tau = J sigma."""
+    _plugin_cwd(name, monkeypatch)
+    r = _log_strain_path(name, 0.3)
+    e = _log_strain_path("ELISO", 0.3)
+    if name == "UMEXT":
+        for key in ("Stress", "Kirchhoff", "Wm"):
+            np.testing.assert_allclose(r[key][:, -1], e[key][:, -1], rtol=0, atol=1e-10 * np.abs(e[key][:, -1]).max())
+    else:
+        np.testing.assert_allclose(r["Stress"][:, -1], e["Kirchhoff"][:, -1], rtol=0,
+                                   atol=1e-9 * np.abs(e["Kirchhoff"][:, -1]).max())   # Cauchy(host) = C : e
+        J = np.exp(r["Strain"][:3, -1].sum())
+        np.testing.assert_allclose(r["Kirchhoff"][:, -1], J * r["Stress"][:, -1], rtol=1e-12)
     col = lambda v: np.asfortranarray(np.asarray(v, dtype=float).reshape(-1, 1))
-    with pytest.raises(ValueError, match="external plugin, served by the solver"):
+    with pytest.raises(ValueError, match="external plugin, served by the solver"):   # sim.umat: the solver only
         sim.umat(name, col(np.zeros(6)), col([1e-3, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0), col(np.zeros(6)),
                  np.asfortranarray(np.eye(3)[:, :, None]), col([70000., 0.3]), col(np.zeros(1)), 0.0, 1.0,
                  col(np.zeros(4)), temp=np.full(1, 290.0), n_threads=1)
+
+
+@pytest.mark.parametrize("name", ["UMABA", "UMANS"])
+def test_host_plugin_tangent_is_converted_to_the_box(name, monkeypatch):
+    """The host Jacobian (Abaqus: (1/J) d(J sigma)/d eps in the Jaumann rate; Ansys: d sigma/d eps in the
+    Green-Naghdi rate) comes back as the box tangent of the solver's corate. For the sample law
+    tau(e) = J C : e, so d tau/d e = J C + tau (x) I, checked by central differences on a coaxial state;
+    the hosts return the symmetric part of their Jacobian, hence the symmetrized comparison and the
+    1e-2 bound (the skew part of tau (x) I travels through the rate maps)."""
+    _plugin_cwd(name, monkeypatch)
+
+    def full(e6, ninc=4):
+        st = StepMeca(control=["strain"] * 6, value=list(e6), ninc=ninc, time=1.)
+        return solve(Block(steps=[st], control_type="logarithmic"), name, _ELASTIC, 1, T_init=290., corate=3,
+                     record_tangent=True)
+    e0 = np.array([0.10, 0.02, -0.03, 0., 0., 0.])
+    r0 = full(e0)
+    Lt, tau = r0["TangentMatrix"][:, :, -1], r0["Kirchhoff"][:, -1]
+    h = 1e-6
+    fd = np.zeros((6, 6))
+    for j in range(6):
+        d = np.zeros(6)
+        d[j] = h
+        fd[:, j] = (full(e0 + d)["Kirchhoff"][:, -1] - full(e0 - d)["Kirchhoff"][:, -1]) / (2 * h)
+    C = np.asarray(sim.L_iso([70000., 0.3], "Enu"))
+    one = np.array([1., 1., 1., 0., 0., 0.])
+    np.testing.assert_allclose(fd, np.exp(e0[:3].sum()) * C + np.outer(tau, one), rtol=0, atol=1e-8 * np.abs(fd).max())
+    fd_sym = 0.5 * (fd + fd.T)
+    assert np.abs(Lt - fd_sym).max() < 1e-2 * np.abs(fd_sym).max()
+    assert np.abs(Lt - Lt.T).max() < 1e-10 * np.abs(Lt).max()
+
+
+@pytest.mark.parametrize("name", ["UMEXT", "UMABA", "UMANS"])
+def test_external_plugins_are_objective_on_the_finite_route(name, monkeypatch):
+    """Stress held while a z-spin rotates the body (test_finite_objectivity's setup): the material
+    state does not change and tau rotates with the spin, for the box plugins as for ELISO."""
+    _plugin_cwd(name, monkeypatch)
+    th = 0.8
+    w = [[0., -th, 0.], [th, 0., 0.], [0., 0., 0.]]
+    steps = [StepMeca(control="stress", value=[15000., 0, 0, 0, 0, 0], time=1., ninc=50, Dn_init=1., Dn_mini=1e-3),
+             StepMeca(control="stress", value=[15000., 0, 0, 0, 0, 0], time=1., ninc=100, Dn_init=1., Dn_mini=1e-3, BC_w=w)]
+    r = solve(Block(steps=steps, control_type="logarithmic"), name, _ELASTIC, 1, T_init=290., corate=3,
+              record_tangent=False)
+    i1 = np.argmin(np.abs(r["Time"] - 1.0))
+    S1, S2 = r["PKII"][:, i1], r["PKII"][:, -1]
+    np.testing.assert_allclose(S2, S1, atol=1e-8 * np.abs(S1).max())
+    c, s = np.cos(th), np.sin(th)
+    R = np.array([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
+    t1, t2 = sim.v2t_stress(r["Kirchhoff"][:, i1]), sim.v2t_stress(r["Kirchhoff"][:, -1])
+    np.testing.assert_allclose(t2, R @ t1 @ R.T, atol=1e-4 * np.abs(t1).max())
+    assert abs(r["Wm"][0, -1] - r["Wm"][0, i1]) < 1e-8 * abs(r["Wm"][0, i1])   # a rigid rotation does no work
+
+
+@pytest.mark.parametrize("name", ["UMEXT", "UMABA", "UMANS"])
+def test_external_plugins_finite_route_admission(name, monkeypatch):
+    """Boxes without a declared statev layout: corates 0 to 3 served, the convected rates 4 and 5
+    refused; the total form serves the Kirchhoff box (UMEXT) and not the host plugins."""
+    _plugin_cwd(name, monkeypatch)
+    for corate in (0, 1, 2, 3):
+        _log_strain_path(name, 0.05, ninc=3, corate=corate)
+    st = StepMeca(control="F", value=[1.05, 0., 0., 0., 1., 0., 0., 0., 1.], ninc=3, time=1.)
+    with pytest.raises(Exception, match="declared"):
+        solve(Block(steps=[st], control_type="F"), name, _ELASTIC, 1, T_init=290., corate=4)
+    assert sim.total_formulation_serves(name) == (name == "UMEXT")
 
 # ---------------------------------------------------------------------------
 # error paths

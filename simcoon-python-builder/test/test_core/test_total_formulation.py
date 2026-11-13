@@ -432,9 +432,9 @@ def test_one_box_read_in_the_two_formulations():
 def test_which_laws_the_total_formulation_serves():
     """Log-strain boxes, the modular material among them, and hyperelastic laws built on F; not
     the rate law nor a small-strain-only law."""
-    for name in ("ELISO", "ELORT", "EPICP", "EPCHA", "EPJCK", "PYEXT", "MODUL", "NEOHC", "SNTVE", "HOLZA", "OGDEN", "ZENER"):
+    for name in ("ELISO", "ELORT", "EPICP", "EPCHA", "EPJCK", "PYEXT", "UMEXT", "MODUL", "NEOHC", "SNTVE", "HOLZA", "OGDEN", "ZENER"):
         assert sim.total_formulation_serves(name), name
-    for name in ("HYPOO", "SMADI", "ZENER_closed", "UMEXT", "no such law"):
+    for name in ("HYPOO", "SMADI", "ZENER_closed", "UMABA", "UMANS", "no such law"):
         assert not sim.total_formulation_serves(name), name
 
 

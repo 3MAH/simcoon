@@ -52,6 +52,13 @@ umat_convention on_F()
     return {SM::kirchhoff, false, false, {}, true};
 }
 
+// a log-strain box answering in a host code's conventions (Cauchy stress; the finite dispatch converts
+// its stress and tangent), statev layout undeclared
+umat_convention host_box()
+{
+    return {SM::cauchy, true, false, {}, false};
+}
+
 }  // namespace
 
 // plain types only: no arma static (destructor at DLL unload, Windows)
@@ -59,10 +66,12 @@ const std::map<std::string, umat_entry> &umat_registry()
 {
     static const std::map<std::string, umat_entry> registry = {
         // name            mechanical            finite                thermomechanical       finite convention                     condensed          L_eff
-        // --- external plugins: the solver's small-strain route only ---
-        {"UMEXT",       {K::plugin_ext,        K::none,               K::none}},
-        {"UMABA",       {K::plugin_abaqus,     K::none,               K::none}},
-        {"UMANS",       {K::plugin_ansys,      K::none,               K::none}},
+        // --- external plugins: the small-strain route, and the finite route as log-strain boxes in the
+        //     material frame (UMEXT in the simcoon convention, as PYEXT; the host plugins in their own:
+        //     Cauchy, a Jaumann (Abaqus) or Green-Naghdi (Ansys) tangent converted by the dispatch) ---
+        {"UMEXT",       {K::plugin_ext,        K::plugin_ext,         K::none,                 box_undeclared()}},
+        {"UMABA",       {K::plugin_abaqus,     K::plugin_abaqus,      K::none,                 host_box()}},
+        {"UMANS",       {K::plugin_ansys,      K::plugin_ansys,       K::none,                 host_box()}},
         // --- linear elasticity: the modular adapter on the mechanical faces, dedicated thermomechanical kernels ---
         {"ELISO",       {K::legacy_modular,    K::legacy_modular,     K::elasticity_iso,       box(),                              C::rate_and_total, K::elasticity_iso}},
         {"ELIST",       {K::legacy_modular,    K::legacy_modular,     K::elasticity_trans_iso, box(),                              C::rate_and_total, K::elasticity_trans_iso}},

@@ -437,9 +437,11 @@ route rather than given a default -- a missing declaration is an error of exactl
 :math:`J`, and invisible near :math:`J = 1`:
 
 - ``kirchhoff`` -- every native kernel.
-- ``cauchy`` -- only the ``UMEXT`` / ``UMABA`` plugin adapters, whose contract belongs
-  to the host code (Abaqus ``DDSDDE`` is Cauchy-based). ``select_umat_M_finite`` converts
-  those to :math:`\boldsymbol{\tau}` on the way out.
+- ``cauchy`` -- only the host plugins ``UMABA`` / ``UMANS``, whose contract belongs to the host
+  code (Cauchy stress, a Jaumann or Green-Naghdi Jacobian). ``select_umat_M_finite`` hands them
+  :math:`\boldsymbol{\sigma}_n = \boldsymbol{\tau}_n / J_n`, converts their stress to
+  :math:`\boldsymbol{\tau}` on the way out and their Jacobian to the box of the solver's corate
+  (``UMEXT`` is a Kirchhoff box, as ``PYEXT``; see :doc:`../external`).
 
 ``HYPOO`` is native too: it integrates the corotational *Kirchhoff* rate,
 :math:`\boldsymbol{\tau}_{n+1} = \boldsymbol{\tau}_n + \mathbf{L} : \Delta\boldsymbol{\varepsilon}^{el}`,

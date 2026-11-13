@@ -67,6 +67,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
+#include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_callback.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/External/external_umat.hpp>
@@ -355,6 +356,18 @@ static void select_umat_T_3D(phase_characteristics &rve, const mat &DR_global,co
     
 }
 
+// The instance of an external plugin API (one library per API type), loaded on first use and kept
+// until exit: the library before the object, so the object is destroyed while its code is loaded
+template <class Api>
+static Api &plugin(const char *path)
+{
+    static dylib::library lib(path, dylib::decorations::os_default());
+    using destroy_fn = void(Api*);
+    static std::unique_ptr<Api, destroy_fn*> api(lib.get_function<Api*()>("create_api")(),
+                                                 lib.get_function<destroy_fn>("destroy_api"));
+    return *api;
+}
+
 namespace {
 
 // transport of a statev tensor by the rotation-free M: Truesdell (4) = tensor2 push-forward (no Piola
@@ -413,6 +426,8 @@ finite_box enter_finite_box(state_variables &sv, const umat_convention &conv, co
         sv.sigma = t2v_stress(DR*v2t_stress(sv.sigma)*DR_inv);
     }
     box.tau_start_tr = sv.sigma;
+    if (conv.stress == StressMeasure::cauchy)   // a host kernel integrates from its own measure
+        sv.sigma = Kirchoff2Cauchy(sv.sigma, sv.F0);
 
     if (box.total)
         sv.sigma = t2v_stress(Kirchoff2LogStressU(v2t_stress(sv.sigma), sv.F0));
@@ -480,8 +495,10 @@ void leave_finite_box(state_variables &sv, const finite_box &box, const int &cor
     }
     else if (box.conv.stress == StressMeasure::kirchhoff)
         sv.tau = sv.sigma;                                                      // the kernel's output IS the Kirchhoff stress
-    else
+    else {
         sv.tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(sv.sigma), sv.F1));  // foreign Cauchy -> Kirchhoff
+        sv.sigma = sv.tau;                                                      // the state travels in Kirchhoff
+    }
     sv.PKII = t2v_stress(Kirchoff2PKII(v2t_stress(sv.tau), sv.F1));
 
     // Log corates: replace the kernel's work by the stress power, in one frame.
@@ -492,6 +509,27 @@ void leave_finite_box(state_variables &sv, const finite_box &box, const int &cor
 
     sv.etot = box.etot_stored;
     sv.Detot = box.Detot_stored;
+}
+
+// The host plugins (Abaqus, Ansys) read the Etot/DEtot slots of the phase: hand them the box strain
+// there and put the Green-Lagrange pair back (it travels back to the global state)
+void call_host_plugin(const UmatKernel &kernel, phase_characteristics &rve, state_variables_M &sv, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+{
+    const vec::fixed<6> Etot_GL = sv.Etot, DEtot_GL = sv.DEtot;
+    sv.Etot = sv.etot;
+    sv.DEtot = sv.Detot;
+    try {
+        if (kernel == UmatKernel::plugin_abaqus)
+            plugin<umat_plugin_aba_api>("external/umat_plugin_aba").umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+        else
+            plugin<umat_plugin_ans_api>("external/umat_plugin_ans").umat_ansys(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+    } catch (...) {
+        sv.Etot = Etot_GL;
+        sv.DEtot = DEtot_GL;
+        throw;
+    }
+    sv.Etot = Etot_GL;
+    sv.DEtot = DEtot_GL;
 }
 
 }  // namespace
@@ -505,10 +543,6 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     const std::string &law = rve.sptr_matprops->umat_name;
     const umat_entry *entry = umat_entry_of(law);
     if (entry == nullptr || entry->finite == UmatKernel::none) {
-        if (is_external_plugin(law)) {
-            throw std::invalid_argument("'" + law + "' is an external plugin: the plugin API has no "
-                                        "finite-strain entry, it serves the small-strain route only");
-        }
         if (entry != nullptr) {
             throw std::invalid_argument("'" + law + "' serves the small-strain route only (no finite-strain kernel)");
         }
@@ -561,6 +595,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
 
     const finite_box box = enter_finite_box(*umat_M, conv, rve.sptr_matprops->umat_name, corate_type);
     const mat &DR_kernel = box.DR_kernel;
+    const vec::fixed<4> Wm_before = umat_M->Wm;
 
     switch (kernel) {
 
@@ -615,6 +650,16 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 umat_callback_M(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
+            case UmatKernel::plugin_ext: {
+                // UMEXT: the 24-argument convention on the log-strain / Kirchhoff box, as PYEXT
+                plugin<umat_plugin_ext_api>("external/umat_plugin_ext").umat_external_M(law, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt);
+                break;
+            }
+            case UmatKernel::plugin_abaqus:
+            case UmatKernel::plugin_ansys: {
+                call_host_plugin(kernel, rve, *umat_M, DR_kernel, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                break;
+            }
             default: {
                 throw std::logic_error("select_umat_M_finite: no kernel case for '" + law
                                        + "' (the registry and the switch disagree)");
@@ -626,9 +671,26 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             umat_M->Lt = rotate_stiffness(umat_M->Lt, box.R_hat);
             umat_M->L = rotate_stiffness(umat_M->L, box.R_hat);
         }
+        const vec::fixed<4> Wm_host = umat_M->Wm;
         leave_finite_box(*umat_M, box, corate_type, umat_M->Wm);
-        // No tangent conversion: every kernel emits Lt in corate_type already (in dS/dE when the
-        // material tangent was asked for and served).
+        if (conv.stress == StressMeasure::cauchy) {
+            // A host plugin answers in its own conventions, lab frame here: Cauchy stress; Abaqus DDSDDE =
+            // (1/J) d(J sigma)/d eps in the Jaumann rate, Ansys dsdePl = d sigma/d eps in the Green-Naghdi rate
+            // (its sigma (x) I term added, symmetric part, as the Abaqus Jacobian carries it). Tangent -> dS/dE ->
+            // the box of the solver's corate; the host's work trapezoid (Cauchy) replaced by the Kirchhoff one,
+            // the conjugacy correction kept.
+            const vec sigma_cv = Kirchoff2Cauchy(umat_M->tau, umat_M->F1);
+            const mat sigma_c = v2t_stress(sigma_cv);
+            const mat DSDE = (kernel == UmatKernel::plugin_abaqus)
+                ? DsigmaDe_JaumannDD_2_DSDE(umat_M->Lt, umat_M->F1, sigma_c)
+                : DsigmaDe_GreenNaghdiDD_2_DSDE(abaqus_jacobian(umat_M->Lt, sigma_cv), umat_M->F1, sigma_c);
+            umat_M->Lt = DSDE_2_DtauDe_corate(DSDE, corate_type, umat_M->F1, v2t_stress(umat_M->tau));
+            const double trap = 0.5*dot(box.tau_start_tr + umat_M->tau, box.Detot_stored);
+            umat_M->Wm(0) += trap - (Wm_host(0) - Wm_before(0));
+            umat_M->Wm(1) += trap - (Wm_host(1) - Wm_before(1));
+        }
+        // Otherwise no tangent conversion: every kernel emits Lt in corate_type already (in dS/dE when
+        // the material tangent was asked for and served).
         rve.local2global();
 }
     
@@ -676,18 +738,6 @@ static void select_umat_T_finite(phase_characteristics &rve, const mat &DR_globa
     rve.local2global();
 }
     
-// The instance of an external plugin API (one library per API type), loaded on first use and kept
-// until exit: the library before the object, so the object is destroyed while its code is loaded
-template <class Api>
-static Api &plugin(const char *path)
-{
-    static dylib::library lib(path, dylib::decorations::os_default());
-    using destroy_fn = void(Api*);
-    static std::unique_ptr<Api, destroy_fn*> api(lib.get_function<Api*()>("create_api")(),
-                                                 lib.get_function<destroy_fn>("destroy_api"));
-    return *api;
-}
-
 static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
 
