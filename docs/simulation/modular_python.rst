@@ -80,7 +80,9 @@ argument (enum, int, or string aliases):
      - the potential's parameters (e.g. ``C10, C20, C30, kappa`` for Yeoh),
        ``volumetric`` and ``alpha`` keyword-only
      - none: the potentials of the ``NEOHC``, ``MOORI``, ``YEOHH``,
-       ``ISHAH``, ``GETHH`` and ``SWANH`` UMATs
+       ``ISHAH``, ``GETHH`` and ``SWANH`` UMATs, which run this very block
+       through a props adapter (``NEOHC_closed`` / ``NEOHI_closed`` keep the
+       kernels built on :math:`\mathbf{F}`)
    * - :class:`HolzapfelElasticity`
      - ``C10, k1, k2, kappa_d, fibres, kappa``, ``volumetric`` and ``alpha``
        keyword-only; ``fibres`` is a :class:`simcoon.Rotation`, one entry per

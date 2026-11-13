@@ -70,11 +70,30 @@ TEST(UmatRegistry, ClosedNamesPairWithTheirAdapterName) {
         ASSERT_NE(plain, nullptr) << name;
         for (const K k : {entry.mechanical, entry.finite, entry.thermomechanical})
             EXPECT_NE(k, K::legacy_modular) << name;
-        EXPECT_TRUE(plain->mechanical == K::legacy_modular || plain->thermomechanical == K::legacy_modular) << name;
-        if (entry.finite != K::none)   // the same statev layout on the finite route (EPICP_closed = EPICP)
+        EXPECT_TRUE(plain->mechanical == K::legacy_modular || plain->finite == K::legacy_modular
+                    || plain->thermomechanical == K::legacy_modular) << name;
+        if (entry.finite != K::none && entry.convention.material_frame)   // two boxes: the same statev layout (EPICP_closed = EPICP)
             EXPECT_EQ(entry.convention.material_frame, plain->convention.material_frame) << name;
     }
-    EXPECT_EQ(closed, 5);   // EPICP, EPCHA, PRONK, ZENER, EPKCP (thermomechanical)
+    EXPECT_EQ(closed, 7);   // EPICP, EPCHA, PRONK, ZENER, EPKCP (thermomechanical), NEOHC and NEOHI (built on F)
+}
+
+// The hyperelastic names run the HYPER_INVARIANTS block on the log-strain box: adapter on the finite
+// face only, a declared (empty) statev layout, served under corate 3 and the total form (umat_smart).
+TEST(UmatRegistry, HyperelasticNamesRunTheModularBlock) {
+    for (const char *name : {"NEOHC", "NEOHI", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "HOLZA"}) {
+        EXPECT_TRUE(adapter_is_hyperelastic(name)) << name;
+        const umat_entry *e = umat_entry_of(name);
+        ASSERT_NE(e, nullptr) << name;
+        EXPECT_EQ(e->finite, K::legacy_modular) << name;
+        EXPECT_EQ(e->mechanical, K::none) << name;
+        EXPECT_TRUE(e->convention.material_frame && e->convention.layout_declared) << name;
+    }
+    for (const char *name : {"NEOHC_closed", "NEOHI_closed", "OGDEN", "SNTVE"}) {
+        EXPECT_FALSE(adapter_is_hyperelastic(name)) << name;
+        EXPECT_TRUE(output_convention_of(name).material_tangent) << name;   // built on F
+    }
+    EXPECT_FALSE(adapter_is_hyperelastic("EPICP"));
 }
 
 // The one thing the convention table exists to prevent: a kernel on the finite route whose stress
@@ -157,7 +176,8 @@ TEST(UmatRegistry, CapabilitiesFollowTheKernels) {
     EXPECT_THROW(check_integrator_serves("EPJCK", tangent_closest_point, true), std::invalid_argument);
     EXPECT_THROW(check_integrator_serves("ZENER_closed", tangent_closest_point, false), std::invalid_argument);   // the Kelvin kernel; ZENER runs the modular engine
     EXPECT_NO_THROW(check_integrator_serves("ZENER", tangent_closest_point, false));
-    EXPECT_THROW(check_integrator_serves("HOLZA", tangent_closest_point, false), std::invalid_argument);
+    EXPECT_NO_THROW(check_integrator_serves("HOLZA", tangent_closest_point, false));   // the modular block (no mechanism)
+    EXPECT_THROW(check_integrator_serves("OGDEN", tangent_closest_point, false), std::invalid_argument);
 
     const std::map<std::string, int> schemes = {{"MIHEN", 100}, {"MIMTN", 101}, {"MISCN", 103}, {"MIPLN", 104}};
     for (const auto &[name, entry] : umat_registry()) {

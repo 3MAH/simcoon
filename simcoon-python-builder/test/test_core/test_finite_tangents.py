@@ -20,13 +20,12 @@ from scipy.linalg import expm, polar
 
 import simcoon as sim
 
-# (name, props, nstatev) -- the finite kernels that build their own tangent
+# (name, props, nstatev) -- the finite kernels built on F, which build their own tangent in every
+# corate (the plain hyperelastic names run the modular engine, log_R only)
 KERNELS = [
     ("SNTVE", [100000.0, 0.3, 0.0], 1),
-    ("NEOHC", [1000.0, 10000.0], 1),
-    ("NEOHI", [2000.0, 0.40, 0.0], 1),
-    ("MOORI", [0.2588, -0.0449, 10000.0], 1),
-    ("YEOHH", [0.30, -0.010, 0.0005, 1000.0], 1),
+    ("NEOHC_closed", [1000.0, 10000.0], 1),
+    ("NEOHI_closed", [2000.0, 0.40, 0.0], 1),
 ]
 
 # Coaxial: ln V and the perturbation commute, so the box tangent's normal block IS
@@ -124,9 +123,9 @@ def test_jaumann_and_green_naghdi_differ_from_the_log_box():
 
     The threshold is deliberately loose. The Jaumann and Green-Naghdi corrections are
     **stress-proportional**, so for a near-incompressible parameter set they are tiny next
-    to the largest tangent entry: MOORI here has ``kappa = 10000`` against ``C10 = 0.26``,
-    so the bulk term dominates the matrix and the correction is ~3e-3 out of ~1e4. That is
-    still ten orders above round-off, and a kernel that ignored the corate would return
+    to the largest tangent entry: NEOHC_closed here has ``kappa = 10000`` against ``mu = 1000``,
+    so the bulk term dominates the matrix and the correction stays small next to it. That is
+    still many orders above round-off, and a kernel that ignored the corate would return
     the log box **exactly**.
     """
     for name, props, nstatev in KERNELS:

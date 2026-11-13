@@ -317,7 +317,7 @@ def test_umat_ogden_reduces_to_neo_hookean():
     tangent must match NEOHC, validating the whole principal-stretch
     pipeline against the invariants pipeline."""
     mu, kappa = 0.5673, 1000.0
-    sig_nh, Lt_nh = _run_finite_umat("NEOHC", [mu, kappa], HYPER_F1)
+    sig_nh, Lt_nh = _run_finite_umat("NEOHC_closed", [mu, kappa], HYPER_F1)
     sig_og, Lt_og = _run_finite_umat("OGDEN", [1, kappa, mu, 2.0], HYPER_F1)
     assert np.allclose(sig_og, sig_nh, rtol=1e-8, atol=1e-10), (
         f"stress mismatch:\nOGDEN {sig_og}\nNEOHC {sig_nh}"

@@ -69,7 +69,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         {"GETHH", HyperPotential::GETHH}, {"SWANH", HyperPotential::SWANH},
         {"HOLZA", HyperPotential::HOLZA}};
 
-    auto it_potential = list_potentials.find(umat_name);
+    auto it_potential = list_potentials.find(umat_name.substr(0, 5));   // NEOHC_closed selects NEOHC
     if (it_potential == list_potentials.end()) {
         throw std::invalid_argument("The choice of hyperelastic potential could not be found in the simcoon library: " + umat_name);
     }

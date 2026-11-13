@@ -152,8 +152,8 @@ def solver_cases():
                                     ninc=cfg["ninc"], time=1.0)],
                     control_type=cfg["control_type"])
         cases.append((f"benchmark/{name}", lambda blk=blk, name=name, cfg=cfg: sim.solver.solve(
-            blk, name, cfg["props"], cfg["nstatev"], T_init=290.0, corate=2,
-            record_tangent=True)))
+            blk, name, cfg["props"], cfg["nstatev"], T_init=290.0, corate=3,
+            record_tangent=True)))   # corate 3: the production rate, the only one the hyperelastic names serve
 
     blocks, T_init, _ = sim.solver.load_path_json(str(EXAMPLES / "data" / "MODUL_path.json"))
     for fam, (lname, lprops, lnst, _path, mat) in blm.FAMILIES.items():

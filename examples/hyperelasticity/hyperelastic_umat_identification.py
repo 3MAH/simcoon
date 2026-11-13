@@ -63,7 +63,7 @@ from simcoon.identify import identification, calc_residuals
 UMAT_NAME = "MOORI"
 NSTATEV = 1
 SOLVER_TYPE = 0          # Newton
-CORATE_TYPE = 2          # same objective rate as HYPER_umat.py
+CORATE_TYPE = 3          # log_R, the rate the hyperelastic names serve (as HYPER_umat.py)
 KAPPA = 10000.0          # fixed bulk modulus [MPa]
 
 # Treloar loading cases: label, load-path file, and the matching Treloar.txt

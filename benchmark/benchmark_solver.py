@@ -79,7 +79,7 @@ BENCHMARK_CASES = {
 
 CONTROL_TYPE_CODES = {"small_strain": 1, "green_lagrange": 2, "logarithmic": 3}
 T_INIT = 290.0
-CORATE = 2  # logarithmic/XBM, both routes
+CORATE = 3  # log_R, the production rate (the only one the hyperelastic names serve)
 
 
 def run_memory(name, cfg):

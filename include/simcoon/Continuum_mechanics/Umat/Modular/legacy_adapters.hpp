@@ -30,7 +30,13 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * always large enough); trailing legacy slots are left untouched — column
  * MEANING may differ from the dedicated implementation (table below). The
  * dedicated kernels that still exist answer the `_closed` names (EPICP_closed,
- * EPCHA_closed, PRONK_closed, ZENER_closed, EPKCP_closed on the thermomechanical face).
+ * EPCHA_closed, PRONK_closed, ZENER_closed, EPKCP_closed on the thermomechanical face,
+ * NEOHC_closed and NEOHI_closed built on F).
+ *
+ * The hyperelastic names run the HYPER_INVARIANTS block of the modular engine, a potential of
+ * the logarithmic strain: the finite dispatch serves them under corate 3 (log_R) and the total
+ * formulation only (adapter_is_hyperelastic); NEOHC_closed / NEOHI_closed, built on F, serve
+ * every corate and the native material tangent.
  *
  * Name  | legacy props                               | MODUL stream (translate_NAME)                            | modular statev
  * ------|--------------------------------------------|----------------------------------------------------------|---------------
@@ -39,6 +45,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * EPCHA | E nu alpha sigmaY Q b C1 D1 C2 D2          | ..., Voce, Chaboche (C1, D1), (C2, D2)                   | [T_init, p, EP, a_1, a_2] (20)
  * PRONK | E0 nu0 alpha N (E_i nu_i etaB_i etaS_i)xN  | isotropic block; one viscoelastic mechanism, N branches  | [T_init, (v_i, EV_i) x N] (1 + 7N)
  * ZENER | E0 nu0 alpha E1 nu1 etaB1 etaS1            | isotropic block; one Maxwell branch, the Kelvin unit mapped per isotropic mode X in {K, mu}: X_M = X0^2/(X0 + X1), eta_M = eta_K X0^2/(X0 + X1)^2 | [T_init, v, EV] (8), EV the Maxwell branch strain (not the Kelvin viscous strain of ZENER_closed)
+ * NEOHC, MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA | the potential's own parameters [+ volumetric selector] (HyperPotential) | HYPER_INVARIANTS block, the same HyperPotential, alpha = 0 | [T_init] (1)
+ * NEOHI | E nu alpha                                 | HYPER_INVARIANTS block, NEOHC potential [mu = E/2(1+nu), kappa = E/3(1-2nu)], quadratic U(J), alpha | [T_init] (1)
  *
  * The other families (ELISO/ELIST/ELORT, EPHIL/EPTRI/EPHAC/EPANI/EPDFA/EPCHG/EPHIN) are listed in
  * docs/simulation/umat_catalog.rst; a_i are back-strains (engineering shear), EV_i branch strains.
@@ -60,11 +68,17 @@ using LegacyPropsTranslator = arma::vec (*)(const arma::vec& legacy_props);
 /// True if @p umat_name is served by the modular engine via an adapter.
 bool has_legacy_adapter(const std::string& umat_name);
 
+/// True if the adapter of @p umat_name is a hyperelastic potential of the logarithmic strain
+/// (NEOHC, NEOHI, MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA): the finite dispatch serves it under
+/// corate 3 (log_R) and the total formulation only, as MODUL.
+bool adapter_is_hyperelastic(const std::string& umat_name);
+
 /**
  * @brief UMAT-shaped entry for adapter-served legacy names: translate the
  * props for @p umat_name, then run umat_modular. All other arguments are
- * forwarded untouched (umat_modular's signature, without its kinematic form). @p ncp, the
- * NCPMethod code of the run, is the complementarity function of the cutting plane (EPKCP).
+ * forwarded untouched (umat_modular's signature). @p ncp, the NCPMethod code of the run, is the
+ * complementarity function of the cutting plane (EPKCP); @p kinematic_form is the form of the
+ * finite dispatch (the hyperelastic block returns the stress dual to H under the total form).
  *
  * @throws std::invalid_argument (with the legacy name prefixed) if the name has
  * no registered translator or if the caller's nstatev is smaller than the
@@ -96,7 +110,8 @@ void umat_legacy_modular(
     double& tnew_dt,
     const int& tangent_mode = tangent_default,
     const int& ncp = 0
-);
+,
+    const KinematicForm& kinematic_form = KinematicForm::rate);
 
 /**
  * @brief The thermomechanical counterpart of umat_legacy_modular: @p props is

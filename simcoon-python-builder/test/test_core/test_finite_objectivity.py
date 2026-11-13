@@ -214,28 +214,29 @@ def test_orthotropic_axes_follow_a_rigid_rotation(umat, corate, orientation):
     np.testing.assert_allclose(tau2, R @ tau1 @ R.T, atol=1e-10 * np.abs(tau1).max())
 
 
-def test_modul_fibres_follow_the_material_like_standalone_holza():
-    """A purely elastic MODUL-HOLZA material in simple shear must converge to the standalone
-    HOLZA kernel, which pushes its fibres with F exactly. With lab-fixed axes the MODUL fibres
-    stayed put: 190 % off at gamma = 0.5 and a factor 4e4 at gamma = 1."""
+def test_modul_fibres_follow_the_material_like_the_total_form():
+    """A purely elastic MODUL-HOLZA material in simple shear under corate 3 must converge to its
+    total form, which evaluates the fibre potential on the exact ln U (the law built on F). With
+    lab-fixed axes the MODUL fibres stayed put: 190 % off at gamma = 0.5 and a factor 4e4 at gamma = 1.
+    HOLZA itself runs the same block through its adapter."""
     from simcoon.modular import HolzapfelElasticity, ModularMaterial
     el = HolzapfelElasticity(C10=0.0354, k1=0.0107, k2=7.48, kappa_d=0.0,
                              fibres=sim.Rotation.from_euler("zxz", [[0.0, 0.0, 30.0]], degrees=True),
                              kappa=1000.0)
     mat = ModularMaterial(elasticity=el)
 
-    def shear(name, props, nstatev, ninc):
+    def shear(name, props, nstatev, ninc, form=3):
         st = StepMeca(control="F", value=[1., 0.5, 0., 0., 1., 0., 0., 0., 1.], time=1., ninc=ninc,
                       Dn_init=1., Dn_mini=1e-5)
         return sim.solver.solve(Block(steps=[st], control_type="F"), name,
-                                np.asarray(props, float), nstatev, T_init=290., corate=3,
-                                record_tangent=False)["Kirchhoff"][:, -1]
+                                np.asarray(props, float), nstatev, T_init=290., record_tangent=False,
+                                **_kinematic_form(form))["Kirchhoff"][:, -1]
 
-    err = []
-    for ninc in (100, 400):
-        ref = shear("HOLZA", el.potential_params(), 1, ninc)
-        err.append(np.abs(shear(mat.umat_name, mat.props, mat.nstatev, ninc) - ref).max()
-                   / np.abs(ref).max())
+    ref = shear("HOLZA", el.potential_params(), 1, 2, "total")
+    np.testing.assert_allclose(shear(mat.umat_name, mat.props, mat.nstatev, 2, "total"), ref, rtol=0,
+                               atol=1e-12 * np.abs(ref).max())
+    err = [np.abs(shear(mat.umat_name, mat.props, mat.nstatev, ninc) - ref).max() / np.abs(ref).max()
+           for ninc in (100, 400)]
     assert err[1] < 1e-4
     assert err[1] < 0.35 * err[0], "first-order convergence to the F-pushed fibres"
 
