@@ -282,7 +282,7 @@ bool abaqus_finite_route(const std::string &umat_name, const int &ndi, const int
     if (thermomechanical)   // the finite thermomechanical dispatch serves every law of the small one under log_R
         return corate_type != corate_type_total || total_formulation_serves_T(umat_name);
     const umat_entry *entry = umat_entry_of(umat_name);
-    if (entry == nullptr || entry->finite == UmatKernel::none)   // small-strain only, the external plugins included
+    if (entry == nullptr || entry->finite == UmatKernel::none || is_external_plugin(umat_name))   // small-strain only; the plugins serve the solver's finite route, not a host's
         return false;
     return corate_type != corate_type_total || total_formulation_serves(umat_name);
 }

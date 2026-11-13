@@ -94,6 +94,9 @@ public:
         double time[2];
         double dtime;
         
+        // the deformation gradients of the phase (identity on the small-strain route): the host reads NLGEOM off them
+        std::copy(rve_sv_M->F0.memptr(), rve_sv_M->F0.memptr() + 9, dfgrd0);
+        std::copy(rve_sv_M->F1.memptr(), rve_sv_M->F1.memptr() + 9, dfgrd1);
         // Convert simcoon to Abaqus format using library function
         smart2abaqus_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature,
                            nprops, props, nstatev, statev, ndi, nshr, drot,
