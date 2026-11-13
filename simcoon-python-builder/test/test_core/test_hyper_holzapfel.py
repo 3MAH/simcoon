@@ -8,7 +8,7 @@ the frame indifference it must satisfy.
 
 import numpy as np
 import pytest
-from scipy.linalg import expm
+from scipy.linalg import expm, logm, sqrtm
 
 import simcoon as sim
 from simcoon.modular import (
@@ -36,11 +36,16 @@ def _props(c10=C10, k1=K1, k2=K2, kappa_d=0.0, fibres=FIBRES, kappa=KAPPA):
 
 
 def _umat(name, props, F1):
+    """One increment from the reference state: the law is a log-strain box (the modular engine), so it
+    reads Detot = ln V of F1; F1 itself carries J. For a symmetric F1 the log_R frame is the lab."""
     n, nstatev = 1, 1
     z6 = lambda: np.zeros((6, n), order="F")
     eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    F1 = np.asarray(F1, dtype=float)
+    ln_V = logm(sqrtm(F1 @ F1.T)).real
+    Detot = np.asfortranarray(np.asarray(sim.t2v_strain(0.5 * (ln_V + ln_V.T))).reshape(6, 1))
     stress, sv, wm, Lt = sim.umat(
-        name, z6(), z6(), eye,
+        name, z6(), Detot, eye,
         np.asarray(F1).reshape(3, 3, 1).copy(order="F"),
         z6(), eye,
         np.asfortranarray(np.asarray(props, dtype=float).reshape(-1, 1)),
@@ -279,7 +284,7 @@ def test_modul_allows_damage():
     eps = np.array(GENERIC)
     sigma, Lt, _ = _modul(mat, eps)
 
-    # undamaged, it must still BE the standalone kernel
+    # undamaged, it must still BE the HOLZA law
     sigma_ref, Lt_ref = _umat("HOLZA", _props(), _F(eps))
     tau_ref = np.exp(eps[:3].sum()) * sigma_ref
     scale = max(1.0, np.abs(tau_ref).max())

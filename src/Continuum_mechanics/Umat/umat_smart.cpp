@@ -528,14 +528,18 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     // dS/dE when asked for and declared (a kernel built on F: the corate shapes nothing else)
     const int corate_Lt = (material_tangent && conv.material_tangent) ? corate_type_material_tangent : corate_type;
 
-    if (kernel == UmatKernel::modular) {
+    const std::string &law_name = rve.sptr_matprops->umat_name;
+    if (kernel == UmatKernel::modular || (kernel == UmatKernel::legacy_modular && adapter_is_hyperelastic(law_name))) {
         // tau = d psi / d eps_el is a stored-energy law only when the accumulated strain is ln V:
         // corate 3, or 2 in closed form. Only 3 is accepted (policy: the production rate).
         if (corate_type != 3 && corate_type != corate_type_total) {
+            const bool closed = umat_entry_of(law_name + "_closed") != nullptr;
             throw simcoon::exception_solver(
-                "MODUL under finite strain requires corate_type = 3 (log_R) or the total "
+                (kernel == UmatKernel::modular ? std::string("MODUL") : "'" + law_name + "' (modular engine)")
+                + " under finite strain requires corate_type = 3 (log_R) or the total "
                 "formulation: the modular composition is hyperelastic in the logarithmic "
-                "strain; got corate_type = " + std::to_string(corate_type));
+                "strain; got corate_type = " + std::to_string(corate_type)
+                + (closed ? "; " + law_name + "_closed, built on F, serves every corate" : ""));
         }
     }
 
@@ -585,7 +589,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             case UmatKernel::legacy_modular: {
                 // Legacy names served by the modular engine on the log-strain box, like EPICP:
                 // run in the material frame, so their anisotropy axes follow the body.
-                umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp);
+                umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp, total ? KinematicForm::total : KinematicForm::rate);
                 break;
             }
             case UmatKernel::modular: {

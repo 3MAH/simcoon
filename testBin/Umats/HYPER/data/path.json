@@ -1,6 +1,6 @@
 {
   "initial_temperature": 293.5,
-  "corate": "logarithmic",
+  "corate": "logarithmic_R",
   "blocks": [
     {
       "control_type": "logarithmic",

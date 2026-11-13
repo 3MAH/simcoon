@@ -18,7 +18,8 @@ BOX_TO_DSDE = {0: "DsigmaDe_JaumannDD_2_DSDE", 1: "DsigmaDe_GreenNaghdiDD_2_DSDE
 
 LAWS = {  # name: (props, nstatev, strain increment)
     "EPICP": ([200000.0, 0.3, 0.0, 300.0, 1000.0, 0.5], 8, [4e-3, -1e-3, -1e-3, 2e-3, 0.0, 1e-3]),
-    "NEOHC": ([1000.0, 5000.0], 1, [4e-2, -1e-2, -1e-2, 2e-2, 0.0, 1e-2]),
+    "NEOHC": ([1000.0, 5000.0], 1, [4e-2, -1e-2, -1e-2, 2e-2, 0.0, 1e-2]),            # modular engine
+    "NEOHC_closed": ([1000.0, 5000.0], 1, [4e-2, -1e-2, -1e-2, 2e-2, 0.0, 1e-2]),     # built on F
 }
 
 
@@ -75,10 +76,10 @@ def test_total_formulation_fused_tangent_matches_lt_convert(name):
 
 
 def test_a_law_built_on_F_has_one_material_tangent():
-    """NEOHC is a function of F alone: its stress and its dS/dE do not depend on the formulation,
-    which only names the intermediate box."""
-    (s_r, _, _, m_r), _ = _call("NEOHC", 3, tangent_output="material")
-    (s_t, _, _, m_t), _ = _call("NEOHC", "total", tangent_output="material")
+    """NEOHC_closed is a function of F alone: its stress and its dS/dE do not depend on the
+    formulation, which only names the intermediate box."""
+    (s_r, _, _, m_r), _ = _call("NEOHC_closed", 3, tangent_output="material")
+    (s_t, _, _, m_t), _ = _call("NEOHC_closed", "total", tangent_output="material")
     np.testing.assert_allclose(s_t, s_r, rtol=0, atol=1e-10 * np.abs(s_r).max())
     np.testing.assert_allclose(m_t, m_r, rtol=0, atol=1e-8 * np.abs(m_r).max())
 

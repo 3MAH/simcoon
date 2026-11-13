@@ -152,7 +152,6 @@ the min-over-increments estimator picks the elastic increments and hides this.
 
 | Status | Laws |
 |---|---|
-| Routed to MODUL (adapter, `legacy_modular`) | ELISO, ELIST, ELORT, EPICP, EPKCP, EPCHA, PRONK, ZENER, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN (thermomechanical face: EPICP, EPKCP, PRONK, ZENER) |
-| MODUL equivalent exists, adapter to write | NEOHC, MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA (`HYPER_INVARIANTS` block, same `HyperPotential`); NEOHI to confirm (neo-Hookean with the quadratic volumetric term, kappa = 2/D1) |
-| Dedicated closed-form kernel kept under a `_closed` name (benchmark, comparison) | EPICP_closed, EPCHA_closed, PRONK_closed, ZENER_closed (one Maxwell branch by parameter map, `simcoon.modular.zener_as_maxwell`); EPKCP_closed on the thermomechanical face |
+| Routed to MODUL (adapter, `legacy_modular`) | ELISO, ELIST, ELORT, EPICP, EPKCP, EPCHA, PRONK, ZENER, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN (thermomechanical face: EPICP, EPKCP, PRONK, ZENER); finite route: NEOHC, NEOHI, MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA (`HYPER_INVARIANTS` block, corate 3 and the total form; measured at parity with the kernels built on F, 1.30 vs 1.33 us/pt NEOHC and 1.29 vs 1.35 YEOHH on 2000 points, stress within 2e-15) |
+| Dedicated closed-form kernel kept under a `_closed` name (benchmark, comparison) | NEOHC_closed, NEOHI_closed (built on F: every corate, native dS/dE); EPICP_closed, EPCHA_closed, PRONK_closed, ZENER_closed (one Maxwell branch by parameter map, `simcoon.modular.zener_as_maxwell`); EPKCP_closed on the thermomechanical face |
 | No MODUL equivalent | OGDEN (principal stretches), SNTVE, HYPOO, EPJCK, LLDM0 (anisotropic damage), ZENNK (Kelvin chains, N >= 2), SMA family, micromechanics (MIHEN, MIMTN, MISCN, MIPLN) |

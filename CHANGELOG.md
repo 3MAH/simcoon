@@ -29,8 +29,6 @@ Known gaps and planned work, not yet in a release. An item moves to
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
-  - adapters for the hyperelastic laws whose MODUL equivalent exists (NEOHC,
-    MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA; NEOHI to confirm);
   - no MODUL equivalent yet: OGDEN, SNTVE, HYPOO, EPJCK, LLDM0, ZENNK (N >= 2: the
     Kelvin-to-Maxwell map has no closed form), the SMA family, the micromechanics schemes;
   - the thermomechanical dispatch (`umat_T`): `MODUL` has its face (every block, every
@@ -54,6 +52,26 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   (Maxwell) form; the 2.x names stay for compatibility.
 
 ## [Unreleased]
+
+### Breaking changes
+
+- The invariant-based hyperelastic names NEOHC, NEOHI, MOORI, YEOHH, ISHAH, GETHH, SWANH and
+  HOLZA run the `HYPER_INVARIANTS` block of the modular engine through a props adapter
+  (`legacy_adapters.cpp`: the same potential, the same props; NEOHI is the Neo-Hookean potential
+  with `mu = E/2(1+nu)`, `kappa = E/3(1-2nu)` and the quadratic `U(J)`). They are now potentials of
+  the logarithmic strain, served under corate 3 (log_R) and the total formulation only, as `MODUL`
+  (the solver refuses the other corates by name; `sim.umat` is indifferent, the caller supplies
+  the increment); their material tangent comes from the box. `NEOHC_closed` and `NEOHI_closed`
+  keep the kernels built on F (every corate, native dS/dE). Results under corate 3 move at
+  round-off (stress, tangent and Wm within 8e-15 of the kernels built on F on random F, 30 points);
+  HOLZA runs in the material frame, so a one-increment finite rotation differs by the log_R
+  rotation increment (1e-5 at 0.37 rad, converging with the increment; identical to 1e-15 without
+  rotation). C++: `umat_legacy_modular` takes the kinematic form (default rate) and the finite
+  dispatch forwards the total form to the adapters, under which the hyperelastic block returns
+  the stress dual to `H`; `adapter_is_hyperelastic(name)`. The `testBin/Umats/HYPER` reference case
+  runs under `logarithmic_R`; `examples/hyperelasticity/HYPER_umat.py`, `benchmark/benchmark_solver.py`
+  and the solver tables of `benchmark/dump_results.py` under corate 3 (the dumps move by 3e-14 on
+  `benchmark/NEOHC`, bit-identical elsewhere).
 
 ## [2.4.0] - 2026-11-12
 

@@ -22,7 +22,10 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
+#include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <cstring>
+#include <set>
 #include <map>
 #include <stdexcept>
 #include <vector>
@@ -96,6 +99,36 @@ vec translate_ZENER(const vec& p) {
     out(10) = p(5)*K0*K0/((K0 + K1)*(K0 + K1));
     out(11) = p(6)*mu0*mu0/((mu0 + mu1)*(mu0 + mu1));
     return out;
+}
+
+// HYPER_INVARIANTS block: [4, potential, n_params, params..., alpha, omega, 0 mechanisms]; the legacy
+// props are the potential's own parameters (the optional trailing volumetric selector included)
+vec hyper_stream(HyperPotential potential, const vec& p, const double alpha) {
+    vec out(6 + p.n_elem);
+    out(0) = static_cast<double>(ElasticityType::HYPER_INVARIANTS);
+    out(1) = static_cast<double>(potential);
+    out(2) = static_cast<double>(p.n_elem);
+    if (p.n_elem > 0) out.subvec(3, 2 + p.n_elem) = p;
+    out(3 + p.n_elem) = alpha;
+    out(4 + p.n_elem) = 0.;
+    out(5 + p.n_elem) = 0.;
+    return out;
+}
+
+vec translate_NEOHC(const vec& p) { return hyper_stream(HyperPotential::NEOHC, p, 0.); }
+vec translate_MOORI(const vec& p) { return hyper_stream(HyperPotential::MOORI, p, 0.); }
+vec translate_YEOHH(const vec& p) { return hyper_stream(HyperPotential::YEOHH, p, 0.); }
+vec translate_ISHAH(const vec& p) { return hyper_stream(HyperPotential::ISHAH, p, 0.); }
+vec translate_GETHH(const vec& p) { return hyper_stream(HyperPotential::GETHH, p, 0.); }
+vec translate_SWANH(const vec& p) { return hyper_stream(HyperPotential::SWANH, p, 0.); }
+vec translate_HOLZA(const vec& p) { return hyper_stream(HyperPotential::HOLZA, p, 0.); }
+
+vec translate_NEOHI(const vec& p) {
+    // legacy: E nu alpha, W = C10 (I1_bar - 3) + (1/D1)(J - 1)^2 with C10 = mu/2 and 1/D1 = kappa/2:
+    // the NEOHC potential [mu, kappa] with the quadratic volumetric term
+    const double mu = p(0)/(2.*(1. + p(1))), kappa = p(0)/(3.*(1. - 2.*p(1)));
+    return hyper_stream(HyperPotential::NEOHC,
+                        vec{mu, kappa, static_cast<double>(VolumetricPotential::QUADRATIC)}, p(2));
 }
 
 vec translate_EPKCP(const vec& p) {
@@ -232,14 +265,31 @@ const std::map<std::string, LegacyPropsTranslator>& registry() {
         {"EPDFA", translate_EPDFA},
         {"EPCHG", translate_EPCHG},
         {"EPHIN", translate_EPHIN},
+        {"NEOHC", translate_NEOHC},
+        {"NEOHI", translate_NEOHI},
+        {"MOORI", translate_MOORI},
+        {"YEOHH", translate_YEOHH},
+        {"ISHAH", translate_ISHAH},
+        {"GETHH", translate_GETHH},
+        {"SWANH", translate_SWANH},
+        {"HOLZA", translate_HOLZA},
     };
     return reg;
+}
+
+const std::set<std::string>& hyperelastic_adapters() {
+    static const std::set<std::string> names = {"NEOHC", "NEOHI", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "HOLZA"};
+    return names;
 }
 
 }  // namespace
 
 bool has_legacy_adapter(const std::string& umat_name) {
     return registry().count(umat_name) > 0;
+}
+
+bool adapter_is_hyperelastic(const std::string& umat_name) {
+    return hyperelastic_adapters().count(umat_name) > 0;
 }
 
 namespace {
@@ -290,7 +340,7 @@ void umat_legacy_modular(
     const double& T, const double& DT, const double& Time, const double& DTime,
     double& Wm, double& Wm_r, double& Wm_ir, double& Wm_d,
     const int& ndi, const int& nshr, const bool& start, double& tnew_dt,
-    const int& tangent_mode, const int& ncp) {
+    const int& tangent_mode, const int& ncp, const KinematicForm& kinematic_form) {
 
     const vec props_mod = translated_props(umat_name, props, false);   // a view of the memo
     try {
@@ -298,7 +348,7 @@ void umat_legacy_modular(
                      static_cast<int>(props_mod.n_elem), props_mod,
                      nstatev, statev,
                      T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d,
-                     ndi, nshr, start, tnew_dt, tangent_mode, KinematicForm::rate, ncp);
+                     ndi, nshr, start, tnew_dt, tangent_mode, kinematic_form, ncp);
     } catch (const std::logic_error& e) {
         // a configuration error, named after the legacy law; numerical failures pass through
         // with their own type (the step-cut policy)

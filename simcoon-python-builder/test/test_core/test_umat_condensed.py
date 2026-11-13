@@ -259,8 +259,7 @@ def _hyper(name, props, lnv, ndi, nshr=None):
     return s.ravel(), Lt[:, :, 0]
 
 
-HYPER = {"NEOHC": [1000., 10000.], "NEOHI": [2000., 0.40, 0.0], "SNTVE": [100000.0, 0.3, 0.0],
-         "MOORI": [0.2588, -0.0449, 10000.0], "YEOHH": [0.30, -0.010, 0.0005, 1000.0]}
+HYPER = {"NEOHC_closed": [1000., 10000.], "NEOHI_closed": [2000., 0.40, 0.0], "SNTVE": [100000.0, 0.3, 0.0]}
 
 
 @pytest.mark.parametrize("ndi,nshr", STATES)
@@ -304,8 +303,8 @@ def test_hyperelastic_condensed_through_ln_V(name, props, ndi, nshr):
 @pytest.mark.parametrize("ndi,nshr", STATES)
 def test_MODUL_hyperelastic_condensed_matches_NEOHC(ndi, nshr):
     """MODUL with a neo-Hookean block is a log-strain box (rate form, F1 for J only): condensed,
-    it is the NEOHC kernel condensed, and the free increments it writes back into Detot are the
-    ln V components of the 3D stress-free point."""
+    it is the NEOHC_closed kernel (built on F) condensed, and the free increments it writes back into
+    Detot are the ln V components of the 3D stress-free point."""
     from simcoon.modular import NeoHookeanElasticity
     mod = ModularMaterial(elasticity=NeoHookeanElasticity(mu=1000.0, kappa=10000.0))
     K, C = _kept(ndi, nshr)
@@ -325,7 +324,7 @@ def test_MODUL_hyperelastic_condensed_matches_NEOHC(ndi, nshr):
     np.testing.assert_array_equal(s[C], 0.0)
     np.testing.assert_array_equal(d_solved[K], lnv[K])
     I3_ = np.asfortranarray(np.eye(3)[:, :, None])
-    s_neo, Lt_neo = sim.umat("NEOHC", _col(np.zeros(6)), _col(np.zeros(6)), I3_, F1, _col(np.zeros(6)), I3_,
+    s_neo, Lt_neo = sim.umat("NEOHC_closed", _col(np.zeros(6)), _col(np.zeros(6)), I3_, F1, _col(np.zeros(6)), I3_,
                              _col([1000.0, 10000.0]), _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), ndi=ndi, nshr=nshr,
                              n_threads=1, corate=3)[0::3]
     np.testing.assert_allclose(s, s_neo.ravel(), rtol=1e-8, atol=1e-8 * np.abs(s).max())
@@ -336,11 +335,47 @@ def test_MODUL_hyperelastic_condensed_matches_NEOHC(ndi, nshr):
     np.testing.assert_allclose(s3, s, rtol=1e-8, atol=1e-8 * np.abs(s).max())
 
 
+# the hyperelastic names run the modular block through a props adapter: condensed, they ARE the
+# composition built in Python (validated above as MODUL), bit for bit
+ADAPTER_HYPER = {
+    "NEOHC": ([1000.0, 10000.0], __import__("simcoon.modular", fromlist=["x"]).NeoHookeanElasticity(mu=1000.0, kappa=10000.0)),
+    "NEOHI": ([2000.0, 0.40, 0.0], __import__("simcoon.modular", fromlist=["x"]).NeoHookeanElasticity(
+        mu=2000.0 / (2 * 1.40), kappa=2000.0 / (3 * 0.20), volumetric="quadratic")),
+    "MOORI": ([0.2588, -0.0449, 10000.0], __import__("simcoon.modular", fromlist=["x"]).MooneyRivlinElasticity(
+        C10=0.2588, C01=-0.0449, kappa=10000.0)),
+    "YEOHH": ([0.30, -0.010, 0.0005, 1000.0], __import__("simcoon.modular", fromlist=["x"]).YeohElasticity(
+        C10=0.30, C20=-0.010, C30=0.0005, kappa=1000.0)),
+}
+
+
+@pytest.mark.parametrize("ndi,nshr", STATES)
+@pytest.mark.parametrize("name", list(ADAPTER_HYPER))
+def test_hyperelastic_adapter_condensed_is_its_modular_composition(name, ndi, nshr):
+    props, block = ADAPTER_HYPER[name]
+    mat = ModularMaterial(elasticity=block)
+    K, C = _kept(ndi, nshr)
+    lnv = np.zeros(6)
+    lnv[K] = np.array([0.25, -0.08, 0.0, 0.12, -0.07, 0.05])[K]
+    F1 = np.asfortranarray(expm(sim.v2t_strain(lnv))[:, :, None])
+
+    def run(law, p, nstatev):
+        Detot = _col(lnv)
+        out = sim.umat(law, _col(np.zeros(6)), Detot, I3, F1, _col(np.zeros(6)), I3, _col(p), _col(np.zeros(nstatev)),
+                       0.0, 1.0, _col(np.zeros(4)), ndi=ndi, nshr=nshr, n_threads=1, corate=3)
+        return out[0].ravel(), out[3][:, :, 0], Detot.ravel()
+    s, Lt, d = run(name, props, 1)
+    s_m, Lt_m, d_m = run("MODUL", mat.props, mat.nstatev)
+    np.testing.assert_array_equal(s[C], 0.0)
+    np.testing.assert_allclose(s, s_m, rtol=0, atol=1e-13 * np.abs(s_m).max())
+    np.testing.assert_allclose(Lt, Lt_m, rtol=0, atol=1e-13 * np.abs(Lt_m).max())
+    np.testing.assert_allclose(d, d_m, rtol=0, atol=1e-14)
+
+
 # --- finite strain over several increments: the free stretch travels in etot -------------------
 
 _NEO_MOD = ModularMaterial(elasticity=__import__("simcoon.modular", fromlist=["x"]).NeoHookeanElasticity(
     mu=1000.0, kappa=10000.0))
-FINITE_LAWS = {"NEOHC": ([1000.0, 10000.0], 1), "MODUL": (list(_NEO_MOD.props), _NEO_MOD.nstatev)}
+FINITE_LAWS = {"NEOHC_closed": ([1000.0, 10000.0], 1), "MODUL": (list(_NEO_MOD.props), _NEO_MOD.nstatev)}
 
 
 def _finite_path(name, ndi, nshr, n, form="rate", condense="spatial_face"):
@@ -392,10 +427,10 @@ def test_finite_condensed_point_over_increments_total_form(name, ndi, nshr, cond
 @pytest.mark.parametrize("ndi,nshr", [(1, 0), (2, 1)])
 def test_material_face_rate_form_over_increments(ndi, nshr):
     """condense='material_face' under the rate form feeds the law the log_R increment of the rebuilt F0 -> F1:
-    NEOHC (a function of F) follows the total form at every n; MODUL carries the log_R integration
-    error of those increments, which vanishes with the increment."""
-    s_rate, _ = _finite_path("NEOHC", ndi, nshr, 8, "rate", "material_face")
-    s_total, _ = _finite_path("NEOHC", ndi, nshr, 8, "total", "material_face")
+    NEOHC_closed (a function of F) follows the total form at every n; MODUL carries the log_R
+    integration error of those increments, which vanishes with the increment."""
+    s_rate, _ = _finite_path("NEOHC_closed", ndi, nshr, 8, "rate", "material_face")
+    s_total, _ = _finite_path("NEOHC_closed", ndi, nshr, 8, "total", "material_face")
     np.testing.assert_allclose(s_rate, s_total, rtol=1e-9, atol=1e-9 * np.abs(s_total).max())
     ref, _ = _finite_path("MODUL", ndi, nshr, 1, "total", "material_face")
     gaps = [np.abs(_finite_path("MODUL", ndi, nshr, n, "rate", "material_face")[0] - ref).max() for n in (4, 8, 16)]
@@ -446,13 +481,15 @@ def _S_of(sigma, F):
 # name: (props, nstatev, strain scale[, tangent_mode])
 TOTAL_LAWS = {
     "NEOHC": ([1000.0, 10000.0], 1, 1.0),
+    "NEOHC_closed": (HYPER["NEOHC_closed"], 1, 1.0),
     "MODUL": (list(_NEO_MOD.props), _NEO_MOD.nstatev, 1.0),
     "ELISO": ([E, NU, 0.0], 1, 0.02),
     "EPICP": (EPICP, 8, 0.05),
-    "NEOHI": (HYPER["NEOHI"], 1, 1.0),
+    "NEOHI": (HYPER["NEOHI_closed"], 1, 1.0),
+    "NEOHI_closed": (HYPER["NEOHI_closed"], 1, 1.0),
     "SNTVE": (HYPER["SNTVE"], 1, 0.02),
-    "MOORI": (HYPER["MOORI"], 1, 1.0),
-    "YEOHH": (HYPER["YEOHH"], 1, 1.0),
+    "MOORI": ([0.2588, -0.0449, 10000.0], 1, 1.0),
+    "YEOHH": ([0.30, -0.010, 0.0005, 1000.0], 1, 1.0),
     "ELIST": (LAWS["ELIST"][0], 1, 0.02),
     "ELORT": (ELORT, 1, 0.02),
     "EPJCK": (EPJCK, 9, 0.05),
@@ -542,14 +579,14 @@ def test_material_face_frees_the_material_faces(name, ndi, nshr):
 
 @pytest.mark.parametrize("ndi,nshr", [(2, 1), (1, 2), (2, 3)])
 def test_material_face_is_the_same_under_rate_and_total(ndi, nshr):
-    """NEOHC depends on F only: the material-face condition (on S, at the F built from E) gives the same
-    point whatever form carries the law's strain."""
+    """NEOHC_closed depends on F only: the material-face condition (on S, at the F built from E) gives
+    the same point whatever form carries the law's strain."""
     K, _ = _kept(ndi, nshr)
     H = np.zeros(6)
     H[K] = H_PATH[K]
     F1c = np.asfortranarray((R_ @ expm(sim.v2t_strain(H)))[:, :, None])
-    s_t, Lt_t, _, _ = _total("NEOHC", H.copy(), ndi, nshr, "material_face")
-    out = sim.umat("NEOHC", _col(np.zeros(6)), _col(np.zeros(6)), I3, F1c, _col(np.zeros(6)), I3,
+    s_t, Lt_t, _, _ = _total("NEOHC_closed", H.copy(), ndi, nshr, "material_face")
+    out = sim.umat("NEOHC_closed", _col(np.zeros(6)), _col(np.zeros(6)), I3, F1c, _col(np.zeros(6)), I3,
                    _col([1000.0, 10000.0]), _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), ndi=ndi, nshr=nshr,
                    n_threads=1, corate=3, start=True, condense="material_face", tangent_output="material")
     np.testing.assert_allclose(out[0].ravel(), s_t, rtol=1e-9, atol=1e-9 * np.abs(s_t).max())
@@ -731,9 +768,11 @@ NOT_VALIDATED = ["HYPOO", "OGDEN", "HOLZA", "SMRDI", "SMAMO", "LLDM0", "MIMTN", 
 
 def test_condensation_serves_exactly_the_validated_laws():
     """True exactly for the laws whose condensed point the tests above check against the 3D law
-    (rate form: LAWS, HYPER, FINITE_LAWS; total: TOTAL_LAWS; condense='material_face' the same); always
+    (rate form: LAWS, HYPER, FINITE_LAWS, ADAPTER_HYPER; total: TOTAL_LAWS; condense='material_face' the
+    same); always
     True for ndi = 3, where nothing is condensed."""
-    rate, total, material_face = set(LAWS) | set(HYPER) | set(FINITE_LAWS), set(TOTAL_LAWS), set(MATERIAL_FACE_LAWS)
+    rate = set(LAWS) | set(HYPER) | set(FINITE_LAWS) | set(ADAPTER_HYPER)
+    total, material_face = set(TOTAL_LAWS), set(MATERIAL_FACE_LAWS)
     for name in rate | total | set(NOT_VALIDATED):
         for ndi, nshr in STATES + [(1, 1)]:
             assert sim.condensation_serves(name, ndi, nshr) == (name in rate), name

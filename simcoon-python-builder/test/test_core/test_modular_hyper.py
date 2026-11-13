@@ -23,9 +23,13 @@ from simcoon.modular import (
     YeohElasticity,
 )
 
-# (modular block, standalone UMAT name, that UMAT's props)
+# (modular block, UMAT name, that UMAT's props): NEOHC_closed and NEOHI_closed are the kernels built on
+# F (an independent oracle); the other names run the same block through their props adapter, so the
+# comparison checks the translation
 MODELS = [
-    (NeoHookeanElasticity(mu=0.5673, kappa=1000.0), "NEOHC", [0.5673, 1000.0]),
+    (NeoHookeanElasticity(mu=0.5673, kappa=1000.0), "NEOHC_closed", [0.5673, 1000.0]),
+    (NeoHookeanElasticity(mu=2000.0 / (2 * 1.40), kappa=2000.0 / (3 * 0.20), volumetric="quadratic"),
+     "NEOHI_closed", [2000.0, 0.40, 0.0]),
     (MooneyRivlinElasticity(C10=0.2588, C01=-0.0449, kappa=10000.0), "MOORI",
      [0.2588, -0.0449, 10000.0]),
     (YeohElasticity(C10=0.30, C20=-0.010, C30=0.0005, kappa=1000.0), "YEOHH",
@@ -54,14 +58,14 @@ STATES = {
 }
 
 
-def _umat(name, props, etot, F1, nstatev):
+def _umat(name, props, etot, F1, nstatev, Detot=None):
     n = 1
     z6 = lambda: np.zeros((6, n), order="F")
     eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
     stress, sv, wm, Lt = sim.umat(
         name,
         np.asfortranarray(np.asarray(etot, dtype=float).reshape(6, 1)),
-        z6(),
+        np.asfortranarray(np.asarray(Detot, dtype=float).reshape(6, 1)) if Detot is not None else z6(),
         eye if F1 is not None else np.array([]),
         np.asarray(F1).reshape(3, 3, 1).copy(order="F") if F1 is not None else np.array([]),
         z6(), eye,
@@ -77,16 +81,21 @@ def _umat(name, props, etot, F1, nstatev):
                          MODELS, ids=[m[1] for m in MODELS])
 def test_modular_hyper_matches_standalone_kernel(block, umat_name, umat_props, state, volumetric):
     eps = np.array(STATES[state])
-    block = dataclasses.replace(block, volumetric=volumetric)
+    if umat_name == "NEOHI_closed":
+        if volumetric == "log":
+            pytest.skip("NEOHI is the quadratic volumetric form")
+    else:
+        block = dataclasses.replace(block, volumetric=volumetric)
+        # the law selects U(J) by an optional trailing prop (absent = log)
+        umat_props = list(umat_props) + ([1.0] if volumetric == "quadratic" else [])
     mat = ModularMaterial(elasticity=block)
-    # the standalone kernel selects U(J) by an optional trailing prop (absent = log)
-    umat_props = list(umat_props) + ([1.0] if volumetric == "quadratic" else [])
 
     sigma_mod, Lt_mod = _umat("MODUL", mat.props, eps, None, mat.nstatev)
 
-    # the standalone kernels output Cauchy; MODUL is a kirchhoff_box model
+    # through sim.umat with F the laws output Cauchy; MODUL on the small-strain arguments returns tau.
+    # A box law reads Detot (the kernels built on F ignore it).
     sigma_ref, Lt_ref = _umat(umat_name, umat_props, np.zeros(6),
-                              expm(sim.v2t_strain(eps)), 1)
+                              expm(sim.v2t_strain(eps)), 1, Detot=eps)
     tau_ref = np.exp(eps[:3].sum()) * sigma_ref
 
     scale = max(1.0, np.abs(tau_ref).max())
@@ -108,14 +117,15 @@ def test_volumetric_potential_under_pure_dilatation(umat_name, props, kappa, vol
     props = list(props) + ([1.0] if volumetric == "quadratic" else [])
     J = 1.2
     F = np.cbrt(J) * np.eye(3)
-    sigma, Lt = _umat(umat_name, props, np.zeros(6), F, 1)
+    ln_V = lambda Jx: np.log(np.cbrt(Jx)) * np.array([1.0, 1.0, 1.0, 0.0, 0.0, 0.0])   # the box reads Detot
+    sigma, Lt = _umat(umat_name, props, np.zeros(6), F, 1, Detot=ln_V(J))
     np.testing.assert_allclose(sigma[:3], dUdJ(kappa, J), rtol=1e-10, atol=1e-12)
     np.testing.assert_allclose(sigma[3:], 0.0, atol=1e-12)
     np.testing.assert_allclose(Lt[0, :3].sum(), 3.0 * J * (dUdJ(kappa, J) + J * dU2dJ2(kappa, J)),
                                rtol=1e-9)
     # finite difference of tau_11 along a hydrostatic log-strain increment
     d = 1e-6
-    tau = lambda Jx: Jx * _umat(umat_name, props, np.zeros(6), np.cbrt(Jx) * np.eye(3), 1)[0][0]
+    tau = lambda Jx: Jx * _umat(umat_name, props, np.zeros(6), np.cbrt(Jx) * np.eye(3), 1, Detot=ln_V(Jx))[0][0]
     fd = (tau(J * np.exp(3 * d)) - tau(J * np.exp(-3 * d))) / (2 * d)
     np.testing.assert_allclose(Lt[0, :3].sum(), fd, rtol=1e-6)
 
@@ -170,3 +180,41 @@ def test_hyper_blocks_are_exported():
                  "YeohElasticity", "IsiharaElasticity", "GentThomasElasticity",
                  "SwansonElasticity"):
         assert name in md.__all__
+
+
+# ------------------------------------------------------------------ the adapters
+
+ADAPTERS = ["NEOHC", "NEOHI", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "HOLZA"]
+
+
+def test_hyperelastic_names_run_the_modular_engine_under_log_R_only():
+    """The plain names run the HYPER_INVARIANTS block, a potential of the logarithmic strain: the
+    solver serves them under corate 3 and the total form; another corate is refused by name, the
+    message pointing at the kernel built on F when one exists (NEOHC_closed, NEOHI_closed)."""
+    from simcoon.solver import Block, StepMeca
+    st = StepMeca(control="F", value=[1.05, 0.02, 0., 0., 0.98, 0., 0., 0., 1.01], time=1., ninc=2)
+    props = {"NEOHC": [1000., 10000.], "NEOHI": [2000., 0.40, 0.], "YEOHH": [0.30, -0.010, 0.0005, 1000.0]}
+    for name, p in props.items():
+        for form in ({"corate": 3}, {"kinematic_form": "total"}):
+            sim.solver.solve(Block(steps=[st], control_type="F"), name, p, 1, T_init=290., **form)
+        with pytest.raises(Exception, match="corate_type = 3"):
+            sim.solver.solve(Block(steps=[st], control_type="F"), name, p, 1, T_init=290., corate=0)
+    with pytest.raises(Exception, match="NEOHC_closed"):
+        sim.solver.solve(Block(steps=[st], control_type="F"), "NEOHC", props["NEOHC"], 1, T_init=290., corate=4)
+    for name in ("NEOHC_closed", "NEOHI_closed"):   # built on F: every corate
+        for corate in (0, 1, 2, 3, 4, 5):
+            sim.solver.solve(Block(steps=[st], control_type="F"), name, props[name[:5]], 1, T_init=290., corate=corate)
+
+
+def test_neohi_adapter_is_the_quadratic_neo_hookean():
+    """NEOHI (E, nu, alpha): C10 = mu/2 and 1/D1 = kappa/2 with mu = E/2(1+nu), kappa = E/3(1-2nu),
+    i.e. the NEOHC potential with the quadratic U(J). The adapter and the kernel built on F agree
+    at round-off under corate 3 (stress, box tangent, Wm)."""
+    eps = np.array(STATES["generic"])
+    F1 = expm(sim.v2t_strain(eps))
+    s_a, Lt_a = _umat("NEOHI", [2000.0, 0.40, 0.0], np.zeros(6), F1, 1, Detot=eps)
+    s_c, Lt_c = _umat("NEOHI_closed", [2000.0, 0.40, 0.0], np.zeros(6), F1, 1)
+    np.testing.assert_allclose(s_a, s_c, rtol=0, atol=1e-12 * np.abs(s_c).max())
+    np.testing.assert_allclose(Lt_a, Lt_c, rtol=0, atol=1e-11 * np.abs(Lt_c).max())
+    s_n, _ = _umat("NEOHC", [2000.0 / 2.8, 2000.0 / 0.6, 1.0], np.zeros(6), F1, 1, Detot=eps)
+    np.testing.assert_allclose(s_a, s_n, rtol=1e-14)   # the props differ by the rounding of kappa

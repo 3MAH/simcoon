@@ -28,7 +28,7 @@ def run_case(
     path_data,
     pathfile,
     solver_type=0,
-    corate_type=2,
+    corate_type=3,
     orientation=(0.0, 0.0, 0.0),
 ):
     r"""Run one load path and return its :math:`(\lambda, P_{11})` trajectory.
@@ -368,7 +368,7 @@ for i, umat in enumerate(list_umats):
     theta_rve = 0.0
     phi_rve = 0.0
     solver_type = 0
-    corate_type = 2
+    corate_type = 3
     nstatev = 1
 
     # Load path
@@ -473,7 +473,7 @@ for i, umat in enumerate(list_umats):
     theta_rve = 0.0
     phi_rve = 0.0
     solver_type = 0
-    corate_type = 2
+    corate_type = 3
     nstatev = 1
 
     # Load path
@@ -576,7 +576,7 @@ for i, umat in enumerate(list_umats):
     theta_rve = 0.0
     phi_rve = 0.0
     solver_type = 0
-    corate_type = 2
+    corate_type = 3
     nstatev = 1
 
     # Load path

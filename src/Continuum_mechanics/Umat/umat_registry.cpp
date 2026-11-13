@@ -110,14 +110,18 @@ const std::map<std::string, umat_entry> &umat_registry()
         // --- finite-strain kernels ---
         {"HYPOO",       {K::none,              K::hypoelasticity_ortho, K::none,               box()}},   // the rate counterpart of ELORT, tau_{n+1} = tau_n + L : DEel
         {"SNTVE",       {K::none,              K::saint_venant,       K::none,                 on_F(),                             C::rate_and_total}},
-        {"NEOHI",       {K::none,              K::neo_hookean_incomp, K::none,                 on_F(),                             C::rate_and_total}},
-        {"NEOHC",       {K::none,              K::hyper_invariants,   K::none,                 on_F(),                             C::rate_and_total}},
-        {"MOORI",       {K::none,              K::hyper_invariants,   K::none,                 on_F(),                             C::rate_and_total}},
-        {"YEOHH",       {K::none,              K::hyper_invariants,   K::none,                 on_F(),                             C::rate_and_total}},
-        {"ISHAH",       {K::none,              K::hyper_invariants,   K::none,                 on_F()}},
-        {"GETHH",       {K::none,              K::hyper_invariants,   K::none,                 on_F()}},
-        {"SWANH",       {K::none,              K::hyper_invariants,   K::none,                 on_F()}},
-        {"HOLZA",       {K::none,              K::hyper_invariants,   K::none,                 on_F()}},
+        // --- hyperelasticity in the isochoric invariants: the modular HYPER_INVARIANTS block (corate 3 and the
+        //     total formulation only, as MODUL); the kernels built on F keep NEOHC_closed and NEOHI_closed ---
+        {"NEOHI",       {K::none,              K::legacy_modular,     K::none,                 box(),                              C::rate_and_total}},   // [T_init]; NEOHC potential, quadratic U(J)
+        {"NEOHI_closed",{K::none,              K::neo_hookean_incomp, K::none,                 on_F(),                             C::rate_and_total}},
+        {"NEOHC",       {K::none,              K::legacy_modular,     K::none,                 box(),                              C::rate_and_total}},   // [T_init]
+        {"NEOHC_closed",{K::none,              K::hyper_invariants,   K::none,                 on_F(),                             C::rate_and_total}},
+        {"MOORI",       {K::none,              K::legacy_modular,     K::none,                 box(),                              C::rate_and_total}},
+        {"YEOHH",       {K::none,              K::legacy_modular,     K::none,                 box(),                              C::rate_and_total}},
+        {"ISHAH",       {K::none,              K::legacy_modular,     K::none,                 box()}},
+        {"GETHH",       {K::none,              K::legacy_modular,     K::none,                 box()}},
+        {"SWANH",       {K::none,              K::legacy_modular,     K::none,                 box()}},
+        {"HOLZA",       {K::none,              K::legacy_modular,     K::none,                 box()}},   // fibre directions in the material frame
         {"OGDEN",       {K::none,              K::hyper_pstretch,     K::none,                 on_F()}},
         // --- the modular engine: a Hencky hyperelastic composition under finite strain (corate 3 or the total form) ---
         {"MODUL",       {K::modular,           K::modular,            K::modular,              box_undeclared(),                   C::rate_and_total}},

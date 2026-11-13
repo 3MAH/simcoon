@@ -185,13 +185,19 @@ Unchanged dedicated implementations (out of the modular scope):
 - **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified),
   SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
-  NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA
-  (invariant-based hyperelasticity); OGDEN (isochoric principal
-  stretches, props = ``N, kappa, mu_1, alpha_1, ...``). The compressible
-  ones take one optional trailing prop selecting the volumetric term
-  :math:`U(J)`: absent or 0 for :math:`\kappa (J \ln J - J + 1)`, 1 for
-  :math:`\frac{\kappa}{2} (J - 1)^2` (NEOHI has the latter form built in,
-  with :math:`\kappa = 2 / D_1`).
+  OGDEN (isochoric principal stretches, props = ``N, kappa, mu_1, alpha_1, ...``)
+  are kernels built on :math:`\mathbf{F}`. The invariant-based hyperelastic names
+  NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH and HOLZA run the
+  ``HYPER_INVARIANTS`` block of the modular engine through a props adapter (the
+  same potential, the same props): a potential of the logarithmic strain, served
+  under corate 3 (log_R) and the total formulation only, as ``MODUL``; ``statev``
+  is ``[T_init]``. ``NEOHC_closed`` and ``NEOHI_closed`` keep the kernels built on
+  :math:`\mathbf{F}`, which serve every corate and the native material tangent
+  (comparisons, ``test_finite_tangents``). The compressible potentials take one
+  optional trailing prop selecting the volumetric term :math:`U(J)`: absent or 0
+  for :math:`\kappa (J \ln J - J + 1)`, 1 for :math:`\frac{\kappa}{2} (J - 1)^2`
+  (NEOHI is the Neo-Hookean potential with the latter form, :math:`\mu = E/2(1+\nu)`,
+  :math:`\kappa = E/3(1-2\nu)`, i.e. :math:`C_{10} = \mu/2`, :math:`1/D_1 = \kappa/2`).
 
   HOLZA is the Gasser-Ogden-Holzapfel model, the only anisotropic one of the
   set: an isotropic neo-Hookean matrix reinforced by :math:`n` families of
@@ -459,10 +465,10 @@ anisotropic :math:`\mathbf{L}` the common law :math:`\boldsymbol{\tau} = \mathbf
 ELORT, HYPOO, the plasticity names, ``MODUL``, ``PYEXT``) run in a frame that follows the
 material: the accumulated corate rotation for corates 0 to 3, the polar rotation of
 :math:`\mathbf{F}` for 4 and 5. Their anisotropy axes (orthotropic and transversely isotropic
-stiffness, Hill-type criteria, HOLZA fibres in ``MODUL``) therefore rotate with the body, as with
-Abaqus ``*ORIENTATION`` under NLGEOM, and their tensorial ``Statev`` are material-frame
-components. The kernels built from :math:`\mathbf{F}` (SNTVE, the Neo-Hookean and invariant
-family, OGDEN, HOLZA) are objective by construction and keep the lab frame.
+stiffness, Hill-type criteria, HOLZA fibres, in ``MODUL`` and through the hyperelastic names)
+therefore rotate with the body, as with Abaqus ``*ORIENTATION`` under NLGEOM, and their tensorial
+``Statev`` are material-frame components. The kernels built from :math:`\mathbf{F}` (SNTVE,
+``NEOHC_closed``, ``NEOHI_closed``, OGDEN) are objective by construction and keep the lab frame.
 
 **The tangent rate is not declared, it is deduced from the solver's ``corate_type``.** Every
 kernel receives the solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in
@@ -601,10 +607,10 @@ first-order quadrature of the log_R strain. Under the other rates the box does n
 :math:`\mathbf{H}` in the polar frame and this comparison has no meaning.
 
 *Scope.* Log-strain box kernels (``ELISO``, ``ELIST``, ``ELORT``, ``EPICP``, ``EPJCK``, ``EPCHA``,
-the plasticity names served by the modular engine, and ``PYEXT``, whose Python law then receives
-:math:`\ln\mathbf{U}` and must return :math:`\mathbf{T}`), and the hyperelastic kernels built on
-:math:`\mathbf{F}` (``NEOHI``, ``NEOHC``, ``MOORI``, ``YEOHH``, ``ISHAH``, ``GETHH``, ``SWANH``,
-``OGDEN``, ``HOLZA``, ``SNTVE``). The latter return the true :math:`\boldsymbol{\tau}` in both
+the plasticity and hyperelastic names served by the modular engine, and ``PYEXT``, whose Python
+law then receives :math:`\ln\mathbf{U}` and must return :math:`\mathbf{T}`), and the kernels built on
+:math:`\mathbf{F}` (``NEOHI_closed``, ``NEOHC_closed``, ``OGDEN``, ``SNTVE``). The latter return the
+true :math:`\boldsymbol{\tau}` in both
 formulations, so their stress does not depend on it; the dispatcher forms their work on the dual
 pair, :math:`\tfrac12(\mathbf{T}_n + \mathbf{T}_{n+1}):\Delta\mathbf{H}` with
 :math:`\mathbf{T}` computed from :math:`\boldsymbol{\tau}`, and their box is

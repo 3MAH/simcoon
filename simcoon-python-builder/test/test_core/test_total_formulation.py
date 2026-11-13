@@ -212,7 +212,7 @@ def test_a_rate_law_is_refused():
         _solve("HYPOO", ORTHO, 1, [_shear(0.1)], 5, "total")
 
 
-@pytest.mark.parametrize("umat, props", [("NEOHC", [1000., 10000.]), ("SNTVE", [100000., 0.3, 0.])])
+@pytest.mark.parametrize("umat, props", [("NEOHC_closed", [1000., 10000.]), ("SNTVE", [100000., 0.3, 0.])])
 def test_a_law_built_on_F_is_the_same_law_in_both_formulations(umat, props):
     """A hyperelastic law built on F is a state function of F: stretch, shear, rotation, and back.
     Its stress does not depend on the formulation, its strain output is ln U, and its work, formed
@@ -239,7 +239,7 @@ def test_a_law_built_on_F_converges_under_mixed_control():
     rebuilt from the dT/dH box of the law, and lands on the solution of the rate formulation."""
     st = StepMeca(control=["strain"] + ["stress"] * 5, value=[0.3, 0, 0, 0, 0, 0], time=1., ninc=10,
                   Dn_init=1., Dn_mini=1e-3)
-    out = {c: sim.solver.solve(Block(steps=[st], control_type="green_lagrange"), "NEOHC", [1000., 10000.], 1,
+    out = {c: sim.solver.solve(Block(steps=[st], control_type="green_lagrange"), "NEOHC_closed", [1000., 10000.], 1,
                                T_init=290., **_kinematic_form(c)) for c in (3, "total")}
     assert len(out["total"]) == len(out[3]) == 10                 # no step cut
     np.testing.assert_allclose(out["total"]["Kirchhoff"][:, -1], out[3]["Kirchhoff"][:, -1], atol=1e-6)
@@ -463,8 +463,8 @@ def test_modular_plasticity_is_the_dedicated_box_under_the_total_formulation():
 
 
 def test_modular_isotropic_hyperelastic_block_is_the_standalone_law():
-    """MODUL with a Yeoh block against YEOHH, built on F: the same stress at any step, since the
-    block is evaluated on a state function of F."""
+    """MODUL with a Yeoh block against the YEOHH adapter (the same block, translated props): the same
+    stress at any step under the total form."""
     from simcoon.modular import ModularMaterial, YeohElasticity
     mat = ModularMaterial(elasticity=YeohElasticity(C10=0.30, C20=-0.010, C30=0.0005, kappa=1000.0))
     ref = _solve("YEOHH", [0.30, -0.010, 0.0005, 1000.0], 1, [_shear(0.8)], 2, "total")
@@ -474,9 +474,10 @@ def test_modular_isotropic_hyperelastic_block_is_the_standalone_law():
 
 
 def test_modular_fibre_block_is_exact_at_any_step_under_the_total_formulation():
-    """MODUL with a Holzapfel block against HOLZA, in two increments. The block returns the stress
-    dual to its strain, so the fibre response is the one of the law built on F; under corate 3
-    it only converges to it, at first order in the step (test_finite_objectivity)."""
+    """MODUL with a Holzapfel block against the HOLZA adapter, in two increments: the adapter forwards
+    the total form, under which the block returns the stress dual to its strain (the fibre response
+    of the law built on F); under corate 3 it only converges to it, at first order in the step
+    (test_finite_objectivity)."""
     el, mat = _holzapfel()
     ref = _solve("HOLZA", el.potential_params(), 1, [_shear(0.5)], 2, "total")
     mod = _solve(mat.umat_name, mat.props, mat.nstatev, [_shear(0.5)], 2, "total")
