@@ -17,8 +17,6 @@ Simcoon aims to be a high-quality scientific library for analysing complex, nonl
 
 Simcoon supports geometric nonlinearity using Lagrangian and Eulerian measures, and cumulative strains with several objective rates (Jaumann, Green--Naghdi, Xi--Meyers--Brühns logarithmic, and the polar-rotation logarithmic log_R). The logarithmic cumulative-strain measure transported by the exact polar rotation (log_R) is the default used by the library's constitutive laws.
 
-Simcoon makes use of the Fastor library (https://github.com/romeric/Fastor) for high-performance tensor computations; Fastor is distributed under the MIT License and is fetched as a header-only dependency at build time.
-
 Simcoon is mainly developed by faculty and researchers from Université Grenoble Alpes (TIMC laboratory) and the University of Bordeaux (I2M Laboratory). Contributions also came from the LEM3 laboratory (Metz, France) and TU Bergakademie Freiberg (Germany). The project is released under the GNU General Public License (GPL v3).
 
 [![GitHub license](https://img.shields.io/badge/license-GPL%203-blue.svg)](https://github.com/chemiskyy/simcoon/blob/master/LICENSE)

@@ -570,7 +570,10 @@ arma::mat dyadic_4vectors_sym(const arma::vec &n_a, const arma::vec &n_b, const 
 \f[
     \mathbf{C} = \mathbf{a} \otimes \mathbf{b}, \quad C_{ijkl} = a_{ij} \, b_{kl}
 \f]
- * The function returns a 6x6 matrix corresponding to a 4th order tensor in Voigt notation (such as stiffness matrices).
+ * The function returns a 6x6 matrix corresponding to a 4th order tensor in Voigt notation (such as stiffness matrices):
+ * the outer product \f$ \mathbf{C} = \{a\} \{b\}^T \f$ of the Voigt vectors of the symmetric
+ * parts of \f$ \mathbf{a} \f$ and \f$ \mathbf{b} \f$ (the Voigt 6x6 holds \f$ C_{(ij)(kl)} \f$ for the pairs
+ * \f$ i \le j \f$, \f$ k \le l \f$, averaged over each minor pair).
  * @returns The 6x6 matrix that represent the dyadic product (arma::mat)
  * @code
     mat a = randu(3,3);

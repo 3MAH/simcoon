@@ -141,6 +141,77 @@ Two things the default is **not**:
   strain-typed :math:`\ln \mathbf{V}` is accepted by the type tag and has no
   meaning.
 
+Transport in index and Mandel notation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**The index products.** The transports of the table act with one kernel
+:math:`\mathbf{K}` on every index: :math:`\mathbf{K} = \mathbf{F}` on a
+contravariant index, :math:`\mathbf{K} = \mathbf{F}^{-T}` on a covariant one. For a
+symmetric second-order tensor and a fourth-order tensor with both minor
+symmetries,
+
+.. math::
+
+   t'_{ij} = K_{ia} K_{jb}\, t_{ab},
+   \qquad
+   C'_{ijkl} = K_{ia} K_{jb} K_{kc} K_{ld}\, C_{abcd}.
+
+:math:`\mathbf{F}` is any deformation gradient: neither symmetric nor orthogonal.
+The transported tensors keep their symmetries (:math:`t'` is symmetric because
+:math:`\mathbf{K}\,\mathbf{t}\,\mathbf{K}^T` is, whatever :math:`\mathbf{K}`; the minor
+symmetries of :math:`C'` follow from those of :math:`C` in the same way).
+
+**Why a 6 x 6 matrix does the job.** The first transport is the linear map
+:math:`\mathbf{X} \mapsto \mathbf{K}\mathbf{X}\mathbf{K}^T` restricted to the symmetric
+second-order tensors, a six-dimensional space. In its Kelvin-Mandel orthonormal
+basis (:math:`e_{(ii)} = \mathbf{e}_i \otimes \mathbf{e}_i` and
+:math:`e_{(ij)} = (\mathbf{e}_i \otimes \mathbf{e}_j + \mathbf{e}_j \otimes \mathbf{e}_i)/\sqrt2`
+for :math:`i<j`) that map has the matrix
+
+.. math::
+
+   (\mathbb{Q}_{\mathbf{K}})_{IJ} = \frac{c_I}{c_J}\left( K_{ik} K_{jl} + (1-\delta_{kl})\, K_{il} K_{jk} \right),
+   \qquad I = (ij),\ J = (kl),\ c = (1,1,1,\sqrt2,\sqrt2,\sqrt2).
+
+A fourth-order tensor with both minor symmetries is a bilinear form on that same
+space, and transporting both of its arguments by the same map is a congruence.
+The two index products above therefore read, exactly,
+
+.. math::
+
+   \{t'\} = \mathbb{Q}_{\mathbf{K}}\, \{t\},
+   \qquad
+   \mathbb{C}' = \mathbb{Q}_{\mathbf{K}}\, \mathbb{C}\, \mathbb{Q}_{\mathbf{K}}^T .
+
+No approximation enters: the Mandel components are the tensor components in an
+orthonormal basis, so the matrix product is the index product. simcoon never
+forms the :math:`3^4` components (``mandel_congruence`` in ``tensor.cpp``; checked
+against the explicit four-index contraction to :math:`5 \times 10^{-16}` on random
+non-symmetric :math:`\mathbf{F}`).
+
+**What** :math:`\mathbb{Q}_{\mathbf{K}}` **is not.** It is not orthogonal for a general
+:math:`\mathbf{F}`: :math:`\mathbb{Q}_{\mathbf{K}}^{-1} = \mathbb{Q}_{\mathbf{K}^{-1}} \neq \mathbb{Q}_{\mathbf{K}}^T`.
+That is why ``pull_back`` applies the congruence with the inverse kernel
+(:math:`\mathbf{F}^{-1}` for a stiffness, :math:`\mathbf{F}^{T}` for a compliance) and never
+the transpose of :math:`\mathbb{Q}_{\mathbf{F}}`. :math:`\mathbb{Q}_{\mathbf{K}}` is orthogonal
+exactly when :math:`\mathbf{K}` is a rotation, in which case the congruence is a
+rotation of components: ``rotate`` and ``push_forward`` share the formula, not the
+property.
+
+**Where the congruence stops.** It needs one kernel on every index and both minor
+symmetries. A tensor with mixed variance (the concentration tensors
+:math:`A_{ij}{}^{kl}`, :math:`B^{ij}{}_{kl}`) transports as
+:math:`\mathbb{Q}_{\mathbf{F}^{-T}}\, \mathbb{A}\, \mathbb{Q}_{\mathbf{F}}^T`, two different
+kernels: not a congruence, and ``push_forward`` refuses those types (as before). A
+non-symmetric second-order tensor has no Mandel vector; ``Tensor2`` transports it
+as a 3 x 3 product directly.
+
+**The dyadic products of** ``contimech`` follow the same rule:
+:math:`C_{ijkl} = a_{ij} b_{kl}` is the outer product of the two Voigt vectors, and
+:math:`\partial \mathbf{S}^{-1} / \partial \mathbf{S} =
+-\tfrac12 (S^{-1}_{ik} S^{-1}_{jl} + S^{-1}_{il} S^{-1}_{jk})` is the symmetric dyadic
+operator of :math:`\mathbf{S}^{-1}`, negated.
+
 Two-point tensors have no basis
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
