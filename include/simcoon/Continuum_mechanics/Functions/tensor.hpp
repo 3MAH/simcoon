@@ -575,9 +575,14 @@ public:
      *   (\mathbb{Q}_{\mathbf{K}})_{IJ} = \frac{c_I}{c_J}\left( K_{ik} K_{jl} + (1-\delta_{kl})\, K_{il} K_{jk} \right),
      *   \quad I = (ij),\ J = (kl),\ c = (1,1,1,\sqrt2,\sqrt2,\sqrt2),
      * \f]
-     * the Mandel matrix of \f$ \mathbf{X} \mapsto \mathbf{K}\mathbf{X}\mathbf{K}^T \f$ on symmetric
-     * \f$ \mathbf{X} \f$: exact for a tensor with both minor symmetries, orthogonal when
-     * \f$ \mathbf{K} \f$ is a rotation (rotate() is the same congruence).
+     * the Mandel matrix of the linear map \f$ \mathbf{X} \mapsto \mathbf{K}\mathbf{X}\mathbf{K}^T \f$ on the
+     * symmetric second-order tensors. The congruence is the index product above, exactly, for ANY
+     * \f$ \mathbf{F} \f$ (neither symmetric nor orthogonal is assumed) and a tensor with both minor
+     * symmetries. \f$ \mathbb{Q}_{\mathbf{K}} \f$ is not orthogonal in general:
+     * \f$ \mathbb{Q}_{\mathbf{K}}^{-1} = \mathbb{Q}_{\mathbf{K}^{-1}} \neq \mathbb{Q}_{\mathbf{K}}^T \f$, which is
+     * why pull_back() applies the inverse kernel and never the transpose. It is orthogonal exactly
+     * when \f$ \mathbf{K} \f$ is a rotation: rotate() shares the formula, not the property. Mixed
+     * variance (one kernel per pair) is not a congruence: the concentration types are refused.
      *
      * The compliance kernel is what makes inverse(K).push_forward(F) == inverse(K.push_forward(F))
      * for non-orthogonal F.
