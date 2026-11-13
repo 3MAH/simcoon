@@ -122,8 +122,9 @@ public:
         double sedEl = sv->Wm(1), sedPl = sv->Wm(3), epseq = 0.;
         double Time_loc = Time, dTime_loc = DTime, Temp_loc = sv->T, dTemp_loc = sv->DT;
         double coords[3] = {0., 0., 0.};
-        double defGrad_t[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
-        double defGrad[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
+        double defGrad_t[9], defGrad[9];   // the phase's F0, F1 (identity on the small-strain route), column-major
+        std::copy(sv->F0.memptr(), sv->F0.memptr() + 9, defGrad_t);
+        std::copy(sv->F1.memptr(), sv->F1.memptr() + 9, defGrad);
         double tsstif[2] = {0., 0.};
         double epsZZ = 0.;
         int var1 = 0, var2 = 0, var3 = 0, var4 = 0, var5 = 0;

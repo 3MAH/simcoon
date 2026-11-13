@@ -18,9 +18,6 @@ Known gaps and planned work, not yet in a release. An item moves to
   rule, Anderson, tolerance) are still props slots: they are per phase (nested
   schemes), so they need a named builder rather than a run option.
 - fedoo does not pass `ncp` and `integrator` through yet.
-- The external plugins (UMEXT, UMABA, UMANS) serve the small-strain route only: a finite-strain
-  entry in the plugin API (law fed the logarithmic strain, returning tau, as the internal
-  kernels) would let them run under NLGEOM.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
@@ -58,6 +55,23 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   header `fastor_bridge.hpp` (`arma_to_fastor2`, `voigt_to_fastor4`, `mandel_to_fastor4`,
   `push_forward_4` and their inverses) are removed. The Python API is unchanged.
 
+### Added
+
+- The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the
+  finite dispatch serves UMEXT, UMABA and UMANS as log-strain boxes in the material frame. UMEXT
+  follows the simcoon convention exactly like PYEXT and the built-in kernels (logarithmic strain in,
+  Kirchhoff stress and box tangent out: a small-strain plugin runs unchanged; the elastic test plugin
+  is ELISO to round-off). The host plugins keep their conventions (`StressMeasure::cauchy`, now
+  complete on both sides of the box): the Cauchy start stress `tau_n / J_n` in, the Cauchy stress and
+  the host Jacobian out, converted to the route (`tau = J sigma`; Abaqus DDSDDE in the Jaumann rate,
+  Ansys dsdePl in the Green-Naghdi rate with its `sigma (x) I` term added, both mapped through dS/dE to
+  the box of the solver's corate; the hosts' symmetric Jacobians give the symmetric part of the
+  exact tangent). The host work trapezoid is replaced by the Kirchhoff one. Corates 0 to 3 are
+  served, the total formulation for UMEXT; corates 4 and 5 are refused (no declared statev layout);
+  `sim.umat` still refuses the plugins. The sample `UMAT_ABAQUS_ELASTIC.f` now returns the NLGEOM
+  Jacobian (`sigma (x) I` term). Tests: the three plugins against ELISO (UMEXT bit-identical, host
+  Cauchy stress = `C : e` to 1e-9), the converted host tangent against central differences, a rigid
+  spin, the admission; `test_external_plugins_refused_under_finite_strain` is gone.
 ### Changed
 
 - The transports of `tensor4` (`push_forward`, `pull_back`, the corotational overload) are the

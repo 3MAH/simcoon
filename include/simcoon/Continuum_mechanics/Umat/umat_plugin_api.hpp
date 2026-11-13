@@ -33,6 +33,29 @@
  * all pure virtual methods. The plugin can then be loaded at runtime using the
  * simcoon plugin loader.
  *
+ * **Finite strain.** The three plugins serve the solver's finite route (NLGEOM) as log-strain
+ * boxes in the material frame, with no change to their signatures:
+ * - UMEXT follows the simcoon small-strain convention exactly like the built-in kernels and
+ *   PYEXT (umat_callback.hpp): the dispatcher feeds the logarithmic strain
+ *   \f$ \mathbf{e} = \ln\mathbf{V} \f$ (@p Etot, @p DEtot) in the material frame and expects the
+ *   Kirchhoff stress \f$ \boldsymbol{\tau} \f$ in @p sigma and the box tangent
+ *   \f$ \partial\hat{\boldsymbol{\tau}}/\partial\mathbf{D} \f$ in @p Lt. A law written for small
+ *   strains runs unchanged; the start stress it receives is the transported
+ *   \f$ \boldsymbol{\tau}_n \f$ and its tensorial state variables must rotate by @p DR as before.
+ * - UMABA and UMANS keep the host conventions. The phase hands them the logarithmic strain in the
+ *   Etot/DEtot slots and the Cauchy start stress \f$ \boldsymbol{\sigma}_n = \boldsymbol{\tau}_n/J_n \f$;
+ *   they return the Cauchy stress (the route forms \f$ \boldsymbol{\tau} = J\boldsymbol{\sigma} \f$) and
+ *   their own Jacobian, which the dispatcher converts to the box of the solver's corate:
+ *   Abaqus DDSDDE = \f$ \frac1J\,\partial(J\boldsymbol{\sigma})/\partial\boldsymbol{\varepsilon} \f$ in
+ *   the Jaumann rate (a UMAT written for NLGEOM carries the \f$ \boldsymbol{\sigma}\otimes\mathbf{I} \f$
+ *   term, as the sample UMAT_ABAQUS_ELASTIC.f does), Ansys dsdePl =
+ *   \f$ \partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon} \f$ in the Green-Naghdi rate (the
+ *   dispatcher adds the symmetric \f$ \boldsymbol{\sigma}\otimes\mathbf{I} \f$). The hosts return
+ *   symmetric Jacobians, so the converted box carries the symmetric part of the exact tangent.
+ *   Their work trapezoid (Cauchy) is replaced by the Kirchhoff one; \f$ W_m^{ir}, W_m^d \f$ stay the
+ *   host's. The statev layout of a plugin is not declared: corates 0 to 3 and, for UMEXT, the
+ *   total formulation are served; the convected rates 4 and 5 are refused by name.
+ *
  * @see phase_characteristics for material state storage
  */
 
