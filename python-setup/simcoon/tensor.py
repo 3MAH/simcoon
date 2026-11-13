@@ -1814,11 +1814,10 @@ class Tensor4(_TensorBase):
         M = L.inverse()                  # compliance Tensor4
 
     .. note::
-        The underlying C++ ``tensor4`` class uses a lazy mutable Fastor cache
-        that is **not** thread-safe.  However, the Python ``Tensor4`` class
-        creates fresh C++ objects for each operation (via ``_to_cpp()``), so
-        Python-level ``Tensor4`` instances are safe to use from multiple
-        threads (subject to the GIL).
+        Transports are Mandel congruences :math:`\mathbb{Q}\,\mathbb{C}\,\mathbb{Q}^T` on the
+        stored 6x6 (see the *Transport in index and Mandel notation* section of the
+        tensor page); the C++ ``tensor4`` holds no cache and its const methods are
+        safe to call from several threads.
     """
 
     _single_ndim = 2

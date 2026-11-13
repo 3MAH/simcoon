@@ -540,7 +540,15 @@ arma::mat Dtau_LieDD_2_DSDE(const arma::mat &DtauDe, const arma::mat &F);
  * This function takes in the tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$, 
  * the transformation gradient \f$ \mathbf{F} \f$ and the Kirchoff stress tensor \f$ \mathbf{\tau} \f$.
  * 
- * It returns the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
+ * It returns the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$:
+ * \f[
+ *   \mathcal{C}^{\mathrm{Lie}}_{ijkl} = L^t_{ijkl} - \tfrac12\left( \tau_{jl}\,\delta_{ik} + \tau_{jk}\,\delta_{il} + \tau_{il}\,\delta_{jk} + \tau_{ik}\,\delta_{jl} \right),
+ *   \qquad
+ *   \frac{\partial S_{IJ}}{\partial E_{KL}} = F^{-1}_{Ii} F^{-1}_{Jj} F^{-1}_{Kk} F^{-1}_{Ll}\, \mathcal{C}^{\mathrm{Lie}}_{ijkl},
+ * \f]
+ * both evaluated on the Voigt 6x6 entries (pairs \f$ i \le j \f$, \f$ k \le l \f$) with the symmetric part of
+ * \f$ \boldsymbol{\tau} \f$; the pull-back is the four one-index contractions of the Voigt push-forward with
+ * \f$ \mathbf{F}^{-1} \f$.
  * 
  * @param[in] DtauDe (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Zaremba-Jaumann-Noll spin
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
@@ -606,6 +614,15 @@ arma::mat DsigmaDe_JaumannDD_2_DSDE(const arma::mat &DsigmaDe, const arma::mat &
  * family: \f$ \mathbf{A}^{R}\!:\!\mathbf{D} \f$ accumulates exactly
  * \f$ \ln\mathbf{U} \f$, and the corate dispatchers route it to the
  * exact map.
+ *
+ * In index notation, with \f$ \mathbb{B} \f$ the Green-Naghdi spin operator of get_BBBB_GN and
+ * \f$ \mathbb{I} \f$ the symmetric identity,
+ * \f[
+ *   \mathcal{C}^{\mathrm{Lie}}_{ijkl} = L^t_{ijkl} + (B - I)_{ipkl}\,\tau_{pj} + \tau_{ip}\,(B - I)_{jpkl},
+ *   \qquad
+ *   \frac{\partial S_{IJ}}{\partial E_{KL}} = F^{-1}_{Ii} F^{-1}_{Jj} F^{-1}_{Kk} F^{-1}_{Ll}\, \mathcal{C}^{\mathrm{Lie}}_{ijkl},
+ * \f]
+ * evaluated on the Voigt 6x6 entries with the symmetric part of \f$ \boldsymbol{\tau} \f$.
  *
  * @param[in] DtauDe (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Green-Naghdi spin
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$

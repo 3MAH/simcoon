@@ -18,11 +18,6 @@ Known gaps and planned work, not yet in a release. An item moves to
   rule, Anderson, tolerance) are still props slots: they are per phase (nested
   schemes), so they need a named builder rather than a run option.
 - fedoo does not pass `ncp` and `integrator` through yet.
-- Under the rounding policy of 2.4 (results move at the round-off level; the gate is
-  `dump_results.py compare --rtol 1e-11`, the heat tables judged against the scale the dumper
-  stores with them; the zero-tolerance pass stays available to pin a defect), still to do: the
-  Fastor to Armadillo rewrite. `mul6`/`mul66` keep their fixed order: they replace the BLAS, they do
-  not imitate it.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
@@ -52,6 +47,14 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Fastor is no longer a dependency: nothing is fetched at build time besides `dylib`, and the
+  installed headers compile with Armadillo alone (a plugin built against them no longer needs
+  `-isystem <build>/_deps/fastor-src`). C++ API: `tensor2::fastor()`, `tensor4::fastor()` and the
+  header `fastor_bridge.hpp` (`arma_to_fastor2`, `voigt_to_fastor4`, `mandel_to_fastor4`,
+  `push_forward_4` and their inverses) are removed. The Python API is unchanged.
+
 ### Added
 
 - The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the
@@ -69,6 +72,27 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   Jacobian (`sigma (x) I` term). Tests: the three plugins against ELISO (UMEXT bit-identical, host
   Cauchy stress = `C : e` to 1e-9), the converted host tangent against central differences, a rigid
   spin, the admission; `test_external_plugins_refused_under_finite_strain` is gone.
+### Changed
+
+- The transports of `tensor4` (`push_forward`, `pull_back`, the corotational overload) are the
+  Mandel congruence `Q C Q^T`, `Q` the 6x6 matrix of `X -> K X K^T` for the kernel `K` (`F` or
+  `F^-T` by type): the same congruence as `rotate`, exact for a tensor with both minor
+  symmetries, instead of a 3x3x3x3 four-pass contraction and two layout conversions. Results move
+  at round-off (`Tensor4.push_forward` and `pull_back`; the solver dumps are bit-identical: the
+  solver never went through this path); the `tensor4` object holds no mutable cache any more
+  and its const methods are thread-safe.
+- `DtauDe_JaumannDD_2_DSDE` and `DtauDe_GreenNaghdiDD_2_DSDE` (corates 0, 1 and 5 of
+  `DtauDe_corate_2_DSDE`) read the symmetric part of the stress on one path, the Voigt entries;
+  the full-index branch kept for a stress asymmetric at round-off is gone (a symmetric stress is
+  bit-identical).
+- `dyadic` is the outer product of the two Voigt vectors (symmetric parts) and `dinvSdSsym` the
+  negated `auto_sym_dyadic_operator` of the inverse, both bit-identical on symmetric inputs. The
+  index forms of every rewritten product stay in the Doxygen contracts and in the tensor page of
+  the manual (*Transport in index and Mandel notation*).
+- Rounding policy, unchanged: results may move at the round-off level, the gate is
+  `dump_results.py compare --rtol 1e-11` (heat tables judged against their stored scale), the
+  zero-tolerance pass stays available to pin a defect. `mul6`/`mul66` keep their fixed order:
+  they replace the BLAS, they do not imitate it.
 
 ## [2.4.0] - 2026-11-12
 

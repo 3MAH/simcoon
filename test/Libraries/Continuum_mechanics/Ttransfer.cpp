@@ -16,16 +16,14 @@
  */
 
 ///@file Transfer.cpp
-///@brief Test for transfer between tensors, vectors in armadillo (vec, mat) and Fastor
+///@brief Test for transfer between tensors and vectors in armadillo (vec, mat)
 ///@version 1.0
 
 #include <gtest/gtest.h>
 #include <armadillo>
 
-#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
-#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
@@ -91,32 +89,6 @@ TEST(Ttransfer, v2t_func)
     EXPECT_LT(norm(dev1,2),simcoon::iota);
     EXPECT_LT(norm(dev2 - test,2),simcoon::iota);
     
-}
-
-TEST(Ttransfer, Fastor_transfer)
-{
-    // Test arma <-> Fastor rank-2 round-trip
-    mat::fixed<3,3> testmat;
-    testmat(0,0) = 4.; testmat(0,1) = 4.; testmat(0,2) = 1.5;
-    testmat(1,0) = 4.; testmat(1,1) = 2.; testmat(1,2) = 3.5;
-    testmat(2,0) = 1.5; testmat(2,1) = 3.5; testmat(2,2) = 6.;
-
-    auto fastor2 = arma_to_fastor2(testmat);
-    mat testmat2 = fastor2_to_arma(Fastor::Tensor<double,3,3>(fastor2));
-    EXPECT_LT(norm(testmat2 - testmat, 2), simcoon::iota);
-
-    // Test arma 6x6 <-> Fastor rank-4 round-trip (stiffness convention)
-    mat L = zeros(6,6);
-    L(0,0) = 16.; L(0,1) = 16.; L(0,2) = 2.25; L(0,3) = 16.; L(0,4) = 6.; L(0,5) = 6.;
-    L(1,0) = 16.; L(1,1) = 4.; L(1,2) = 12.25; L(1,3) = 8.; L(1,4) = 14.; L(1,5) = 7.;
-    L(2,0) = 2.25; L(2,1) = 12.25; L(2,2) = 36; L(2,3) = 5.25; L(2,4) = 9.; L(2,5) = 21.;
-    L(3,0) = 16.; L(3,1) = 8.; L(3,2) = 5.25; L(3,3) = 12.; L(3,4) = 10.; L(3,5) = 8.5;
-    L(4,0) = 6.; L(4,1) = 14.; L(4,2) = 9.; L(4,3) = 10.; L(4,4) = 13.125; L(4,5) = 14.625;
-    L(5,0) = 6.; L(5,1) = 7.; L(5,2) = 21.; L(5,3) = 8.5; L(5,4) = 14.625; L(5,5) = 12.125;
-
-    auto C = voigt_to_fastor4(mat::fixed<6,6>(L));
-    mat L2 = fastor4_to_voigt(C);
-    EXPECT_LT(norm(L2 - L, 2), simcoon::iota);
 }
 
 TEST(Ttransfer, t2v_sym_v2t_sym_roundtrip)
