@@ -167,7 +167,9 @@ TEST(UmatRegistry, CapabilitiesFollowTheKernels) {
     EXPECT_NO_THROW(check_ncp_serves("EPICP_closed", 1, false));
     EXPECT_NO_THROW(check_ncp_serves("EPKCP", 1, true));
     EXPECT_THROW(check_ncp_serves("EPICP_closed", 1, true), std::invalid_argument);
-    EXPECT_THROW(check_ncp_serves("SMADI", 1, false), std::invalid_argument);
+    EXPECT_NO_THROW(check_ncp_serves("SMADI", 1, false));   // the unified SMA kernels take their step through ncp_step
+    EXPECT_NO_THROW(check_ncp_serves("SMRAI", 2, false));
+    EXPECT_THROW(check_ncp_serves("SMAMO", 1, false), std::invalid_argument);
     EXPECT_THROW(check_ncp_serves("NOPE1", 1, false), std::invalid_argument);
     EXPECT_NO_THROW(check_integrator_serves("EPCHA_closed", tangent_closest_point, false));
     EXPECT_NO_THROW(check_integrator_serves("EPJCK", tangent_closest_point, false));

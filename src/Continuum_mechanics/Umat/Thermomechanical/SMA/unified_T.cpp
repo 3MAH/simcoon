@@ -41,7 +41,7 @@ using namespace arma;
 
 namespace simcoon {
 
-void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
+void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -377,6 +377,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double error = 1.;
 
     //Loop
+    ncp_step local_step(ncp_method_of(ncp, "unified_T"));   // one per local solve: the min step's fallback state
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
 
         // Reuss mixing on compliance tensor
@@ -542,7 +543,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         Y_crit(0) = std::max(fabs(Y0t) + fabs(DHM), simcoon::iota);
         Y_crit(1) = std::max(fabs(Y0t) + fabs(D*PhihatR), simcoon::iota);
 
-        Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+        local_step(Phi, Y_crit, B, Ds_j, ds_j, error);
 
         s_j(0) += ds_j(0);
         s_j(1) += ds_j(1);

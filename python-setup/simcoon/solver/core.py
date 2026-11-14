@@ -105,11 +105,12 @@ def solve(
         local iterations for isotropic or linear (Prager) kinematic hardening,
         the same return to the local tolerance; 'active_set', the min step on
         every row, coupled surfaces solved together on their active set, the
-        same fallback; 'penalized_fischer_burmeister', the Chen-Chen-Kanzow
-        function (lambda = 0.95), smooth, no fallback. Read by the modular
+        same fallback (it pays under the closest point on the
+        transformation-dominated paths of the SMA laws). Read by the modular
         engine (MODUL and the legacy names it serves, mechanical and
-        thermomechanical) and by EPICP_closed, under either integrator; the
-        cutting plane refuses the two semi-smooth ones for an
+        thermomechanical), by EPICP_closed and by the unified SMA laws
+        (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC), under either
+        integrator; the cutting plane refuses 'min' and 'active_set' for an
         Armstrong-Frederick back stress (its iterates integrate the back
         stress), the closest point takes every function for every composition
         (one backward-Euler system, the same root). Any other law raises

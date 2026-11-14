@@ -100,15 +100,19 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   3 (`parameter.hpp`: `integrates_closest_point`, `tangent_choice_of`), `cpp_tangent()` in
   `return_mapping.hpp`; the plasticity, Chaboche, kinematic and SMA kernels and `MODUL` read the
   choice.
-- Two more complementarity functions, measured against Fischer-Burmeister and `min` under both
-  integrators (UMAT catalog, `ncp`): `ncp="active_set"` (the min step on every row, coupled
-  surfaces solved together on their active set, the same fallback) and
-  `ncp="penalized_fischer_burmeister"` (Chen, Chen and Kanzow, `lambda = 0.95`, smooth, no
-  fallback, served with an Armstrong-Frederick back stress under the cutting plane). Same
-  return everywhere (closest point: one root, within 4e-10; cutting plane: the active set is
-  another iteration path on coupled surfaces, 4e-4 on a two-surface composition); neither is
-  faster than `min`, the penalized function is 1.3 to 8 times slower than Fischer-Burmeister.
-  `NCPMethod` codes 2 and 3, `ncp_is_semismooth`, `ncp_step` carries the two steps.
+- `ncp="active_set"`, measured against Fischer-Burmeister and `min` under both integrators (UMAT
+  catalog, `ncp`): the min step on every row, coupled surfaces solved together on their active
+  set, the same fallback. The same root under the closest point (within 4e-10); under the
+  cutting plane another iteration path on coupled surfaces (4e-4 on a two-surface plastic
+  composition). `NCPMethod` code 2, `ncp_is_semismooth`, `ncp_step` carries the step.
+- The unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC, mechanical and
+  thermomechanical) read `ncp`: their local Newton steps through `ncp_step` in the cutting plane
+  and the closest point (Fischer-Burmeister by default, bit for bit). Measured on the `SMA_T` and
+  `SMA_TR` materials: `min` is Fischer-Burmeister there (coupled rows); under the closest point
+  the active set is up to 6 times faster on transformation-dominated paths (SMRAI superelastic,
+  41.0 -> 6.8 ms at 50 increments per step) and 1.1 to 3.3 times slower on
+  reorientation-dominated ones; under the cutting plane it changes the state by up to 1.3e-2.
+  Fischer-Burmeister stays the default (Kiefer, Bartel and Menzel 2012).
 - The In-progress bullet on fedoo was stale: fedoo forwards `ncp` and `integrator` since its
   commit f7f195a0 (its docstring and tests follow simcoon 2.4 in fedoo's own PR).
 - The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the
@@ -148,6 +152,11 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   `dump_results.py compare --rtol 1e-11` (heat tables judged against their stored scale), the
   zero-tolerance pass stays available to pin a defect. `mul6`/`mul66` keep their fixed order:
   they replace the BLAS, they do not imitate it.
+
+### Fixed
+
+- A `SyntaxWarning` at import (`tensor.py`): a LaTeX docstring of `Tensor4` had an invalid `\m`
+  escape.
 
 ## [2.4.0] - 2026-11-12
 

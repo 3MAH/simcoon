@@ -101,14 +101,13 @@ def test_closest_point_serves_the_continuum_and_elastic_operators():
     assert np.isfinite(out[3]).all()
 
 
-@pytest.mark.parametrize("method", ["active_set", "penalized_fischer_burmeister"])
+@pytest.mark.parametrize("method", ["active_set"])
 @pytest.mark.parametrize("integrator", ["cutting_plane", "closest_point"])
 def test_other_complementarity_functions_find_the_same_return(method, integrator):
-    """active_set (the min step on every row, coupled surfaces together) and the penalized
-    Fischer-Burmeister function: the same return as Fischer-Burmeister to the local tolerance on a
-    single surface and on a coupled two-surface composition under the closest point (one root);
-    under the cutting plane the active set, a different iteration path on coupled surfaces, lands
-    within the path dependence of that integrator."""
+    """active_set (the min step on every row, coupled surfaces together): the same return as
+    Fischer-Burmeister to the local tolerance on a single surface and on a coupled two-surface
+    composition under the closest point (one root); under the cutting plane, a different iteration
+    path on coupled surfaces, it lands within the path dependence of that integrator."""
     iso = IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5)
     one = ModularMaterial(iso, [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5))])
     two = ModularMaterial(iso, [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5)),
@@ -120,20 +119,37 @@ def test_other_complementarity_functions_find_the_same_return(method, integrator
         assert rel(res["Stress"], ref["Stress"]) < tol, (name, method, integrator)
 
 
+def test_sma_laws_read_the_complementarity_function():
+    """The unified SMA laws take their local step through ncp_step: under the closest point every
+    function lands on the Fischer-Burmeister root (one backward-Euler system); min falls back to
+    Fischer-Burmeister on their coupled rows, bit for bit."""
+    sma = [0, 67538.0, 67538.0, 0.349, 0.349, 1e-6, 1e-6, 0.0, 0.0418, 0.021, 0.0, 10.0, 10.0, 250.0, 230.0,
+           260.0, 280.0, 0.2, 0.2, 0.2, 0.2, 300.0, 1.4, 2.0, 1e-6, 1e-3, 1.0, 1e8]
+    uni = ["strain"] + ["stress"] * 5
+    path = Block(steps=[StepMeca(control=uni, value=[0.05, 0, 0, 0, 0, 0], time=1.0, ninc=50, Dn_mini=0.01),
+                        StepMeca(control=["stress"] * 6, value=[0] * 6, time=1.0, ninc=50, Dn_mini=0.01)])
+    go = lambda **kw: sim.solver.solve(path, "SMADI", np.asarray(sma, float), 50, T_init=320.0, **kw)
+    for integrator in ("cutting_plane", "closest_point"):
+        ref = go(integrator=integrator)
+        np.testing.assert_array_equal(go(integrator=integrator, ncp="min")["Stress"], ref["Stress"])
+        tol = 1e-8 if integrator == "closest_point" else 1e-5   # the cutting plane: another iteration path
+        assert rel(go(integrator=integrator, ncp="active_set")["Stress"], ref["Stress"]) < tol
+
+
 def test_complementarity_function_admission():
     """The semi-smooth functions (min, active_set) are refused with an Armstrong-Frederick back stress
-    under the cutting plane only; the penalized Fischer-Burmeister function is smooth and served there;
-    an unknown name and a law that does not read ncp are refused."""
+    under the cutting plane only; an unknown name (the penalized Fischer-Burmeister function, measured
+    and removed in 2.5) and a law that does not read ncp are refused."""
     from simcoon.modular import ArmstrongFrederickHardening
     mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5),
                           [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5),
                                       kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=100.0))])
     with pytest.raises(Exception, match="Armstrong-Frederick"):
         run("MODUL", mat.props, mat.nstatev, ncp="active_set")
-    assert run("MODUL", mat.props, mat.nstatev, ncp="penalized_fischer_burmeister").status == 0
     assert run("MODUL", mat.props, mat.nstatev, ncp="active_set", integrator="closest_point").status == 0
-    with pytest.raises(ValueError):
-        run("MODUL", mat.props, mat.nstatev, ncp="smoothed")
+    for unknown in ("smoothed", "penalized_fischer_burmeister"):
+        with pytest.raises(ValueError):
+            run("MODUL", mat.props, mat.nstatev, ncp=unknown)
     with pytest.raises(ValueError, match="does not read"):   # a dedicated kernel without the option
         run("ZENER_closed", [3000.0, 0.35, 0.0, 1500.0, 0.35, 3000.0, 1200.0], 8, ncp="active_set")
 

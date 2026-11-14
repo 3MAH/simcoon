@@ -257,6 +257,13 @@ namespace simcoon{
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)
  * @see umat_sma_mono() for the micromechanical monocrystal SMA model
  *
+ * **Complementarity function** (@p ncp, NCPMethod code, state_variables::ncp): the local Newton
+ * takes its step through ncp_step, in the cutting plane and in the closest point: 0
+ * Fischer-Burmeister (default, the historical results bit for bit), 1 min, 2 active set. The
+ * transformation (and reorientation) rows are coupled, so the min step falls back to
+ * Fischer-Burmeister on them; the active set solves them on their active set (see ncp_step and
+ * the UMAT catalogue for when it pays: the closest point on transformation-dominated paths).
+ *
  * **References:**
  * - Chatziathanasiou, D. (2016). Ph.D. Thesis — Phenomenological constitutive modeling
  *   of shape memory alloys.
@@ -264,7 +271,7 @@ namespace simcoon{
  *   "A constitutive model for cyclic actuation of high-temperature shape memory alloys."
  *   *Mechanics of Materials*, 68, 120-136.
  */
-void umat_sma_unified_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
+void umat_sma_unified_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default, const int &ncp = 0);
 
 /** @} */ // end of umat_mechanical group
 

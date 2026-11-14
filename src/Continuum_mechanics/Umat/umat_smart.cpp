@@ -209,7 +209,8 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
                              : (kernel_reads_ncp(entry->mechanical, false) || kernel_reads_ncp(entry->finite, false)));
     if (!serves) {
         throw std::invalid_argument("ncp other than 'fischer_burmeister' serves the local solves of the modular engine (MODUL and the legacy "
-                                    "names it serves, mechanical and thermomechanical) and of EPICP_closed; '"
+                                    "names it serves, mechanical and thermomechanical), of EPICP_closed and of the unified SMA kernels "
+                                    "(SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC); '"
                                     + umat_name + "'" + (thermomechanical ? " (thermomechanical)" : "") + " does not read it");
     }
 }
@@ -324,7 +325,7 @@ void call_umat_T(const UmatKernel &kernel, phase_characteristics &rve, state_var
             break;
         }
         case UmatKernel::sma_unified: {
-            umat_sma_unified_T_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode);
+            umat_sma_unified_T_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode, sv.ncp);
             break;
         }
         default: {
@@ -780,11 +781,11 @@ static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,co
             break;
         }
         case UmatKernel::sma_unified: {
-            umat_sma_unified_T(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+            umat_sma_unified_T(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp);
             break;
         }
         case UmatKernel::sma_unified_R: {
-            umat_sma_unified_TR(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+            umat_sma_unified_TR(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, umat_M->ncp);
             break;
         }
         case UmatKernel::damage_LLD0: {

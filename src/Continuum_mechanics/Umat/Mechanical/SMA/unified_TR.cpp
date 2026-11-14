@@ -41,7 +41,7 @@ using namespace arma;
 
 namespace simcoon {
 
-void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
+void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -546,7 +546,9 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         Ycrit_cpp(1) = std::max(fabs(Y0t) + fabs(D*sum(stress%ETMean)), Yfloor);
         Ycrit_cpp(2) = std::max(YReo, Yfloor);
 
-        rm = closest_point_return_mapping(stress, L_cpp, mechs, hooks, Ycrit_cpp);
+        ReturnMappingControl control;
+        control.ncp = ncp_method_of(ncp, "unified_TR");
+        rm = closest_point_return_mapping(stress, L_cpp, mechs, hooks, Ycrit_cpp, control);
         if (rm.converged) {
             error = rm.error;   // below precision_umat: the post-loop step-cut guard stays quiet
             stress = rm.sigma;
@@ -570,6 +572,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     }
     else {
     const vec Ir05_v = Ir05();   // engineering -> tensorial shear
+    ncp_step local_step(ncp_method_of(ncp, "unified_TR"));   // one per local solve: the min step's fallback state
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
 
         // Reuss mixing
@@ -744,7 +747,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         const arma::uvec active = arma::find((Phi >= 0.) + (arma::abs(B.diag()) >= simcoon::iota));
         vec Ds_active = Ds_j(active);   // the helper accumulates Dp += dp in place
         vec ds_active(active.n_elem);
-        Fischer_Burmeister_m(Phi(active), Y_crit(active), B(active, active), Ds_active, ds_active, error);
+        local_step(Phi(active), Y_crit(active), B(active, active), Ds_active, ds_active, error);
         Ds_j(active) = Ds_active;
         ds_j.zeros();
         ds_j(active) = ds_active;

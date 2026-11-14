@@ -1814,7 +1814,7 @@ class Tensor4(_TensorBase):
         M = L.inverse()                  # compliance Tensor4
 
     .. note::
-        Transports are Mandel congruences :math:`\mathbb{Q}\,\mathbb{C}\,\mathbb{Q}^T` on the
+        Transports are Mandel congruences :math:`\\mathbb{Q}\\,\\mathbb{C}\\,\\mathbb{Q}^T` on the
         stored 6x6 (see the *Transport in index and Mandel notation* section of the
         tensor page); the C++ ``tensor4`` holds no cache and its const methods are
         safe to call from several threads.

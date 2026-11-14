@@ -815,80 +815,106 @@ iteration path for the cutting plane (the state differs from the Fischer-Burmeis
 path dependence of that integrator, :math:`4 \times 10^{-4}` on the two-surface composition
 below) and the same root under the closest point.
 
-**Penalized Fischer-Burmeister** (``ncp="penalized_fischer_burmeister"``, 2.5) solves
-:math:`\phi_\lambda(a, b) = \lambda\,\phi_{FB}(a, b) + (1 - \lambda)\, a_+ b_+ = 0`,
-:math:`a = -\Phi`, :math:`b = \Delta p^*`, :math:`\lambda = 0.95` (Chen, Chen and Kanzow
-2000): the product term keeps the iterate off the kink of the Fischer-Burmeister function. No
-fallback, served for every composition under both integrators, including an
-Armstrong-Frederick back stress under the cutting plane (it is not a full step).
-
 **Measured (2.5)**, tension, shear at held tension, unloading (10 increments per step, one
 thread, min of three runs; the stress of each function against Fischer-Burmeister under the
 same integrator):
 
 .. list-table::
    :header-rows: 1
-   :widths: 24 14 15 15 15 15
+   :widths: 28 16 16 20 20
 
    * - Composition
      - Integrator
      - FB (ms)
      - min
      - active set
-     - penalized FB
    * - MODUL J2, power law
      - cutting plane
      - 0.3
      - :math:`10^{-14}`, 0.2 ms
      - :math:`10^{-14}`, 0.3 ms
-     - :math:`10^{-15}`, 0.5 ms
    * - MODUL J2, power law
      - closest point
      - 0.5
      - :math:`3 \times 10^{-10}`, 0.4 ms
      - :math:`3 \times 10^{-10}`, 0.5 ms
-     - :math:`10^{-15}`, 0.7 ms
    * - MODUL Prager
      - cutting plane
      - 0.4
      - :math:`10^{-14}`, 0.3 ms
      - :math:`10^{-14}`, 0.5 ms
-     - :math:`10^{-15}`, 0.7 ms
    * - MODUL Armstrong-Frederick
      - cutting plane
      - 0.5
      - refused
      - refused
-     - :math:`10^{-14}`, 0.9 ms
    * - MODUL Armstrong-Frederick
      - closest point
      - 0.8
      - :math:`2 \times 10^{-10}`, 0.7 ms
      - :math:`2 \times 10^{-10}`, 0.8 ms
-     - :math:`10^{-15}`, 1.0 ms
    * - MODUL two surfaces (coupled)
      - cutting plane
      - 0.4
      - = FB (falls back), 0.5 ms
      - :math:`4 \times 10^{-4}`, 0.7 ms
-     - :math:`10^{-14}`, 1.0 ms
    * - MODUL two surfaces (coupled)
      - closest point
      - 0.8
      - = FB, 0.8 ms
      - :math:`2 \times 10^{-10}`, 0.8 ms
-     - :math:`10^{-13}`, 1.2 ms
    * - EPICP_closed
      - cutting plane
      - 1.5
      - :math:`4 \times 10^{-12}`, 1.2 ms
      - :math:`4 \times 10^{-12}`, 2.1 ms
-     - :math:`10^{-15}`, 12.3 ms
 
-The min step stays the fastest local solve; the active set brings nothing on a single surface
-(its system is built per iteration) and only changes the path on coupled ones; the penalized
-function converges to the same root everywhere but needs more iterations near it. They are
-kept as options for comparison; ``"min"`` remains the one to use.
+The min step stays the fastest local solve on a single plastic surface; on coupled plastic
+surfaces the active set brings nothing (its system is built per iteration) and, under the cutting
+plane, only changes the path. A penalized Fischer-Burmeister function (Chen, Chen and Kanzow 2000)
+was measured in 2.5 and removed: its added term vanishes at complementarity, so near the solution
+it is Fischer-Burmeister and costs the same on every plastic and SMA path above and below.
+
+**SMA laws** (2.5): the unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC)
+read ``ncp`` too. Their transformation and reorientation rows are coupled, so ``"min"`` is
+Fischer-Burmeister there, bit for bit. Fischer-Burmeister solves every constraint in one Newton
+step without guessing an active set, the choice of Kiefer, Bartel and Menzel (2012, Smart Mater.
+Struct. 21, 094007) for multi-variant shape memory alloys. The active set is the alternative,
+measured on the materials of the ``SMA_T`` and ``SMA_TR`` examples (one thread, min of three runs;
+time in ms, Fischer-Burmeister against active set; under the closest point both land on the same
+root within :math:`3 \times 10^{-10}`):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 16 22 22
+
+   * - Path
+     - Increments per step
+     - Closest point: FB / active set
+     - Cutting plane: FB / active set (state gap)
+   * - SMADI superelastic, 320 K
+     - 50 / 200
+     - 3.3 / 2.7, 10.9 / 7.7
+     - 3.9 / 2.0, 3.9 / 3.5 (:math:`2 \times 10^{-7}`)
+   * - SMRAI superelastic, 353 K
+     - 50 / 200
+     - 41.0 / 6.8, 30.2 / 17.9
+     - 13.2 / 3.5, 10.4 / 6.2 (:math:`10^{-4}`)
+   * - SMRAI reorientation (cooled to 253 K)
+     - 50 / 200
+     - 7.8 / 25.9, 23.2 / 36.4
+     - 2.8 / 2.9, 7.7 / 6.0 (:math:`3 \times 10^{-4}`)
+   * - SMRAI non-proportional (cooled to 253 K)
+     - 50 / 200
+     - 16.0 / 31.7, 47.9 / 52.1
+     - 10.0 / 8.1, 22.2 / 16.1 (:math:`1.3 \times 10^{-2}`)
+
+Under the closest point the active set pays when the transformation dominates (up to 6 times
+faster on SMRAI at coarse increments, where Fischer-Burmeister shortens its steps) and costs 1.1
+to 3.3 times more when the reorientation of the martensite dominates. Under the cutting plane it
+changes the converged state (the path dependence of that integrator, up to
+:math:`1.3 \times 10^{-2}`): use it with ``integrator="closest_point"`` only. Fischer-Burmeister
+stays the default.
 
 **Which rows count.** The min step applies row by row when the local Jacobian :math:`B` is
 diagonal, i.e. when the rows are independent scalar problems. That is the case of a single yield

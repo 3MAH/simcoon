@@ -169,6 +169,8 @@ bool kernel_reads_ncp(const UmatKernel &kernel, const bool &thermomechanical)
     switch (kernel) {
         case K::modular: case K::legacy_modular: return true;
         case K::plasticity_iso: return !thermomechanical;
+        case K::sma_unified: return true;
+        case K::sma_unified_R: return !thermomechanical;
         default: return false;
     }
 }

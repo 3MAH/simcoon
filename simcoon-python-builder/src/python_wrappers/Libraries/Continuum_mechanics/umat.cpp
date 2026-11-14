@@ -117,12 +117,11 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 
 // NCPMethod code of the ncp name of sim.umat / sim.umat_T
 int ncp_code(const std::string &name, const char *entry) {
-	static const std::map<std::string, int> codes = {{"fischer_burmeister", 0}, {"min", 1}, {"active_set", 2},
-	                                                 {"penalized_fischer_burmeister", 3}};
+	static const std::map<std::string, int> codes = {{"fischer_burmeister", 0}, {"min", 1}, {"active_set", 2}};
 	const auto it = codes.find(name);
 	if (it == codes.end())
-		throw std::invalid_argument(std::string(entry) + ": ncp must be 'fischer_burmeister', 'min', 'active_set' or "
-		                            "'penalized_fischer_burmeister'; got '" + name + "'");
+		throw std::invalid_argument(std::string(entry) + ": ncp must be 'fischer_burmeister', 'min' or 'active_set'; got '"
+		                            + name + "'");
 	return it->second;
 }
 
@@ -389,13 +388,11 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified: {
-				umat_function = &simcoon::umat_sma_unified_T;
-				arguments_type = 1;
+				arguments_type = 6;   // called by name: it takes the ncp option
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified_R: { // SMA_TR (unified reduced-tangent model)
-				umat_function = &simcoon::umat_sma_unified_TR;
-				arguments_type = 1;
+				arguments_type = 7;   // called by name: it takes the ncp option
 				break;
 			}
 			case simcoon::UmatKernel::damage_LLD0: {
@@ -637,6 +634,14 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 					}
 					case 5: {
 						simcoon::umat_plasticity_iso(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
+						break;
+					}
+					case 6: {
+						simcoon::umat_sma_unified_T(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
+						break;
+					}
+					case 7: {
+						simcoon::umat_sma_unified_TR(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 					case 2: {
@@ -935,8 +940,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified: {
-				umat_function_named = &simcoon::umat_sma_unified_T_T;
-				arguments_type = 2;
+				arguments_type = 5;   // called by name: it takes the ncp option
 				break;
 			}
 			case simcoon::UmatKernel::modular: {
@@ -1028,6 +1032,10 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 					}
 					case 4: {
 						simcoon::umat_legacy_modular_T(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate, ncp);
+						break;
+					}
+					case 5: {
+						simcoon::umat_sma_unified_T_T(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 				}
