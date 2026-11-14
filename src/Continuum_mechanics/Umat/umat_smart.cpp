@@ -208,7 +208,7 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
         && (thermomechanical ? kernel_reads_ncp(entry->thermomechanical, true)
                              : (kernel_reads_ncp(entry->mechanical, false) || kernel_reads_ncp(entry->finite, false)));
     if (!serves) {
-        throw std::invalid_argument("ncp='min' serves the cutting planes of the modular engine (MODUL and the legacy "
+        throw std::invalid_argument("ncp other than 'fischer_burmeister' serves the local solves of the modular engine (MODUL and the legacy "
                                     "names it serves, mechanical and thermomechanical) and of EPICP_closed; '"
                                     + umat_name + "'" + (thermomechanical ? " (thermomechanical)" : "") + " does not read it");
     }
@@ -216,7 +216,7 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
 
 void check_integrator_serves(const std::string &umat_name, const int &tangent_mode, const bool &thermomechanical)
 {
-    if (tangent_mode != tangent_closest_point) return;
+    if (!integrates_closest_point(tangent_mode)) return;
     const umat_entry *entry = umat_entry_of(umat_name);
     const bool serves = entry != nullptr
         && (thermomechanical ? kernel_serves_closest_point(entry->thermomechanical, true)
@@ -246,9 +246,9 @@ int kernel_tangent_mode(const int &integrator, const int &tangent_mode)
         case integrator_cutting_plane:
             return tangent_mode;
         case integrator_closest_point:
-            if (tangent_mode == tangent_algorithmic) return tangent_closest_point;
-            throw std::invalid_argument("integrator='closest_point' returns its exact (algorithmic) operator only: "
-                                        "give tangent_mode='algorithmic'");
+            return tangent_mode == tangent_algorithmic ? tangent_closest_point
+                 : tangent_mode == tangent_continuum ? tangent_closest_point_continuum
+                 : tangent_closest_point_none;
         default:
             throw std::invalid_argument("integrator must be 'cutting_plane' or 'closest_point'; got code "
                                         + std::to_string(integrator));

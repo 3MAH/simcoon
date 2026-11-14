@@ -362,8 +362,8 @@ void control_thermal(const state_variables &sv, const vec &dSdT_box, const vec &
 
 int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so, const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const solver_params &ctrl, solver_results_sink &sink, const std::vector<phase_characteristics> &sub_phases) {
 
-    if (ctrl.tangent_mode < simcoon::tangent_none || ctrl.tangent_mode > simcoon::tangent_closest_point) {
-        throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
+    if (ctrl.tangent_mode < simcoon::tangent_none || ctrl.tangent_mode > simcoon::tangent_closest_point_none) {
+        throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or a closest-point code 3 to 5; got "
                                     + std::to_string(ctrl.tangent_mode));
     }
     const bool thermomechanical = std::any_of(blocks.begin(), blocks.end(), [](const block &b) { return b.type == 2; });

@@ -117,9 +117,13 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 
 // NCPMethod code of the ncp name of sim.umat / sim.umat_T
 int ncp_code(const std::string &name, const char *entry) {
-	if (name != "fischer_burmeister" && name != "min")
-		throw std::invalid_argument(std::string(entry) + ": ncp must be 'fischer_burmeister' or 'min'; got '" + name + "'");
-	return (name == "min") ? 1 : 0;
+	static const std::map<std::string, int> codes = {{"fischer_burmeister", 0}, {"min", 1}, {"active_set", 2},
+	                                                 {"penalized_fischer_burmeister", 3}};
+	const auto it = codes.find(name);
+	if (it == codes.end())
+		throw std::invalid_argument(std::string(entry) + ": ncp must be 'fischer_burmeister', 'min', 'active_set' or "
+		                            "'penalized_fischer_burmeister'; got '" + name + "'");
+	return it->second;
 }
 
 // Integrator code of the integrator name of sim.umat / sim.umat_T

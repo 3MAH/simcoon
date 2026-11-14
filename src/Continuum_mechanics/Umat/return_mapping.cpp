@@ -337,6 +337,22 @@ bool cutting_plane_return_mapping(
     return error <= precision;
 }
 
+ContinuumTangent cpp_tangent(const ReturnMappingResult &r, const mat &L, const int &tangent_mode) {
+    const int choice = tangent_choice_of(tangent_mode);
+    if (choice == tangent_algorithmic || !r.converged || r.kappa_j.is_empty()) {
+        return cpp_consistent_tangent(r, L);   // the exact operator, or the sized elastic placeholder
+    }
+    if (choice == tangent_continuum) {
+        return assemble_continuum_tangent(r.Bhat_continuum, r.kappa_j, r.dPhidsigma_l, r.Dlambda, L);
+    }
+    ContinuumTangent ct;   // tangent_none: elastic operator, zeroed sensitivities
+    ct.Lt = L;
+    ct.L_tilde = L;
+    ct.P_epsilon.zeros(6, r.kappa_j.n_cols);
+    ct.invBhat.zeros(r.Bhat_continuum.n_rows, r.Bhat_continuum.n_cols);
+    return ct;
+}
+
 ContinuumTangent cpp_consistent_tangent(const ReturnMappingResult &r, const mat &L) {
     if (!r.converged || r.kappa_j.is_empty()) {
         // Precondition not met: elastic operator as a sized placeholder (thermomechanical

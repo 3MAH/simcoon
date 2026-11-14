@@ -515,8 +515,7 @@ def test_record_tangent_false_omits_tangent_history():
 @pytest.mark.parametrize("mode", ["none", "continuum", "algorithmic"])
 @pytest.mark.parametrize("integrator", ["cutting_plane", "closest_point"])
 def test_tangent_modes_converge_to_same_state(mode, integrator):
-    if integrator == "closest_point" and mode != "algorithmic":
-        pytest.skip("the closest point is offered with its algorithmic operator only")
+    """Every tangent choice under either integrator (the closest point serves the three since 2.5)."""
     step = StepMeca(control="stress", value=[400.0, 0, 0, 0, 0, 0], ninc=50)
     res = solve(step, "EPICP", EPICP_PROPS, EPICP_NSTATEV, T_init=290.0,
                 tangent_mode=mode, integrator=integrator)
@@ -572,8 +571,9 @@ def test_integrator_and_tangent_choices_are_checked():
     for old in (3, "closest_point"):
         with pytest.raises(ValueError, match="integrator='closest_point'"):
             solve(*args, T_init=290.0, tangent_mode=old)
-    with pytest.raises(ValueError, match="algorithmic"):
-        solve(*args, T_init=290.0, integrator="closest_point", tangent_mode="continuum")
+    # the closest point serves every tangent choice (2.5)
+    for mode in ("none", "continuum", "algorithmic"):
+        assert solve(*args, T_init=290.0, integrator="closest_point", tangent_mode=mode).status == 0
     with pytest.raises(ValueError):
         solve(*args, T_init=290.0, integrator="radial")
     col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
@@ -583,8 +583,7 @@ def test_integrator_and_tangent_choices_are_checked():
                                  temp=np.full(1, 290.0), n_threads=1, **kw)
     with pytest.raises(ValueError, match="integrator='closest_point'"):
         call(tangent_mode=3)
-    with pytest.raises(ValueError, match="algorithmic"):
-        call(integrator="closest_point", tangent_mode=0)
+    assert np.isfinite(call(integrator="closest_point", tangent_mode=0)[3]).all()
     with pytest.raises(ValueError):
         call(integrator="radial")
 

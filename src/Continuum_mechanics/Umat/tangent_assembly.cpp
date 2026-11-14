@@ -256,7 +256,7 @@ ContinuumTangent compute_tangent_operator(
     const arma::vec& Ds_j,
     const arma::mat& L,
     const HessianProvider& dLambda_dsigma) {
-
+    tangent_mode = simcoon::tangent_choice_of(tangent_mode);   // a closest-point code off its solve (step cut): its choice
     if (tangent_mode == simcoon::tangent_none) {
         // Explicit integration: elastic operator, zeroed sensitivities so the
         // thermomechanical P_theta algebra degrades consistently.
@@ -270,8 +270,7 @@ ContinuumTangent compute_tangent_operator(
     if (tangent_mode == simcoon::tangent_continuum) {
         return assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
     }
-    if (tangent_mode == simcoon::tangent_algorithmic || tangent_mode == simcoon::tangent_closest_point) {
-        // closest-point kernels use cpp_consistent_tangent() and never come here; for the others mode 3 = algorithmic
+    if (tangent_mode == simcoon::tangent_algorithmic) {
         bool active = false;
         for (arma::uword j = 0; j < Ds_j.n_elem; ++j) {
             active = active || (Ds_j(j) > simcoon::iota);

@@ -99,17 +99,22 @@ def solve(
         Newton loop does not converge at the minimal increment, or when the
         increment falls below ``Dn_mini`` with ``inforce=0``.
     ncp : str
-        Complementarity function of the local cutting plane:
-        'fischer_burmeister' (default), or 'min', the classic cutting-plane step
+        Complementarity function of the local return mapping:
+        'fischer_burmeister' (default); 'min', the classic cutting-plane step
         on a single surface with a Fischer-Burmeister fallback: about half the
         local iterations for isotropic or linear (Prager) kinematic hardening,
-        the same return to the local tolerance. Read by the modular engine
-        (MODUL and the legacy names it serves, mechanical and thermomechanical)
-        and by EPICP_closed, under either integrator; the cutting plane refuses
-        it for an Armstrong-Frederick back stress (its iterates integrate the
-        back stress), the closest point takes it for every composition (one
-        backward-Euler system, the same root). Any other law raises ValueError
-        for 'min'. See the UMAT catalog.
+        the same return to the local tolerance; 'active_set', the min step on
+        every row, coupled surfaces solved together on their active set, the
+        same fallback; 'penalized_fischer_burmeister', the Chen-Chen-Kanzow
+        function (lambda = 0.95), smooth, no fallback. Read by the modular
+        engine (MODUL and the legacy names it serves, mechanical and
+        thermomechanical) and by EPICP_closed, under either integrator; the
+        cutting plane refuses the two semi-smooth ones for an
+        Armstrong-Frederick back stress (its iterates integrate the back
+        stress), the closest point takes every function for every composition
+        (one backward-Euler system, the same root). Any other law raises
+        ValueError for a function other than the default. See the UMAT
+        catalog.
     integrator : str, optional
         Local integrator of the laws with a return mapping: 'cutting_plane'
         (the default) or 'closest_point', the backward-Euler closest-point

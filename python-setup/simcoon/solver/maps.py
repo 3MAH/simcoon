@@ -76,6 +76,8 @@ INTEGRATORS = {
 NCP_METHODS = {
     "fischer_burmeister": 0,
     "min": 1,
+    "active_set": 2,
+    "penalized_fischer_burmeister": 3,
 }
 
 

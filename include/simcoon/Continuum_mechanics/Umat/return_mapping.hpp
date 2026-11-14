@@ -292,4 +292,17 @@ bool cutting_plane_return_mapping(
  */
 ContinuumTangent cpp_consistent_tangent(const ReturnMappingResult &r, const arma::mat &L);
 
+/**
+ * @brief The operator of the converged closest-point state for the tangent choice of a kernel code.
+ *
+ * tangent_choice_of(@p tangent_mode): algorithmic -> cpp_consistent_tangent(); continuum -> the
+ * continuum operator of assemble_continuum_tangent() on the same converged ingredients,
+ * \f$ \mathbf{L}_t = \mathbf{L} - \sum_l \boldsymbol{\kappa}^l \otimes \mathbf{P}_\varepsilon^l \f$ with
+ * \f$ \hat{B} \f$, \f$ \boldsymbol{\kappa}^j \f$ and \f$ n^l \f$ at the backward-Euler solution (the
+ * rate operator of the continuum problem, not the derivative of the discrete update); none ->
+ * the elastic operator with zeroed sensitivities. A result without a solve (elastic trial, step
+ * cut) gives the elastic operator for every choice, as cpp_consistent_tangent().
+ */
+ContinuumTangent cpp_tangent(const ReturnMappingResult &r, const arma::mat &L, const int &tangent_mode);
+
 } // namespace simcoon

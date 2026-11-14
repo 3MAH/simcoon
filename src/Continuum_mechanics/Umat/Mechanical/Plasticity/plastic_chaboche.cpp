@@ -195,7 +195,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
 
     // Bhat / K below only feed the cutting-plane tangent, not the closest-point branch
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
+    const bool use_cpp = integrates_closest_point(tangent_mode);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::VOCE, KinHardType::CHABOCHE, vec{sigmaY, Q, b, C_1, D_1, C_2, D_2}, 1, 2);
         auto &iv = mech.variables();
@@ -281,7 +281,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
+    const ContinuumTangent ct = use_cpp ? cpp_tangent(rm, L, tangent_mode) : compute_tangent_operator(
         tangent_mode, Bhat, kappa_j[0], dPhidsigma, Ds_j, L,
         [&]() -> mat {  // lazy: evaluated only in algorithmic mode
             // J2 flow on sigma-X; the backstress coupling is only in the closest-point branch
