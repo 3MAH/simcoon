@@ -10,11 +10,6 @@ under **Unreleased**; the section takes the version number at the release.
 Known gaps and planned work, not yet in a release. An item moves to
 **Unreleased** with the pull request that closes it.
 
-- `integrator="closest_point"` is provided with its algorithmic tangent only
-  (`tangent_mode="algorithmic"`): its continuum operator is not implemented.
-- Other complementarity functions to measure against Fischer-Burmeister and
-  `min`, under both integrators: active set, scaled Fischer-Burmeister.
-- fedoo does not pass `ncp` and `integrator` through yet.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
@@ -97,6 +92,25 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   is itself a mean-field model (nested schemes), which names it; `MeanFieldScheme.from_props`
   reads one back from a JSON material. No C++ change; the slot table stays the single source
   of truth in the catalog and `multiphase.hpp`.
+- `integrator="closest_point"` serves every tangent choice: `tangent_mode="continuum"` is the
+  rate operator of the converged backward-Euler state (the continuum assembly on its
+  ingredients: equal to the cutting plane's continuum operator on a radial return, where both
+  land on the same state, away from the exact operator on any plastic step), `"none"` the
+  elastic operator, `"algorithmic"` the exact operator as before. Kernel codes 4 and 5 next to
+  3 (`parameter.hpp`: `integrates_closest_point`, `tangent_choice_of`), `cpp_tangent()` in
+  `return_mapping.hpp`; the plasticity, Chaboche, kinematic and SMA kernels and `MODUL` read the
+  choice.
+- Two more complementarity functions, measured against Fischer-Burmeister and `min` under both
+  integrators (UMAT catalog, `ncp`): `ncp="active_set"` (the min step on every row, coupled
+  surfaces solved together on their active set, the same fallback) and
+  `ncp="penalized_fischer_burmeister"` (Chen, Chen and Kanzow, `lambda = 0.95`, smooth, no
+  fallback, served with an Armstrong-Frederick back stress under the cutting plane). Same
+  return everywhere (closest point: one root, within 4e-10; cutting plane: the active set is
+  another iteration path on coupled surfaces, 4e-4 on a two-surface composition); neither is
+  faster than `min`, the penalized function is 1.3 to 8 times slower than Fischer-Burmeister.
+  `NCPMethod` codes 2 and 3, `ncp_is_semismooth`, `ncp_step` carries the two steps.
+- The In-progress bullet on fedoo was stale: fedoo forwards `ncp` and `integrator` since its
+  commit f7f195a0 (its docstring and tests follow simcoon 2.4 in fedoo's own PR).
 - The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the
   finite dispatch serves UMEXT, UMABA and UMANS as log-strain boxes in the material frame. UMEXT
   follows the simcoon convention exactly like PYEXT and the built-in kernels (logarithmic strain in,

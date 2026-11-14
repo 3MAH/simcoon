@@ -162,7 +162,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
 
     // Prager C = 3 kX / 2 so that X = kX T a = (2/3) C a
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
+    const bool use_cpp = integrates_closest_point(tangent_mode);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::PRAGER, vec{sigmaY, k, m, 1.5*kX});
         auto &iv = mech.variables();
@@ -247,7 +247,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     };
     const int tangent_mode_eff = (tangent_mode == tangent_none)
         ? tangent_continuum : tangent_mode;
-    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
+    const ContinuumTangent ct = use_cpp ? cpp_tangent(rm, L, tangent_mode) : compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j[0], dPhidsigma, Ds_j, L,
         [&]() -> mat { return flow_hessian(); });   // lazy: evaluated only in algorithmic mode
     dSdE = ct.Lt;

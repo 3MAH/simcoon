@@ -591,7 +591,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     // none/algorithmic/closest-point clamped to continuum: P_epsilon, invBhat feed r (see header)
     const int tangent_mode_eff = (tangent_mode == tangent_none ||
                                   tangent_mode == tangent_algorithmic ||
-                                  tangent_mode == tangent_closest_point)
+                                  integrates_closest_point(tangent_mode))
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
         tangent_mode_eff, Bhat, join_rows(kappa_j[0], kappa_j[1]), join_rows(dPhiFdsigma, dPhiRdsigma), Ds_j, L,

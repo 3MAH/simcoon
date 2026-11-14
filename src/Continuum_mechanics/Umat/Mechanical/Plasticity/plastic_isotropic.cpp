@@ -143,7 +143,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
 
     // Bhat / K below only feed the cutting-plane tangent, not the closest-point branch
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
+    const bool use_cpp = integrates_closest_point(tangent_mode);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::NONE, vec{sigmaY, k, m});
         auto &iv = mech.variables();
@@ -236,7 +236,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         Lt = 3.*K_b*Ivol() + 2.*G*theta*Idev() - 2.*G*theta_bar*(N*N.t());
     }
     else {
-        const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
+        const ContinuumTangent ct = use_cpp ? cpp_tangent(rm, L, tangent_mode) : compute_tangent_operator(
             tangent_mode, Bhat, kappa_j[0], dPhidsigma, Ds_j, L, dLambda_dsigma);
         Lt = ct.Lt;
     }

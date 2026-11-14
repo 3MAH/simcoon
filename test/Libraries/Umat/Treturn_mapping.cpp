@@ -119,6 +119,32 @@ TEST(Treturn_mapping, elastic_guard_returns_trial)
 }
 
 // ---------------------------------------------------------------------
+// cpp_tangent: the three choices on one converged solve. Algorithmic = cpp_consistent_tangent,
+// continuum = the continuum assembly on the converged ingredients, none = L; the first two differ
+// on a plastic step (the rate operator is not the derivative of the discrete update).
+// ---------------------------------------------------------------------
+TEST(Treturn_mapping, cpp_tangent_serves_the_three_choices)
+{
+    J2Problem pb;
+    const vec Eps = {4.e-3, -1.2e-3, -1.2e-3, 0., 0., 0.};
+    const vec sigma_tr = pb.L * Eps;
+    ASSERT_GT(Mises_stress(sigma_tr) - sigmaY, 0.);
+    auto r = closest_point_return_mapping(sigma_tr, pb.L, pb.mech(), pb.update_state(), pb.K_scalar(), sigmaY);
+    ASSERT_TRUE(r.converged);
+    const ContinuumTangent algo = cpp_tangent(r, pb.L, tangent_closest_point);
+    const ContinuumTangent cont = cpp_tangent(r, pb.L, tangent_closest_point_continuum);
+    const ContinuumTangent none = cpp_tangent(r, pb.L, tangent_closest_point_none);
+    EXPECT_LT(norm(algo.Lt - cpp_consistent_tangent(r, pb.L).Lt, "fro"), 1e-14 * norm(algo.Lt, "fro"));
+    const ContinuumTangent ref = assemble_continuum_tangent(r.Bhat_continuum, r.kappa_j, r.dPhidsigma_l, r.Dlambda, pb.L);
+    EXPECT_LT(norm(cont.Lt - ref.Lt, "fro"), 1e-14 * norm(ref.Lt, "fro"));
+    EXPECT_GT(norm(cont.Lt - algo.Lt, "fro"), 1e-3 * norm(algo.Lt, "fro"));
+    EXPECT_EQ(norm(none.Lt - pb.L, "fro"), 0.);
+    EXPECT_EQ(tangent_choice_of(tangent_closest_point_continuum), tangent_continuum);
+    EXPECT_TRUE(integrates_closest_point(tangent_closest_point_none));
+    EXPECT_FALSE(integrates_closest_point(tangent_algorithmic));
+}
+
+// ---------------------------------------------------------------------
 // Test 3: two mechanisms, one inactive. The second (very high yield) criterion
 // must stay inactive: Dlambda_2 = 0 and the active solution matches Test 1.
 // ---------------------------------------------------------------------

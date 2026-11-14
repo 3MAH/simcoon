@@ -543,11 +543,12 @@ void check_integrator_serves(const std::string &umat_name, const int &tangent_mo
  * The run chooses three things apart: the local integrator (@p integrator, integrator_* constants),
  * the complementarity function inside it (ncp) and the operator handed to the global Newton
  * (@p tangent_mode: none, continuum or algorithmic, the consistent operator of the integrator that
- * ran). The kernels read one code, tangent_closest_point standing for the closest-point integrator
- * with its exact operator:
+ * ran). The kernels read one code, the closest-point integrator standing as its own codes
+ * (integrates_closest_point, tangent_choice_of in parameter.hpp):
  * - integrator_cutting_plane: @p tangent_mode none, continuum or algorithmic, as given;
- * - integrator_closest_point: tangent_closest_point, for the algorithmic tangent only (its
- *   continuum operator and the explicit form are not provided).
+ * - integrator_closest_point: tangent_closest_point (algorithmic: the exact operator of the
+ *   closest-point map), tangent_closest_point_continuum (the continuum operator of the converged
+ *   state) or tangent_closest_point_none (the elastic operator).
  * @p tangent_mode = tangent_closest_point is refused: the closest point is chosen by @p integrator.
  * Which laws accept the result is check_integrator_serves; inside one of them, a row without a
  * closest-point update (a Tresca or Drucker row of MODUL) keeps the cutting plane (see the UMAT

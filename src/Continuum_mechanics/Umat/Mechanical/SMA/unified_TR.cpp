@@ -361,7 +361,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     // closest point: frozen-mixture construction of unified_T (see header)
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
+    const bool use_cpp = integrates_closest_point(tangent_mode);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
         const double xi_n = xi;
@@ -786,7 +786,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // closest point: exact operator of the converged solve with the frozen L_cpp (elastic on a step cut)
     ContinuumTangent ct;
     if (use_cpp) {
-        ct = cpp_consistent_tangent(rm, L_cpp);
+        ct = cpp_tangent(rm, L_cpp, tangent_mode);
     }
     else {
     mat Bhat = zeros(3, 3);
@@ -798,7 +798,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     }
 
     // algorithmic clamped to continuum: the FD flow Hessian is near-singular on the plateau
-    const int tangent_mode_eff = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point)
+    const int tangent_mode_eff = (tangent_mode == tangent_algorithmic || integrates_closest_point(tangent_mode))
         ? tangent_continuum : tangent_mode;
     ct = compute_tangent_operator(
         tangent_mode_eff, Bhat, join_rows(kappa_j[0], kappa_j[1], kappa_j[2]), join_rows(dPhiFdsigma, dPhiRdsigma, dPhiReodsigma), Ds_j, L,

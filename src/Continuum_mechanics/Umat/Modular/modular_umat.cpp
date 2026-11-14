@@ -316,8 +316,8 @@ void ModularUMAT::run(
         }
     }
 
-    if (ncp_ == NCPMethod::min_fb_fallback && nonlinear_kinematic_ && tangent_mode != tangent_closest_point) {
-        throw std::invalid_argument("MODUL: ncp='min' serves isotropic and linear (Prager) kinematic hardening "
+    if (ncp_is_semismooth(ncp_) && nonlinear_kinematic_ && !integrates_closest_point(tangent_mode)) {
+        throw std::invalid_argument("MODUL: ncp='min' / 'active_set' serve isotropic and linear (Prager) kinematic hardening "
                                     "only under the cutting plane, not Armstrong-Frederick back stresses "
                                     "(the closest point takes it)");   // the cutting plane integrates them along its iterates (set_ncp)
     }
@@ -490,7 +490,7 @@ bool ModularUMAT::return_mapping(
             residual += mech->consistency_residual(sigma_eff_);
         }
         if (residual <= precision_) {
-            if (tangent_mode == tangent_closest_point) {
+            if (integrates_closest_point(tangent_mode)) {
                 cpp_result_ = ReturnMappingResult{};   // the empty solve: the elastic operator
                 cpp_result_.converged = true;
             }
@@ -501,7 +501,7 @@ bool ModularUMAT::return_mapping(
     }
 
     // Dispatch: closest-point when every multiplier row has that form, else cutting plane.
-    bool all_cpp = (tangent_mode == tangent_closest_point);
+    bool all_cpp = integrates_closest_point(tangent_mode);
     for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
         all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
     }
@@ -765,11 +765,12 @@ void ModularUMAT::compute_tangent(
         // Explicit integration: elastic operator, no assembly.
         return;
     }
-    if (tangent_mode == tangent_closest_point && !cpp_result_.converged) {
-        tangent_mode = tangent_algorithmic;   // closest-point branch did not run: documented degradation
+    if (integrates_closest_point(tangent_mode) && !cpp_result_.converged) {
+        tangent_mode = tangent_choice_of(tangent_mode);   // closest-point branch did not run: documented degradation
+        if (tangent_mode == tangent_none) return;
     }
     if (tangent_mode != tangent_continuum && tangent_mode != tangent_algorithmic
-        && tangent_mode != tangent_closest_point) {
+        && !integrates_closest_point(tangent_mode)) {
         throw std::invalid_argument(
             "ModularUMAT::compute_tangent: unknown tangent_mode "
             + std::to_string(tangent_mode));
@@ -782,15 +783,16 @@ void ModularUMAT::compute_tangent(
     // algorithmic assembly only for stress-dependent Phi with an analytic flow Hessian (the Hessians are kept)
     std::vector<std::pair<size_t, const arma::mat*>>& algo = algo_;
     algo.clear();
-    if (tangent_mode == tangent_closest_point) {
-        // Exact operator of the closest-point solve; every multiplier-carrying row is inside it.
+    if (integrates_closest_point(tangent_mode)) {
+        // The operator of the closest-point solve for the tangent choice of the code (exact, continuum or
+        // elastic); every multiplier-carrying row is inside it.
         ct_rows_.clear();
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             if (!mechanisms_[m]->carries_multipliers()) continue;
             algo.emplace_back(m, nullptr);
             for (int c = 0; c < mechanisms_[m]->num_constraints(); ++c) ct_rows_.emplace_back(m, c);
         }
-        ct_ = cpp_consistent_tangent(cpp_result_, L_cur_);
+        ct_ = cpp_tangent(cpp_result_, L_cur_, tangent_mode);
         ct_kappa_ = cpp_result_.kappa_j;
         ct_dPhi_ = cpp_result_.dPhidsigma_l;
         ct_cached_ = true;
@@ -1075,7 +1077,8 @@ void ModularUMAT::run_T(
     const size_t n_rows = rows_T.size();
     // the assembly of compute_tangent serves when it covers these rows (modes 2 and 3); the mechanisms
     // without multipliers refresh their caches at the committed state either way
-    const bool reuse = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point)
+    const bool reuse = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point
+                        || tangent_mode == tangent_closest_point_continuum)
                        && (!active || (ct_cached_ && ct_rows_ == rows_T));
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
         if (reuse && mechanisms_[m]->carries_multipliers()) continue;
@@ -1098,7 +1101,7 @@ void ModularUMAT::run_T(
         kappa_local.set_size(6, n_rows);
         dPhi_local.set_size(6, n_rows);
         arma::vec Ds_rows(n_rows);
-        int mode = (tangent_mode == tangent_none) ? tangent_continuum : (tangent_mode == tangent_closest_point) ? tangent_algorithmic : tangent_mode;
+        int mode = (tangent_mode == tangent_none || tangent_mode == tangent_closest_point_none) ? tangent_continuum : tangent_choice_of(tangent_mode);
         for (size_t l = 0; l < n_rows; ++l) {
             const auto [m, c] = rows_T[l];
             rows.push_back(mech_offset_[m] + c);

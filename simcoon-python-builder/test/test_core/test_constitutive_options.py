@@ -72,6 +72,72 @@ def test_closed_form_tangent_epicp():
     assert rel(res["TangentMatrix"], ref["TangentMatrix"]) < 1e-7
 
 
+def test_closest_point_serves_the_continuum_and_elastic_operators():
+    """integrator="closest_point" with tangent_mode "continuum" or "none": the same converged state as
+    its algorithmic run; the continuum operator is the rate operator of the converged state, equal to
+    the cutting plane's on a radial return (same state), away from the exact operator on a plastic
+    step; "none" hands the elastic operator."""
+    cp = {m: run("EPICP", EPICP, 8, integrator="closest_point", tangent_mode=m) for m in ("none", "continuum", "algorithmic")}
+    cc = run("EPICP", EPICP, 8, tangent_mode="continuum")
+    for m in ("none", "continuum"):   # the same state to the global Newton tolerance
+        assert rel(cp[m]["Stress"], cp["algorithmic"]["Stress"]) < 1e-6
+    assert rel(cp["continuum"]["TangentMatrix"], cc["TangentMatrix"]) < 1e-6
+    assert rel(cp["continuum"]["TangentMatrix"], cp["algorithmic"]["TangentMatrix"]) > 1e-3
+    L = run("EPICP", EPICP, 8, tangent_mode="none")["TangentMatrix"]
+    np.testing.assert_array_equal(cp["none"]["TangentMatrix"], L)
+    # the modular engine and a kinematic law alike
+    mat = ModularMaterial(IsotropicElasticity(C1=70000.0, C2=0.3, alpha=0.0),
+                          [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5))])
+    for name, props, nstatev in (("MODUL", mat.props, mat.nstatev), ("EPCHA", EPCHA, 33)):
+        a = run(name, props, nstatev, integrator="closest_point")
+        c = run(name, props, nstatev, integrator="closest_point", tangent_mode="continuum")
+        assert rel(c["Stress"], a["Stress"]) < 1e-6
+        assert rel(c["TangentMatrix"], a["TangentMatrix"]) > 1e-3
+    # sim.umat takes the same pair
+    col = lambda v: np.asfortranarray(np.asarray(v, float).reshape(-1, 1))
+    out = sim.umat("EPICP", col(np.zeros(6)), col([4e-3, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0), col(np.zeros(6)),
+                   np.asfortranarray(np.eye(3)[:, :, None]), col(EPICP), col(np.zeros(8)), 0.0, 1.0, col(np.zeros(4)),
+                   temp=np.full(1, 293.15), n_threads=1, integrator="closest_point", tangent_mode=1)
+    assert np.isfinite(out[3]).all()
+
+
+@pytest.mark.parametrize("method", ["active_set", "penalized_fischer_burmeister"])
+@pytest.mark.parametrize("integrator", ["cutting_plane", "closest_point"])
+def test_other_complementarity_functions_find_the_same_return(method, integrator):
+    """active_set (the min step on every row, coupled surfaces together) and the penalized
+    Fischer-Burmeister function: the same return as Fischer-Burmeister to the local tolerance on a
+    single surface and on a coupled two-surface composition under the closest point (one root);
+    under the cutting plane the active set, a different iteration path on coupled surfaces, lands
+    within the path dependence of that integrator."""
+    iso = IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5)
+    one = ModularMaterial(iso, [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5))])
+    two = ModularMaterial(iso, [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5)),
+                                Plasticity(sigma_Y=320.0, isotropic_hardening=PowerLawHardening(k=3000.0, m=0.7))])
+    for name, props, nstatev, tol in (("MODUL", one.props, one.nstatev, 1e-8), ("EPICP_closed", EPICP, 8, 1e-8),
+                                      ("MODUL", two.props, two.nstatev, 1e-8 if (integrator == "closest_point" or method != "active_set") else 1e-3)):
+        ref = run(name, props, nstatev, integrator=integrator)
+        res = run(name, props, nstatev, integrator=integrator, ncp=method)
+        assert rel(res["Stress"], ref["Stress"]) < tol, (name, method, integrator)
+
+
+def test_complementarity_function_admission():
+    """The semi-smooth functions (min, active_set) are refused with an Armstrong-Frederick back stress
+    under the cutting plane only; the penalized Fischer-Burmeister function is smooth and served there;
+    an unknown name and a law that does not read ncp are refused."""
+    from simcoon.modular import ArmstrongFrederickHardening
+    mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5),
+                          [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5),
+                                      kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=100.0))])
+    with pytest.raises(Exception, match="Armstrong-Frederick"):
+        run("MODUL", mat.props, mat.nstatev, ncp="active_set")
+    assert run("MODUL", mat.props, mat.nstatev, ncp="penalized_fischer_burmeister").status == 0
+    assert run("MODUL", mat.props, mat.nstatev, ncp="active_set", integrator="closest_point").status == 0
+    with pytest.raises(ValueError):
+        run("MODUL", mat.props, mat.nstatev, ncp="smoothed")
+    with pytest.raises(ValueError, match="does not read"):   # a dedicated kernel without the option
+        run("ZENER_closed", [3000.0, 0.35, 0.0, 1500.0, 0.35, 3000.0, 1200.0], 8, ncp="active_set")
+
+
 def test_min_ncp_batch_umat():
     # the same option through sim.umat
     N = 200

@@ -805,6 +805,91 @@ overshoots, or the branch choice oscillates) or :math:`B` vanishes. Coupled surf
 Fischer-Burmeister from the start, because the plain semi-smooth Newton can cycle there, the set
 of active surfaces changing from one iteration to the next without converging.
 
+**Active set** (``ncp="active_set"``, 2.5) is the min step on every row: the active surfaces
+solve their linearised constraints together,
+:math:`\Phi_A + B_{AA}\,\delta p_A + B_{AI}\,\delta p_I = 0`, the inactive multipliers going
+back to zero (:math:`\delta p_I = -\Delta p_I`): the primal-dual active set of Hintermueller,
+Ito and Kunisch on the coupled system, with the fallback of the min step as its combinatorial
+safeguard. On a single surface it is the min step; on coupled surfaces it is a different
+iteration path for the cutting plane (the state differs from the Fischer-Burmeister one by the
+path dependence of that integrator, :math:`4 \times 10^{-4}` on the two-surface composition
+below) and the same root under the closest point.
+
+**Penalized Fischer-Burmeister** (``ncp="penalized_fischer_burmeister"``, 2.5) solves
+:math:`\phi_\lambda(a, b) = \lambda\,\phi_{FB}(a, b) + (1 - \lambda)\, a_+ b_+ = 0`,
+:math:`a = -\Phi`, :math:`b = \Delta p^*`, :math:`\lambda = 0.95` (Chen, Chen and Kanzow
+2000): the product term keeps the iterate off the kink of the Fischer-Burmeister function. No
+fallback, served for every composition under both integrators, including an
+Armstrong-Frederick back stress under the cutting plane (it is not a full step).
+
+**Measured (2.5)**, tension, shear at held tension, unloading (10 increments per step, one
+thread, min of three runs; the stress of each function against Fischer-Burmeister under the
+same integrator):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 14 15 15 15 15
+
+   * - Composition
+     - Integrator
+     - FB (ms)
+     - min
+     - active set
+     - penalized FB
+   * - MODUL J2, power law
+     - cutting plane
+     - 0.3
+     - :math:`10^{-14}`, 0.2 ms
+     - :math:`10^{-14}`, 0.3 ms
+     - :math:`10^{-15}`, 0.5 ms
+   * - MODUL J2, power law
+     - closest point
+     - 0.5
+     - :math:`3 \times 10^{-10}`, 0.4 ms
+     - :math:`3 \times 10^{-10}`, 0.5 ms
+     - :math:`10^{-15}`, 0.7 ms
+   * - MODUL Prager
+     - cutting plane
+     - 0.4
+     - :math:`10^{-14}`, 0.3 ms
+     - :math:`10^{-14}`, 0.5 ms
+     - :math:`10^{-15}`, 0.7 ms
+   * - MODUL Armstrong-Frederick
+     - cutting plane
+     - 0.5
+     - refused
+     - refused
+     - :math:`10^{-14}`, 0.9 ms
+   * - MODUL Armstrong-Frederick
+     - closest point
+     - 0.8
+     - :math:`2 \times 10^{-10}`, 0.7 ms
+     - :math:`2 \times 10^{-10}`, 0.8 ms
+     - :math:`10^{-15}`, 1.0 ms
+   * - MODUL two surfaces (coupled)
+     - cutting plane
+     - 0.4
+     - = FB (falls back), 0.5 ms
+     - :math:`4 \times 10^{-4}`, 0.7 ms
+     - :math:`10^{-14}`, 1.0 ms
+   * - MODUL two surfaces (coupled)
+     - closest point
+     - 0.8
+     - = FB, 0.8 ms
+     - :math:`2 \times 10^{-10}`, 0.8 ms
+     - :math:`10^{-13}`, 1.2 ms
+   * - EPICP_closed
+     - cutting plane
+     - 1.5
+     - :math:`4 \times 10^{-12}`, 1.2 ms
+     - :math:`4 \times 10^{-12}`, 2.1 ms
+     - :math:`10^{-15}`, 12.3 ms
+
+The min step stays the fastest local solve; the active set brings nothing on a single surface
+(its system is built per iteration) and only changes the path on coupled ones; the penalized
+function converges to the same root everywhere but needs more iterations near it. They are
+kept as options for comparison; ``"min"`` remains the one to use.
+
 **Which rows count.** The min step applies row by row when the local Jacobian :math:`B` is
 diagonal, i.e. when the rows are independent scalar problems. That is the case of a single yield
 surface, and of a yield surface next to the rows of the viscoelastic and damage mechanisms of
