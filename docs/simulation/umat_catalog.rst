@@ -382,7 +382,9 @@ Unchanged dedicated implementations (out of the modular scope):
   its leading ``nphases`` and file-number slots is refused rather than misread.
 
   Optional trailing slots set numerical options; all default to 0, the historical
-  behaviour (giving a slot gives the ones before it):
+  behaviour (giving a slot gives the ones before it). The same settings by name:
+  ``MoriTanaka``, ``SelfConsistent``, ``Homogeneous`` and ``PeriodicLayers`` of
+  ``simcoon.solver.micromechanics`` build these lists (see :doc:`python_solver`):
   ``[mp, np, n_matrix, closed_form, rule]`` for MIMTN and
   ``[mp, np, n_matrix, start, closed_form, rule, anderson, rtol]`` for MISCN.
 

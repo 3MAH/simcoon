@@ -9,7 +9,7 @@ composite material considering spherical reinforcement.
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
-from simcoon.solver.micromechanics import Ellipsoid
+from simcoon.solver.micromechanics import Ellipsoid, MoriTanaka, SelfConsistent
 import os
 
 ###################################################################################
@@ -30,8 +30,10 @@ int1 = 50  # Integration points of the Eshelby integrals, first direction
 int2 = 50  # Integration points of the Eshelby integrals, second direction
 n_matrix = 0  # Index of the matrix phase in the list of phases
 
-# Mori-Tanaka props: [int1, int2, n_matrix]; the phases themselves are passed as objects
-props = np.array([int1, int2, n_matrix], dtype="float")
+# the schemes by name: the same props the list [int1, int2, n_matrix] would give; the phases
+# themselves are passed as objects
+mori_tanaka = MoriTanaka(int1, int2, n_matrix)
+self_consistent = SelfConsistent(int1, int2, n_matrix)
 
 ###################################################################################
 # The two phases are described as objects and handed to ``L_eff`` directly. They
@@ -71,26 +73,24 @@ phi_rve = 0.0
 concentration = np.arange(0.0, 0.51, 0.01)
 
 E_MT = np.zeros(len(concentration))
-umat_name = "MIMTN"
 for i, x in enumerate(concentration):
     reinforcement.concentration = x
     matrix.concentration = 1.0 - x
 
     L = sim.L_eff(
-        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+        mori_tanaka, nstatev=nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
     )
     p = sim.L_iso_props(L).flatten()
     E_MT[i] = p[0]
 
 
 E_SC = np.zeros(len(concentration))
-umat_name = "MISCN"
 for i, x in enumerate(concentration):
     reinforcement.concentration = x
     matrix.concentration = 1.0 - x
 
     L = sim.L_eff(
-        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+        self_consistent, nstatev=nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
     )
     p = sim.L_iso_props(L).flatten()
     E_SC[i] = p[0]
@@ -145,7 +145,6 @@ matrix.concentration = 1.0 - c_reinf
 aspect_ratios = np.logspace(-1, 1, 50)
 
 E_eff_ar = np.zeros(len(aspect_ratios))
-umat_name = "MIMTN"
 
 print(f"\nComputing effective properties for c={c_reinf * 100:.0f}% reinforcement...")
 for i, ar in enumerate(aspect_ratios):
@@ -155,7 +154,7 @@ for i, ar in enumerate(aspect_ratios):
     reinforcement.a3 = 1.0
 
     L = sim.L_eff(
-        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+        mori_tanaka, nstatev=nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
     )
     p = sim.L_iso_props(L).flatten()
     E_eff_ar[i] = p[0]

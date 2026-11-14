@@ -14,9 +14,6 @@ Known gaps and planned work, not yet in a release. An item moves to
   (`tangent_mode="algorithmic"`): its continuum operator is not implemented.
 - Other complementarity functions to measure against Fischer-Burmeister and
   `min`, under both integrators: active set, scaled Fischer-Burmeister.
-- The numerical options of the mean-field schemes (MIMTN/MISCN closed form,
-  rule, Anderson, tolerance) are still props slots: they are per phase (nested
-  schemes), so they need a named builder rather than a run option.
 - fedoo does not pass `ncp` and `integrator` through yet.
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
@@ -44,6 +41,19 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   (Maxwell) form; the 2.x names stay for compatibility.
 
 ## [Unreleased]
+
+### Added
+
+- The mean-field schemes by name: `MoriTanaka` (MIMTN), `SelfConsistent` (MISCN), `Homogeneous`
+  (MIHEN) and `PeriodicLayers` (MIPLN) in `simcoon.solver.micromechanics` carry the numerical
+  options of a scheme as keyword-only fields (`closed_form`, `rule="gauss" | "half_sphere"`,
+  `start="mori_tanaka" | "homogeneous"`, `anderson`, `rtol`), checked at construction, and
+  build the exact props slots `multiphase.hpp` reads (the trailing defaults omitted, as a
+  hand-written list): the results are bit-identical to the list form. A scheme stands for the
+  `(umat_name, props)` pair in `solve` and `sim.L_eff`, and as the `props` of a sub-phase that
+  is itself a mean-field model (nested schemes), which names it; `MeanFieldScheme.from_props`
+  reads one back from a JSON material. No C++ change; the slot table stays the single source
+  of truth in the catalog and `multiphase.hpp`.
 
 ### Breaking changes
 

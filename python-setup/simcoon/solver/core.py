@@ -12,7 +12,7 @@ from simcoon.pyumat import UMAT_NAME, registered
 
 from .blocks import Block, StepMeca, StepThermomeca
 from .maps import INTEGRATORS, NCP_METHODS, TANGENT_MODES, as_code, kinematic_code, tangent_default
-from .micromechanics import to_phase_dicts, euler_angles
+from .micromechanics import MeanFieldScheme, _scheme_pair, to_phase_dicts, euler_angles
 from .results import SolverResults
 
 
@@ -140,7 +140,10 @@ def solve(
         blocks = [blocks]
     blocks = [b if isinstance(b, Block) else Block(steps=[b]) for b in blocks]
 
+    if isinstance(umat_name, MeanFieldScheme):   # a mean-field scheme carries its name and props
+        umat_name, props = _scheme_pair(umat_name, props)
     if isinstance(umat_name, str):
+        umat_name, props = _scheme_pair(umat_name, props)
         if props is None or nstatev is None:
             raise TypeError(
                 "props and nstatev are required when umat_name is a built-in model name"

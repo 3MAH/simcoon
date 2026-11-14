@@ -24,14 +24,15 @@ int1 = 50  # Integration points of the Eshelby integrals, first direction
 int2 = 50  # Integration points of the Eshelby integrals, second direction
 n_matrix = 0  # Index of the matrix phase in the list of phases
 
-# Mori-Tanaka props: [int1, int2, n_matrix]; the phases themselves are passed as objects
-props = np.array([int1, int2, n_matrix], dtype="float")
-
 ###############################################################################
 # The two phases are described in memory, as objects: a matrix and a spherical
 # reinforcement, each with its own constitutive model and properties.
 
-from simcoon.solver.micromechanics import Ellipsoid
+from simcoon.solver.micromechanics import Ellipsoid, MoriTanaka
+
+# the Mori-Tanaka scheme by name: the props list [int1, int2, n_matrix] with its slots named;
+# the phases themselves are passed as objects
+scheme = MoriTanaka(int1, int2, n_matrix)
 
 matrix = Ellipsoid(
     number=0, umat_name="ELISO", save=1, concentration=0.8, nstatev=1,
@@ -58,7 +59,6 @@ psi_rve = 0.0
 theta_rve = 0.0
 phi_rve = 0.0
 
-umat_name = "MIMTN"  # Micromechanical scheme (Mori-Tanaka here)
 
 ###############################################################################
 # Run the simulation to obtain the effective isotropic elastic properties.
@@ -66,7 +66,7 @@ umat_name = "MIMTN"  # Micromechanical scheme (Mori-Tanaka here)
 # result is also isotropic.
 
 L_eff = sim.L_eff(
-    umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+    scheme, nstatev=nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
 )
 p = sim.L_iso_props(L_eff).flatten()
 np.set_printoptions(precision=3, suppress=True)
