@@ -135,7 +135,7 @@ as :class:`~simcoon.solver.micromechanics.Ellipsoid` or
 or ``sim.L_eff(..., phases=...)`` (see :doc:`solver`, ``phases``); their own ``props``
 carry only the scheme's settings, ``[mp, np, n_matrix]`` for Mori-Tanaka, plus optional
 numerical options (closed-form Eshelby tensors, half-sphere quadrature, Anderson
-acceleration; see :doc:`umat_catalog`). For an orientation distribution,
+acceleration; see :doc:`umat_catalog`), or the scheme by name (below). For an orientation distribution,
 :func:`~simcoon.solver.micromechanics.discretize_odf` with ``weights="fourier"`` gives the
 exact Mori-Tanaka average (isotropic matrix) with a handful of phases. Every orientation
 in those objects is a :class:`simcoon.Rotation`: the material frame of a phase
@@ -192,6 +192,40 @@ profiles (``method``: 1 standard-deviation kernel, 2 hard cut-off, 3 Gaussian,
 4 Lorentzian, 5 pseudo-Voigt, 6 Pearson VII, 7 uniform; formulas in the class), useful to
 plot a distribution before discretising it; ``Peak.density(x)`` without ``periodic`` is
 the plain profile, for a distribution of a parameter rather than of an orientation.
+
+Numerical options by name
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The props slots of a mean-field model have names: :class:`~simcoon.solver.micromechanics.MoriTanaka`
+(``MIMTN``), :class:`~simcoon.solver.micromechanics.SelfConsistent` (``MISCN``),
+:class:`~simcoon.solver.micromechanics.Homogeneous` (``MIHEN``) and
+:class:`~simcoon.solver.micromechanics.PeriodicLayers` (``MIPLN``) build the exact list the
+C++ reads, the trailing options left at their default (the historical behaviour) omitted,
+so a scheme gives the same result as the hand-written list, bit for bit. A scheme stands
+for the ``(umat_name, props)`` pair in ``solve`` and ``sim.L_eff``, and as the ``props`` of
+a sub-phase that is itself a mean-field model, which names that sub-phase (nested
+schemes):
+
+.. code-block:: python
+
+    from simcoon.solver.micromechanics import Ellipsoid, MoriTanaka, SelfConsistent
+
+    mt = MoriTanaka(50, 50, n_matrix=0, closed_form=True)           # props [50, 50, 0, 1]
+    sc = SelfConsistent(20, 20, 0, closed_form=True, anderson=2, rtol=1e-12)
+    L = sim.L_eff(mt, phases=phases)
+    res = sim.solver.solve(blocks, sc, nstatev=1, phases=phases)
+
+    # a two-level composite: the inclusion is itself a Mori-Tanaka composite
+    cluster = Ellipsoid(number=1, concentration=0.3, a1=3.0,
+                        props=MoriTanaka(20, 20, 0), phases=[matrix_2, fibre_2])
+    L = sim.L_eff(mt, phases=[matrix, cluster])
+
+The options are checked by name at construction (``rule`` is ``"gauss"`` or
+``"half_sphere"``, ``start`` is ``"mori_tanaka"`` or ``"homogeneous"`` with
+``n_matrix = -1``, ``anderson`` in [0, 10], ``rtol`` in [0, 1)); the C++ codes 0 and 1 are
+accepted for the named choices. ``MeanFieldScheme.from_props(umat_name, props)`` reads a
+scheme back from a JSON material or a legacy list. The slot table itself stays in the
+catalog (:doc:`umat_catalog`) and in ``multiphase.hpp``.
 
 JSON configuration
 ------------------

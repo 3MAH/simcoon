@@ -10,6 +10,9 @@ Orientations (material frame of a phase, geometry of an inclusion or a layer) ar
 
 Classes
 -------
+MoriTanaka, SelfConsistent, Homogeneous, PeriodicLayers
+    The mean-field schemes (MIMTN, MISCN, MIHEN, MIPLN) with their numerical options
+    by name; ``scheme.props`` is the slot list the C++ reads
 Phase
     Generic phase for micromechanics homogenization
 Layer
@@ -62,7 +65,7 @@ import json
 import warnings
 from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import ClassVar, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 
@@ -94,9 +97,259 @@ def _dataclass_eq(self, other):
     return True
 
 
+# =============================================================================
+# Mean-field schemes: the numerical options by name
+# =============================================================================
+# The C++ reads the settings of a mean-field model from its props (multiphase.hpp,
+# check_sub_phases / mean_field_options_of): MIHEN [mp, np], MIMTN [mp, np, n_matrix,
+# (closed_form, rule)], MISCN [mp, np, n_matrix, (start, closed_form, rule, anderson, rtol)],
+# MIPLN []. The classes below only name those slots.
+
+_RULES = {"gauss": 0, "half_sphere": 1}
+_STARTS = {"homogeneous": 0, "mori_tanaka": 1}
+
+
+def _as_int(scheme, name, value, lo, hi):
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or not lo <= value <= hi:
+        raise ValueError(f"{scheme}: {name} = {value!r} must be an integer in [{lo}, {hi}]")
+    return int(value)
+
+
+def _as_choice(scheme, name, value, table):
+    """A named choice, or its C++ code (0, 1), returned by name."""
+    if isinstance(value, str):
+        if value not in table:
+            raise ValueError(f"{scheme}: {name} = {value!r} must be one of {sorted(table)}")
+        return value
+    if isinstance(value, bool) or value not in table.values():
+        raise ValueError(f"{scheme}: {name} = {value!r} must be one of {sorted(table)} (or its code 0 / 1)")
+    return next(k for k, v in table.items() if v == value)
+
+
+@dataclass(frozen=True)
+class MeanFieldScheme:
+    """A mean-field scheme with its numerical options by name.
+
+    The subclasses (:class:`Homogeneous`, :class:`MoriTanaka`, :class:`SelfConsistent`,
+    :class:`PeriodicLayers`) stand for the ``umat_name`` and the ``props`` of a
+    mean-field material: ``props`` is the exact slot list the C++ reads, the trailing
+    slots left at their default (the historical behaviour) being omitted, so the list
+    equals the one a script would write by hand. A scheme is accepted wherever that pair
+    is: ``solve(blocks, scheme, nstatev, phases=...)``, ``sim.L_eff(scheme, phases=...)``,
+    and as the ``props`` of a sub-phase that is itself a mean-field model (nested schemes).
+    Instances are immutable and hashable.
+    """
+
+    umat_name: ClassVar[str] = ""
+
+    @property
+    def props(self) -> np.ndarray:
+        """The props slots of the scheme, as the C++ reads them (float array)."""
+        return np.asarray(self._slots(), dtype=float)
+
+    def _slots(self) -> List[float]:
+        raise NotImplementedError
+
+    @staticmethod
+    def _trim(slots, defaults):
+        """Drop the trailing optional slots equal to their C++ default."""
+        slots, defaults = list(slots), list(defaults)
+        while defaults and slots and slots[-1] == defaults[-1]:
+            slots.pop()
+            defaults.pop()
+        return slots
+
+    @staticmethod
+    def from_props(umat_name: str, props) -> "MeanFieldScheme":
+        """The scheme named by a ``(umat_name, props)`` pair (the JSON / legacy form)."""
+        cls = _SCHEMES.get(str(umat_name))
+        if cls is None:
+            raise ValueError(f"{umat_name!r} is not a mean-field model (MIHEN, MIMTN, MISCN, MIPLN)")
+        return cls._from_slots(np.asarray(props, dtype=float).ravel())
+
+
+@dataclass(frozen=True)
+class Homogeneous(MeanFieldScheme):
+    """``MIHEN``, the homogeneous-strain (Voigt) scheme: ``props = [mp, np]``.
+
+    Parameters
+    ----------
+    mp, np : int
+        Integration points of the Eshelby integrals in the two directions, in [1, 10000].
+    """
+
+    umat_name: ClassVar[str] = "MIHEN"
+    mp: int = 20
+    np: int = 20
+
+    def __post_init__(self):
+        object.__setattr__(self, "mp", _as_int("MIHEN", "mp", self.mp, 1, 10000))
+        object.__setattr__(self, "np", _as_int("MIHEN", "np", self.np, 1, 10000))
+
+    def _slots(self):
+        return [self.mp, self.np]
+
+    @classmethod
+    def _from_slots(cls, slots):
+        if slots.size != 2:
+            raise ValueError(f"MIHEN takes props = [mp, np], got {slots.size} values")
+        return cls(int(slots[0]), int(slots[1]))
+
+
+@dataclass(frozen=True)
+class MoriTanaka(MeanFieldScheme):
+    """``MIMTN``, the Mori-Tanaka scheme: ``props = [mp, np, n_matrix, closed_form, rule]``.
+
+    Parameters
+    ----------
+    mp, np : int
+        Integration points of the Eshelby integrals in the two directions, in [1, 10000].
+    n_matrix : int
+        Index of the matrix phase in the list of sub-phases.
+    closed_form : bool, keyword-only
+        Take the Eshelby tensor in closed form (sphere, prolate or oblate spheroid of
+        axis 1) when the reference medium is isotropic; integrate it otherwise.
+    rule : {"gauss", "half_sphere"}, keyword-only
+        Quadrature of the Eshelby integrals: Gauss-Legendre on the sphere (mp x np
+        points), or the half sphere with (mp+1)/2 Gauss-Legendre points in cos(theta) and
+        np trapezoidal points in phi (half the evaluations). The C++ codes 0 and 1 are
+        accepted and stored by name.
+    """
+
+    umat_name: ClassVar[str] = "MIMTN"
+    mp: int = 20
+    np: int = 20
+    n_matrix: int = 0
+    closed_form: bool = field(default=False, kw_only=True)
+    rule: str = field(default="gauss", kw_only=True)
+
+    def __post_init__(self):
+        object.__setattr__(self, "mp", _as_int("MIMTN", "mp", self.mp, 1, 10000))
+        object.__setattr__(self, "np", _as_int("MIMTN", "np", self.np, 1, 10000))
+        object.__setattr__(self, "n_matrix", _as_int("MIMTN", "n_matrix", self.n_matrix, 0, 10000))
+        object.__setattr__(self, "closed_form", bool(_as_int("MIMTN", "closed_form", int(self.closed_form), 0, 1)))
+        object.__setattr__(self, "rule", _as_choice("MIMTN", "rule", self.rule, _RULES))
+
+    def _slots(self):
+        return [self.mp, self.np, self.n_matrix] + self._trim([int(self.closed_form), _RULES[self.rule]], [0, 0])
+
+    @classmethod
+    def _from_slots(cls, slots):
+        if not 3 <= slots.size <= 5:
+            raise ValueError(f"MIMTN takes props = [mp, np, n_matrix, (closed_form, rule)], got {slots.size} values")
+        opt = list(slots[3:]) + [0.0] * (2 - (slots.size - 3))
+        return cls(int(slots[0]), int(slots[1]), int(slots[2]), closed_form=bool(int(opt[0])), rule=int(opt[1]))
+
+
+@dataclass(frozen=True)
+class SelfConsistent(MeanFieldScheme):
+    """``MISCN``, the self-consistent scheme:
+    ``props = [mp, np, n_matrix, start, closed_form, rule, anderson, rtol]``.
+
+    Parameters
+    ----------
+    mp, np : int
+        Integration points of the Eshelby integrals in the two directions, in [1, 10000].
+    n_matrix : int
+        Index of the matrix phase (``start="mori_tanaka"``), or -1 with the homogeneous
+        start.
+    start : {"mori_tanaka", "homogeneous"}, keyword-only
+        First guess of the self-consistent iteration: the Mori-Tanaka estimate around
+        ``n_matrix``, or the homogeneous strain (then ``n_matrix = -1``).
+    closed_form, rule
+        As :class:`MoriTanaka`.
+    anderson : int, keyword-only
+        Depth of the Anderson acceleration of the self-consistent fixed point of
+        ``L_eff`` (0: plain iterations; 2 is a good choice), in [0, 10]. The solver does
+        one self-consistent sweep per localization iteration and ignores it.
+    rtol : float, keyword-only
+        Relative stopping criterion of that fixed point, ``||L - L_prev|| <= rtol ||L||``
+        (0: the absolute ``precision_micro`` in the stiffness unit), in [0, 1).
+    """
+
+    umat_name: ClassVar[str] = "MISCN"
+    mp: int = 20
+    np: int = 20
+    n_matrix: int = 0
+    start: str = field(default="mori_tanaka", kw_only=True)
+    closed_form: bool = field(default=False, kw_only=True)
+    rule: str = field(default="gauss", kw_only=True)
+    anderson: int = field(default=0, kw_only=True)
+    rtol: float = field(default=0.0, kw_only=True)
+
+    def __post_init__(self):
+        object.__setattr__(self, "mp", _as_int("MISCN", "mp", self.mp, 1, 10000))
+        object.__setattr__(self, "np", _as_int("MISCN", "np", self.np, 1, 10000))
+        object.__setattr__(self, "n_matrix", _as_int("MISCN", "n_matrix", self.n_matrix, -1, 10000))
+        object.__setattr__(self, "start", _as_choice("MISCN", "start", self.start, _STARTS))
+        object.__setattr__(self, "closed_form", bool(_as_int("MISCN", "closed_form", int(self.closed_form), 0, 1)))
+        object.__setattr__(self, "rule", _as_choice("MISCN", "rule", self.rule, _RULES))
+        object.__setattr__(self, "anderson", _as_int("MISCN", "anderson", self.anderson, 0, 10))
+        rtol = float(self.rtol)
+        if not 0.0 <= rtol < 1.0:
+            raise ValueError(f"MISCN: rtol = {self.rtol!r} must be in [0, 1)")
+        object.__setattr__(self, "rtol", rtol)
+        if self.start == "homogeneous" and self.n_matrix >= 0:
+            raise ValueError("MISCN: the homogeneous-strain start takes n_matrix = -1 (no matrix phase)")
+        if self.start == "mori_tanaka" and self.n_matrix < 0:
+            raise ValueError("MISCN: the Mori-Tanaka start needs the matrix phase, n_matrix >= 0")
+
+    def _slots(self):
+        return [self.mp, self.np, self.n_matrix] + self._trim(
+            [_STARTS[self.start], int(self.closed_form), _RULES[self.rule], self.anderson, self.rtol],
+            [1, 0, 0, 0, 0.0])
+
+    @classmethod
+    def _from_slots(cls, slots):
+        if not 3 <= slots.size <= 8:
+            raise ValueError("MISCN takes props = [mp, np, n_matrix, (start, closed_form, rule, anderson, rtol)], "
+                             f"got {slots.size} values")
+        opt = list(slots[3:]) + [1.0, 0.0, 0.0, 0.0, 0.0][slots.size - 3:]
+        return cls(int(slots[0]), int(slots[1]), int(slots[2]), start=int(opt[0]), closed_form=bool(int(opt[1])),
+                   rule=int(opt[2]), anderson=int(opt[3]), rtol=float(opt[4]))
+
+
+@dataclass(frozen=True)
+class PeriodicLayers(MeanFieldScheme):
+    """``MIPLN``, the periodic layers (laminate) scheme: no props."""
+
+    umat_name: ClassVar[str] = "MIPLN"
+
+    def _slots(self):
+        return []
+
+    @classmethod
+    def _from_slots(cls, slots):
+        if slots.size != 0:
+            raise ValueError(f"MIPLN takes no props, got {slots.size} values")
+        return cls()
+
+
+_SCHEMES = {c.umat_name: c for c in (Homogeneous, MoriTanaka, SelfConsistent, PeriodicLayers)}
+
+
+def _scheme_pair(umat_name, props):
+    """``(umat_name, props)`` with a scheme given in either slot resolved to its name and slots."""
+    if isinstance(umat_name, MeanFieldScheme):
+        if props is not None:
+            raise TypeError(f"{type(umat_name).__name__} carries its own props: do not pass props as well")
+        return umat_name.umat_name, umat_name.props
+    if isinstance(props, MeanFieldScheme):
+        if str(umat_name) != props.umat_name:
+            raise ValueError(f"umat_name {umat_name!r} does not match the scheme {type(props).__name__} ({props.umat_name})")
+        return str(umat_name), props.props
+    return umat_name, props
+
+
 def _coerce_fields(obj):
-    """props given as a list, orientations in any accepted form, nested phases given as
-    dicts (the JSON form)."""
+    """props given as a list or as a mean-field scheme (which also names the model),
+    orientations in any accepted form, nested phases given as dicts (the JSON form)."""
+    if isinstance(obj.props, MeanFieldScheme):
+        if obj.umat_name not in ("ELISO", obj.props.umat_name):   # ELISO: the field's default
+            raise ValueError(f"umat_name {obj.umat_name!r} does not match the scheme "
+                             f"{type(obj.props).__name__} ({obj.props.umat_name})")
+        obj.umat_name = obj.props.umat_name
+        obj.props = obj.props.props
     if not isinstance(obj.props, np.ndarray):
         obj.props = np.asarray(
             [] if obj.props is None else obj.props, dtype=float
@@ -1058,13 +1311,16 @@ def to_phase_dicts(
 
 
 def L_eff(
-    umat_name: str,
-    props,
-    nstatev: int,
+    umat_name,
+    props=None,
+    nstatev: int = 0,
     orientation: Orientation = None,
     phases: Optional[List] = None,
 ) -> np.ndarray:
     """Elastic stiffness tensor (6x6, Voigt) of a material in the global frame.
+
+    ``umat_name`` may be a :class:`MeanFieldScheme` (:class:`MoriTanaka`, ...), which then
+    carries the props: ``sim.L_eff(MoriTanaka(50, 50, 0, closed_form=True), phases=phases)``.
 
     ``orientation`` is the material frame, in any form :func:`as_rotation` accepts
     (a :class:`simcoon.Rotation`, ``(psi, theta, phi)`` in degrees, the JSON dict;
@@ -1083,6 +1339,9 @@ def L_eff(
     ``anderson=m`` accelerates the self-consistent fixed point (m = 2 is a good choice)
     and ``rtol > 0`` stops it on a relative criterion. See the UMAT catalog.
     """
+    umat_name, props = _scheme_pair(umat_name, props)
+    if props is None:
+        raise TypeError("L_eff: props are required (or a MeanFieldScheme as umat_name)")
     angles = None if orientation is None else euler_angles(orientation)
     dicts = None if phases is None else to_phase_dicts(phases)
     return np.asarray(
@@ -1105,6 +1364,12 @@ __all__ = [
     "EULER_SEQ",
     "as_rotation",
     "euler_angles",
+    # Mean-field schemes, the numerical options by name
+    "MeanFieldScheme",
+    "Homogeneous",
+    "MoriTanaka",
+    "SelfConsistent",
+    "PeriodicLayers",
     # Data classes
     "Phase",
     "Layer",
