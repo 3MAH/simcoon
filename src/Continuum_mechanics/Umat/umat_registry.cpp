@@ -90,7 +90,8 @@ const std::map<std::string, umat_entry> &umat_registry()
                                                                                                    {14, T::strain},               // a_2
                                                                                                    {20, T::stress},               // X_1
                                                                                                    {26, T::stress}})}},           // X_2
-        {"EPJCK",       {K::johnson_cook,      K::johnson_cook,       K::johnson_cook,         box({{2, T::strain}}),              C::rate_and_total}},   // EP, the EPICP_closed layout
+        {"EPJCK",       {K::legacy_modular,    K::legacy_modular,     K::johnson_cook,         box({{2, T::strain}}),              C::rate_and_total}},   // [T_init, p, EP, pdot]; thermomechanical face: the dedicated kernel
+        {"EPJCK_closed",{K::johnson_cook,      K::johnson_cook,       K::johnson_cook,         box({{2, T::strain}}),              C::rate_and_total}},
         {"EPHIL",       {K::legacy_modular,    K::legacy_modular,     K::none,                 box_undeclared(),                   C::rate_and_total}},
         {"EPTRI",       {K::legacy_modular,    K::legacy_modular,     K::none,                 box_undeclared()}},
         {"EPHAC",       {K::legacy_modular,    K::legacy_modular,     K::none,                 box_undeclared()}},

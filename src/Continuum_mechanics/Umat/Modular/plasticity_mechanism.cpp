@@ -112,16 +112,63 @@ void PlasticityMechanism::configure(const arma::vec& props, int& offset) {
 
     // Configure hardening models
     iso_hard_->configure(props, offset);
+    iso_hard_->set_yield_stress(sigma_Y_);
     kin_hard_->configure(props, offset);
+}
+
+void PlasticityMechanism::set_increment(double theta_start, double theta_end, double DTime) {
+    theta_start_ = theta_start;
+    theta_end_ = theta_end;
+    DTime_ = DTime;
+    iso_hard_->set_increment(theta_start, theta_end, DTime);
+}
+
+void PlasticityMechanism::predict(const arma::vec& /*E_total_end*/, double /*DTime*/) {
+    if (has_pdot_) {
+        ivc_.at(pdot_index_).scalar() = 0.0;   // set again by update / refresh_state when the increment is plastic
+    }
+}
+
+void PlasticityMechanism::hardening_stress(double p, double Dp, double& R, double& dR_dp, double& dR_dDp) const {
+    if (has_pdot_) {
+        iso_hard_->R_rate(p, Dp, R, dR_dp, dR_dDp);
+    } else {
+        iso_hard_->R_and_dR(p, R, dR_dp);
+        dR_dDp = 0.0;
+    }
+}
+
+bool PlasticityMechanism::predict_multipliers(const arma::vec& sigma_eff, const arma::mat& L, arma::vec& ds, int offset) const {
+    if (!has_pdot_) return false;
+    double sigma_eq;
+    arma::vec::fixed<6> n;
+    const bool has_kin = kin_hard_->num_backstresses() > 0;
+    if (has_kin) {
+        yield_->equivalent_stress_and_flow(arma::vec::fixed<6>(sigma_eff - total_backstress_voigt()), sigma_eq, n);
+    } else {
+        yield_->equivalent_stress_and_flow(sigma_eff, sigma_eq, n);
+    }
+    const double nLn = arma::dot(n, L * n);
+    const double x0 = iso_hard_->multiplier_predictor(ivc_.at(p_index_).scalar(), sigma_eq, nLn);
+    if (x0 <= 0.0) return false;
+    ds(offset) = x0;
+    return true;
 }
 
 void PlasticityMechanism::register_variables() {
     ivc_.add_scalar("p", 0.0);
     ivc_.add_vec("EP", arma::zeros(6), true);
     kin_hard_->register_variables(ivc_);
+    has_pdot_ = iso_hard_->rate_dependent();
+    if (has_pdot_) {
+        ivc_.add_scalar("pdot", 0.0);   // the plastic strain rate of the increment, the EPJCK layout
+    }
     // resolved once: the return-mapping loop reads them through ivc_.at()
     p_index_ = ivc_.index_of("p");
     EP_index_ = ivc_.index_of("EP");
+    if (has_pdot_) {
+        pdot_index_ = ivc_.index_of("pdot");
+    }
 }
 
 // ========== Yield-side queries ==========
@@ -147,8 +194,10 @@ double PlasticityMechanism::equivalent_stress(const tensor2& sigma) const {
 }
 
 double PlasticityMechanism::yield_function(const arma::vec& sigma) const {
-    const double p = ivc_.at(p_index_).scalar();
-    return equivalent_stress(sigma) - iso_hard_->R(p) - sigma_Y_;
+    const auto& p_var = ivc_.at(p_index_);
+    double R, dR_dp, dR_dDp;
+    hardening_stress(p_var.scalar(), p_var.delta_scalar(), R, dR_dp, dR_dDp);
+    return equivalent_stress(sigma) - R - sigma_Y_;
 }
 
 double PlasticityMechanism::yield_function(const tensor2& sigma) const {
@@ -190,9 +239,8 @@ void PlasticityMechanism::compute_constraints(
         yield_->equivalent_stress_and_flow(sigma, sigma_eq, flow_dir_);
     }
 
-    double R, dR_dp;
-    iso_hard_->R_and_dR(p, R, dR_dp);
-
+    double R, dR_dp, dR_dDp;
+    hardening_stress(p, ivc_.at(p_index_).delta_scalar(), R, dR_dp, dR_dDp);
     // Yield function: Phi = sigma_eq - R - sigma_Y
     Phi.set_size(1);
     Phi(0) = sigma_eq - R - sigma_Y_;
@@ -205,7 +253,7 @@ void PlasticityMechanism::compute_constraints(
     } else {
         kappa_ = L * flow_dir_;
     }
-    H_total_ = dR_dp + (has_kin
+    H_total_ = dR_dp + dR_dDp + (has_kin
         ? kin_hard_->hardening_modulus(flow_dir_, X_branches_)
         : 0.0);
 }
@@ -295,11 +343,14 @@ bool PlasticityMechanism::refresh_state(
 
     auto& EP_var = ivc_.at(EP_index_);
     EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
-
+    if (has_pdot_) {
+        ivc_.at(pdot_index_).scalar() = (DTime_ > simcoon::iota && dp > simcoon::iota) ? dp / DTime_ : 0.0;
+    }
     // Total derivatives at this state (class note in the header).
     ClosestPointIngredients& out = cpp_cache_[0];
-    double R_p, dR_dp;
-    iso_hard_->R_and_dR(p_var.scalar(), R_p, dR_dp);
+    double R_p, dR_dp, dR_dDp;
+    hardening_stress(p_var.scalar(), dp, R_p, dR_dp, dR_dDp);
+    dR_dp += dR_dDp;   // K = dPhi/dDp at fixed sigma: the rate sensitivity sits with the hardening modulus
     out.Phi = sigma_eq - R_p - sigma_Y_;
     out.Lambda = n;
     if (!has_kin) {
@@ -390,13 +441,15 @@ void PlasticityMechanism::update(
         dp = p_start - p;
     }
     p += dp;
-
     // Update plastic strain
     arma::vec& EP = ivc_.at(EP_index_).raw_voigt();
     EP += dp * flow_dir_;
-
     // Update kinematic hardening variables
     kin_hard_->update(dp, flow_dir_, ivc_);
+    if (has_pdot_) {
+        const double Dp = p - p_start;
+        ivc_.at(pdot_index_).scalar() = (DTime_ > simcoon::iota && Dp > simcoon::iota) ? Dp / DTime_ : 0.0;
+    }
 }
 
 void PlasticityMechanism::tangent_contribution(
@@ -449,13 +502,18 @@ void PlasticityMechanism::compute_work(
 
     // stored in the hardening: the trapezoids in p (irrecoverable) and in the back-strains (recoverable)
     const double p_start = ivc_.at(p_index_).scalar_start(), p = ivc_.at(p_index_).scalar();
-    Wm_ir = 0.5 * (iso_hard_->R(p_start) + iso_hard_->R(p)) * Dp;
+    Wm_ir = 0.5 * (iso_hard_->stored_force(p_start, theta_start_) + iso_hard_->stored_force(p, theta_end_)) * Dp;
     Wm_r = kin_hard_->stored_increment(ivc_);
     Wm_d = 0.5 * arma::dot(sigma_start + sigma, DEP) - Wm_ir - Wm_r;
 }
 
 void PlasticityMechanism::dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE,
                                                   double& dDgamma_dT) const {
+    if (has_pdot_) {
+        throw std::invalid_argument("the thermomechanical face of MODUL does not serve a rate- and temperature-dependent "
+                                    "hardening (Johnson-Cook) yet: its heat needs the hardening entropy; EPJCK keeps its "
+                                    "dedicated thermomechanical kernel");
+    }
     const double Dp = ivc_.at(p_index_).delta_scalar();
     const arma::vec DEP = ivc_.at(EP_index_).delta_vec();
     const double p_start = ivc_.at(p_index_).scalar_start(), p = ivc_.at(p_index_).scalar();

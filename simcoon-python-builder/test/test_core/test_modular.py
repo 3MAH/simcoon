@@ -191,6 +191,31 @@ def test_zener_adapter_matches_the_kelvin_kernel(work_in_examples):
     assert np.abs(adapter - kernel).max() < 1e-10 * scale
 
 
+JC_PROPS = np.array([200000.0, 0.33, 1.0e-5, 792.0, 510.0, 0.26, 0.014, 1.0, 1.03, 293.0, 1793.0])
+
+
+def test_johnson_cook_adapter_matches_the_dedicated_kernel(work_in_examples):
+    """EPJCK runs the modular engine with a JohnsonCookHardening block (legacy_adapters.cpp);
+    EPJCK_closed is the dedicated kernel. Same regularizations, same cutting plane started at the
+    rate kink: the same state to round-off (measured 3e-14 on stress and statev at 1e-5 s)."""
+    from simcoon.modular import IsotropicElasticity, JohnsonCookHardening, ModularMaterial, Plasticity
+    for path in ("EPJCK_path.json", "EPJCK_path_fast.json"):
+        for cols in ((8, 9, 10, 11, 12, 13), (14, 15, 16, 17, 18, 19)):   # strain, stress
+            adapter = _run_case("EPJCK", JC_PROPS, 9, path, cols=cols)
+            kernel = _run_case("EPJCK_closed", JC_PROPS, 9, path, cols=cols)
+            scale = np.abs(kernel).max()
+            assert np.abs(adapter - kernel).max() < 1e-11 * scale, (path, cols)
+    # the Python composition is the adapter's, bit for bit
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=200000.0, C2=0.33, alpha=1.0e-5),
+                          mechanisms=[Plasticity(sigma_Y=792.0,
+                                                 isotropic_hardening=JohnsonCookHardening(B=510.0, n=0.26, C=0.014, pdot0=1.0,
+                                                                                          m=1.03, T_ref=293.0, T_melt=1793.0))])
+    assert mat.nstatev == 9
+    modul = _run_case("MODUL", mat.props, mat.nstatev, "EPJCK_path_fast.json", cols=(14, 15, 16, 17, 18, 19))
+    adapter = _run_case("EPJCK", JC_PROPS, 9, "EPJCK_path_fast.json", cols=(14, 15, 16, 17, 18, 19))
+    np.testing.assert_array_equal(modul, adapter)
+
+
 @pytest.mark.parametrize("pronk", ["PRONK", "PRONK_closed"])
 def test_viscoelastic_matches_pronk_reference(work_in_examples, pronk):
     """MODUL with a Viscoelasticity mechanism must reproduce the reference

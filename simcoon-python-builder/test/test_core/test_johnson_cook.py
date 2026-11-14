@@ -110,11 +110,11 @@ def test_thermomechanical_twin_heats_up_adiabatically_and_softens():
     assert res["Stress"][0, -1] < iso
 
 
-def _point(tangent_mode, DTime=1.0e-3):
+def _point(tangent_mode, DTime=1.0e-3, name="EPJCK"):
     De = np.array([[0.01, -0.005, -0.005, 0.0, 0.0, 0.0]]).T
     col = lambda v: np.asfortranarray(np.asarray(v, dtype=float).reshape(-1, 1))
     DR = np.asfortranarray(np.eye(3)[:, :, None])
-    return sim.umat("EPJCK", col(np.zeros(6)), col(De), np.empty(0), np.empty(0), col(np.zeros(6)), DR,
+    return sim.umat(name, col(np.zeros(6)), col(De), np.empty(0), np.empty(0), col(np.zeros(6)), DR,
                     col(JC), col(np.zeros(NSTATEV)), 0.0, DTime, col(np.zeros(4)),
                     temp=np.array([293.15]), n_threads=1, **tangent_kwargs(tangent_mode), start=True)
 
@@ -130,13 +130,17 @@ def test_tangent_mode_none_returns_elastic_operator_for_explicit_integration():
 
 
 def test_closest_point_mode_is_the_cutting_plane_result_by_construction():
-    """Radial J2 flow with isotropic (rate- and temperature-dependent) hardening: the
-    cutting-plane update IS the closest-point projection and the algorithmic operator is the
-    exact Jacobian of the discrete map, so integrator='closest_point' returns the cutting-plane
-    state and tangent bit for bit (no separate branch to maintain)."""
-    sigma2, statev2, _, Lt2 = _point(2)
-    sigma3, statev3, _, Lt3 = _point(3)
+    """Radial J2 flow with isotropic (rate- and temperature-dependent) hardening: in the dedicated
+    kernel (EPJCK_closed) the cutting-plane update IS the closest-point projection and the
+    algorithmic operator is the exact Jacobian of the discrete map, so integrator='closest_point'
+    returns the cutting-plane state and tangent bit for bit (no separate branch to maintain). The
+    modular engine (EPJCK) runs its own closest point, which lands on the same state."""
+    sigma2, statev2, _, Lt2 = _point(2, name="EPJCK_closed")
+    sigma3, statev3, _, Lt3 = _point(3, name="EPJCK_closed")
     assert statev2[1, 0] > 0.0, "the point must yield"
     np.testing.assert_array_equal(sigma3, sigma2)
     np.testing.assert_array_equal(statev3, statev2)
     np.testing.assert_array_equal(Lt3, Lt2)
+    sigma_m, statev_m, _, _ = _point(3)
+    np.testing.assert_allclose(sigma_m, sigma2, rtol=0, atol=1e-9 * np.abs(sigma2).max())
+    np.testing.assert_allclose(statev_m, statev2, rtol=1e-9, atol=1e-12)
