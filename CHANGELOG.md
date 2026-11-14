@@ -18,7 +18,7 @@ Known gaps and planned work, not yet in a release. An item moves to
 - Migration of the laws to the modular engine (MODUL), state in
   `benchmark/README.md`. Routed through the adapter (code 201): ELISO, ELIST,
   ELORT, EPKCP, EPHIL, EPTRI, EPHAC, EPANI, EPDFA, EPCHG, EPHIN. To do:
-  - no MODUL equivalent yet: OGDEN, SNTVE, HYPOO, EPJCK, LLDM0, ZENNK (N >= 2: the
+  - no MODUL equivalent yet: OGDEN, SNTVE, HYPOO, LLDM0, ZENNK (N >= 2: the
     Kelvin-to-Maxwell map has no closed form), the SMA family, the micromechanics schemes;
   - the thermomechanical dispatch (`umat_T`): `MODUL` has its face (every block, every
     mechanism) and serves EPICP, EPKCP and PRONK through adapters; under the cutting plane
@@ -42,21 +42,26 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
-### Added
-
-- The mean-field schemes by name: `MoriTanaka` (MIMTN), `SelfConsistent` (MISCN), `Homogeneous`
-  (MIHEN) and `PeriodicLayers` (MIPLN) in `simcoon.solver.micromechanics` carry the numerical
-  options of a scheme as keyword-only fields (`closed_form`, `rule="gauss" | "half_sphere"`,
-  `start="mori_tanaka" | "homogeneous"`, `anderson`, `rtol`), checked at construction, and
-  build the exact props slots `multiphase.hpp` reads (the trailing defaults omitted, as a
-  hand-written list): the results are bit-identical to the list form. A scheme stands for the
-  `(umat_name, props)` pair in `solve` and `sim.L_eff`, and as the `props` of a sub-phase that
-  is itself a mean-field model (nested schemes), which names it; `MeanFieldScheme.from_props`
-  reads one back from a JSON material. No C++ change; the slot table stays the single source
-  of truth in the catalog and `multiphase.hpp`.
-
 ### Breaking changes
 
+- EPJCK runs the modular engine on its mechanical faces (`legacy_adapters.cpp`): a new isotropic
+  hardening block, `JohnsonCookHardening` (`IsoHardType::JOHNSON_COOK`, props `B, n, C, pdot0, m,
+  T_ref, T_melt`, `sigma_Y` = the A of the law), the rate- and temperature-dependent member of
+  the hardening family. `IsotropicHardening` gains `rate_dependent()`, `set_yield_stress()`,
+  `set_increment()`, `R_rate()` (R and its derivatives in p and in Delta p of the implicit rate),
+  `stored_force()` and `multiplier_predictor()`; `StrainMechanism` gains `set_increment()` and
+  `predict_multipliers()` (the cutting plane starts past the kink of a clamped rate factor, as
+  the kernel does); the plasticity mechanism carries a `pdot` variable after its back strains
+  when the hardening is rate dependent, so the statev layout and meaning of EPJCK are unchanged
+  (`[T_init, p, EP, pdot]`, 9). The same regularizations as the kernel: the adapter reproduces
+  `EPJCK_closed` to 3e-14 on stress, statev, Wm and 3e-15 on the tangent at 10 s, 1 s, 1e-3 s
+  and 1e-5 s loading times (uniaxial tension to 10 %, 100 increments), and to 3e-16 on a
+  2000-point batch; the modular closest point lands on the cutting-plane state to 4e-12. Speed
+  1.80 us/pt against 1.46 for the kernel (the generic assembly). `EPJCK_closed` keeps the
+  dedicated kernels; the thermomechanical face of EPJCK stays the dedicated kernel under both
+  names (the hardening entropy of a rate- and temperature-dependent yield stress has no modular
+  hook yet: `MODUL_T` refuses a `JohnsonCookHardening` block). Python: `JohnsonCookHardening`,
+  `Plasticity.nstatev` counts `pdot`; benchmark family `EPJCK` (`EPJCK_closed` vs the block).
 - The invariant-based hyperelastic names NEOHC, NEOHI, MOORI, YEOHH, ISHAH, GETHH, SWANH and
   HOLZA run the `HYPER_INVARIANTS` block of the modular engine through a props adapter
   (`legacy_adapters.cpp`: the same potential, the same props; NEOHI is the Neo-Hookean potential
@@ -82,6 +87,16 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Added
 
+- The mean-field schemes by name: `MoriTanaka` (MIMTN), `SelfConsistent` (MISCN), `Homogeneous`
+  (MIHEN) and `PeriodicLayers` (MIPLN) in `simcoon.solver.micromechanics` carry the numerical
+  options of a scheme as keyword-only fields (`closed_form`, `rule="gauss" | "half_sphere"`,
+  `start="mori_tanaka" | "homogeneous"`, `anderson`, `rtol`), checked at construction, and
+  build the exact props slots `multiphase.hpp` reads (the trailing defaults omitted, as a
+  hand-written list): the results are bit-identical to the list form. A scheme stands for the
+  `(umat_name, props)` pair in `solve` and `sim.L_eff`, and as the `props` of a sub-phase that
+  is itself a mean-field model (nested schemes), which names it; `MeanFieldScheme.from_props`
+  reads one back from a JSON material. No C++ change; the slot table stays the single source
+  of truth in the catalog and `multiphase.hpp`.
 - The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the
   finite dispatch serves UMEXT, UMABA and UMANS as log-strain boxes in the material frame. UMEXT
   follows the simcoon convention exactly like PYEXT and the built-in kernels (logarithmic strain in,
@@ -97,6 +112,7 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   Jacobian (`sigma (x) I` term). Tests: the three plugins against ELISO (UMEXT bit-identical, host
   Cauchy stress = `C : e` to 1e-9), the converted host tangent against central differences, a rigid
   spin, the admission; `test_external_plugins_refused_under_finite_strain` is gone.
+
 ### Changed
 
 - The transports of `tensor4` (`push_forward`, `pull_back`, the corotational overload) are the

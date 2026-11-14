@@ -131,6 +131,14 @@ vec translate_NEOHI(const vec& p) {
                         vec{mu, kappa, static_cast<double>(VolumetricPotential::QUADRATIC)}, p(2));
 }
 
+vec translate_EPJCK(const vec& p) {
+    // legacy: E nu alpha A B n C edot0 m T_ref T_melt  ->  plasticity, Mises, Johnson-Cook hardening (sigma_Y = A), no kin
+    return vec{0, 0, p(0), p(1), p(2),
+               1,
+               0, 0, 5, 0, 1, 0,
+               p(3), p(4), p(5), p(6), p(7), p(8), p(9), p(10)};
+}
+
 vec translate_EPKCP(const vec& p) {
     // legacy: E nu alpha sigmaY k m kX; legacy Prager X = kX*a (tensorial),
     // modular X = (2/3) C a  ->  C = 1.5 kX
@@ -265,6 +273,7 @@ const std::map<std::string, LegacyPropsTranslator>& registry() {
         {"EPDFA", translate_EPDFA},
         {"EPCHG", translate_EPCHG},
         {"EPHIN", translate_EPHIN},
+        {"EPJCK", translate_EPJCK},
         {"NEOHC", translate_NEOHC},
         {"NEOHI", translate_NEOHI},
         {"MOORI", translate_MOORI},

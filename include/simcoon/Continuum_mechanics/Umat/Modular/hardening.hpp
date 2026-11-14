@@ -50,7 +50,8 @@ enum class IsoHardType {
     LINEAR = 1,         ///< Linear: R = H * p
     POWER_LAW = 2,      ///< Power law: R = k * p^m
     VOCE = 3,           ///< Voce saturation: R = Q * (1 - exp(-b*p))
-    COMBINED_VOCE = 4   ///< Sum of N Voce terms
+    COMBINED_VOCE = 4,  ///< Sum of N Voce terms
+    JOHNSON_COOK = 5    ///< Johnson-Cook: (sigma_Y + B p^n)(1 + C ln(pdot/pdot0))(1 - T*^m) - sigma_Y, rate and temperature dependent
 };
 
 /**
@@ -104,6 +105,59 @@ public:
     virtual void R_and_dR(double p, double& R, double& dR) const { R = this->R(p); dR = dR_dp(p); }
 
     /**
+     * @brief True for a yield stress that depends on the plastic strain rate and on the temperature
+     *        (JohnsonCookHardening). The mechanism then reads R_rate() in its return mapping, carries a
+     *        @c pdot internal variable, and the thermomechanical face of MODUL does not serve it yet.
+     */
+    [[nodiscard]] virtual bool rate_dependent() const noexcept { return false; }
+    /**
+     * @brief The initial yield stress \f$ \sigma_Y \f$ of the mechanism, for the laws that scale it
+     *        (Johnson-Cook: \f$ (\sigma_Y + B p^n) f_{\dot p} f_\theta \f$). Default: unused.
+     */
+    virtual void set_yield_stress(double sigma_Y) { (void)sigma_Y; }
+    /**
+     * @brief The increment a rate- and temperature-dependent law reads: the temperature at both ends
+     *        and the time step (\f$ \Delta t \le \iota \f$ is the rate-independent evaluation, the
+     *        zero-time tangent probe). Default: nothing.
+     */
+    virtual void set_increment(double theta_start, double theta_end, double DTime) {
+        (void)theta_start; (void)theta_end; (void)DTime;
+    }
+    /**
+     * @brief \f$ R(p, \dot p, \theta) \f$ of the implicit rate \f$ \dot p = \Delta p/\Delta t \f$ and its partial
+     *        derivatives in \f$ p \f$ and in \f$ \Delta p \f$ (the second enters the multiplier Jacobian
+     *        \f$ K = -(\partial R/\partial p + \partial R/\partial\Delta p) \f$). Default: R_and_dR, no rate term.
+     * @param p accumulated plastic strain at the end of the increment
+     * @param Dp its increment
+     * @param[out] R hardening stress
+     * @param[out] dR_dp \f$ \partial R/\partial p \f$ at fixed rate
+     * @param[out] dR_dDp \f$ \partial R/\partial\Delta p \f$ at fixed \f$ p \f$ (the rate sensitivity)
+     */
+    virtual void R_rate(double p, double Dp, double& R, double& dR_dp, double& dR_dDp) const {
+        (void)Dp;
+        R_and_dR(p, R, dR_dp);
+        dR_dDp = 0.0;
+    }
+    /**
+     * @brief The force stored by the hardening, \f$ F_p = -A_p \f$ of the energy split
+     *        (PlasticityMechanism::compute_work): \f$ R(p) \f$ for the rate-independent laws; the
+     *        isothermal reference-rate part \f$ f_\theta B p^n \f$ for Johnson-Cook, whose rate and
+     *        thermal multipliers of the yield stress are dissipated.
+     */
+    [[nodiscard]] virtual double stored_force(double p, double theta) const { (void)theta; return R(p); }
+    /**
+     * @brief Starting multiplier of the cutting plane for a law whose \f$ \Phi(\Delta p) \f$ has a kink
+     *        (the clamped rate factor of Johnson-Cook at \f$ \dot p = \dot p_0 \f$): the Newton started at
+     *        \f$ \Delta p = 0 \f$ with the quasi-static slope overshoots it and cycles. Returns the
+     *        multiplier to start from (0: none) given the trial state, \f$ \bar\sigma^{tr} \f$ and
+     *        \f$ \boldsymbol{\Lambda}:\mathbf{L}:\boldsymbol{\Lambda} \f$. Default: 0.
+     */
+    virtual double multiplier_predictor(double p, double sigma_eq_trial, double nLn) const {
+        (void)p; (void)sigma_eq_trial; (void)nLn;
+        return 0.0;
+    }
+
+    /**
      * @brief Get the hardening type
      * @return Hardening type enum
      */
@@ -130,6 +184,7 @@ public:
             case IsoHardType::POWER_LAW:     return 2;
             case IsoHardType::VOCE:          return 2;
             case IsoHardType::COMBINED_VOCE: return 2 * N;
+            case IsoHardType::JOHNSON_COOK:  return 7;
         }
         return 0;
     }
@@ -220,6 +275,55 @@ public:
     int num_terms() const { return N_; }
 };
 
+/**
+ * @brief Johnson-Cook yield stress (Johnson & Cook, 1983) as an isotropic hardening of the
+ *        plastic strain rate and the temperature.
+ *
+ * \f[
+ *   \sigma_Y + R(p, \dot p, \theta) = \left(\sigma_Y + B p^{n}\right)
+ *   \left(1 + C \ln\frac{\dot p}{\dot p_0}\right)\left(1 - \theta^{*m}\right),
+ *   \qquad \theta^* = \frac{\theta - \theta_{ref}}{\theta_{melt} - \theta_{ref}},
+ * \f]
+ * props: \f$ B, n, C, \dot p_0, m, \theta_{ref}, \theta_{melt} \f$; \f$ \sigma_Y \f$ (the A of the law) is
+ * the mechanism's, handed by set_yield_stress(). The same regularizations as the EPJCK kernel
+ * (plastic_johnson_cook_ccp.hpp): \f$ B p^n \f$ through PowerLawHardening (C1 onset blend for
+ * \f$ n < 1 \f$), the rate factor clamped at 1 below \f$ \dot p_0 \f$ (the rate is the implicit
+ * \f$ \Delta p/\Delta t \f$; \f$ \Delta t \le \iota \f$ is the quasi-static form), \f$ \theta^* \f$ clamped to
+ * \f$ [0, 1) \f$ and \f$ \theta^{*m} \f$ continued below \f$ 10^{-3} \f$ by johnson_cook_softening(). The
+ * kink of the clamp is met as in the kernel: multiplier_predictor() decides the branch from
+ * \f$ \Phi \f$ at \f$ \Delta p = \dot p_0 \Delta t \f$ and starts the cutting plane there on the
+ * logarithmic branch, whose slope \f$ C/(\dot p\,\Delta t) \f$ then stays in the Jacobian.
+ * Energy: stored_force() is \f$ f_\theta B p^n \f$ (\f$ A_p = -f_\theta B p^n \f$: the rate and thermal
+ * multipliers of the yield stress are dissipated, the split of the kernel).
+ */
+class JohnsonCookHardening final : public IsotropicHardening {
+private:
+    double sigma_Y_ = 0.0;      ///< A: the mechanism's initial yield stress
+    PowerLawHardening power_;   ///< B p^n (C1 onset blend)
+    double C_ = 0.0;            ///< rate sensitivity
+    double pdot0_ = 1.0;        ///< reference plastic strain rate
+    double m_ = 1.0;            ///< thermal softening exponent
+    double T_ref_ = 0.0;        ///< reference temperature
+    double T_melt_ = 1.0;       ///< melting temperature
+    double DTime_ = 0.0;        ///< time increment (0: rate-independent evaluation)
+    double f_start_ = 1.0;      ///< thermal factor 1 - theta*^m at the start temperature
+    double f_end_ = 1.0;        ///< the same at the end temperature
+    mutable bool log_branch_ = false;   ///< the cutting plane runs on the logarithmic branch (multiplier_predictor)
+    [[nodiscard]] double thermal_factor(double theta) const;
+public:
+    JohnsonCookHardening() = default;
+    void configure(const arma::vec& props, int& offset) override;
+    bool rate_dependent() const noexcept override { return true; }
+    void set_yield_stress(double sigma_Y) override { sigma_Y_ = sigma_Y; }
+    void set_increment(double theta_start, double theta_end, double DTime) override;
+    /// Quasi-static (rate factor 1) hardening stress at the end temperature
+    double R(double p) const override;
+    double dR_dp(double p) const override;
+    void R_rate(double p, double Dp, double& R, double& dR_dp, double& dR_dDp) const override;
+    double stored_force(double p, double theta) const override;
+    double multiplier_predictor(double p, double sigma_eq_trial, double nLn) const override;
+    IsoHardType type() const override { return IsoHardType::JOHNSON_COOK; }
+};
 // ============================================================================
 // KINEMATIC HARDENING
 // ============================================================================

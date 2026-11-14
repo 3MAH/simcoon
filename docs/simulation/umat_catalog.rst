@@ -87,12 +87,16 @@ Small-strain mechanical models
    * - EPJCK
      - Von Mises + Johnson-Cook yield stress (power-law hardening x logarithmic
        strain-rate factor x thermal softening)
-     - dedicated kernel
+     - modular (adapter, ``JohnsonCookHardening`` block); ``EPJCK_closed`` runs the
+       dedicated kernel; the thermomechanical face keeps the dedicated kernel under
+       both names
      - E, nu, alpha, A, B, n, C, edot0, m, T_ref, T_melt
      - Rate-dependent: the plastic strain rate is Dp/Dt, fully implicit in the
-       CCP loop; the rate factor is clamped at 1 below edot0. 9 statev
-       (T_init, p, EP, edot_p). Thermomechanical twin with (rho, c_p)
-       prepended, dPhi/dT from the thermal softening. tangent_mode 0 returns
+       return mapping; the rate factor is clamped at 1 below edot0 and the cutting
+       plane starts at the kink (``multiplier_predictor``). 9 statev
+       (T_init, p, EP, edot_p), the same layout and meaning under the adapter.
+       Thermomechanical twin with (rho, c_p) prepended, dPhi/dT from the thermal
+       softening (dedicated kernel: the hardening entropy has no modular hook yet). tangent_mode 0 returns
        the elastic L in the mechanical kernel (explicit integration); the
        thermomechanical twin promotes it to the continuum operator, as EPICP_T.
    * - EPHIL / EPTRI

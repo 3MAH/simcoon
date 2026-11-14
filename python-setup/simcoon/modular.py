@@ -57,7 +57,7 @@ __all__ = [
     "HillYield", "DFAYield", "AnisotropicYield",
     # Isotropic hardening
     "NoIsotropicHardening", "LinearIsotropicHardening",
-    "PowerLawHardening", "VoceHardening", "CombinedVoceHardening",
+    "PowerLawHardening", "VoceHardening", "CombinedVoceHardening", "JohnsonCookHardening",
     # Kinematic hardening
     "NoKinematicHardening", "PragerHardening",
     "ArmstrongFrederickHardening", "ChabocheHardening",
@@ -193,6 +193,7 @@ class IsoHardType(IntEnum):
     POWER_LAW = 2
     VOCE = 3
     COMBINED_VOCE = 4
+    JOHNSON_COOK = 5
 
 
 class KinHardType(IntEnum):
@@ -1081,8 +1082,64 @@ class CombinedVoceHardening:
         return len(self.terms)
 
 
+@dataclass(frozen=True)
+class JohnsonCookHardening:
+    r"""Johnson-Cook yield stress as an isotropic hardening of the plastic strain rate and the
+    temperature (the ``EPJCK`` UMAT's law):
+
+    .. math::
+
+        \sigma_Y + R(p, \dot p, \theta) = (\sigma_Y + B\,p^n)\,
+        \left(1 + C \ln\frac{\dot p}{\dot p_0}\right)\,(1 - \theta^{*m}),
+        \qquad \theta^* = \frac{\theta - \theta_{ref}}{\theta_{melt} - \theta_{ref}}
+
+    ``sigma_Y`` (the A of the law) is the one of the :class:`Plasticity` mechanism. The rate is
+    the implicit :math:`\Delta p / \Delta t` of the increment, clamped at :math:`\dot p_0` (no
+    softening below the reference rate; the zero-time tangent probe is the quasi-static law);
+    :math:`\theta^*` is clamped to :math:`[0, 1)`. The mechanism then carries one more state
+    variable, ``pdot``, after ``EP`` and the back strains. The thermomechanical face of ``MODUL``
+    does not serve it yet (``EPJCK`` keeps its dedicated thermomechanical kernel).
+
+    Parameters
+    ----------
+    B, n : float
+        Power-law hardening :math:`B p^n` (C1 onset blend below :math:`p = 10^{-6}` for n < 1).
+    C : float
+        Rate sensitivity.
+    pdot0 : float
+        Reference plastic strain rate.
+    m : float
+        Thermal softening exponent.
+    T_ref, T_melt : float
+        Reference and melting temperatures.
+    """
+    B: float
+    n: float
+    C: float
+    pdot0: float
+    m: float
+    T_ref: float
+    T_melt: float
+
+    @property
+    def iso_hard_type(self) -> IsoHardType:
+        return IsoHardType.JOHNSON_COOK
+
+    def to_props(self) -> List[float]:
+        return [self.B, self.n, self.C, self.pdot0, self.m, self.T_ref, self.T_melt]
+
+    @property
+    def nprops(self) -> int:
+        return 7
+
+    @property
+    def N(self) -> int:
+        return 1
+
+
 IsotropicHardening = Union[NoIsotropicHardening, LinearIsotropicHardening,
-                           PowerLawHardening, VoceHardening, CombinedVoceHardening]
+                           PowerLawHardening, VoceHardening, CombinedVoceHardening,
+                           JohnsonCookHardening]
 
 # ============================================================================
 # Kinematic hardening
@@ -1279,8 +1336,10 @@ class Plasticity:
 
     @property
     def nstatev(self) -> int:
-        """Number of state variables for this mechanism: p(1) + EP(6) + backstresses(6*N)."""
-        return 7 + 6 * self.kinematic_hardening.num_backstresses
+        """Number of state variables for this mechanism: p(1) + EP(6) + backstresses(6*N), plus
+        pdot(1) for a rate-dependent hardening (Johnson-Cook)."""
+        rate = 1 if self.isotropic_hardening.iso_hard_type == IsoHardType.JOHNSON_COOK else 0
+        return 7 + 6 * self.kinematic_hardening.num_backstresses + rate
 
 
 def zener_as_maxwell(E0, nu0, E1, nu1, etaB, etaS):

@@ -108,7 +108,14 @@ private:
                                                 ///< ONCE per FB iteration in
                                                 ///< compute_constraints and reused
                                                 ///< for sigma_eff + hardening_modulus
-    mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
+    mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin, the rate sensitivity of the hardening included)
+    size_t pdot_index_ = 0;                     ///< ivc_ index of "pdot" (rate-dependent hardening only)
+    bool has_pdot_ = false;                     ///< the hardening is rate dependent: a "pdot" variable follows "EP" (and the back strains)
+    double theta_start_ = 0.0;                  ///< temperatures and time step of the increment (set_increment)
+    double theta_end_ = 0.0;
+    double DTime_ = 0.0;
+    /// R and its derivatives at p for the increment Dp = p - p_start: R_rate of the hardening (rate term included)
+    void hardening_stress(double p, double Dp, double& R, double& dR_dp, double& dR_dDp) const;
     std::vector<ClosestPointIngredients> cpp_cache_{ClosestPointIngredients{}};  ///< built by refresh_state, read by closest_point_ingredients
 
     /// Total backstress (engineering stress Voigt), summed in the X_branches_ buffer it overwrites (no allocation)
@@ -364,6 +371,11 @@ public:
      * dissipation is written on (the damaged one under a damage mechanism, strain equivalence).
      */
     void dissipation_sensitivity(const DissipationInputs& in, arma::vec& dDgamma_dE, double& dDgamma_dT) const override;
+
+    void set_increment(double theta_start, double theta_end, double DTime) override;
+    /// Resets the rate variable: an increment that stays elastic leaves no plastic strain rate
+    void predict(const arma::vec& E_total_end, double DTime) override;
+    bool predict_multipliers(const arma::vec& sigma_eff, const arma::mat& L, arma::vec& ds, int offset) const override;
 };
 
 } // namespace simcoon

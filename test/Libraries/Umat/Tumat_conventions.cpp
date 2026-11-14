@@ -75,7 +75,7 @@ TEST(UmatRegistry, ClosedNamesPairWithTheirAdapterName) {
         if (entry.finite != K::none && entry.convention.material_frame)   // two boxes: the same statev layout (EPICP_closed = EPICP)
             EXPECT_EQ(entry.convention.material_frame, plain->convention.material_frame) << name;
     }
-    EXPECT_EQ(closed, 7);   // EPICP, EPCHA, PRONK, ZENER, EPKCP (thermomechanical), NEOHC and NEOHI (built on F)
+    EXPECT_EQ(closed, 8);   // EPICP, EPCHA, PRONK, ZENER, EPJCK, EPKCP (thermomechanical), NEOHC and NEOHI (built on F)
 }
 
 // The hyperelastic names run the HYPER_INVARIANTS block on the log-strain box: adapter on the finite

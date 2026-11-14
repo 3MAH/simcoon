@@ -230,6 +230,7 @@ int ModularUMAT::required_nstatev() const {
                 auto* pm = dynamic_cast<const PlasticityMechanism*>(mech.get());
                 if (pm) {
                     count += 6 * pm->kinematic_hardening().num_backstresses();
+                    if (pm->isotropic_hardening().rate_dependent()) count += 1;   // pdot
                 }
                 break;
             }
@@ -456,6 +457,7 @@ bool ModularUMAT::return_mapping(
     const arma::vec::fixed<6> Etot_end = Etot + DEtot;
     const arma::vec::fixed<6> Eth_end = Etot_end - elasticity_.alpha() * (T + DT - T_init);
     for (auto& mech : mechanisms_) {
+        mech->set_increment(T, T + DT, DTime);
         mech->predict(Eth_end, DTime);   // closed-form parts first (viscoelastic branches), thermal part removed
     }
     refresh_stress(Etot_end, T + DT - T_init, ndi, nshr, sigma);
@@ -505,6 +507,18 @@ bool ModularUMAT::return_mapping(
     }
     if (all_cpp) {
         return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, nshr, Y_crit, sigma, Ds_total);
+    }
+    // a law with a kink in its constraint starts the cutting plane past it (EPJCK's rate clamp)
+    arma::vec ds_pred = arma::zeros(n_total);
+    bool predicted = false;
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        predicted = mechanisms_[m]->predict_multipliers(sigma_eff_, L_cur_, ds_pred, mech_offset_[m]) || predicted;
+    }
+    if (predicted) {
+        for (size_t m = 0; m < mechanisms_.size(); ++m) mechanisms_[m]->update(ds_pred, mech_offset_[m]);
+        Ds_total += ds_pred;
+        refresh_stress(Etot_end, T + DT - T_init, ndi, nshr, sigma);
+        evaluate_constraints(Etot_end, DTime, Phi, Y_crit);
     }
     return_mapping_ccp(Etot_end, T + DT - T_init, DT, DTime, ndi, nshr, Phi, Y_crit, sigma, Ds_total,
                        elastic_pass ? 1 : 0);

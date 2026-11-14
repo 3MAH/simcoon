@@ -51,6 +51,7 @@ from simcoon.modular import (
     Plasticity,
     VoceHardening,
     PowerLawHardening,
+    JohnsonCookHardening,
     HillYield,
     DFAYield,
     AnisotropicYield,
@@ -76,7 +77,7 @@ def _mat(elasticity, mechanisms=()):
 
 # Families whose first arm is a dedicated (closed-form) kernel, the _closed names. Any
 # other name of FAMILIES is routed to the modular engine by a props adapter (code 201).
-LEGACY_KERNELS = ("EPICP", "EPCHA", "PRONK", "ZENER")
+LEGACY_KERNELS = ("EPICP", "EPCHA", "PRONK", "ZENER", "EPJCK")
 
 # family -> (legacy_name, legacy_props, legacy_nstatev, path_file, ModularMaterial)
 FAMILIES = {
@@ -144,6 +145,22 @@ FAMILIES = {
                 Plasticity(
                     sigma_Y=300.0,
                     isotropic_hardening=PowerLawHardening(k=1000.0, m=0.3),
+                )
+            ],
+        ),
+    ),
+    "EPJCK": (
+        "EPJCK_closed",
+        [200000.0, 0.33, 1.0e-5, 792.0, 510.0, 0.26, 0.014, 1.0, 1.03, 293.0, 1793.0],
+        9,
+        "EPJCK_path_fast.json",
+        _mat(
+            IsotropicElasticity(C1=200000.0, C2=0.33, alpha=1.0e-5),
+            [
+                Plasticity(
+                    sigma_Y=792.0,
+                    isotropic_hardening=JohnsonCookHardening(B=510.0, n=0.26, C=0.014, pdot0=1.0,
+                                                             m=1.03, T_ref=293.0, T_melt=1793.0),
                 )
             ],
         ),

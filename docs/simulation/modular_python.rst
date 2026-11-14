@@ -175,6 +175,12 @@ energy. Its work :math:`\int R\,\mathrm{d}p` is the irrecoverable work ``Wm_ir``
      - ``k, m``
      - :math:`R = k\,p^m` — for :math:`m < 1` the singular onset slope is
        C\ :sup:`1`-regularized below :math:`p = 10^{-6}` (exact above)
+   * - :class:`JohnsonCookHardening`
+     - ``B, n, C, pdot0, m, T_ref, T_melt``
+     - :math:`\sigma_Y + R = (\sigma_Y + B p^n)(1 + C\ln(\dot p/\dot p_0))(1 - \theta^{*m})`,
+       the ``EPJCK`` law: rate (implicit :math:`\Delta p/\Delta t`, clamped at
+       :math:`\dot p_0`) and temperature dependent; adds a ``pdot`` state variable;
+       mechanical faces only
    * - :class:`VoceHardening`
      - ``Q, b``
      - :math:`R = Q\,(1 - e^{-b\,p})`

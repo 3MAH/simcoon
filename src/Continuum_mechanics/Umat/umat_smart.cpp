@@ -224,7 +224,7 @@ void check_integrator_serves(const std::string &umat_name, const int &tangent_mo
                                 || kernel_serves_closest_point(entry->finite, false)));
     if (!serves) {
         throw std::invalid_argument("integrator='closest_point' serves the laws with a closest-point update only "
-                                    "(mechanical: EPICP_closed, EPCHA_closed, EPJCK, MODUL and the legacy names it serves, "
+                                    "(mechanical: EPICP_closed, EPCHA_closed, EPJCK_closed, MODUL and the legacy names it serves, "
                                     "the SMA kernels; thermomechanical: EPICP_closed, EPKCP_closed, MODUL and the legacy "
                                     "names it serves); '" + umat_name + "'"
                                     + (thermomechanical ? " (thermomechanical)" : "") + " has none");
