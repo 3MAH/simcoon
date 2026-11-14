@@ -571,6 +571,32 @@ public:
     }
 
     /**
+     * @brief The increment's temperatures and time step, set by the orchestrator before the return
+     *        mapping, for the mechanisms whose laws read them (a rate- and temperature-dependent
+     *        hardening, IsotropicHardening::rate_dependent). Default: nothing.
+     * @param theta_start temperature at the start of the increment
+     * @param theta_end temperature at its end
+     * @param DTime time increment
+     */
+    virtual void set_increment(double theta_start, double theta_end, double DTime) {
+        (void)theta_start; (void)theta_end; (void)DTime;
+    }
+
+    /**
+     * @brief Starting multipliers of the cutting plane, for a law whose constraint has a kink the
+     *        Newton started at zero would cycle on (IsotropicHardening::multiplier_predictor). Writes
+     *        the mechanism's rows of @p ds and returns true when it moved; the orchestrator applies
+     *        them as a first update and refreshes the stress. Default: false (start at zero).
+     * @param sigma_eff effective trial stress
+     * @param L elastic operator of the composition
+     * @param[out] ds multipliers of all the rows (zero on entry)
+     * @param offset first row of this mechanism
+     */
+    virtual bool predict_multipliers(const arma::vec& sigma_eff, const arma::mat& L, arma::vec& ds, int offset) const {
+        (void)sigma_eff; (void)L; (void)ds; (void)offset;
+        return false;
+    }
+    /**
      * @brief Residual of a state updated outside the FB rows (explicit fixed point), added to
      *        the orchestrator's convergence error.
      *

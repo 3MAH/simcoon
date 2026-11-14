@@ -21,6 +21,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_johnson_cook_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Simulation/Maths/small_dense.hpp>
@@ -94,6 +95,8 @@ std::unique_ptr<IsotropicHardening> IsotropicHardening::create(IsoHardType type,
             return std::make_unique<VoceHardening>();
         case IsoHardType::COMBINED_VOCE:
             return std::make_unique<CombinedVoceHardening>(N);
+        case IsoHardType::JOHNSON_COOK:
+            return std::make_unique<JohnsonCookHardening>();
         default:
             return std::make_unique<NoIsotropicHardening>();
     }
@@ -212,6 +215,75 @@ void CombinedVoceHardening::R_and_dR(double p, double& R, double& dR) const {
         R += Q_(i) * (1.0 - e);
         dR += Q_(i) * b_(i) * e;
     }
+}
+
+// ---- Johnson-Cook: the regularizations of the EPJCK kernel (plastic_johnson_cook_ccp.hpp)
+
+void JohnsonCookHardening::configure(const arma::vec& props, int& offset) {
+    int power_offset = offset;
+    power_.configure(props, power_offset);   // B, n
+    C_ = props(offset + 2);
+    pdot0_ = props(offset + 3);
+    m_ = props(offset + 4);
+    T_ref_ = props(offset + 5);
+    T_melt_ = props(offset + 6);
+    offset += 7;
+}
+
+double JohnsonCookHardening::thermal_factor(double theta) const {
+    double Tstar = (theta - T_ref_) / (T_melt_ - T_ref_);
+    if (Tstar < 0.0) Tstar = 0.0;
+    if (Tstar >= 1.0) Tstar = 1.0 - simcoon::iota;
+    double g, dg, d2g;
+    johnson_cook_softening(Tstar, m_, g, dg, d2g);
+    return 1.0 - g;
+}
+
+void JohnsonCookHardening::set_increment(double theta_start, double theta_end, double DTime) {
+    f_start_ = thermal_factor(theta_start);
+    f_end_ = thermal_factor(theta_end);
+    DTime_ = DTime;
+    log_branch_ = false;
+}
+
+double JohnsonCookHardening::R(double p) const {
+    return (sigma_Y_ + power_.R(p)) * f_end_ - sigma_Y_;
+}
+
+double JohnsonCookHardening::dR_dp(double p) const {
+    return power_.dR_dp(p) * f_end_;
+}
+
+void JohnsonCookHardening::R_rate(double p, double Dp, double& R, double& dR_dp, double& dR_dDp) const {
+    double Hp, dHp;
+    power_.R_and_dR(p, Hp, dHp);
+    double rate = 1.0, drate_dDp = 0.0;
+    if (DTime_ > simcoon::iota) {
+        // implicit rate, clamped at pdot0 (no softening below the reference rate, no ln(0) at the onset)
+        const double pdot_eff = std::max(Dp / DTime_, pdot0_);
+        rate = 1.0 + C_ * std::log(pdot_eff / pdot0_);
+        if (pdot_eff > pdot0_ || log_branch_) {
+            drate_dDp = C_ / (pdot_eff * DTime_);
+        }
+    }
+    R = (sigma_Y_ + Hp) * rate * f_end_ - sigma_Y_;
+    dR_dp = dHp * rate * f_end_;
+    dR_dDp = (sigma_Y_ + Hp) * drate_dDp * f_end_;
+}
+
+double JohnsonCookHardening::stored_force(double p, double theta) const {
+    return thermal_factor(theta) * power_.R(p);
+}
+
+double JohnsonCookHardening::multiplier_predictor(double p, double sigma_eq_trial, double nLn) const {
+    if (DTime_ <= simcoon::iota) return 0.0;
+    const double x0 = pdot0_ * DTime_;   // the kink: Dp at pdot = pdot0
+    const double Phi_x0 = sigma_eq_trial - x0 * nLn - (sigma_Y_ + power_.R(p + x0)) * f_end_;
+    if (Phi_x0 > 0.0) {
+        log_branch_ = true;
+        return x0;
+    }
+    return 0.0;
 }
 
 // ==== KINEMATIC HARDENING IMPLEMENTATIONS ====
