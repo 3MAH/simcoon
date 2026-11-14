@@ -144,13 +144,19 @@ html_theme_options = {
 html_static_path = ["_static"]
 
 # -- Sphinx Gallery Options
+# PyTorch is optional (simcoon[ml]): without it, simcoon.ml is documented with a mocked torch
+# and the LSTM example is rendered but not executed (its page and cross-reference labels stay).
+_HAS_TORCH = importlib.util.find_spec("torch") is not None
+if not _HAS_TORCH:
+    autodoc_mock_imports = ["torch"]
+
 sphinx_gallery_conf = {
     # path to your examples scripts
     "examples_dirs": ["../examples/"],
     # path where to save gallery generated examples
     "gallery_dirs": ["examples"],
     # Pattern to search for example files
-    "filename_pattern": r"\.py",
+    "filename_pattern": r"\.py$" if _HAS_TORCH else r"(?<!plot_lstm_epicp)\.py$",
     # Sort gallery example by file name instead of number of lines (default)
     # Use a dotted-path string instead of the imported class to keep this
     # configuration picklable.
