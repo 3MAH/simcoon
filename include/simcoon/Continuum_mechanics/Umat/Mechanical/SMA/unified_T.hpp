@@ -29,38 +29,12 @@
 #include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 
 namespace simcoon{
 
 /** @addtogroup umat_mechanical
  *  @{
  */
-
-/**
- * @brief The increment of umat_sma_unified_T without its work terms and tangent: props read in the
- *        mechanical layout, start initialisation, rotation, local solve under the integrator of
- *        @p tangent_mode, state variables written back. Shared by the mechanical kernel and by the
- *        closest point of umat_sma_unified_T_T.
- *
- * @param umat_name SMADI, SMADC, SMAAI or SMAAC
- * @param props the mechanical props (umat_sma_unified_T); the thermomechanical face passes its own
- *        from index 3
- * @param ncp the complementarity function, checked (sma_ncp_method)
- * @param L [output] the elastic stiffness at the end of the increment
- * @param Etot total strain at the start of the increment (6)
- * @param DEtot its increment (6)
- * @param stress [in,out] stress, start to end of the increment
- * @param DR rotation increment (3x3)
- * @param statev [in,out] state variables
- * @param T temperature at the start of the increment
- * @param DT its increment
- * @param start first increment (initialisation)
- * @param tnew_dt [out] step-cut request (0.5 on a non-converged closest point or solve)
- * @param tangent_mode kernel tangent code, which selects the integrator (integrates_closest_point)
- * @return the increment (SMAIncrement), two mechanisms
- */
-SMAIncrement sma_unified_T_increment(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &L, const arma::mat &DR, const arma::vec &props, arma::vec &statev, const double &T, const double &DT, const bool &start, double &tnew_dt, const int &tangent_mode, const NCPMethod &ncp);
 
 /**
  * @brief Unified phenomenological SMA model with phase transformation

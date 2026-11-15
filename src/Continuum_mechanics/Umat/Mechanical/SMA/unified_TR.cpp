@@ -28,7 +28,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
+#include <simcoon/Continuum_mechanics/Functions/sma.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -41,8 +41,15 @@ using namespace arma;
 
 namespace simcoon {
 
-SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &L, const mat &DR, const vec &props, vec &statev, const double &T, const double &DT, const bool &start, double &tnew_dt, const int &tangent_mode, const NCPMethod &ncp_m) {
-    SMAIncrement inc;
+void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp) {
+    const NCPMethod ncp_m = sma_ncp_method(ncp, tangent_mode, "unified_TR");
+
+    UNUSED(nprops);
+    UNUSED(nstatev);
+    UNUSED(Time);
+    UNUSED(DTime);
+    UNUSED(ndi);
+    UNUSED(nshr);
 
     ///@brief Determine elasticity type and criteria type from umat_name
     bool cubic_elasticity = false;
@@ -176,6 +183,11 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
         xiR = 0.;
         xi = xiF;
 
+        Wm = 0.;
+        Wm_r = 0.;
+        Wm_ir = 0.;
+        Wm_d = 0.;
+
         if (sigmacaliber > sigmacrit) sigmastar = sigmacaliber - sigmacrit;
         else                          sigmastar = 0.;
 
@@ -254,7 +266,7 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     double a_eq = Mises_strain(areo);
     double lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
     vec sigma_eff = stress - (1. + lambda1Reo) * X;
-    const vec S_start = (1. + lambda1Reo) * X;   // back stress of the reorientation at the start (SMAIncrement::stored)
+    const vec S_start = (1. + lambda1Reo) * X;   // back stress of the reorientation at the start
 
     // reorientation flow and criterion gradient: set by the local loop before any use
     vec lambdaReo = zeros(6);
@@ -344,7 +356,7 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     // closest point: frozen-mixture construction of unified_T (see header)
     ReturnMappingResult rm;
     // dS/dareo of the back stress S = (1 + lambda1Reo) X at the current areo
-    auto stored_slope = [&]() -> mat {
+    auto backstress_slope = [&]() -> mat {
         const vec T_sh = Ir05();
         const double a_eq_cur = Mises_strain(areo);
         const vec dl1Reo = (dlagrange_pow_1(a_eq_cur/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo)/ETRmax)
@@ -353,9 +365,6 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
         dS.diag() += HReo*(1. + lagrange_pow_1(a_eq_cur/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo))*T_sh;
         return dS;
     };
-    // sensitivities of the stored work at fixed multipliers (closest point: exact; cutting plane: flows held fixed)
-    vec dstored_dsigma, dstored_ds;
-
     const bool use_cpp = integrates_closest_point(tangent_mode);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
@@ -379,7 +388,7 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
             return aniso_criteria ? ddDrucker_ani_stress(seff, DFA_params, prager_b, prager_n)
                                   : ddDrucker_stress(seff, prager_b, prager_n);
         };
-        auto dsigma_eff_dareo = [&]() -> mat { return -1.*stored_slope(); };
+        auto dsigma_eff_dareo = [&]() -> mat { return -1.*backstress_slope(); };
         auto set_sigma_eff = [&](const vec &sig) {
             X = HReo * (areo % T_shear);
             lambda1Reo = lagrange_pow_1(Mises_strain(areo)/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
@@ -555,15 +564,6 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
             dA_xiFdsigma = DM_sig + Dalpha*thp;
             dA_xiRdsigma = -1.*dA_xiFdsigma;
             lambdaTR = -1.*ETMean;
-            // flows of the transformation strain: the mixture terms of the effective flows taken out
-            inc.dflow_dsigma = join_rows(dLamF_ds - DM, dLamR_ds + DM, dLamReo_ds);
-            inc.flow_chain = join_rows(c_F, zeros(6), c_Reo);
-            // S = (1 + lambda1Reo) X and DEReo = Ds_2 lambdaReo as functions of (sigma, Ds) through areo
-            const vec S_end = (1. + lambda1Reo)*X;
-            const vec dS_dre = -1.*dseff_dre_l;
-            const vec dDEReo_dre = lambdaReo + (Ds_j(2)*xi_start)*dr_dre_l;
-            dstored_dsigma = 0.5*((eye(6, 6) - dseff_ds_l).t()*DEReo + (Ds_j(2)*dLamReo_ds).t()*(S_start + S_end));
-            dstored_ds = {0., 0., 0.5*(sum(dS_dre%DEReo) + sum((S_start + S_end)%dDEReo_dre))};
         }
         else {
             // step cut (error stays 1, the guard below requests it), never a cutting-plane fallback
@@ -807,56 +807,49 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
         tnew_dt = 0.5;
     }
 
-    inc.closest_point = use_cpp;
-    inc.Ds = Ds_j;
+    // tangent: closest point on its converged solve (frozen L_cpp), cutting plane on its last iterate
+    // (algorithmic clamped to continuum: the flow Hessian is near-singular on the plateau)
     if (use_cpp) {
-        inc.rm = rm;
-        inc.L_tan = L_cpp;
+        Lt = cpp_tangent(rm, L_cpp, tangent_mode).Lt;
     }
     else {
-        inc.L_tan = L;
-        inc.kappa = join_rows(kappa_j[0], kappa_j[1], kappa_j[2]);
-        inc.dPhi = join_rows(dPhiFdsigma, dPhiRdsigma, dPhiReodsigma);
-        inc.Bhat = zeros(3, 3);
+        const mat kappa = join_rows(kappa_j[0], kappa_j[1], kappa_j[2]);
+        const mat dPhi = join_rows(dPhiFdsigma, dPhiRdsigma, dPhiReodsigma);
+        mat Bhat = zeros(3, 3);
         for (int l = 0; l < 3; ++l) {
             for (int j = 0; j < 3; ++j) {
-                inc.Bhat(l, j) = sum(inc.dPhi.col(l) % kappa_j[j]) - K(l, j);
+                Bhat(l, j) = sum(dPhi.col(l) % kappa_j[j]) - K(l, j);
             }
         }
+        const int mode = (tangent_mode == tangent_none) ? tangent_none : tangent_continuum;
+        Lt = compute_tangent_operator(mode, Bhat, kappa, dPhi, Ds_j, L).Lt;
     }
-    inc.flows = join_rows(lambdaTF, lambdaTR, lambdaReo);
-    inc.A_start = {A_xiF_start, A_xiR_start, 0.};
-    inc.A_end = {A_xiF, A_xiR, 0.};
-    inc.dA_dsigma = join_rows(dA_xiFdsigma, dA_xiRdsigma, zeros(6));
-    const SMAHardening hs_end = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
-    const double sF = hs_end.dF, sR = hs_end.dR;
-    inc.dA_ds = {{-sF, sF, 0.}, {sR, -sR, 0.}, {0., 0., 0.}};
-    const double dA_xiFdtheta = rhoDs0 + sum(stress%Dalpha);
-    inc.dA_dtheta = {dA_xiFdtheta, -1.*dA_xiFdtheta, 0.};
-    inc.dPhi_dtheta = inc.dA_dtheta;
-    inc.sigma_start = stress_start;
-    inc.DET = ET - ET_start;
-    inc.DETF = DETF;
-    inc.DETR = DETR;
-    inc.DEReo = DEReo;
-    inc.alpha = alpha;
-    inc.Dalpha = Dalpha;
-    inc.xi_start = xi_start;
-    inc.xi = xi;
-    inc.rhoDs0 = rhoDs0;
-    inc.T_init = T_init;
-    inc.add_bound_penalties(c_lambda, p0_lambda, n_lambda, alpha_lambda);
-    {
-        const vec S_end = (1. + lagrange_pow_1(Mises_strain(areo)/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo))
-                          * (HReo * (areo % Ir05()));
-        inc.stored = 0.5*sum((S_start + S_end)%DEReo);
-        if (!use_cpp && Ds_j(2) > 0.) {
-            dstored_dsigma = zeros(6);
-            dstored_ds = {0., 0., 0.5*(sum((stored_slope()*lambda_areo)%DEReo) + sum((S_start + S_end)%lambdaReo))};
-        }
-        inc.dstored_dsigma = dstored_dsigma;
-        inc.dstored_ds = dstored_ds;
-    }
+
+    // bound penalties of xi in the transformation forces: stored like the hardening, recovered at unloading
+    A_xiF_start -= lagrange_pow_1(xi_start, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiR_start -= lagrange_pow_0(xi_start, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiF -= lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiR -= lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    // force of the back-strain channel, A_Reo = -(1 + lambda1Reo) X: its work is recovered (Wm_r)
+    const vec A_Reo_start = -1.*S_start;
+    const vec A_Reo = -1.*(1. + lagrange_pow_1(Mises_strain(areo)/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo))
+                      * (HReo * (areo % Ir05()));
+
+    // energy partition: Wm_ir = 0
+    const double DxiF = Ds_j(0);
+    const double DxiR = Ds_j(1);
+    double Dgamma_loc = 0.5*sum((stress_start+stress) % (DETF - DETR + DEReo))
+                      + 0.5*(A_xiF_start + A_xiF)*DxiF
+                      + 0.5*(A_xiR_start + A_xiR)*DxiR
+                      + 0.5*sum((A_Reo_start + A_Reo) % DEReo);
+
+    Wm    += 0.5*sum((stress_start+stress) % DEtot);
+    Wm_r  += 0.5*sum((stress_start+stress) % (DEtot - DETF + DETR - DEReo))
+           - 0.5*(A_xiF_start + A_xiF)*DxiF
+           - 0.5*(A_xiR_start + A_xiR)*DxiR
+           - 0.5*sum((A_Reo_start + A_Reo) % DEReo);
+    Wm_ir += 0.;   // SMA has no irrecoverable channel by construction
+    Wm_d  += Dgamma_loc;
 
     // ---- Statev write-back ----
     statev(0) = T_init;
@@ -880,45 +873,6 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
         statev(18 + i) = areo(i);
         statev(24 + i) = EReo(i);
     }
-    return inc;
-}
-
-void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp) {
-    const NCPMethod ncp_m = sma_ncp_method(ncp, tangent_mode, "unified_TR");
-
-    UNUSED(nprops);
-    UNUSED(nstatev);
-    UNUSED(Time);
-    UNUSED(DTime);
-
-    if (start) {
-        Wm = 0.;
-        Wm_r = 0.;
-        Wm_ir = 0.;
-        Wm_d = 0.;
-    }
-    const SMAIncrement inc = sma_unified_TR_increment(umat_name, Etot, DEtot, stress, L, DR, props, statev, T, DT, start, tnew_dt, tangent_mode, ncp_m);
-    Lt = inc.tangent(tangent_mode).Lt;
-
-    // energy partition: Wm_ir = 0, the back-strain stores no energy (see header)
-    const vec &stress_start = inc.sigma_start;
-    double DxiF = inc.Ds(0);
-    double DxiR = inc.Ds(1);
-    const double A_xiF_start = inc.A_start(0), A_xiR_start = inc.A_start(1);
-    const double A_xiF = inc.A_end(0), A_xiR = inc.A_end(1);
-
-    double Dgamma_loc = 0.5*sum((stress_start+stress) % (inc.DETF - inc.DETR + inc.DEReo))
-                      + 0.5*(A_xiF_start + A_xiF)*DxiF
-                      + 0.5*(A_xiR_start + A_xiR)*DxiR
-                      - inc.stored;
-
-    Wm    += 0.5*sum((stress_start+stress) % DEtot);
-    Wm_r  += 0.5*sum((stress_start+stress) % (DEtot - inc.DETF + inc.DETR - inc.DEReo))
-           - 0.5*(A_xiF_start + A_xiF)*DxiF
-           - 0.5*(A_xiR_start + A_xiR)*DxiR
-           + inc.stored;
-    Wm_ir += 0.;   // SMA has no irrecoverable channel by construction
-    Wm_d  += Dgamma_loc;
 }
 
 } //namespace simcoon

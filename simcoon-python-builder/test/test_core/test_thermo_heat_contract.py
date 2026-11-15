@@ -112,9 +112,9 @@ def test_closest_point_thermal_tangents_are_exact(name, props, nstatev, De0, eps
 
 
 @pytest.mark.parametrize("integrator", ["cutting_plane", "closest_point"])
-def test_smr_thermomechanical_face_runs_the_mechanical_increment(integrator):
-    """SMRDI on the thermomechanical face: the stress and state of the mechanical face, bit for bit
-    (one increment function, sma_unified_TR_increment), here on a reorientation increment."""
+def test_smr_thermomechanical_kernel_matches_the_mechanical_kernel(integrator):
+    """SMRDI: the thermomechanical kernel gives the stress and state of the mechanical one, bit for
+    bit (same local solve), here on a reorientation increment."""
     props = SMA + REO
     st = StepThermomeca(control=UNI, value=[0.03, 0, 0, 0, 0, 0], ninc=40, time=0.4, T_final=322.)
     res = sim.solver.solve([st], "SMRDI", np.array(props), 30, T_init=320., integrator=integrator)

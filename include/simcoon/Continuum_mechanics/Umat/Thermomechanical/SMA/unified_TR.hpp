@@ -34,13 +34,15 @@ namespace simcoon{
  * @brief Unified SMA model with transformation and reorientation, coupled to the heat equation
  *        (SMRDI, SMRDC, SMRAI, SMRAC).
  *
- * The mechanical model is umat_sma_unified_TR (sma_unified_TR_increment), on either integrator; the
- * thermal face is the one of umat_sma_unified_T_T (sma_thermal_face) with the reorientation row as a
- * third mechanism. The reorientation criterion does not depend on the temperature
- * (\f$ \partial\Phi^{Reo}/\partial\theta = 0 \f$) and it does not enter the entropy; of its work
- * \f$ \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{Reo} \f$, the part
- * of the back stress \f$ \Delta\Psi^{Reo} \f$ is stored (Wm_r, as on the mechanical face, SMAIncrement)
- * and the rest is dissipated, so it heats.
+ * The mechanical model is the one of umat_sma_unified_TR, on either integrator; the thermal face is
+ * the one of umat_sma_unified_T_T with the reorientation row as a third mechanism. The reorientation
+ * criterion does not depend on the temperature (\f$ \partial\Phi^{Reo}/\partial\theta = 0 \f$) and it
+ * does not enter the entropy. Its back strain carries the force
+ * \f$ \mathbf{A}_{Reo} = -(1 + \lambda^{Reo})\,\mathbf{X} \f$, whose work
+ * \f$ \tfrac12(\mathbf{A}_{Reo,n} + \mathbf{A}_{Reo}):\Delta\boldsymbol{\varepsilon}^{Reo} \f$ enters the
+ * dissipation as the transformation forces do: it is recovered (Wm_r, as on the mechanical face), the
+ * rest of \f$ \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{Reo} \f$
+ * is dissipated, so it heats.
  *
  * **Props:** \f$ \rho \f$, \f$ c_p^A \f$, \f$ c_p^M \f$, then the props of umat_sma_unified_TR (the
  * SMR* layout, from flagT on): 38 (SMRDI), 40 (SMRDC), 45 (SMRAI), 47 (SMRAC).
@@ -53,7 +55,7 @@ namespace simcoon{
  * @param Etot, DEtot total strain at the start of the increment and its increment (6)
  * @param sigma [in,out] stress (6)
  * @param r [out] heat of the increment per reference volume (heat_source_increment())
- * @param dSdE, dSdT, drdE, drdT [out] tangents (sma_thermal_face())
+ * @param dSdE, dSdT, drdE, drdT [out] tangents
  * @param DR rotation increment (3x3)
  * @param nprops, nstatev numbers of props and state variables (unused: read from the name)
  * @param props material properties (above)

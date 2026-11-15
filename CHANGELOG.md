@@ -138,18 +138,19 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 - Thermomechanical SMR* laws (SMRDI/SMRDC/SMRAI/SMRAC under `umat_T` and thermomechanical blocks):
   `umat_sma_unified_TR_T`, props `rho, c_p^A, c_p^M` then the SMR* props, the 30 statev of the
   mechanical law. The reorientation does not depend on the temperature (no
-  entropy term). Both faces run one increment, `sma_unified_TR_increment` (the stress and state of
-  `sim.umat_T` are those of `sim.umat`, bit for bit), and share the thermal face
-  `sma_thermal_face` with the SMA* laws.
-- `integrator="closest_point"` on the thermomechanical SMA laws (SMA*, SMR*): the mechanical
-  increment of the closest point (`sma_unified_T_increment`), whose thermal face is the exact
+  entropy term). A full kernel, as every thermomechanical law: its mechanical part is the one of
+  `umat_sma_unified_TR` (the stress and state of `sim.umat_T` are those of `sim.umat`, bit for
+  bit), its thermal part the one of `umat_sma_unified_T_T` with the reorientation row.
+- `integrator="closest_point"` on the thermomechanical SMA laws (SMA*, SMR*): the closest point of
+  the mechanical kernels, in each thermomechanical kernel, whose thermal face is the exact
   derivative of the update with the algorithmic operator (`dSdE`, `dSdT`, `drdE`, `drdT` within
   1e-8 of finite differences, reorientation included: the turning of the flows enters the
   dissipation derivatives).
-- The mechanical SMA kernels split into their increment (`sma_unified_T_increment`,
-  `sma_unified_TR_increment`, returning `SMAIncrement`, `sma_flow.hpp`) and their work terms and
-  tangent; the split alone leaves the results unchanged, bit for bit (every tangent mode, both
-  integrators).
+- The four unified SMA kernels (`umat_sma_unified_T`, `umat_sma_unified_TR` and their `_T` twins)
+  are self-contained, as the other laws: each reads its props, runs its local solve under both
+  integrators and forms its tangent, works and heat. The constitutive functions they share (forward
+  flow `sma_transformation_flow`, hardening `sma_hardening`, complementarity check `sma_ncp_method`)
+  are in `Continuum_mechanics/Functions/sma.hpp`.
 - The In-progress bullet on fedoo was stale: fedoo forwards `ncp` and `integrator` since its
   commit f7f195a0. fedoo PR #81 forwards `integrator` only when given (`integrator=None`, its new
   default), so a fedoo law gets the default of the law (the closest point for the unified SMA
@@ -175,15 +176,16 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 - Energy split of the unified SMA laws (SMA*, SMR*, both faces): the work of the bound penalties of
   the martensite fraction and of the reorientation back stress `(1 + lambda_Reo) X` is recoverable
   (`Wm_r`), like the transformation hardening, and no longer counted as dissipation (`Wm_d`).
-  `SMAIncrement::add_bound_penalties` moves the penalties into the transformation forces,
-  `SMAIncrement::stored` carries the back-stress work with its exact sensitivities (the
+  The penalties enter the transformation forces; the back strain of the reorientation carries
+  the force `A_Reo = -(1 + lambda_Reo) X`, whose work enters as the back stresses of EPCHA do, with
+  its exact sensitivities (the
   thermomechanical closest point stays the exact derivative of the update: `drdE`, `drdT` within
   1e-9 of finite differences at the bound of xi and under reorientation). Stress and state of
   the mechanical face are unchanged, bit for bit; `Wm_r` and `Wm_d` move (SMR* reorientation
   increments: `Wm_d` 0.072 -> 0.014, `Wm_r` -0.050 -> +0.008 on a shear increment), and `Wm_d` no
   longer decreases on a converged update (it fell by up to 0.3 per increment on a tension,
   unloading, shear and unloading cycle of SMRDI; the cutting plane can still commit an
-  unconverged iterate). The heat source of the thermomechanical laws is lower by the stored
+  unconverged iterate). The heat source of the thermomechanical laws is lower by the recovered
   work, so a coupled run moves (`thermomechanical/SMA_T` example: temperature within 0.06 K,
   stress within 0.47 MPa).
 - The cutting plane of SMR* commits its last iterate when it does not converge, as SMA* does; the
@@ -193,7 +195,7 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   the transformation hardening is evaluated at the state of the iterate before the multipliers
   (SMA* used the previous iterate's), the iterate is taken back and the step halved (up to 5
   times) when the Fischer-Burmeister residual more than doubles, and the martensite fraction
-  enters the hardening clamped to [0, 1] with zero slope outside (`sma_hardening`, `sma_flow.hpp`;
+  enters the hardening clamped to [0, 1] with zero slope outside (`sma_hardening`, `Functions/sma.hpp`;
   the former slope of 1e12 froze the fraction out of bounds and an unconverged loop could commit
   up to 3; the hardening functions of the mechanical and thermomechanical kernels, which extrapolated
   differently out of bounds, are one, and the typo `0.5*a1 - 1 + a3` of the mechanical one below

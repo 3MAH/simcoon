@@ -29,7 +29,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
+#include <simcoon/Continuum_mechanics/Functions/sma.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -42,8 +42,15 @@ using namespace arma;
 
 namespace simcoon{
 
-SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &L, const mat &DR, const vec &props, vec &statev, const double &T, const double &DT, const bool &start, double &tnew_dt, const int &tangent_mode, const NCPMethod &ncp_m) {
-    SMAIncrement inc;
+void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp) {
+    const NCPMethod ncp_m = sma_ncp_method(ncp, tangent_mode, "unified_T");
+
+    UNUSED(nprops);
+    UNUSED(nstatev);
+    UNUSED(Time);
+    UNUSED(DTime);
+    UNUSED(ndi);
+    UNUSED(nshr);
 
     ///@brief Determine elasticity type and criteria type from umat_name
     bool cubic_elasticity = false;
@@ -184,6 +191,11 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
         xiF = simcoon::limit;
         xiR = 0.;
         xi = xiF;
+
+        Wm = 0.;
+        Wm_r = 0.;
+        Wm_ir = 0.;
+        Wm_d = 0.;
 
         //Get Hcurstar and its derivative to determine rhoDs0
         if (sigmacaliber > sigmacrit)
@@ -490,9 +502,6 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
             dA_xiRdxiF = dHfR;
             dA_xiRdxiR = -dHfR;
             lambdaTR = -1.*ETMean;
-            // flows of the transformation strain: the mixture terms of the effective flows taken out
-            inc.dflow_dsigma = join_rows(dLamF_ds - DM, dLamR_ds + DM);
-            inc.flow_chain = join_rows(c_F, zeros(6));
         }
         else {
             // step cut, never a silent cutting-plane fallback
@@ -670,42 +679,37 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
     }
     }
 
-    inc.closest_point = use_cpp;
-    inc.Ds = Ds_j;
+    // tangent: closest point on its converged solve (frozen L_cpp), cutting plane on its last iterate
+    // (algorithmic clamped to continuum: the flow Hessian is near-singular on the plateau)
     if (use_cpp) {
-        inc.rm = rm;
-        inc.L_tan = L_cpp;
+        Lt = cpp_tangent(rm, L_cpp, tangent_mode).Lt;
     }
     else {
-        inc.L_tan = L;
-        inc.kappa = join_rows(kappa_j[0], kappa_j[1]);
-        inc.dPhi = join_rows(dPhiFdsigma, dPhiRdsigma);
-        inc.Bhat = zeros(2, 2);
-        inc.Bhat(0,0) = sum(dPhiFdsigma%kappa_j[0]) - K(0,0);
-        inc.Bhat(0,1) = sum(dPhiFdsigma%kappa_j[1]) - K(0,1);
-        inc.Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
-        inc.Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
+        mat Bhat = zeros(2, 2);
+        Bhat(0,0) = sum(dPhiFdsigma%kappa_j[0]) - K(0,0);
+        Bhat(0,1) = sum(dPhiFdsigma%kappa_j[1]) - K(0,1);
+        Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
+        Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
+        const int mode = (tangent_mode == tangent_none) ? tangent_none : tangent_continuum;
+        Lt = compute_tangent_operator(mode, Bhat, join_rows(kappa_j[0], kappa_j[1]), join_rows(dPhiFdsigma, dPhiRdsigma), Ds_j, L).Lt;
     }
-    inc.flows = join_rows(lambdaTF, lambdaTR);
-    inc.A_start = {A_xiF_start, A_xiR_start};
-    inc.A_end = {A_xiF, A_xiR};
-    inc.dA_dsigma = join_rows(dA_xiFdsigma, dA_xiRdsigma);
-    inc.dA_ds = {{dA_xiFdxiF, dA_xiFdxiR}, {dA_xiRdxiF, dA_xiRdxiR}};
-    const double dA_xiFdtheta = rhoDs0 + sum(stress%Dalpha);
-    inc.dA_dtheta = {dA_xiFdtheta, -1.*dA_xiFdtheta};
-    inc.dPhi_dtheta = inc.dA_dtheta;
-    inc.sigma_start = stress_start;
-    inc.DET = ET - ET_start;
-    inc.DETF = DETF;
-    inc.DETR = DETR;
-    inc.DEReo = zeros(6);
-    inc.alpha = alpha;
-    inc.Dalpha = Dalpha;
-    inc.xi_start = xi_start;
-    inc.xi = xi;
-    inc.rhoDs0 = rhoDs0;
-    inc.T_init = T_init;
-    inc.add_bound_penalties(c_lambda, p0_lambda, n_lambda, alpha_lambda);
+
+    // bound penalties of xi in the transformation forces: stored like the hardening, recovered at unloading
+    A_xiF_start -= lagrange_pow_1(xi_start, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiR_start -= lagrange_pow_0(xi_start, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiF -= lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiR -= lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+
+    //Preliminaries for the computation of mechanical work
+    const double DxiF = Ds_j(0);
+    const double DxiR = Ds_j(1);
+    double Dgamma_loc = 0.5*sum((stress_start+stress)%(DETF-DETR)) + 0.5*(A_xiF_start + A_xiF)*DxiF + 0.5*(A_xiR_start + A_xiR)*DxiR;
+
+    //Computation of the mechanical work quantities
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DETF+DETR))- 0.5*(A_xiF_start + A_xiF)*DxiF - 0.5*(A_xiR_start + A_xiR)*DxiR;
+    Wm_ir += 0.;
+    Wm_d += Dgamma_loc;
 
     ///@brief statev evolving variables
     statev(0) = T_init;
@@ -732,40 +736,6 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
 
         statev(16) = Y0t;
     }
-    return inc;
-}
-
-void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp) {
-    const NCPMethod ncp_m = sma_ncp_method(ncp, tangent_mode, "unified_T");
-
-    UNUSED(nprops);
-    UNUSED(nstatev);
-    UNUSED(Time);
-    UNUSED(DTime);
-
-    if (start) {
-        Wm = 0.;
-        Wm_r = 0.;
-        Wm_ir = 0.;
-        Wm_d = 0.;
-    }
-    const SMAIncrement inc = sma_unified_T_increment(umat_name, Etot, DEtot, stress, L, DR, props, statev, T, DT, start, tnew_dt, tangent_mode, ncp_m);
-    Lt = inc.tangent(tangent_mode).Lt;
-
-    const vec &stress_start = inc.sigma_start;
-    const double DxiF = inc.Ds(0);
-    const double DxiR = inc.Ds(1);
-    const double A_xiF_start = inc.A_start(0), A_xiR_start = inc.A_start(1);
-    const double A_xiF = inc.A_end(0), A_xiR = inc.A_end(1);
-
-    //Preliminaries for the computation of mechanical work
-    double Dgamma_loc = 0.5*sum((stress_start+stress)%(inc.DETF-inc.DETR)) + 0.5*(A_xiF_start + A_xiF)*DxiF + 0.5*(A_xiR_start + A_xiR)*DxiR;
-
-    //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((stress_start+stress)%DEtot);
-    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-inc.DETF+inc.DETR))- 0.5*(A_xiF_start + A_xiF)*DxiF - 0.5*(A_xiR_start + A_xiR)*DxiR;
-    Wm_ir += 0.;
-    Wm_d += Dgamma_loc;
 }
 
 } //namespace simcoon

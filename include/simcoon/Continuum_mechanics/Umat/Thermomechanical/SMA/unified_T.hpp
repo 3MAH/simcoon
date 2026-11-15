@@ -30,53 +30,12 @@
 #include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 
 namespace simcoon{
 
 /** @addtogroup umat_thermomechanical
  *  @{
  */
-
-/**
- * @brief Thermal face of a unified SMA increment (umat_sma_unified_T_T, umat_sma_unified_TR_T):
- *        tangents, heat of the increment and work terms from the result of the local solve.
- *
- * The operator is the continuum one under the cutting plane (every mode: the sensitivities
- * \f$ \mathbf{P}_\varepsilon \f$, \f$ \hat{\mathbf{B}}^{-1} \f$ feed the heat), the one of the kernel
- * code under the closest point (the elastic choice takes the continuum sensitivities). With
- * \f$ \boldsymbol{\alpha}_q \f$ the thermal expansion of the elastic prediction (\f$ \boldsymbol{\alpha}(\xi_n) \f$
- * under the cutting plane, \f$ \boldsymbol{\alpha}(\xi_{n+1}) \f$ under the closest point, whose
- * frozen \f$ \boldsymbol{\alpha}(\xi_n) \f$ carries \f$ \Delta\boldsymbol{\alpha} \f$ in its flows) and
- * \f$ \tilde{\mathbf{L}} \f$, \f$ \tilde{\boldsymbol{\kappa}} \f$ those of the operator
- * (ContinuumTangent: \f$ \mathbf{L} \f$ and \f$ \boldsymbol{\kappa} \f$ but for the algorithmic one),
- * \f[
- * \mathbf{P}_\theta = \hat{\mathbf{B}}^{-1}\left(\frac{\partial \Phi_l}{\partial \theta}
- * - \frac{\partial \Phi_l}{\partial \boldsymbol{\sigma}} : \tilde{\mathbf{L}}\,\boldsymbol{\alpha}_q\right)_l, \qquad
- * \frac{\partial \boldsymbol{\sigma}}{\partial T} = -\tilde{\mathbf{L}}\,\boldsymbol{\alpha}_q - \sum_j \tilde{\boldsymbol{\kappa}}_j\,P_{\theta,j}.
- * \f]
- * The dissipation of the increment is
- * \f$ \Delta\gamma = \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{T}
- * + \sum_j \tfrac12 (A_{j,n} + A_j)\,\Delta s_j - \Delta\Psi^{Reo} \f$ (reorientation included in
- * \f$ \Delta\boldsymbol{\varepsilon}^{T} \f$, \f$ A_{Reo} = 0 \f$, the bound penalties of \f$ \xi \f$ in
- * \f$ A_j \f$, the stored work of the reorientation back stress \f$ \Delta\Psi^{Reo} \f$: SMAIncrement);
- * under the cutting plane its derivatives hold the flow directions fixed over the increment, under
- * the closest point they are exact, and the entropy is
- * \f$ \eta = c_0(\xi)\ln(T/T_{init}) + \boldsymbol{\alpha}(\xi_n):\boldsymbol{\sigma} + \rho\Delta s_0\,\xi \f$
- * (the reorientation does not enter it). heat_source_increment() forms \f$ r \f$, \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$,
- * \f$ \partial r/\partial T \f$.
- *
- * @param inc the increment (sma_unified_T_increment, sma_unified_TR_increment, or the cutting plane
- *        of umat_sma_unified_T_T)
- * @param sigma the stress at the end of the increment
- * @param DEtot the strain increment
- * @param rho, c_pA, c_pM density and specific heats of austenite and martensite
- * @param T, DT temperature at the start of the increment and its increment
- * @param tangent_mode the kernel tangent code
- * @param r, dSdE, dSdT, drdE, drdT [output] heat and tangents, as umat_sma_unified_T_T
- * @param Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir [in,out] work terms, incremented
- */
-void sma_thermal_face(const SMAIncrement &inc, const arma::vec &sigma, const arma::vec &DEtot, const double &rho, const double &c_pA, const double &c_pM, const double &T, const double &DT, const int &tangent_mode, double &r, arma::mat &dSdE, arma::vec &dSdT, arma::vec &drdE, double &drdT, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir);
 
 /**
  * @brief Unified thermomechanical SMA model with coupled phase transformation and heat equation
@@ -236,10 +195,28 @@ void sma_thermal_face(const SMAIncrement &inc, const arma::vec &sigma, const arm
  * `tangent_continuum` all give the continuum tangent: the sensitivities \f$ \mathbf{P}_\varepsilon \f$
  * and \f$ \hat{\mathbf{B}}^{-1} \f$ also feed the physical heat source \f$ r \f$ and its
  * linearisation, and the finite-difference flow Hessian of the algorithmic mode is near-singular
- * on the plateau. The closest point (codes 3 to 5) runs the mechanical increment
- * (sma_unified_T_increment) with its operator, the elastic choice taking the continuum
- * sensitivities; with the algorithmic operator the thermal face is the exact derivative of the
- * update. The thermal face is sma_thermal_face().
+ * on the plateau. The closest point (codes 3 to 5) takes the operator of its code on the converged
+ * solve, the elastic choice taking the continuum sensitivities; with the algorithmic operator the
+ * thermal face is the exact derivative of the update.
+ * @note **Thermal face.** With \f$ \boldsymbol{\alpha}_q \f$ the thermal expansion of the elastic
+ * prediction (\f$ \boldsymbol{\alpha}(\xi_n) \f$ under the cutting plane, \f$ \boldsymbol{\alpha}(\xi_{n+1}) \f$
+ * under the closest point, whose frozen \f$ \boldsymbol{\alpha}(\xi_n) \f$ carries \f$ \Delta\boldsymbol{\alpha} \f$
+ * in its flows) and \f$ \tilde{\mathbf{L}} \f$, \f$ \tilde{\boldsymbol{\kappa}} \f$ those of the operator
+ * (ContinuumTangent: \f$ \mathbf{L} \f$ and \f$ \boldsymbol{\kappa} \f$ but for the algorithmic one),
+ * \f[
+ * \mathbf{P}_\theta = \hat{\mathbf{B}}^{-1}\left(\frac{\partial \Phi_l}{\partial \theta}
+ * - \frac{\partial \Phi_l}{\partial \boldsymbol{\sigma}} : \tilde{\mathbf{L}}\,\boldsymbol{\alpha}_q\right)_l, \qquad
+ * \frac{\partial \boldsymbol{\sigma}}{\partial T} = -\tilde{\mathbf{L}}\,\boldsymbol{\alpha}_q - \sum_j \tilde{\boldsymbol{\kappa}}_j\,P_{\theta,j}.
+ * \f]
+ * The dissipation of the increment is
+ * \f$ \Delta\gamma = \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{T}
+ * + \sum_j \tfrac12 (A_{j,n} + A_j)\,\Delta\xi_j \f$, the bound penalties of \f$ \xi \f$ in the forces
+ * \f$ A_j \f$ (stored like the transformation hardening, recovered at unloading); under the cutting
+ * plane its derivatives hold the flow directions fixed over the increment, under the closest point
+ * they are exact. The entropy is
+ * \f$ \eta = c_0(\xi)\ln(T/T_{init}) + \boldsymbol{\alpha}(\xi_n):\boldsymbol{\sigma} + \rho\Delta s_0\,\xi \f$;
+ * heat_source_increment() forms \f$ r \f$, \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$,
+ * \f$ \partial r/\partial T \f$.
  *
  * @see umat_sma_unified_T() for the mechanical-only version (no thermal coupling)
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)
