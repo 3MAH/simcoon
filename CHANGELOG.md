@@ -178,8 +178,9 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   1e-9 of finite differences at the bound of xi and under reorientation). Stress and state of
   the mechanical face are unchanged, bit for bit; `Wm_r` and `Wm_d` move (SMR* reorientation
   increments: `Wm_d` 0.072 -> 0.014, `Wm_r` -0.050 -> +0.008 on a shear increment), and `Wm_d` no
-  longer decreases (it fell by up to 0.3 per increment on a tension, unloading, shear and
-  unloading cycle of SMRDI). The heat source of the thermomechanical laws is lower by the stored
+  longer decreases on a converged update (it fell by up to 0.3 per increment on a tension,
+  unloading, shear and unloading cycle of SMRDI; the cutting plane can still commit an
+  unconverged iterate). The heat source of the thermomechanical laws is lower by the stored
   work, so a coupled run moves (`thermomechanical/SMA_T` example: temperature within 0.06 K,
   stress within 0.47 MPa).
 - The cutting plane of SMR* commits its last iterate when it does not converge, as SMA* does; the
