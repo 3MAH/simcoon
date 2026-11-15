@@ -54,8 +54,8 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   400 increments, against 0.13 / 0.094 / 0.014 for the former cutting plane; `SMA_TR` example at
   10 degC, 200 increments per step: 12 MPa against 86 MPa). Cost, superelastic SMADI loop:
   2.3 to 2.8 times the cutting plane at 40 and 400 increments (24.8 against 9.1 ms at 400),
-  faster where the cutting plane cuts its steps (320 K, 10 increments: 1.1 against 9.1 ms). `ncp="min"` / `"active_set"` run on those
-  laws by default. ABI: `state_variables` and `solver_params` gain the `integrator` member
+  faster where the cutting plane cuts its steps (320 K, 10 increments: 1.1 against 9.1 ms).
+  `ncp="min"` / `"active_set"` run on those laws by default. ABI: `state_variables` and `solver_params` gain the `integrator` member
   (rebuild code that links them).
 - EPJCK runs the modular engine on its mechanical faces (`legacy_adapters.cpp`): a new isotropic
   hardening block, `JohnsonCookHardening` (`IsoHardType::JOHNSON_COOK`, props `B, n, C, pdot0, m,
@@ -148,9 +148,12 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   dissipation derivatives).
 - The mechanical SMA kernels split into their increment (`sma_unified_T_increment`,
   `sma_unified_TR_increment`, returning `SMAIncrement`, `sma_flow.hpp`) and their work terms and
-  tangent; results unchanged, bit for bit (every tangent mode, both integrators).
+  tangent; the split alone leaves the results unchanged, bit for bit (every tangent mode, both
+  integrators).
 - The In-progress bullet on fedoo was stale: fedoo forwards `ncp` and `integrator` since its
-  commit f7f195a0 (its docstring and tests follow simcoon 2.4 in fedoo's own PR).
+  commit f7f195a0. fedoo PR #81 forwards `integrator` only when given (`integrator=None`, its new
+  default), so a fedoo law gets the default of the law (the closest point for the unified SMA
+  laws from 2.5), and accepts the `_closed` names; its tests run with simcoon 2.4 and 2.5.
 - The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the
   finite dispatch serves UMEXT, UMABA and UMANS as log-strain boxes in the material frame. UMEXT
   follows the simcoon convention exactly like PYEXT and the built-in kernels (logarithmic strain in,
@@ -194,8 +197,7 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   the former slope of 1e12 froze the fraction out of bounds and an unconverged loop could commit
   up to 3; the hardening functions of the mechanical and thermomechanical kernels, which extrapolated
   differently out of bounds, are one, and the typo `0.5*a1 - 1 + a3` of the mechanical one below
-  xi = 0 is gone). SMR* without
-  reorientation now agrees with SMA* to round-off (it was 0.19 to 0.25 MPa apart). Measured
+  xi = 0 is gone). SMR* without reorientation now agrees with SMA* to round-off (it was 0.19 to 0.25 MPa apart). Measured
   against a 4000-increment closest-point reference: SMR* paths as accurate as before or better,
   two coarse reorientation paths that aborted now converge, coarse SMA* paths more robust (353 K,
   2 increments: 1.29 -> 6e-3 relative), but fine-increment SMA* accuracy about 3 times lower
@@ -203,8 +205,8 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   path error of SMA* by chance, and widened SMR*'s by up to 50 times. On a coarse SMADI cycle through
   the bounds of xi (tension to 7 %, unloading, shear, unloading; 60 increments per step) the former
   scheme ran to the end 845 MPa away from the converged answer, with xi up to 1.002; the new one
-  stops (status 1) where its local loop diverges, 14 MPa away until then (120 increments: both run). The closest point, now the
-  default of those laws, is the accurate integrator.
+  stops (status 1) where its local loop diverges, 14 MPa away until then (120 increments: both
+  run). The closest point, now the default of those laws, is the accurate integrator.
 - The transports of `tensor4` (`push_forward`, `pull_back`, the corotational overload) are the
   Mandel congruence `Q C Q^T`, `Q` the 6x6 matrix of `X -> K X K^T` for the kernel `K` (`F` or
   `F^-T` by type): the same congruence as `rotate`, exact for a tensor with both minor
