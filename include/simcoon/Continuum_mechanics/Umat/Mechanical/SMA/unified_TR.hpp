@@ -28,12 +28,37 @@
 #include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 
 namespace simcoon {
 
 /** @addtogroup umat_mechanical
  *  @{
  */
+
+/**
+ * @brief The increment of umat_sma_unified_TR without its work terms and tangent (as
+ *        sma_unified_T_increment, three mechanisms). Shared by the mechanical kernel and by
+ *        umat_sma_unified_TR_T.
+ *
+ * @param umat_name SMRDI, SMRDC, SMRAI or SMRAC
+ * @param props the mechanical props (umat_sma_unified_TR); the thermomechanical face passes its own
+ *        from index 3
+ * @param ncp the complementarity function, checked (sma_ncp_method)
+ * @param L [output] the elastic stiffness at the end of the increment
+ * @param Etot total strain at the start of the increment (6)
+ * @param DEtot its increment (6)
+ * @param stress [in,out] stress, start to end of the increment
+ * @param DR rotation increment (3x3)
+ * @param statev [in,out] state variables
+ * @param T temperature at the start of the increment
+ * @param DT its increment
+ * @param start first increment (initialisation)
+ * @param tnew_dt [out] step-cut request (0.5 on a non-converged closest point or solve)
+ * @param tangent_mode kernel tangent code, which selects the integrator (integrates_closest_point)
+ * @return the increment (SMAIncrement)
+ */
+SMAIncrement sma_unified_TR_increment(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &L, const arma::mat &DR, const arma::vec &props, arma::vec &statev, const double &T, const double &DT, const bool &start, double &tnew_dt, const int &tangent_mode, const NCPMethod &ncp);
 
 /**
  * @brief Unified phenomenological SMA model with phase transformation and reorientation
@@ -183,12 +208,10 @@ namespace simcoon {
  * @see umat_sma_unified_T for the transformation-only base model.
  * @see assemble_continuum_tangent for the shared 3-mechanism tangent operator.
  *
- * **Complementarity function** (@p ncp, NCPMethod code, state_variables::ncp): the local Newton
- * takes its step through ncp_step, in the cutting plane and in the closest point: 0
- * Fischer-Burmeister (default, the historical results bit for bit), 1 min, 2 active set. The
- * transformation (and reorientation) rows are coupled, so the min step falls back to
- * Fischer-Burmeister on them; the active set solves them on their active set (see ncp_step and
- * the UMAT catalogue for when it pays: the closest point on transformation-dominated paths).
+ * **Complementarity function**: @p ncp (NCPMethod code, 0 Fischer-Burmeister by default) drives
+ * the local step of the closest point (ReturnMappingControl::ncp, UMAT catalogue), whose merit is
+ * then the one of ncp_step; the cutting plane takes Fischer-Burmeister and refuses
+ * @c min / @c active_set (sma_ncp_method).
  *
  * **References:**
  * - Chatziathanasiou, D. (2016). Ph.D. Thesis.

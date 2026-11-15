@@ -782,13 +782,15 @@ constexpr auto umat = R"pbdoc(
         umat_T does: thermal expansion and temperature-dependent properties
         follow the prescribed temperature. Zero when not given.
     ncp : str
-        Complementarity function of the local cutting plane:
-        'fischer_burmeister' (default), or 'min', the classic cutting-plane step on a
-        single surface with a Fischer-Burmeister fallback, about half the local
-        iterations for isotropic or linear (Prager) kinematic hardening. Read by
-        EPICP, EPKCP and MODUL (refused for an Armstrong-Frederick back stress);
-        any other law, and the closest-point integrator, raise ValueError for 'min'.
-        See the UMAT catalog.
+        Complementarity function of the local Newton: 'fischer_burmeister'
+        (default); 'min', the classic cutting-plane step on uncoupled rows
+        with a Fischer-Burmeister fallback, about half the local iterations
+        for isotropic or linear (Prager) kinematic hardening; 'active_set',
+        the same step on coupled rows solved together. Read by MODUL and the
+        legacy names it serves (refused under the cutting plane for an
+        Armstrong-Frederick back stress), EPICP_closed, and the unified SMA
+        laws under integrator='closest_point' only. Any other law raises
+        ValueError for a function other than the default. See the UMAT catalog.
     integrator : str
         Local integrator of the laws with a return mapping: 'cutting_plane'
         (default) or 'closest_point' (backward Euler, a different discrete
@@ -846,7 +848,7 @@ constexpr auto umat_T = R"pbdoc(
     ----------
     umat_name : str
         Thermomechanical law: ELISO, ELIST, ELORT, EPICP, EPKCP, EPJCK, ZENER,
-        ZENNK, PRONK, SMADI, SMADC, SMAAI or SMAAC.
+        ZENNK, PRONK, SMADI, SMADC, SMAAI, SMAAC, SMRDI, SMRDC, SMRAI or SMRAC.
     etot, Detot : numpy.ndarray
         Strain at the start of the increment and its increment, shape (6, N).
         Under finite strain: the log-strain pair of the chosen form (as umat).
@@ -863,8 +865,10 @@ constexpr auto umat_T = R"pbdoc(
     T, DT : numpy.ndarray
         Temperature at the start of the increment and its increment, one entry
         per point.
-    ndi, nshr, n_threads, tangent_mode, start, condense, integrator
-        As umat. Under condense='material_face' (finite strain, ndi < 3) dSdE, dSdT and
+    ndi, nshr, n_threads, tangent_mode, start, condense, integrator, ncp
+        As umat (ncp: read by MODUL and the legacy names it serves, and by the
+        unified SMA laws under integrator='closest_point'). Under
+        condense='material_face' (finite strain, ndi < 3) dSdE, dSdT and
         drdE are the material derivatives dS/dE, dS/dtheta and dr/dE, condensed
         on the kept components (tangent_output='material').
     F0, F1 : numpy.ndarray, optional

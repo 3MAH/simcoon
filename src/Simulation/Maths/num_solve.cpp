@@ -20,8 +20,6 @@
 #include <stdexcept>
 #include <string>
 #include <armadillo>
-#include <algorithm>
-#include <vector>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -424,35 +422,36 @@ void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, v
         return;
     }
     if (method_ == NCPMethod::active_set) {
-        // the active rows solve Phi_A + B_AA dp_A + B_AI dp_I = 0 together, the inactive ones go back to zero
-        std::vector<uword> A;
+        uvec A(n);
+        uvec is_active(n, fill::zeros);
+        uword nA = 0;
         vec r(n);
         double err = 0.;
         for (uword i = 0; i < n; i++) {
             const double f = fabs(denom(i, i));
             const bool active = (Phi(i) > 0.) || (-Phi(i) < Dp(i)*f);
-            if (active) A.push_back(i);
+            if (active) { A(nA++) = i; is_active(i) = 1; }
             r(i) = active ? -Phi(i) : Dp(i)*f;
             err += 2.*fabs(r(i))/fabs(Y_crit(i));
         }
         dp.set_size(n);
         for (uword i = 0; i < n; i++) dp(i) = -Dp(i);          // inactive: reset
         bool singular = false;
-        if (!A.empty()) {
-            mat BA(A.size(), A.size());
-            vec rhs(A.size());
-            for (uword a = 0; a < A.size(); a++) {
-                rhs(a) = -Phi(A[a]);
+        if (nA > 0) {
+            mat BA(nA, nA);
+            vec rhs(nA);
+            for (uword a = 0; a < nA; a++) {
+                rhs(a) = -Phi(A(a));
                 for (uword i = 0; i < n; i++)
-                    if (std::find(A.begin(), A.end(), i) == A.end()) rhs(a) -= denom(A[a], i)*dp(i);
-                for (uword b = 0; b < A.size(); b++) BA(a, b) = denom(A[a], A[b]);
+                    if (!is_active(i)) rhs(a) -= denom(A(a), i)*dp(i);
+                for (uword b = 0; b < nA; b++) BA(a, b) = denom(A(a), A(b));
             }
             vec dA;
             try {
                 singular = !(fabs(det(BA)) > simcoon::limit);
                 if (!singular) dA = solve(BA, rhs);
             } catch (const std::runtime_error &) { singular = true; }
-            if (!singular) for (uword a = 0; a < A.size(); a++) dp(A[a]) = dA(a);
+            if (!singular) for (uword a = 0; a < nA; a++) dp(A(a)) = dA(a);
         }
         if ((prev_error_ >= 0. && err > prev_error_) || singular) {
             fallback_ = true;

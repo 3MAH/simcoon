@@ -105,14 +105,32 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   set, the same fallback. The same root under the closest point (within 4e-10); under the
   cutting plane another iteration path on coupled surfaces (4e-4 on a two-surface plastic
   composition). `NCPMethod` code 2, `ncp_is_semismooth`, `ncp_step` carries the step.
-- The unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC, mechanical and
-  thermomechanical) read `ncp`: their local Newton steps through `ncp_step` in the cutting plane
-  and the closest point (Fischer-Burmeister by default, bit for bit). Measured on the `SMA_T` and
-  `SMA_TR` materials: `min` is Fischer-Burmeister there (coupled rows); under the closest point
-  the active set is up to 6 times faster on transformation-dominated paths (SMRAI superelastic,
-  41.0 -> 6.8 ms at 50 increments per step) and 1.1 to 3.3 times slower on
-  reorientation-dominated ones; under the cutting plane it changes the state by up to 1.3e-2.
-  Fischer-Burmeister stays the default (Kiefer, Bartel and Menzel 2012).
+- The unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC, both faces) read `ncp`
+  under `integrator="closest_point"` (`ReturnMappingControl::ncp`). Their cutting plane keeps
+  Fischer-Burmeister and refuses `min` / `active_set` (`sma_ncp_method`): a semi-smooth step
+  sends a multiplier back to zero, which the cutting plane cannot undo since it adds the
+  transformation strain of every iterate (measured state gap up to 1.3e-2). Measured on the
+  `SMA_T` and `SMA_TR` materials under the closest point: the active set is up to 6 times faster
+  on transformation-dominated paths (SMRAI superelastic, 41.0 -> 6.8 ms at 50 increments per
+  step) and 1.1 to 3.3 times slower on reorientation-dominated ones; `min` keeps the
+  Fischer-Burmeister step on the coupled rows. Fischer-Burmeister stays the default (Kiefer,
+  Bartel and Menzel 2012). ABI: `umat_sma_unified_T`, `umat_sma_unified_TR` and
+  `umat_sma_unified_T_T` take a trailing `const int &ncp = 0`, source compatible; their symbols
+  change (rebuild code that links them).
+- Thermomechanical SMR* laws (SMRDI/SMRDC/SMRAI/SMRAC under `umat_T` and thermomechanical blocks):
+  `umat_sma_unified_TR_T`, props `rho, c_p^A, c_p^M` then the SMR* props, the 30 statev of the
+  mechanical law. The reorientation is dissipative and does not depend on the temperature (no
+  entropy term). Both faces run one increment, `sma_unified_TR_increment` (the stress and state of
+  `sim.umat_T` are those of `sim.umat`, bit for bit), and share the thermal face
+  `sma_thermal_face` with the SMA* laws.
+- `integrator="closest_point"` on the thermomechanical SMA laws (SMA*, SMR*): the mechanical
+  increment of the closest point (`sma_unified_T_increment`), whose thermal face is the exact
+  derivative of the update with the algorithmic operator (`dSdE`, `dSdT`, `drdE`, `drdT` within
+  1e-8 of finite differences, reorientation included: the turning of the flows enters the
+  dissipation derivatives). The cutting plane of `umat_sma_unified_T_T` is unchanged, bit for bit.
+- The mechanical SMA kernels split into their increment (`sma_unified_T_increment`,
+  `sma_unified_TR_increment`, returning `SMAIncrement`, `sma_flow.hpp`) and their work terms and
+  tangent; results unchanged, bit for bit (every tangent mode, both integrators).
 - The In-progress bullet on fedoo was stale: fedoo forwards `ncp` and `integrator` since its
   commit f7f195a0 (its docstring and tests follow simcoon 2.4 in fedoo's own PR).
 - The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the

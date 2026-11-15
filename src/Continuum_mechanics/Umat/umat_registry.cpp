@@ -104,10 +104,10 @@ const std::map<std::string, umat_entry> &umat_registry()
         {"SMADC",       {K::sma_unified,       K::none,               K::sma_unified}},
         {"SMAAI",       {K::sma_unified,       K::none,               K::sma_unified}},
         {"SMAAC",       {K::sma_unified,       K::none,               K::sma_unified}},
-        {"SMRDI",       {K::sma_unified_R,     K::none,               K::none}},
-        {"SMRDC",       {K::sma_unified_R,     K::none,               K::none}},
-        {"SMRAI",       {K::sma_unified_R,     K::none,               K::none}},
-        {"SMRAC",       {K::sma_unified_R,     K::none,               K::none}},
+        {"SMRDI",       {K::sma_unified_R,     K::none,               K::sma_unified_R}},
+        {"SMRDC",       {K::sma_unified_R,     K::none,               K::sma_unified_R}},
+        {"SMRAI",       {K::sma_unified_R,     K::none,               K::sma_unified_R}},
+        {"SMRAC",       {K::sma_unified_R,     K::none,               K::sma_unified_R}},
         {"SMAMO",       {K::sma_mono,          K::none,               K::none}},
         {"SMAMC",       {K::sma_mono,          K::none,               K::none}},
         {"LLDM0",       {K::damage_LLD0,       K::none,               K::none}},
@@ -169,8 +169,7 @@ bool kernel_reads_ncp(const UmatKernel &kernel, const bool &thermomechanical)
     switch (kernel) {
         case K::modular: case K::legacy_modular: return true;
         case K::plasticity_iso: return !thermomechanical;
-        case K::sma_unified: return true;
-        case K::sma_unified_R: return !thermomechanical;
+        case K::sma_unified: case K::sma_unified_R: return true;
         default: return false;
     }
 }
@@ -180,7 +179,8 @@ bool kernel_serves_closest_point(const UmatKernel &kernel, const bool &thermomec
     switch (kernel) {
         case K::modular: case K::legacy_modular: case K::plasticity_iso: return true;
         case K::plasticity_kin_iso: return thermomechanical;
-        case K::plasticity_chaboche: case K::johnson_cook: case K::sma_unified: case K::sma_unified_R: return !thermomechanical;
+        case K::sma_unified: case K::sma_unified_R: return true;
+        case K::plasticity_chaboche: case K::johnson_cook: return !thermomechanical;
         default: return false;
     }
 }

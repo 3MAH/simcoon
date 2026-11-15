@@ -509,15 +509,14 @@ bool material_tangent_serves(const std::string &umat_name);
 
 /**
  * @brief Checks the complementarity option of a run (solver_params::ncp, the @c ncp of
- *        @c sim.umat) against the law it drives: the default (0) passes for every law; min-NCP
- *        (1) only for the kernels whose local Newton reads it (kernel_reads_ncp: the modular
- *        engine and the names it serves on both faces, EPICP_closed on the mechanical one), under
- *        either integrator (MODUL refuses it further for an Armstrong-Frederick back stress under
- *        the cutting plane, ModularUMAT::set_ncp).
+ *        @c sim.umat) against the law it drives: the default (0) passes for every law, another
+ *        function only for the kernels whose local Newton reads it (kernel_reads_ncp), under
+ *        either integrator (the semi-smooth ones are refused further under the cutting plane by
+ *        MODUL for an Armstrong-Frederick back stress and by the SMA kernels, sma_ncp_method).
  * @param umat_name the law of the run
  * @param ncp the NCPMethod code
  * @param thermomechanical a thermomechanical run
- * @throw std::invalid_argument for a code other than 0 or 1, or a law that does not read it
+ * @throw std::invalid_argument for an unknown code (ncp_method_of), or a law that does not read it
  */
 void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &thermomechanical);
 
@@ -528,8 +527,8 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
  *
  * Accepted: the mechanical EPICP, EPCHA, MODUL and the names routed to its adapters (code 201),
  * the SMA kernels SMADI/SMADC/SMAAI/SMAAC and SMRDI/SMRDC/SMRAI/SMRAC, and EPJCK, whose radial
- * cutting plane is the closest-point projection by construction; the thermomechanical EPICP and
- * EPKCP. Every other code passes.
+ * cutting plane is the closest-point projection by construction; the thermomechanical EPICP,
+ * EPKCP and the SMA kernels. Every other code passes.
  * @param umat_name the law of the run
  * @param tangent_mode the kernel code (kernel_tangent_mode)
  * @param thermomechanical a thermomechanical run or block

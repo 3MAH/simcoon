@@ -106,13 +106,11 @@ def solve(
         the same return to the local tolerance; 'active_set', the min step on
         every row, coupled surfaces solved together on their active set, the
         same fallback (it pays under the closest point on the
-        transformation-dominated paths of the SMA laws). Read by the modular
-        engine (MODUL and the legacy names it serves, mechanical and
-        thermomechanical), by EPICP_closed and by the unified SMA laws
-        (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC), under either
-        integrator; the cutting plane refuses 'min' and 'active_set' for an
-        Armstrong-Frederick back stress (its iterates integrate the back
-        stress), the closest point takes every function for every composition
+        transformation-dominated paths of the SMA laws). Read by the laws
+        whose local solve takes it (the UMAT catalog lists them); the cutting
+        plane refuses 'min' and 'active_set' for an Armstrong-Frederick back
+        stress and for the SMA laws (its iterates integrate the back stress or
+        the transformation strain), the closest point takes every function
         (one backward-Euler system, the same root). Any other law raises
         ValueError for a function other than the default. See the UMAT
         catalog.

@@ -67,6 +67,7 @@
 */
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_T.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_TR.hpp>
 
 using namespace std;
 using namespace arma;
@@ -290,6 +291,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
+		// the same, with the trailing NCPMethod code of the kernels that read the ncp option
+		void (*umat_function_ncp)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, corate_type, tangent_mode)
 		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		const int ncomp=6;
@@ -374,7 +377,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			case simcoon::UmatKernel::plasticity_iso: {
-				arguments_type = 5;   // EPICP, called by name: it takes the ncp option
+				umat_function_ncp = &simcoon::umat_plasticity_iso;
+				arguments_type = 5;   // it takes the ncp option
 				break;
 			}
 			case simcoon::UmatKernel::johnson_cook: {
@@ -388,11 +392,13 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified: {
-				arguments_type = 6;   // called by name: it takes the ncp option
+				umat_function_ncp = &simcoon::umat_sma_unified_T;
+				arguments_type = 5;
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified_R: { // SMA_TR (unified reduced-tangent model)
-				arguments_type = 7;   // called by name: it takes the ncp option
+				umat_function_ncp = &simcoon::umat_sma_unified_TR;
+				arguments_type = 5;
 				break;
 			}
 			case simcoon::UmatKernel::damage_LLD0: {
@@ -633,15 +639,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						break;
 					}
 					case 5: {
-						simcoon::umat_plasticity_iso(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
-						break;
-					}
-					case 6: {
-						simcoon::umat_sma_unified_T(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
-						break;
-					}
-					case 7: {
-						simcoon::umat_sma_unified_TR(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
+						umat_function_ncp(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 					case 2: {
@@ -794,8 +792,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 		// Unified thermomechanical function pointer: (Etot, DEtot, sigma, r, dSdE, dSdT, drdE, drdT, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
-		// SMA family variant carrying the umat_name as leading argument
-		void (*umat_function_named)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
+		// SMA family variant carrying the umat_name as leading argument and the trailing NCPMethod code
+		void (*umat_function_named)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 
 		const int ncomp = 6;
 		int nshr;
@@ -940,7 +938,13 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified: {
-				arguments_type = 5;   // called by name: it takes the ncp option
+				umat_function_named = &simcoon::umat_sma_unified_T_T;
+				arguments_type = 2;
+				break;
+			}
+			case simcoon::UmatKernel::sma_unified_R: {
+				umat_function_named = &simcoon::umat_sma_unified_TR_T;
+				arguments_type = 2;
 				break;
 			}
 			case simcoon::UmatKernel::modular: {
@@ -1023,7 +1027,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						break;
 					}
 					case 2: {
-						umat_function_named(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode);
+						umat_function_named(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 					case 3: {
@@ -1032,10 +1036,6 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 					}
 					case 4: {
 						simcoon::umat_legacy_modular_T(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate, ncp);
-						break;
-					}
-					case 5: {
-						simcoon::umat_sma_unified_T_T(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 				}

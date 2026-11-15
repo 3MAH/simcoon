@@ -146,7 +146,7 @@ Solver parameters
      - Local integrator, ``"cutting_plane"`` (default) or ``"closest_point"``: see below
    * - ncp
      - string
-     - Complementarity function of the cutting plane, ``"fischer_burmeister"`` (default) or ``"min"`` (see the UMAT catalog)
+     - Complementarity function of the local step, ``"fischer_burmeister"`` (default), ``"min"`` or ``"active_set"`` (see the UMAT catalog)
    * - solver_type
      - int
      - Solver strategy (0: Newton-Raphson)

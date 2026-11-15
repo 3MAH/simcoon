@@ -83,6 +83,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Prony_Nfast.hpp>
 
 #include <simcoon/Continuum_mechanics//Umat/Thermomechanical/SMA/unified_T.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_TR.hpp>
 
 #include <simcoon/Simulation/Phase/material_characteristics.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -208,10 +209,9 @@ void check_ncp_serves(const std::string &umat_name, const int &ncp, const bool &
         && (thermomechanical ? kernel_reads_ncp(entry->thermomechanical, true)
                              : (kernel_reads_ncp(entry->mechanical, false) || kernel_reads_ncp(entry->finite, false)));
     if (!serves) {
-        throw std::invalid_argument("ncp other than 'fischer_burmeister' serves the local solves of the modular engine (MODUL and the legacy "
-                                    "names it serves, mechanical and thermomechanical), of EPICP_closed and of the unified SMA kernels "
-                                    "(SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC); '"
-                                    + umat_name + "'" + (thermomechanical ? " (thermomechanical)" : "") + " does not read it");
+        throw std::invalid_argument("ncp other than 'fischer_burmeister': '" + umat_name + "'"
+                                    + (thermomechanical ? " (thermomechanical)" : "")
+                                    + " does not read it (the laws that do: UMAT catalogue, ncp)");
     }
 }
 
@@ -227,7 +227,7 @@ void check_integrator_serves(const std::string &umat_name, const int &tangent_mo
         throw std::invalid_argument("integrator='closest_point' serves the laws with a closest-point update only "
                                     "(mechanical: EPICP_closed, EPCHA_closed, EPJCK_closed, MODUL and the legacy names it serves, "
                                     "the SMA kernels; thermomechanical: EPICP_closed, EPKCP_closed, MODUL and the legacy "
-                                    "names it serves); '" + umat_name + "'"
+                                    "names it serves, the SMA kernels); '" + umat_name + "'"
                                     + (thermomechanical ? " (thermomechanical)" : "") + " has none");
     }
 }
@@ -326,6 +326,10 @@ void call_umat_T(const UmatKernel &kernel, phase_characteristics &rve, state_var
         }
         case UmatKernel::sma_unified: {
             umat_sma_unified_T_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode, sv.ncp);
+            break;
+        }
+        case UmatKernel::sma_unified_R: {
+            umat_sma_unified_TR_T(rve.sptr_matprops->umat_name, strain, Dstrain, sv.sigma, sv.r, sv.dSdE, sv.dSdT, sv.drdE, sv.drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, sv.nstatev, sv.statev, sv.T, sv.DT, Time, DTime, sv.Wm(0), sv.Wm(1), sv.Wm(2), sv.Wm(3), sv.Wt(0), sv.Wt(1), sv.Wt(2), ndi, nshr, start, tnew_dt, sv.tangent_mode, sv.ncp);
             break;
         }
         default: {

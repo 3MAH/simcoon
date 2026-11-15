@@ -29,12 +29,38 @@
 #include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 
 namespace simcoon{
 
 /** @addtogroup umat_mechanical
  *  @{
  */
+
+/**
+ * @brief The increment of umat_sma_unified_T without its work terms and tangent: props read in the
+ *        mechanical layout, start initialisation, rotation, local solve under the integrator of
+ *        @p tangent_mode, state variables written back. Shared by the mechanical kernel and by the
+ *        closest point of umat_sma_unified_T_T.
+ *
+ * @param umat_name SMADI, SMADC, SMAAI or SMAAC
+ * @param props the mechanical props (umat_sma_unified_T); the thermomechanical face passes its own
+ *        from index 3
+ * @param ncp the complementarity function, checked (sma_ncp_method)
+ * @param L [output] the elastic stiffness at the end of the increment
+ * @param Etot total strain at the start of the increment (6)
+ * @param DEtot its increment (6)
+ * @param stress [in,out] stress, start to end of the increment
+ * @param DR rotation increment (3x3)
+ * @param statev [in,out] state variables
+ * @param T temperature at the start of the increment
+ * @param DT its increment
+ * @param start first increment (initialisation)
+ * @param tnew_dt [out] step-cut request (0.5 on a non-converged closest point or solve)
+ * @param tangent_mode kernel tangent code, which selects the integrator (integrates_closest_point)
+ * @return the increment (SMAIncrement), two mechanisms
+ */
+SMAIncrement sma_unified_T_increment(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &L, const arma::mat &DR, const arma::vec &props, arma::vec &statev, const double &T, const double &DT, const bool &start, double &tnew_dt, const int &tangent_mode, const NCPMethod &ncp);
 
 /**
  * @brief Unified phenomenological SMA model with phase transformation
@@ -181,6 +207,9 @@ namespace simcoon{
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step ratio for adaptive time stepping [output]
+ * @param tangent_mode kernel tangent code (parameter.hpp): 0 none, 1 continuum, 2 algorithmic,
+ *        3 to 5 the closest-point integrator with the algorithmic, continuum or elastic operator
+ * @param ncp NCPMethod code of the local step (0 Fischer-Burmeister, the default; see sma_ncp_method)
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note flagT = 0 converts the given Ms, Mf, As, Af (read on the measured curve) into the model's
@@ -257,12 +286,10 @@ namespace simcoon{
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)
  * @see umat_sma_mono() for the micromechanical monocrystal SMA model
  *
- * **Complementarity function** (@p ncp, NCPMethod code, state_variables::ncp): the local Newton
- * takes its step through ncp_step, in the cutting plane and in the closest point: 0
- * Fischer-Burmeister (default, the historical results bit for bit), 1 min, 2 active set. The
- * transformation (and reorientation) rows are coupled, so the min step falls back to
- * Fischer-Burmeister on them; the active set solves them on their active set (see ncp_step and
- * the UMAT catalogue for when it pays: the closest point on transformation-dominated paths).
+ * **Complementarity function**: @p ncp (NCPMethod code, 0 Fischer-Burmeister by default) drives
+ * the local step of the closest point (ReturnMappingControl::ncp, UMAT catalogue), whose merit is
+ * then the one of ncp_step; the cutting plane takes Fischer-Burmeister and refuses
+ * @c min / @c active_set (sma_ncp_method).
  *
  * **References:**
  * - Chatziathanasiou, D. (2016). Ph.D. Thesis — Phenomenological constitutive modeling

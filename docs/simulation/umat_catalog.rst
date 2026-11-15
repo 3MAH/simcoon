@@ -187,7 +187,9 @@ Shape memory alloys, finite strain, multiscale, plugins
 Unchanged dedicated implementations (out of the modular scope):
 
 - **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified),
-  SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
+  SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal). The unified
+  laws have a thermomechanical twin with (rho, c_p^A, c_p^M) prepended (SMR* since 2.5: the
+  reorientation is dissipative and does not depend on the temperature).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
   OGDEN (isochoric principal stretches, props = ``N, kappa, mu_1, alpha_1, ...``)
   are kernels built on :math:`\mathbf{F}`. The invariant-based hyperelastic names
@@ -664,8 +666,9 @@ and ``sim.umat`` by name:
      - yes: two different schemes
    * - ``ncp``
      - how the Kuhn-Tucker conditions are solved inside it
-     - ``"fischer_burmeister"`` (default), ``"min"``
-     - no, to the local tolerance (see below)
+     - ``"fischer_burmeister"`` (default), ``"min"``, ``"active_set"``
+     - no under the closest point, to the local tolerance; under the cutting plane of coupled
+       surfaces the active set changes the iteration path, hence the state (see below)
    * - ``tangent_mode``
      - the operator handed to the global Newton
      - ``"none"``, ``"continuum"``, ``"algorithmic"`` (default)
@@ -698,14 +701,17 @@ approximate (see the note on the scope of the algorithmic tangent in :doc:`solve
 hardening law and a hyperelastic block) and for the legacy names the modular engine serves,
 for the dedicated kernels ``EPICP_closed``, ``EPCHA_closed`` (``EPICP_closed`` / ``EPKCP_closed``
 thermomechanical), and for the SMA kernels ``SMADI`` / ``SMADC`` /
-``SMAAI`` / ``SMAAC`` and ``SMRDI`` / ``SMRDC`` / ``SMRAI`` / ``SMRAC`` (analytic total
+``SMAAI`` / ``SMAAC`` and ``SMRDI`` / ``SMRDC`` / ``SMRAI`` / ``SMRAC``, mechanical and
+thermomechanical (2.5, the same increment on both faces: on the thermomechanical one, ``dSdT``,
+``drdE`` and ``drdT`` are exact derivatives of the update, the turning of the flows included)
+(analytic total
 derivatives through the mean transformation strain and the reorientation back-strain; about
 2x the cost of mode 2 per increment on a superelastic loop, 3x with the reorientation row,
 up to 5x on a non-proportional path, for an operator exact to :math:`10^{-8}`). For
 ``EPJCK`` (and the adapter-served von Mises + isotropic names) mode 3 is **identical to mode
 2 by construction**: with a radial flow the cutting-plane update already is the closest-point
 projection and the algorithmic operator is the exact Jacobian of the discrete map, including
-the rate term. Any other law, the thermomechanical SMA kernel and ``SMA_mono`` included, refuses
+the rate term. Any other law, ``SMA_mono`` included, refuses
 ``integrator="closest_point"`` with ``ValueError`` rather than running its cutting plane
 silently; inside ``MODUL``, a Tresca or Drucker row keeps the cutting plane and its mode-2
 operator. A condensed stress state (plane stress, beam,
@@ -723,10 +729,12 @@ by name, and the ``props`` stay those of the law.
 
 ``solve(..., ncp="min")`` or ``sim.umat(..., ncp="min")`` switches the complementarity function
 of the cutting plane from Fischer-Burmeister (``ncp="fischer_burmeister"``, the default, the
-historical results bit for bit) to the min function, the classic cutting-plane step. The modular
-engine (``MODUL`` and the legacy names it serves, mechanical and thermomechanical) and
-``EPICP_closed`` read it, in their cutting plane and in their closest point (the step of the
-reduced Newton). Any other law or a mean-field model raises ``ValueError`` for ``ncp="min"``.
+historical results bit for bit) to the min function, the classic cutting-plane step. The laws
+that read it, in their cutting plane and in their closest point (the step of the reduced Newton):
+the modular engine (``MODUL`` and the legacy names it serves, mechanical and thermomechanical),
+``EPICP_closed``, and the unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC,
+mechanical and thermomechanical) in their closest point only (below). Any other law or a mean-field model raises
+``ValueError`` for a function other than the default.
 
 **Use it** for a single yield surface with isotropic or linear (Prager) kinematic hardening.
 The return is the same to the local tolerance, and the local iterations drop from about 6 to 3.
@@ -871,18 +879,21 @@ same integrator):
 
 The min step stays the fastest local solve on a single plastic surface; on coupled plastic
 surfaces the active set brings nothing (its system is built per iteration) and, under the cutting
-plane, only changes the path. A penalized Fischer-Burmeister function (Chen, Chen and Kanzow 2000)
-was measured in 2.5 and removed: its added term vanishes at complementarity, so near the solution
-it is Fischer-Burmeister and costs the same on every plastic and SMA path above and below.
+plane, only changes the path.
 
 **SMA laws** (2.5): the unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC)
-read ``ncp`` too. Their transformation and reorientation rows are coupled, so ``"min"`` is
-Fischer-Burmeister there, bit for bit. Fischer-Burmeister solves every constraint in one Newton
-step without guessing an active set, the choice of Kiefer, Bartel and Menzel (2012, Smart Mater.
-Struct. 21, 094007) for multi-variant shape memory alloys. The active set is the alternative,
-measured on the materials of the ``SMA_T`` and ``SMA_TR`` examples (one thread, min of three runs;
-time in ms, Fischer-Burmeister against active set; under the closest point both land on the same
-root within :math:`3 \times 10^{-10}`):
+read ``ncp`` under ``integrator="closest_point"``, on both faces. Their cutting plane keeps Fischer-Burmeister
+and refuses ``"min"`` and ``"active_set"`` with ``ValueError``: a semi-smooth step sends a
+multiplier back to zero, which the cutting plane cannot undo, since it adds the transformation
+strain of every iterate to the state (the last column below measures the resulting gap). The
+forward and reverse transformation rows are coupled, and so is the reorientation row of the
+SMR* laws, so ``"min"`` keeps the Fischer-Burmeister step there. Fischer-Burmeister solves the
+coupled constraints together without guessing which are active; Kiefer, Bartel and Menzel
+(2012, Smart Mater. Struct. 21, 094007) compare it with an active-set (predictor-corrector)
+strategy on a magnetic shape memory alloy model. The active set is the alternative, measured on
+the materials of the ``SMA_T`` and ``SMA_TR`` examples (one thread, min of three runs; time in
+ms, Fischer-Burmeister against active set; under the closest point both land on the same root
+within :math:`3 \times 10^{-10}`):
 
 .. list-table::
    :header-rows: 1
@@ -891,7 +902,7 @@ root within :math:`3 \times 10^{-10}`):
    * - Path
      - Increments per step
      - Closest point: FB / active set
-     - Cutting plane: FB / active set (state gap)
+     - Cutting plane, refused: FB / active set (state gap)
    * - SMADI superelastic, 320 K
      - 50 / 200
      - 3.3 / 2.7, 10.9 / 7.7
@@ -911,10 +922,8 @@ root within :math:`3 \times 10^{-10}`):
 
 Under the closest point the active set pays when the transformation dominates (up to 6 times
 faster on SMRAI at coarse increments, where Fischer-Burmeister shortens its steps) and costs 1.1
-to 3.3 times more when the reorientation of the martensite dominates. Under the cutting plane it
-changes the converged state (the path dependence of that integrator, up to
-:math:`1.3 \times 10^{-2}`): use it with ``integrator="closest_point"`` only. Fischer-Burmeister
-stays the default.
+to 3.3 times more when the reorientation of the martensite dominates. Fischer-Burmeister stays
+the default.
 
 **Which rows count.** The min step applies row by row when the local Jacobian :math:`B` is
 diagonal, i.e. when the rows are independent scalar problems. That is the case of a single yield
@@ -943,6 +952,9 @@ rows are coupled (off-diagonal terms of :math:`B`) and keep Fischer-Burmeister.
      - no effect: Fischer-Burmeister is kept
    * - ``MODUL`` with an Armstrong-Frederick back stress
      - refused (``ValueError``) under the cutting plane, see above; taken under the closest point
+   * - the unified SMA laws (SMA*, SMR*), both faces
+     - refused (``ValueError``) under the cutting plane; under the closest point the
+       Fischer-Burmeister step (coupled rows)
    * - any other law, any other thermomechanical block, a mean-field model
      - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
    * - ``integrator="closest_point"``

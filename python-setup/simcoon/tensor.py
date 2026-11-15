@@ -1783,7 +1783,7 @@ class Tensor2(_TensorBase):
 # ======================================================================
 
 class Tensor4(_TensorBase):
-    """A 4th-order tensor with a type tag driving rotation dispatch and Voigt factors.
+    r"""A 4th-order tensor with a type tag driving rotation dispatch and Voigt factors.
 
     A single object transparently represents either one tensor or a batch:
     the stored numpy array is ``(6,6)`` (engineering Voigt) for a single
@@ -1814,7 +1814,7 @@ class Tensor4(_TensorBase):
         M = L.inverse()                  # compliance Tensor4
 
     .. note::
-        Transports are Mandel congruences :math:`\\mathbb{Q}\\,\\mathbb{C}\\,\\mathbb{Q}^T` on the
+        Transports are Mandel congruences :math:`\mathbb{Q}\,\mathbb{C}\,\mathbb{Q}^T` on the
         stored 6x6 (see the *Transport in index and Mandel notation* section of the
         tensor page); the C++ ``tensor4`` holds no cache and its const methods are
         safe to call from several threads.
