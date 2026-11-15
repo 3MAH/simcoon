@@ -54,7 +54,7 @@ namespace simcoon {
  * @param T temperature at the start of the increment
  * @param DT its increment
  * @param start first increment (initialisation)
- * @param tnew_dt [out] step-cut request (0.5 on a non-converged closest point or solve)
+ * @param tnew_dt [out] step-cut request (0.5 on a non-converged closest point; the cutting plane commits its last iterate)
  * @param tangent_mode kernel tangent code, which selects the integrator (integrates_closest_point)
  * @return the increment (SMAIncrement)
  */
@@ -157,8 +157,9 @@ SMAIncrement sma_unified_TR_increment(const std::string &umat_name, const arma::
  * full one is solvable.
  * @note Convergence measure: same magnitude scales \f$ Y^{crit}_j \f$ as
  * @ref umat_sma_unified_T (see its note); \f$ Y^{crit}_{Reo} = Y^{Reo} \f$.
- * @note When \f$ \Delta s^{Reo} = 0 \f$, the result is bit-identical to
- * @ref umat_sma_unified_T (same elastic mixing, same forward/reverse equations).
+ * @note When \f$ \Delta s^{Reo} = 0 \f$, the result agrees with @ref umat_sma_unified_T to
+ * round-off under either integrator (same elastic mixing, same forward/reverse equations, the
+ * same cutting-plane scheme; measured within 2e-12 MPa on a superelastic loop).
  * @note **Reorientation flows** (thesis §4, eq. 503). Reorientation only re-orients the
  * martensite present at the start of the increment, \f$ \xi_{start} \f$ (new martensite forms
  * already aligned with \f$ \boldsymbol{\sigma} \f$), so with

@@ -92,13 +92,13 @@ class state_variables_M : public state_variables
 		/** @brief Destructor. */
 		virtual ~state_variables_M();
 		
-		/** @brief Copy assignment: state_variables::operator= (tangent_mode, ncp and statev included), then the mechanical members. */
+		/** @brief Copy assignment: state_variables::operator= (tangent_mode, integrator, ncp and statev included), then the mechanical members. */
 		state_variables_M& operator = (const state_variables_M&);
 		
         /**
          * @brief Copy the field values from another state_variables_M object.
          * The common fields of state_variables::copy_fields (U0, U1, R and DR included), then
-         * L, Lt, Wm and Wm_start; tangent_mode, ncp and statev untouched.
+         * L, Lt, Wm and Wm_start; tangent_mode, integrator, ncp and statev untouched.
          */
 		virtual state_variables_M& copy_fields_M (const state_variables_M&);
 		

@@ -204,4 +204,11 @@ bool kernel_reads_ncp(const UmatKernel &kernel, const bool &thermomechanical);
  */
 bool kernel_serves_closest_point(const UmatKernel &kernel, const bool &thermomechanical);
 
+/**
+ * @brief True when a kernel integrates with the closest point under integrator_default: the
+ *        unified SMA kernels sma_unified and sma_unified_R, on both faces. Every other kernel
+ *        runs its cutting plane under the default.
+ */
+bool kernel_defaults_closest_point(const UmatKernel &kernel);
+
 } //namespace simcoon

@@ -37,10 +37,10 @@ namespace simcoon{
  * The mechanical model is umat_sma_unified_TR (sma_unified_TR_increment), on either integrator; the
  * thermal face is the one of umat_sma_unified_T_T (sma_thermal_face) with the reorientation row as a
  * third mechanism. The reorientation criterion does not depend on the temperature
- * (\f$ \partial\Phi^{Reo}/\partial\theta = 0 \f$), its work
- * \f$ \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{Reo} \f$ is
- * dissipated (the back-strain stores no energy, as on the mechanical face) and it does not enter
- * the entropy.
+ * (\f$ \partial\Phi^{Reo}/\partial\theta = 0 \f$) and it does not enter the entropy; of its work
+ * \f$ \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{Reo} \f$, the part
+ * of the back stress \f$ \Delta\Psi^{Reo} \f$ is stored (Wm_r, as on the mechanical face, SMAIncrement)
+ * and the rest is dissipated, so it heats.
  *
  * **Props:** \f$ \rho \f$, \f$ c_p^A \f$, \f$ c_p^M \f$, then the props of umat_sma_unified_TR (the
  * SMR* layout, from flagT on): 38 (SMRDI), 40 (SMRDC), 45 (SMRAI), 47 (SMRAC).

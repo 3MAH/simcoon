@@ -369,7 +369,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
     const bool thermomechanical = std::any_of(blocks.begin(), blocks.end(), [](const block &b) { return b.type == 2; });
     check_ncp_serves(umat_name, ctrl.ncp, thermomechanical);
     // the thermomechanical laws accepted are mechanical ones too, so one check covers a mixed run
-    check_integrator_serves(umat_name, ctrl.tangent_mode, thermomechanical);
+    check_integrator_serves(umat_name, integrates_closest_point(ctrl.tangent_mode) ? ctrl.tangent_mode
+                                       : kernel_tangent_mode(ctrl.integrator, ctrl.tangent_mode, umat_name), thermomechanical);
     if (corate_type < 0 || corate_type > corate_type_total) {
         throw std::invalid_argument("solver: corate_type must be an objective rate (0..5) or the total-formulation code ("
                                     + std::to_string(corate_type_total) + "); got " + std::to_string(corate_type));
@@ -487,6 +488,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 sv_M->tangent_mode = tangent_mode;
+                sv_M->integrator = ctrl.integrator;
                 sv_M->ncp = ctrl.ncp;
                 sv_M->L = zeros(6,6);
                 sv_M->Lt = zeros(6,6);
@@ -832,6 +834,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 sv_T->tangent_mode = tangent_mode;
+                sv_T->integrator = ctrl.integrator;
                 sv_T->ncp = ctrl.ncp;
                 
                 sv_T->dSdE = zeros(6,6);

@@ -789,13 +789,16 @@ constexpr auto umat = R"pbdoc(
         the same step on coupled rows solved together. Read by MODUL and the
         legacy names it serves (refused under the cutting plane for an
         Armstrong-Frederick back stress), EPICP_closed, and the unified SMA
-        laws under integrator='closest_point' only. Any other law raises
+        laws under the closest point only (their default integrator). Any other law raises
         ValueError for a function other than the default. See the UMAT catalog.
     integrator : str
-        Local integrator of the laws with a return mapping: 'cutting_plane'
-        (default) or 'closest_point' (backward Euler, a different discrete
-        update, with its exact operator; it takes tangent_mode=2). A law or a
-        row without a closest-point update keeps the cutting plane.
+        Local integrator of the laws with a return mapping: 'default', the
+        law's own (closest point for the unified SMA laws SMADI, SMADC, SMAAI,
+        SMAAC, SMRDI, SMRDC, SMRAI, SMRAC, cutting plane for the others; the
+        C++ solver and dispatch resolve it the same way), 'cutting_plane' or
+        'closest_point' (backward Euler, a different discrete update, with its
+        exact operator under tangent_mode=2). A row without a closest-point
+        update (Tresca or Drucker in MODUL) keeps the cutting plane.
 
     Returns
     -------
@@ -867,7 +870,7 @@ constexpr auto umat_T = R"pbdoc(
         per point.
     ndi, nshr, n_threads, tangent_mode, start, condense, integrator, ncp
         As umat (ncp: read by MODUL and the legacy names it serves, and by the
-        unified SMA laws under integrator='closest_point'). Under
+        unified SMA laws under the closest point, their default). Under
         condense='material_face' (finite strain, ndi < 3) dSdE, dSdT and
         drdE are the material derivatives dS/dE, dS/dtheta and dr/dE, condensed
         on the kept components (tangent_output='material').

@@ -189,7 +189,11 @@ Unchanged dedicated implementations (out of the modular scope):
 - **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified),
   SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal). The unified
   laws have a thermomechanical twin with (rho, c_p^A, c_p^M) prepended (SMR* since 2.5: the
-  reorientation is dissipative and does not depend on the temperature).
+  reorientation does not depend on the temperature). Energy split (2.5): the transformation
+  hardening, the bound penalties of the martensite fraction and the back stress of the
+  reorientation store energy (``Wm_r``, recovered at unloading); only the rest of the
+  transformation and reorientation work is dissipated (``Wm_d``, and the heat source of the
+  thermomechanical twins).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
   OGDEN (isochoric principal stretches, props = ``N, kappa, mu_1, alpha_1, ...``)
   are kernels built on :math:`\mathbf{F}`. The invariant-based hyperelastic names
@@ -662,7 +666,7 @@ and ``sim.umat`` by name:
      - Changes the converged answer
    * - ``integrator``
      - the discrete update of the local step
-     - ``"cutting_plane"`` (default), ``"closest_point"`` (backward Euler)
+     - ``"default"`` (the law's own), ``"cutting_plane"``, ``"closest_point"`` (backward Euler)
      - yes: two different schemes
    * - ``ncp``
      - how the Kuhn-Tucker conditions are solved inside it
@@ -674,10 +678,26 @@ and ``sim.umat`` by name:
      - ``"none"``, ``"continuum"``, ``"algorithmic"`` (default)
      - no: global convergence only
 
+**Default integrator (2.5).** ``integrator="default"`` is the law's own: the closest point for
+the unified SMA laws (``SMADI`` / ``SMADC`` / ``SMAAI`` / ``SMAAC``, ``SMRDI`` / ``SMRDC`` /
+``SMRAI`` / ``SMRAC``, mechanical and thermomechanical), the cutting plane for every other law.
+It is resolved in one place, ``kernel_tangent_mode`` (``umat_smart.hpp``), from every entry:
+``simcoon.solver.solve``, ``sim.umat`` / ``sim.umat_T``, the C++ solver
+(``solver_params::integrator``) and the dispatch of a state (``state_variables::integrator``,
+micromechanics phases included), all ``integrator_default`` unless set. On the SMA laws the
+closest point is the more accurate update at a given increment (a superelastic loop at 40
+increments: 0.024 MPa from the converged answer against 0.29 MPa for the cutting plane; a
+reorientation path of ``SMRAI`` at 200 increments: 12 MPa against 86 MPa). It costs 2.3 to 2.8
+times the cutting plane on a superelastic loop at 40 to 400 increments, and is faster where the
+cutting plane cuts its steps (10 increments at 320 K: 1.1 against 9.1 ms).
+``integrator="cutting_plane"`` keeps the cutting plane, one scheme for both families (the
+transformation hardening at the stress of the iterate, the step halved when the residual
+doubles).
+
 ``"algorithmic"`` is the consistent operator of the integrator that ran: Simo-Hughes after the
-cutting plane, the exact operator of the closest-point map after the closest point. The closest
-point is offered with that operator only (``integrator="closest_point"`` with ``"none"`` or
-``"continuum"`` raises ``ValueError``). ``tangent_mode = 3`` (``"closest_point"``), the former way
+cutting plane, the exact operator of the closest-point map after the closest point; with
+``"continuum"`` or ``"none"`` the closest point hands over the continuum operator of its
+converged state or the elastic operator. ``tangent_mode = 3`` (``"closest_point"``), the former way
 to ask for the closest point, is no longer accepted: it raises ``ValueError``, pointing to
 ``integrator="closest_point"``. Inside, the kernels still read one code (``kernel_tangent_mode``,
 ``parameter.hpp``): 0 = none (Lt = elastic L, explicit integration), 1 = continuum,
@@ -882,8 +902,8 @@ surfaces the active set brings nothing (its system is built per iteration) and, 
 plane, only changes the path.
 
 **SMA laws** (2.5): the unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC)
-read ``ncp`` under ``integrator="closest_point"``, on both faces. Their cutting plane keeps Fischer-Burmeister
-and refuses ``"min"`` and ``"active_set"`` with ``ValueError``: a semi-smooth step sends a
+read ``ncp`` under the closest point, their default integrator, on both faces. Their cutting plane
+(``integrator="cutting_plane"``) keeps Fischer-Burmeister and refuses ``"min"`` and ``"active_set"`` with ``ValueError``: a semi-smooth step sends a
 multiplier back to zero, which the cutting plane cannot undo, since it adds the transformation
 strain of every iterate to the state (the last column below measures the resulting gap). The
 forward and reverse transformation rows are coupled, and so is the reorientation row of the
@@ -953,8 +973,8 @@ rows are coupled (off-diagonal terms of :math:`B`) and keep Fischer-Burmeister.
    * - ``MODUL`` with an Armstrong-Frederick back stress
      - refused (``ValueError``) under the cutting plane, see above; taken under the closest point
    * - the unified SMA laws (SMA*, SMR*), both faces
-     - refused (``ValueError``) under the cutting plane; under the closest point the
-       Fischer-Burmeister step (coupled rows)
+     - under the closest point (their default) the Fischer-Burmeister step (coupled rows);
+       refused (``ValueError``) under ``integrator="cutting_plane"``
    * - any other law, any other thermomechanical block, a mean-field model
      - refused (``ValueError``); the sub-phases of a mean-field model keep Fischer-Burmeister
    * - ``integrator="closest_point"``

@@ -81,21 +81,24 @@ def _umat_T(name, state, De, DT, **kw):
                       T, np.array([DT]), n_threads=1, **kw)
 
 
-@pytest.mark.parametrize("name, props, nstatev, De0", [
-    ("SMADI", SMA, 17, [2e-4, -6e-5, -6e-5, 1e-4, 0., 0.]),           # forward transformation
-    ("SMRDI", SMA + REO, 30, [0., 0., 0., 2e-3, 0., 0.]),             # reorientation under shear
+@pytest.mark.parametrize("name, props, nstatev, De0, eps", [
+    ("SMADI", SMA, 17, [2e-4, -6e-5, -6e-5, 1e-4, 0., 0.], 0.03),     # forward transformation
+    ("SMADI", SMA, 17, [2e-3, -6e-4, -6e-4, 0., 0., 0.], 0.07),       # xi at its bound: the penalty
+    ("SMRDI", SMA + REO, 30, [0., 0., 0., 2e-3, 0., 0.], 0.03),       # reorientation under shear
 ])
-def test_closest_point_thermal_tangents_are_exact(name, props, nstatev, De0):
+def test_closest_point_thermal_tangents_are_exact(name, props, nstatev, De0, eps):
     """Under the closest point the thermal face is the derivative of the discrete update: dSdE,
     dSdT, drdE and drdT match finite differences, the turning of the flows (reorientation
-    included) in the dissipation derivatives."""
-    st = StepThermomeca(control=UNI, value=[0.03, 0, 0, 0, 0, 0], ninc=40, time=0.4, T_final=322.)
+    included), the bound penalties of xi and the stored work of the reorientation back stress in
+    the dissipation derivatives."""
+    st = StepThermomeca(control=UNI, value=[eps, 0, 0, 0, 0, 0], ninc=80 if eps > 0.05 else 40, time=0.4, T_final=322.)
     res = sim.solver.solve([st], name, np.array(props), nstatev, T_init=320., integrator="closest_point")
     state = (np.array(props), _col(res["Strain"][:, -1]), _col(res["Stress"][:, -1]), _col(res["Statev"][:, -1]),
              np.array([res["Temp"][-1]]))
     De0, DT0, h, hT = np.array(De0), 0.5, 1e-7, 1e-5
     out = _umat_T(name, state, De0, DT0, integrator="closest_point")
-    assert np.abs(out[1][:, 0] - state[3][:, 0]).max() > 1e-4   # an inelastic increment
+    # an inelastic increment (at the bound, xi creeps under the penalty)
+    assert np.abs(out[1][:, 0] - state[3][:, 0]).max() > (1e-7 if eps > 0.05 else 1e-4)
     pm = [(_umat_T(name, state, De0 + h * e, DT0, integrator="closest_point"),
            _umat_T(name, state, De0 - h * e, DT0, integrator="closest_point")) for e in np.eye(6)]
     pT = [_umat_T(name, state, De0, DT0 + s * hT, integrator="closest_point") for s in (1., -1.)]
@@ -180,3 +183,20 @@ def test_adiabatic_plastic_heating_balances_the_dissipation():
     assert T[-1] > T0 + 1.0
     np.testing.assert_allclose(T[1:] * np.diff(eta), dWd, rtol=0, atol=1e-5 * dWd.max())
     np.testing.assert_allclose(np.asarray(res["r"]).ravel()[1:], 0.0, atol=1e-6)
+
+
+@pytest.mark.parametrize("name, props, nstatev", [("SMADI", SMA[3:], 17), ("SMRDI", SMA[3:] + REO, 30)])
+@pytest.mark.parametrize("integrator", ["cutting_plane", "closest_point"])
+def test_sma_dissipation_never_negative(name, props, nstatev, integrator):
+    """Wm_d of the SMA laws only grows: the bound penalties of xi and the back stress of the
+    reorientation store energy (Wm_r), so the dissipation of a tension, unloading, shear and
+    unloading cycle through the bounds of xi is never negative (it was down to -0.3 per increment
+    for SMRDI when the back-stress work counted as dissipation)."""
+    from simcoon.solver import StepMeca
+    shear = ["stress"] * 3 + ["strain"] + ["stress"] * 2
+    free = dict(control=["stress"] * 6, value=[0] * 6, ninc=120, time=1., T_final=322.)
+    steps = [StepMeca(control=UNI, value=[0.07, 0, 0, 0, 0, 0], ninc=120, time=1., T_final=322.), StepMeca(**free),
+             StepMeca(control=shear, value=[0, 0, 0, 0.04, 0, 0], ninc=120, time=1., T_final=322.), StepMeca(**free)]
+    res = sim.solver.solve(steps, name, np.array(props), nstatev, T_init=320., integrator=integrator)
+    assert res["Statev"][1].max() > 0.99   # xi reached its bound
+    assert np.diff(res["Wm"][3]).min() >= -1e-12

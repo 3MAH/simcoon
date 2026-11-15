@@ -126,42 +126,45 @@ SMRDI = SMADI + [100.0, 5000.0, 0.05, 1e-6, 1e-3, 1.0, 1e8]   # + Y_Reo, H_Reo, 
 
 @pytest.mark.parametrize("name, props, nstatev", [("SMADI", SMADI, 17), ("SMRDI", SMRDI, 30)])
 def test_sma_laws_read_the_complementarity_function(name, props, nstatev):
-    """The unified SMA laws read ncp under the closest point: active_set lands on the
-    Fischer-Burmeister root (one backward-Euler system), min keeps the Fischer-Burmeister step on
-    their coupled rows, bit for bit. Their cutting plane refuses both: a multiplier sent back to
-    zero cannot take back the transformation strain of the iterates."""
+    """The unified SMA laws integrate with the closest point by default and read ncp there:
+    active_set lands on the Fischer-Burmeister root (one backward-Euler system), min keeps the
+    Fischer-Burmeister step on their coupled rows, bit for bit. Their cutting plane refuses both: a
+    multiplier sent back to zero cannot take back the transformation strain of the iterates."""
     uni = ["strain"] + ["stress"] * 5
     path = Block(steps=[StepMeca(control=uni, value=[0.05, 0, 0, 0, 0, 0], time=1.0, ninc=50, Dn_mini=0.01),
                         StepMeca(control=["stress"] * 6, value=[0] * 6, time=1.0, ninc=50, Dn_mini=0.01)])
     go = lambda **kw: run(name, props, nstatev, path=path, T_init=320.0, **kw)
     ref = go(integrator="closest_point")
-    np.testing.assert_array_equal(go(integrator="closest_point", ncp="min")["Stress"], ref["Stress"])
-    assert rel(go(integrator="closest_point", ncp="active_set")["Stress"], ref["Stress"]) < 1e-8
+    np.testing.assert_array_equal(go()["Stress"], ref["Stress"])
+    np.testing.assert_array_equal(go(ncp="min")["Stress"], ref["Stress"])
+    assert rel(go(ncp="active_set")["Stress"], ref["Stress"]) < 1e-8
     for ncp in ("min", "active_set"):
         with pytest.raises(Exception, match="closest_point"):
-            go(ncp=ncp)
+            go(integrator="cutting_plane", ncp=ncp)
 
 
 def test_sma_ncp_through_sim_umat():
     """sim.umat forwards ncp to the SMA kernels: one forward-transformation increment under the
-    closest point, active set against Fischer-Burmeister; the cutting plane refuses it."""
+    closest point (the default of the law), active set against Fischer-Burmeister; the cutting
+    plane refuses it."""
     col = lambda v: np.asfortranarray(np.asarray(v, float).reshape(-1, 1))
     I3 = np.asfortranarray(np.eye(3)[:, :, None])
     call = lambda **kw: sim.umat("SMADI", col(np.zeros(6)), col([3e-2, -1e-2, -1e-2, 0, 0, 0]), np.empty(0),
                                  np.empty(0), col(np.zeros(6)), I3, col(SMADI), col(np.zeros(17)), 0.0, 1.0,
                                  col(np.zeros(4)), temp=np.full(1, 320.0), n_threads=1, **kw)
     fb = call(integrator="closest_point")
-    act = call(integrator="closest_point", ncp="active_set")
+    act = call(ncp="active_set")
     assert fb[1][1, 0] > 1e-3   # transformation is active
+    np.testing.assert_array_equal(call()[0], fb[0])
     assert rel(act[0], fb[0]) < 1e-8
     with pytest.raises(Exception, match="closest_point"):
-        call(ncp="active_set")
+        call(integrator="cutting_plane", ncp="active_set")
 
 
 def test_sma_ncp_on_the_thermomechanical_face():
-    """The thermomechanical SMA laws read ncp under the closest point (the solver passes it to
-    call_umat_T, sim.umat_T forwards it): active_set lands on the Fischer-Burmeister root; their
-    cutting plane refuses it."""
+    """The thermomechanical SMA laws read ncp under the closest point, their default (the solver
+    passes it to call_umat_T, sim.umat_T forwards it): active_set lands on the Fischer-Burmeister
+    root; their cutting plane refuses it."""
     from simcoon.solver import StepThermomeca
     uni = ["strain"] + ["stress"] * 5
     path = Block(steps=[StepThermomeca(control=uni, value=[0.05, 0, 0, 0, 0, 0], time=1.0, ninc=50, T_final=320.0),
@@ -170,18 +173,29 @@ def test_sma_ncp_on_the_thermomechanical_face():
         tprops = [5.5, 0.5, 0.5] + props
         go = lambda **kw: run(name, tprops, nstatev, path=path, T_init=320.0, **kw)
         ref = go(integrator="closest_point")
-        assert rel(go(integrator="closest_point", ncp="active_set")["Stress"], ref["Stress"]) < 1e-8
+        np.testing.assert_array_equal(go()["Stress"], ref["Stress"])
+        assert rel(go(ncp="active_set")["Stress"], ref["Stress"]) < 1e-8
         with pytest.raises(Exception, match="closest_point"):
-            go(ncp="active_set")
+            go(integrator="cutting_plane", ncp="active_set")
     col = lambda v: np.asfortranarray(np.asarray(v, float).reshape(-1, 1))
     call = lambda **kw: sim.umat_T("SMRDI", col(np.zeros(6)), col([1.5e-2, -5e-3, -5e-3, 0, 0, 0]), col(np.zeros(6)),
                                    np.asfortranarray(np.eye(3)[:, :, None]), col([5.5, 0.5, 0.5] + SMRDI),
                                    col(np.zeros(30)), 0.0, 1.0, np.zeros((4, 1), order="F"),
                                    np.zeros((3, 1), order="F"), np.array([320.0]), np.array([0.0]), n_threads=1, **kw)
-    fb, act = call(integrator="closest_point"), call(integrator="closest_point", ncp="active_set")
+    fb, act = call(integrator="closest_point"), call(ncp="active_set")
     assert fb[1][1, 0] > 1e-3 and rel(act[0], fb[0]) < 1e-8
+    np.testing.assert_array_equal(call()[0], fb[0])
     with pytest.raises(Exception, match="closest_point"):
-        call(ncp="active_set")
+        call(integrator="cutting_plane", ncp="active_set")
+
+
+def test_default_integrator_is_the_law_s_own():
+    """integrator='default' resolves per law in the C++ dispatch: the cutting plane for EPICP (the
+    same bits), an unknown name is refused."""
+    np.testing.assert_array_equal(run("EPICP", EPICP, 8)["Stress"],
+                                  run("EPICP", EPICP, 8, integrator="cutting_plane")["Stress"])
+    with pytest.raises(ValueError, match="integrator"):
+        run("EPICP", EPICP, 8, integrator="backward_euler")
 
 
 def test_complementarity_function_admission():

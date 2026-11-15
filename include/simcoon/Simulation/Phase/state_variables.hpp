@@ -90,7 +90,8 @@ class state_variables
         arma::vec statev_start; ///< Internal state variables at start of increment; crosses both ways
 
         int ncp = 0; ///< complementarity function of the local return mapping (NCPMethod code): 0 Fischer-Burmeister (default), 1 min-NCP, 2 active set; the laws reading it: kernel_reads_ncp
-        int tangent_mode = tangent_default; // tangent_* constants (parameter.hpp): 0 = none/explicit, 1 = continuum, 2 = algorithmic/Simo-Hughes (default), 3 = closest-point (exact operator of the closest-point integrator where a kernel has one, else the algorithmic operator).
+        int tangent_mode = tangent_default; ///< tangent choice (parameter.hpp): 0 = none/explicit, 1 = continuum, 2 = algorithmic/Simo-Hughes (default); a closest-point kernel code 3 to 5 is passed to the kernel as given
+        int integrator = integrator_default; ///< local integrator (integrator_* constants): the law's own by default; the dispatch folds it with tangent_mode (kernel_tangent_mode)
     
     
         /**
@@ -144,7 +145,7 @@ class state_variables
 		virtual ~state_variables();
 		
         /**
-         * @brief Assignment operator: copies every member, tangent_mode, ncp and the statev arrays included.
+         * @brief Assignment operator: copies every member, tangent_mode, integrator, ncp and the statev arrays included.
          * Not virtual: the derived classes assign through their own operator=, which calls this one.
          * @param sv State variables to assign
          * @return Reference to this object
@@ -153,7 +154,7 @@ class state_variables
 		
         /**
          * @brief Copy the field values from another state_variables object.
-         * Copies the strains, stresses, F0, F1, U0, U1, R, DR, T and DT; leaves tangent_mode, ncp,
+         * Copies the strains, stresses, F0, F1, U0, U1, R, DR, T and DT; leaves tangent_mode, integrator, ncp,
          * nstatev, statev and statev_start untouched.
          * @param sv Source state variables
          * @return Reference to this object

@@ -57,9 +57,11 @@ namespace simcoon{
  * \f]
  * The dissipation of the increment is
  * \f$ \Delta\gamma = \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{T}
- * + \sum_j \tfrac12 (A_{j,n} + A_j)\,\Delta s_j \f$ (reorientation included in
- * \f$ \Delta\boldsymbol{\varepsilon}^{T} \f$, \f$ A_{Reo} = 0 \f$); its derivatives hold the flow
- * directions fixed over the increment, and the entropy is
+ * + \sum_j \tfrac12 (A_{j,n} + A_j)\,\Delta s_j - \Delta\Psi^{Reo} \f$ (reorientation included in
+ * \f$ \Delta\boldsymbol{\varepsilon}^{T} \f$, \f$ A_{Reo} = 0 \f$, the bound penalties of \f$ \xi \f$ in
+ * \f$ A_j \f$, the stored work of the reorientation back stress \f$ \Delta\Psi^{Reo} \f$: SMAIncrement);
+ * under the cutting plane its derivatives hold the flow directions fixed over the increment, under
+ * the closest point they are exact, and the entropy is
  * \f$ \eta = c_0(\xi)\ln(T/T_{init}) + \boldsymbol{\alpha}(\xi_n):\boldsymbol{\sigma} + \rho\Delta s_0\,\xi \f$
  * (the reorientation does not enter it). heat_source_increment() forms \f$ r \f$, \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$,
  * \f$ \partial r/\partial T \f$.

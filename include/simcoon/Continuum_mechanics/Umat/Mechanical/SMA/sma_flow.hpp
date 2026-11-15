@@ -31,6 +31,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
@@ -84,6 +85,52 @@ inline NCPMethod sma_ncp_method(const int &ncp, const int &tangent_mode, const s
     return method;
 }
 
+/// The transformation hardening functions of a unified SMA law and their slopes (sma_hardening()).
+struct SMAHardening {
+    double F = 0.;    ///< \f$ H_f^F \f$
+    double R = 0.;    ///< \f$ H_f^R \f$
+    double dF = 0.;   ///< \f$ \mathrm{d}H_f^F/\mathrm{d}\xi \f$
+    double dR = 0.;   ///< \f$ \mathrm{d}H_f^R/\mathrm{d}\xi \f$
+};
+
+/**
+ * @brief Smooth hardening functions of the unified SMA laws at \f$ \xi \f$ clamped to \f$ [0,1] \f$,
+ *        slopes zero outside \f$ (0,1) \f$: one definition for every loop of both faces.
+ *
+ * \f[
+ * H_f^F = \tfrac12 a_1\left(1 + \bar\xi^{n_1} - (1-\bar\xi)^{n_2}\right) + a_3, \qquad
+ * H_f^R = \tfrac12 a_2\left(1 + \bar\xi^{n_3} - (1-\bar\xi)^{n_4}\right) - a_3, \qquad
+ * \bar\xi = \min(\max(\xi, 0), 1)
+ * \f]
+ * (\f$ a_1\bar\xi + a_3 \f$, \f$ a_2\bar\xi - a_3 \f$ when both exponents are 1). The Lagrange
+ * penalties alone hold \f$ \xi \f$ in \f$ [0,1] \f$; outside, the hardening is the C0 continuation of its
+ * value at the bound (the hardening energy of a full cycle closes on \f$ [0,1] \f$ only, through
+ * \f$ a_3 \f$), and a fractional power is NaN there. The kinks at the bounds make the local residual
+ * piecewise C1.
+ */
+inline SMAHardening sma_hardening(double xi, double a1, double a2, double a3, double n1, double n2, double n3, double n4) {
+    const double x = std::min(std::max(xi, 0.), 1.);
+    const bool inside = (xi > 0.) && (xi < 1.);
+    SMAHardening h;
+    if ((n1 == 1.) && (n2 == 1.)) {
+        h.F = a1*x + a3;
+        h.dF = inside ? a1 : 0.;
+    }
+    else {
+        h.F = 0.5*a1*(1. + std::pow(x, n1) - std::pow(1. - x, n2)) + a3;
+        h.dF = inside ? 0.5*a1*(n1*std::pow(xi, n1 - 1.) + n2*std::pow(1. - xi, n2 - 1.)) : 0.;
+    }
+    if ((n3 == 1.) && (n4 == 1.)) {
+        h.R = a2*x - a3;
+        h.dR = inside ? a2 : 0.;
+    }
+    else {
+        h.R = 0.5*a2*(1. + std::pow(x, n3) - std::pow((1. - x), n4)) - a3;
+        h.dR = inside ? 0.5*a2*(n3*std::pow(xi, n3 - 1.) + n4*std::pow(1. - xi, n4 - 1.)) : 0.;
+    }
+    return h;
+}
+
 /**
  * @brief One increment of a unified SMA law (umat_sma_unified_T, umat_sma_unified_TR), as the
  *        mechanical and the thermomechanical faces read it after the local solve.
@@ -93,8 +140,17 @@ inline NCPMethod sma_ncp_method(const int &ncp, const int &tangent_mode, const s
  * 3). The columns of the 6xN members follow that order. Under the cutting plane the tangent
  * ingredients are those of the last iterate, under the closest point those of the converged
  * state (ReturnMappingResult). The thermodynamic forces \f$ A_j \f$ are those of the transformation
- * rows; the reorientation row has none (\f$ A_{Reo} = 0 \f$, its work is the stress power on
- * \f$ \Delta\boldsymbol{\varepsilon}^{Reo} \f$).
+ * rows, the bound penalties of \f$ \xi \f$ included (add_bound_penalties); the reorientation row has
+ * none (\f$ A_{Reo} = 0 \f$). Energy split of an increment:
+ * \f[
+ * \Delta\gamma = \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}_{n+1}) : \Delta\boldsymbol{\varepsilon}^T
+ *   + \sum_j \tfrac12\left(A_j^n + A_j^{n+1}\right)\Delta s_j - \Delta\Psi^{Reo}, \qquad
+ * \Delta\Psi^{Reo} = \tfrac12\left(\mathbf{S}_n + \mathbf{S}_{n+1}\right) : \Delta\boldsymbol{\varepsilon}^{Reo},
+ * \quad \mathbf{S} = (1 + \lambda^{Reo})\,\mathbf{X}
+ * \f]
+ * \f$ \Delta\gamma \f$ goes to Wm_d (and to the heat source), the rest of the stress power to Wm_r:
+ * the transformation hardening, the bound penalties and the back stress of the reorientation are
+ * recovered at unloading.
  */
 struct SMAIncrement {
     bool closest_point = false;      ///< the closest point ran (rm, L_tan frozen at \f$ \xi_n \f$)
@@ -122,6 +178,29 @@ struct SMAIncrement {
     double xi = 0.;                  ///< \f$ \xi_{n+1} \f$
     double rhoDs0 = 0.;              ///< \f$ \rho\Delta s_0 \f$
     double T_init = 0.;              ///< reference temperature (statev 0)
+    double stored = 0.;              ///< \f$ \Delta\Psi^{Reo} \f$, the work of the reorientation back stress (0 for SMA*)
+    arma::vec dstored_dsigma;        ///< \f$ \partial\Delta\Psi^{Reo}/\partial\boldsymbol{\sigma}_{n+1} \f$ at fixed multipliers (6); empty: zero
+    arma::vec dstored_ds;            ///< \f$ \partial\Delta\Psi^{Reo}/\partial\Delta s_j \f$ at fixed stress (N); empty: zero
+
+    /**
+     * @brief Moves the bound penalties of \f$ \xi \f$ into the forces of the transformation rows:
+     *        \f$ A_F \leftarrow A_F - \lambda_1(\xi) \f$, \f$ A_R \leftarrow A_R + \lambda_0(\xi) \f$
+     *        (\f$ \lambda_0 = -\f$ lagrange_pow_0), at \f$ \xi_n \f$ and \f$ \xi_{n+1} \f$, with their
+     *        slopes in dA_ds. The penalty stores energy like a hardening: its work is recovered.
+     *        Call once A_start, A_end, dA_ds, xi_start and xi are set.
+     */
+    void add_bound_penalties(const double &c, const double &p0, const double &n, const double &alpha) {
+        A_start(0) -= lagrange_pow_1(xi_start, c, p0, n, alpha);
+        A_start(1) -= lagrange_pow_0(xi_start, c, p0, n, alpha);
+        A_end(0) -= lagrange_pow_1(xi, c, p0, n, alpha);
+        A_end(1) -= lagrange_pow_0(xi, c, p0, n, alpha);
+        const double dl1 = dlagrange_pow_1(xi, c, p0, n, alpha);
+        const double dl0 = -1.*dlagrange_pow_0(xi, c, p0, n, alpha);
+        dA_ds(0, 0) -= dl1;
+        dA_ds(0, 1) += dl1;
+        dA_ds(1, 0) += dl0;
+        dA_ds(1, 1) -= dl0;
+    }
 
     /**
      * @brief The operator of the solve for a kernel tangent code: cpp_tangent() under the closest

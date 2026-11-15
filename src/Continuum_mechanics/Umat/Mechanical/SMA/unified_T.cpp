@@ -265,36 +265,10 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
     double HfF = 0.;
     double HfR = 0.;
 
-    //Hardening function definition (Smooth hardening functions)
-    if ((n1==1.)&&(n2==1.)) {
-        HfF = a1*xi + a3;
-    }
-    else {
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfF = 0.5*a1*(1. + pow(xi, n1) - pow(1. - xi, n2)) + a3;
-        }
-        else if (xi <= 0.) {
-            HfF = 0.5*a1-1.+a3;
-        }
-        else if (xi >= 1.) {
-            HfF = a1+a3;
-        }
-    }
-
-    if ((n3==1.)&&(n4==1.)) {
-        HfR = a2*xi - a3;
-    }
-    else {
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfR = 0.5*a2*(1. + pow(xi, n3) - pow((1. - xi), n4)) - a3;
-        }
-        else if (xi <= 0.) {
-            HfR = 0.5*a2-1.-a3;
-        }
-        else if (xi >= 1.) {
-            HfR = a2-a3;
-        }
-    }
+    //Hardening functions at xi clamped to [0,1]
+    SMAHardening hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+    HfF = hf.F;
+    HfR = hf.R;
 
     //Lagrange multiplliers due to Physical limitations
     double lambda0 = 0.;
@@ -403,12 +377,9 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
                 ETMean = lambdaTF;
                 ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
             }
-            // Hf at xi clamped to [0,1]: pow(xi, n) is NaN outside for fractional n
-            const double xi_h = std::min(std::max(xi, 0.), 1.);
-            if ((n1 == 1.) && (n2 == 1.)) { HfF = a1*xi_h + a3; }
-            else { HfF = 0.5*a1*(1. + pow(xi_h, n1) - pow(1. - xi_h, n2)) + a3; }
-            if ((n3 == 1.) && (n4 == 1.)) { HfR = a2*xi_h - a3; }
-            else { HfR = 0.5*a2*(1. + pow(xi_h, n3) - pow((1. - xi_h), n4)) - a3; }
+            hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            HfF = hf.F;
+            HfR = hf.R;
             lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
             lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
             return true;
@@ -458,11 +429,8 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
             }
 
             // slopes of the clamped hardening functions and of the penalties
-            double dHfF_dxi = 0., dHfR_dxi = 0.;
-            if ((xi > 0.) && (xi < 1.)) {
-                dHfF_dxi = ((n1 == 1.) && (n2 == 1.)) ? a1 : 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-                dHfR_dxi = ((n3 == 1.) && (n4 == 1.)) ? a2 : 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-            }
+            const SMAHardening hs = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            const double dHfF_dxi = hs.dF, dHfR_dxi = hs.dR;
             const double dl1_dxi = dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
             const double dl0_dxi = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
 
@@ -512,10 +480,9 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
             L = inv_cubic(M_eff);
             A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%(DM*stress)) + sum(stress%Dalpha)*thp - HfF;
             A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%(DM*stress)) - sum(stress%Dalpha)*thp + HfR;
-            if ((xi > 0.) && (xi < 1.)) {
-                dHfF = ((n1 == 1.) && (n2 == 1.)) ? a1 : 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-                dHfR = ((n3 == 1.) && (n4 == 1.)) ? a2 : 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-            }
+            hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            dHfF = hf.dF;
+            dHfR = hf.dR;
             dA_xiFdsigma = DM*stress + Dalpha*thp;
             dA_xiRdsigma = -1.*dA_xiFdsigma;
             dA_xiFdxiF = -dHfF;
@@ -536,6 +503,10 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
     }
     else {
     //Loop
+    // backtracking of the cutting plane: the state before the last step
+    double bt_error = -1., bt_xi = xi;
+    int n_bt = 0;
+    vec bt_s = s_j, bt_ET = ET, bt_DETF = DETF, bt_DETR = DETR, bt_Ds = Ds_j, bt_lF = zeros(6), bt_lR = zeros(6), bt_ds = zeros(2);
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
 
         // Reuss mixing on compliance tensor
@@ -558,50 +529,24 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
             dDr_sig = dDrucker_stress(stress, prager_b, prager_n);
         }
 
-        lambdaTF = Hcur * dDr_sig;
-        lambdaTR = -1. * ETMean;
-
-        kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
-        kappa_j[1] = L*(lambdaTR - DM_sig - Dalpha_T);
-
-        //Hardening function definition (Smooth hardening functions)
-        if ((n1==1.)&&(n2==1.)) {
-            HfF = a1*xi + a3;
-        }
-        else {
-            if ((xi > 0.) && ((1. - xi) > 0.)) {
-                HfF = 0.5*a1*(1. + pow(xi, n1) - pow(1. - xi, n2)) + a3;
-            }
-            else if (xi <= 0.) {
-                HfF = 0.5*a1-1.+a3;
-            }
-            else if (xi >= 1.) {
-                HfF = a1+a3;
-            }
-        }
-
-        if ((n3==1.)&&(n4==1.)) {
-            HfR = a2*xi - a3;
-        }
-        else {
-            if ((xi > 0.) && ((1. - xi) > 0.)) {
-                HfR = 0.5*a2*(1. + pow(xi, n3) - pow((1. - xi), n4)) - a3;
-            }
-            else if (xi <= 0.) {
-                HfR = 0.5*a2-1.-a3;
-            }
-            else if (xi >= 1.) {
-                HfR = a2-a3;
-            }
-        }
-
-        // Find Hcur explicit
+        // Hcur at the current stress: the flow and the criterion of an iterate share it
         if (sig_eq > sigmacrit)
             sigmastar = sig_eq - sigmacrit;
         else
             sigmastar = 0.;
 
         Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
+
+        lambdaTF = Hcur * dDr_sig;
+        lambdaTR = -1. * ETMean;
+
+        kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
+        kappa_j[1] = L*(lambdaTR - DM_sig - Dalpha_T);
+
+        //Hardening functions at xi clamped to [0,1]
+        hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+        HfF = hf.F;
+        HfR = hf.R;
 
         //Forward transformation thermodynamic force
         PhihatF = Hcur*Dr_sig;
@@ -618,36 +563,8 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
         YtR = Y0t + D*PhihatR;
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;
 
-        //Hardening function derivatives
-        if ((n1==1.)&&(n2==1.)) {
-            dHfF = a1;
-        }
-        else {
-            if ((xi > 0.) && ((1. - xi) > 0.)) {
-                dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-            }
-            else if (xi <= 0.) {
-                dHfF = 1.E12;
-            }
-            else if (xi >= 1.) {
-                dHfF = 1.E12;
-            }
-        }
-
-        if ((n3==1.)&&(n4==1.)) {
-            dHfR = a2;
-        }
-        else {
-            if ((xi > 0.) && ((1. - xi) > 0.)) {
-                dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-            }
-            else if (xi <= 0.) {
-                dHfR = 1.E12;
-            }
-            else if (xi >= 1.) {
-                dHfR = 1.E12;
-            }
-        }
+        dHfF = hf.dF;
+        dHfR = hf.dR;
 
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_sig;
 
@@ -711,6 +628,21 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
         Y_crit(1) = std::max(fabs(Y0t) + fabs(D*PhihatR), simcoon::iota);
 
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+        if ((bt_error >= 0.) && (error > 2.*bt_error) && (n_bt < 5)) {
+            // the merit grew: back to the state before the last step, half of it along its flows
+            s_j = bt_s; ET = bt_ET; xi = bt_xi; DETF = bt_DETF; DETR = bt_DETR; Ds_j = bt_Ds;
+            lambdaTF = bt_lF; lambdaTR = bt_lR;
+            ds_j = 0.5*bt_ds;
+            bt_ds = ds_j;
+            Ds_j += ds_j;
+            L = inv_cubic(xi*M_M + (1. - xi)*M_A);
+            n_bt++;
+        }
+        else {
+            bt_error = error; n_bt = 0;
+            bt_s = s_j; bt_ET = ET; bt_xi = xi; bt_DETF = DETF; bt_DETR = DETR; bt_Ds = Ds_j - ds_j;
+            bt_lF = lambdaTF; bt_lR = lambdaTR; bt_ds = ds_j;
+        }
 
         s_j(0) += ds_j(0);
         s_j(1) += ds_j(1);
@@ -773,6 +705,7 @@ SMAIncrement sma_unified_T_increment(const string &umat_name, const vec &Etot, c
     inc.xi = xi;
     inc.rhoDs0 = rhoDs0;
     inc.T_init = T_init;
+    inc.add_bound_penalties(c_lambda, p0_lambda, n_lambda, alpha_lambda);
 
     ///@brief statev evolving variables
     statev(0) = T_init;

@@ -97,8 +97,8 @@ void sma_thermal_face(const SMAIncrement &inc, const vec &sigma, const vec &DEto
     dA_theta_ds(0) = Dc_0*log(T1/T_init) + sum(inc.Dalpha%sigma) + rhoDs0;
     dA_theta_ds(1) = -1.*Dc_0*log(T1/T_init) - sum(inc.Dalpha%sigma) - rhoDs0;
 
-    // A_Reo = 0: the reorientation work is in DET
-    const double Dgamma_loc = 0.5*sum((sigma_start+sigma)%inc.DET) + 0.5*(inc.A_start(0) + inc.A_end(0))*Ds(0) + 0.5*(inc.A_start(1) + inc.A_end(1))*Ds(1);
+    // A_Reo = 0: the reorientation work is in DET, less the stored work of its back stress
+    const double Dgamma_loc = 0.5*sum((sigma_start+sigma)%inc.DET) + 0.5*(inc.A_start(0) + inc.A_end(0))*Ds(0) + 0.5*(inc.A_start(1) + inc.A_end(1))*Ds(1) - inc.stored;
 
     // dissipation derivatives, flow directions held fixed over the increment
     vec dD = dSdE.t()*inc.DET;
@@ -128,6 +128,10 @@ void sma_thermal_face(const SMAIncrement &inc, const vec &sigma, const vec &DEto
     dD_T += dD_T_turn;
     double dDgamma_dT = 0.5*dD_T + f(0)*P_theta(0) + f(1)*P_theta(1);
     if (N > 2) dDgamma_dT += f(2)*P_theta(2);
+    if (!inc.dstored_ds.is_empty()) {
+        dDgamma_dE -= dSdE.t()*inc.dstored_dsigma + P_epsilon*inc.dstored_ds;
+        dDgamma_dT -= sum(inc.dstored_dsigma%dSdT) + sum(inc.dstored_ds%P_theta);
+    }
 
     // Entropy derivatives at the end of the increment
     const vec deta_dE = dSdE.t()*alpha + dA_theta_ds(0)*P_epsilon.col(0) + dA_theta_ds(1)*P_epsilon.col(1);
@@ -138,7 +142,7 @@ void sma_thermal_face(const SMAIncrement &inc, const vec &sigma, const vec &DEto
 
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-inc.DET)) - 0.5*(inc.A_start(0) + inc.A_end(0))*Ds(0) - 0.5*(inc.A_start(1) + inc.A_end(1))*Ds(1);
+    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-inc.DET)) - 0.5*(inc.A_start(0) + inc.A_end(0))*Ds(0) - 0.5*(inc.A_start(1) + inc.A_end(1))*Ds(1) + inc.stored;
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
 
@@ -400,23 +404,10 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double HfF = 0.;
     double HfR = 0.;
 
-    //Hardening function definition (Smooth hardening functions)
-    if ((xi > 0.)&&((1. - xi) > 0.)) {
-        HfF = 0.5*a1*(1. + pow(xi,n1) - pow(1. - xi,n2)) + a3;
-        HfR = 0.5*a2*(1. + pow(xi,n3) - pow((1. - xi),n4)) - a3;
-    }
-    else if ((xi <= 0.)&&((1. - xi) > 0.)) {
-        HfF = 0.5*a1*(1. - pow(1. - xi,n2)) + a3;
-        HfR = 0.5*a2*(1. - pow((1. - xi),n4)) - a3;
-    }
-    else if ((xi > 0.)&&((1. - xi) <= 0.)) {
-        HfF = 0.5*a1*(1. + pow(xi,n1)) + a3;
-        HfR = 0.5*a2*(1. + pow(xi,n3)) - a3;
-    }
-    else {
-        HfF =  a3;
-        HfR = - a3;
-    }
+    //Hardening functions at xi clamped to [0,1]
+    SMAHardening hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+    HfF = hf.F;
+    HfR = hf.R;
 
     //Lagrange multiplliers due to Physical limitations
     double lambda0 = 0.;
@@ -498,6 +489,10 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double error = 1.;
 
     //Loop
+    // backtracking of the cutting plane: the state before the last step
+    double bt_error = -1., bt_xi = xi;
+    int n_bt = 0;
+    vec bt_s = s_j, bt_ET = ET, bt_DETF = DETF, bt_DETR = DETR, bt_Ds = Ds_j, bt_lF = zeros(6), bt_lR = zeros(6), bt_ds = zeros(2);
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
 
         // Reuss mixing on compliance tensor
@@ -520,45 +515,24 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
             dDr_sig = dDrucker_stress(sigma, prager_b, prager_n);
         }
 
-        lambdaTF = Hcur * dDr_sig;
-        lambdaTR = -1. * ETMean;
-
-        kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
-        kappa_j[1] = L*(lambdaTR - DM_sig - Dalpha_T); //derivative w/ xiR is minus derivative w/ xi
-
-        //Hardening function definition (Smooth hardening functions)
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfF = 0.5*a1*(1. + pow(xi, n1) - pow(1. - xi, n2)) + a3;
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            HfF = 0.5*a1*(1. - pow(1. - xi, n2)) + a3;
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            HfF = 0.5*a1*(1. + pow(xi, n1)) + a3;
-        }
-        else  {
-            HfF = 0.5*a1 + a3;
-        }
-
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfR = 0.5*a2*(1. + pow(xi, n3) - pow((1. - xi), n4)) - a3;
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            HfR = 0.5*a2*(1. - pow((1. - xi), n4)) - a3;
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            HfR = 0.5*a2*(1. + pow(xi, n3)) - a3;
-        }
-        else
-            HfR = - a3;
-
-        // Find Hcur explicit
+        // Hcur at the current stress: the flow and the criterion of an iterate share it
         if (sig_eq > sigmacrit)
             sigmastar = sig_eq - sigmacrit;
         else
             sigmastar = 0.;
 
         Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
+
+        lambdaTF = Hcur * dDr_sig;
+        lambdaTR = -1. * ETMean;
+
+        kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
+        kappa_j[1] = L*(lambdaTR - DM_sig - Dalpha_T); //derivative w/ xiR is minus derivative w/ xi
+
+        //Hardening functions at xi clamped to [0,1]
+        hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+        HfF = hf.F;
+        HfR = hf.R;
 
         //Forward transformation thermodynamic force
         PhihatF = Hcur*Dr_sig;
@@ -575,33 +549,8 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         YtR = Y0t + D*PhihatR;
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;  // PhiR < 0.
 
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            dHfF = 0.5*a1*(n2*pow(1. - xi, n2 - 1.));
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.));
-        }
-        else
-        {
-            dHfF = 0.;
-        }
-
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            dHfR = 0.5*a2*(n4*pow(1. - xi, n4 - 1.));
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.));
-        }
-        else
-        {
-            dHfR = 0.;
-        }
+        dHfF = hf.dF;
+        dHfR = hf.dR;
 
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_sig;
 
@@ -664,6 +613,21 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         Y_crit(1) = std::max(fabs(Y0t) + fabs(D*PhihatR), simcoon::iota);
 
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+        if ((bt_error >= 0.) && (error > 2.*bt_error) && (n_bt < 5)) {
+            // the merit grew: back to the state before the last step, half of it along its flows
+            s_j = bt_s; ET = bt_ET; xi = bt_xi; DETF = bt_DETF; DETR = bt_DETR; Ds_j = bt_Ds;
+            lambdaTF = bt_lF; lambdaTR = bt_lR;
+            ds_j = 0.5*bt_ds;
+            bt_ds = ds_j;
+            Ds_j += ds_j;
+            L = inv_cubic(xi*M_M + (1. - xi)*M_A);
+            n_bt++;
+        }
+        else {
+            bt_error = error; n_bt = 0;
+            bt_s = s_j; bt_ET = ET; bt_xi = xi; bt_DETF = DETF; bt_DETR = DETR; bt_Ds = Ds_j - ds_j;
+            bt_lF = lambdaTF; bt_lR = lambdaTR; bt_ds = ds_j;
+        }
 
         s_j(0) += ds_j(0);
         s_j(1) += ds_j(1);
@@ -689,6 +653,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
         sigma = el_pred(L, Eel);
     }
+
 
     SMAIncrement inc;
     inc.L_tan = L;
@@ -716,6 +681,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     inc.xi = xi;
     inc.rhoDs0 = rhoDs0;
     inc.T_init = T_init;
+    inc.add_bound_penalties(c_lambda, p0_lambda, n_lambda, alpha_lambda);
     sma_thermal_face(inc, sigma, DEtot, rho, c_pA, c_pM, T, DT, tangent_mode, r, dSdE, dSdT, drdE, drdT, Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir);
 
     ///@brief statev evolving variables

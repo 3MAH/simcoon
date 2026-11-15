@@ -130,7 +130,8 @@ int ncp_code(const std::string &name, const char *entry) {
 int integrator_code(const std::string &name) {
 	if (name == "cutting_plane") return simcoon::integrator_cutting_plane;
 	if (name == "closest_point") return simcoon::integrator_closest_point;
-	throw std::invalid_argument("umat: integrator must be 'cutting_plane' or 'closest_point'; got '" + name + "'");
+	if (name == "default") return simcoon::integrator_default;
+	throw std::invalid_argument("umat: integrator must be 'default', 'cutting_plane' or 'closest_point'; got '" + name + "'");
 }
 
 // Code of a kinematic form given as "total", "rate" (log_R), or an objective rate by name or
@@ -248,7 +249,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// throw would std::terminate the host process.
 		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
-		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
+		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py, umat_name_py);
 		// ncp: complementarity function of the local cutting plane, by name (NCPMethod)
 		const int ncp = ncp_code(ncp_name, "umat");
 		simcoon::check_ncp_serves(umat_name_py, ncp, false);
@@ -780,7 +781,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
-		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
+		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py, umat_name_py);
 		const int ncp = ncp_code(ncp_name, "umat_T");
 		simcoon::check_ncp_serves(umat_name_py, ncp, true);
 		simcoon::check_integrator_serves(umat_name_py, tangent_mode, true);

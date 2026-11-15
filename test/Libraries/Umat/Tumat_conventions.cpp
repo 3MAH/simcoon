@@ -29,6 +29,8 @@
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
+#include <simcoon/Simulation/Phase/state_variables.hpp>
+#include <simcoon/Simulation/Solver/solver_sink.hpp>
 
 using namespace simcoon;
 using K = UmatKernel;
@@ -197,4 +199,24 @@ TEST(UmatRegistry, CapabilitiesFollowTheKernels) {
 TEST(UmatRegistry, TheThermomechanicalFaceServesTheTotalForm) {
     for (const auto &[name, entry] : umat_registry())
         EXPECT_EQ(total_formulation_serves_T(name), entry.thermomechanical != K::none) << name;
+}
+
+// integrator_default is the law's own: the closest point for the unified SMA kernels, on both
+// faces, the cutting plane for every other law; the defaults of a run and of a state take it.
+TEST(UmatRegistry, TheDefaultIntegratorIsTheLawsOwn) {
+    for (const auto &[name, entry] : umat_registry()) {
+        const bool sma = entry.mechanical == K::sma_unified || entry.mechanical == K::sma_unified_R;
+        EXPECT_EQ(kernel_defaults_closest_point(entry.mechanical), sma) << name;
+        if (sma) {
+            EXPECT_EQ(entry.thermomechanical, entry.mechanical) << name;
+            EXPECT_TRUE(kernel_serves_closest_point(entry.mechanical, false)) << name;
+            EXPECT_TRUE(kernel_serves_closest_point(entry.thermomechanical, true)) << name;
+        }
+        for (const int tm : {tangent_none, tangent_continuum, tangent_algorithmic})
+            EXPECT_EQ(kernel_tangent_mode(integrator_default, tm, name),
+                      kernel_tangent_mode(sma ? integrator_closest_point : integrator_cutting_plane, tm)) << name;
+    }
+    EXPECT_THROW(kernel_tangent_mode(integrator_default, tangent_algorithmic), std::invalid_argument);
+    EXPECT_EQ(solver_params().integrator, integrator_default);
+    EXPECT_EQ(state_variables().integrator, integrator_default);
 }

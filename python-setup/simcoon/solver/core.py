@@ -31,7 +31,7 @@ def solve(
     raise_on_abort: bool = True,
     kinematic_form: Union[str, int, None] = None,
     ncp: str = "fischer_burmeister",
-    integrator: str = "cutting_plane",
+    integrator: str = "default",
     **params,
 ) -> SolverResults:
     """Solve a homogeneous loading path with the C++ simcoon solver, in memory.
@@ -115,11 +115,14 @@ def solve(
         ValueError for a function other than the default. See the UMAT
         catalog.
     integrator : str, optional
-        Local integrator of the laws with a return mapping: 'cutting_plane'
-        (the default) or 'closest_point', the backward-Euler closest-point
+        Local integrator of the laws with a return mapping: 'default', the
+        law's own (closest point for the unified SMA laws SMADI, SMADC, SMAAI,
+        SMAAC, SMRDI, SMRDC, SMRAI, SMRAC, cutting plane for every other law);
+        'cutting_plane'; or 'closest_point', the backward-Euler closest-point
         projection, a different discrete update (EPCHA: 1 to 2 % apart on
-        coarse increments) with its exact operator. It takes
-        ``tangent_mode='algorithmic'``. Served by the modular engine (MODUL and
+        coarse increments) with its exact operator. The C++ solver and the
+        dispatch resolve 'default' the same way. 'closest_point' is
+        served by the modular engine (MODUL and
         the legacy names it serves, mechanical and thermomechanical), the
         dedicated EPICP_closed, EPCHA_closed, EPKCP_closed, EPJCK and the SMA
         kernels: any other law raises ValueError. Inside MODUL, a Tresca or

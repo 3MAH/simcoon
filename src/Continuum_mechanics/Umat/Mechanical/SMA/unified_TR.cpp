@@ -254,6 +254,7 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     double a_eq = Mises_strain(areo);
     double lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
     vec sigma_eff = stress - (1. + lambda1Reo) * X;
+    const vec S_start = (1. + lambda1Reo) * X;   // back stress of the reorientation at the start (SMAIncrement::stored)
 
     // reorientation flow and criterion gradient: set by the local loop before any use
     vec lambdaReo = zeros(6);
@@ -263,21 +264,11 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     vec lambda_areo = lambdaReo;
 
     // Hardening function definition (Smooth hardening functions) — same as unified_T
+    // hardening functions at xi clamped to [0,1] (sma_hardening)
     auto compute_Hf = [&](double xi_, double& HfF_, double& HfR_) {
-        if ((n1==1.)&&(n2==1.)) {
-            HfF_ = a1*xi_ + a3;
-        } else {
-            if ((xi_ > 0.) && ((1. - xi_) > 0.))   HfF_ = 0.5*a1*(1. + pow(xi_, n1) - pow(1. - xi_, n2)) + a3;
-            else if (xi_ <= 0.)                     HfF_ = 0.5*a1-1.+a3;
-            else                                     HfF_ = a1+a3;
-        }
-        if ((n3==1.)&&(n4==1.)) {
-            HfR_ = a2*xi_ - a3;
-        } else {
-            if ((xi_ > 0.) && ((1. - xi_) > 0.))   HfR_ = 0.5*a2*(1. + pow(xi_, n3) - pow((1. - xi_), n4)) - a3;
-            else if (xi_ <= 0.)                     HfR_ = 0.5*a2-1.-a3;
-            else                                     HfR_ = a2-a3;
-        }
+        const SMAHardening h = sma_hardening(xi_, a1, a2, a3, n1, n2, n3, n4);
+        HfF_ = h.F;
+        HfR_ = h.R;
     };
     double HfF = 0., HfR = 0.;
     compute_Hf(xi, HfF, HfR);
@@ -352,6 +343,19 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
 
     // closest point: frozen-mixture construction of unified_T (see header)
     ReturnMappingResult rm;
+    // dS/dareo of the back stress S = (1 + lambda1Reo) X at the current areo
+    auto stored_slope = [&]() -> mat {
+        const vec T_sh = Ir05();
+        const double a_eq_cur = Mises_strain(areo);
+        const vec dl1Reo = (dlagrange_pow_1(a_eq_cur/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo)/ETRmax)
+                           *(eta_strain(areo) % T_sh);
+        mat dS = HReo*(areo % T_sh)*dl1Reo.t();
+        dS.diag() += HReo*(1. + lagrange_pow_1(a_eq_cur/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo))*T_sh;
+        return dS;
+    };
+    // sensitivities of the stored work at fixed multipliers (closest point: exact; cutting plane: flows held fixed)
+    vec dstored_dsigma, dstored_ds;
+
     const bool use_cpp = integrates_closest_point(tangent_mode);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
@@ -375,14 +379,7 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
             return aniso_criteria ? ddDrucker_ani_stress(seff, DFA_params, prager_b, prager_n)
                                   : ddDrucker_stress(seff, prager_b, prager_n);
         };
-        auto dsigma_eff_dareo = [&]() -> mat {
-            const double a_eq_cur = Mises_strain(areo);
-            const vec dl1Reo = (dlagrange_pow_1(a_eq_cur/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo)/ETRmax)
-                               *(eta_strain(areo) % T_shear);
-            mat A = -1.*HReo*(areo % T_shear)*dl1Reo.t();
-            A.diag() -= HReo*(1. + lambda1Reo)*T_shear;
-            return A;
-        };
+        auto dsigma_eff_dareo = [&]() -> mat { return -1.*stored_slope(); };
         auto set_sigma_eff = [&](const vec &sig) {
             X = HReo * (areo % T_shear);
             lambda1Reo = lagrange_pow_1(Mises_strain(areo)/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
@@ -426,8 +423,7 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
                 ETMean = lambdaTF;
                 ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean + Dl(2)*lambdaReo;
             }
-            // Hf at xi clamped to [0,1]: pow(xi, n) is NaN outside for fractional n
-            compute_Hf(std::min(std::max(xi, 0.), 1.), HfF, HfR);
+            compute_Hf(xi, HfF, HfR);
             lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
             lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
             return true;
@@ -455,6 +451,8 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
         dev_op.submat(0, 0, 2, 2) -= ones(3, 3)/3.;
         vec dPhiF_ds = zeros(6), dPhiR_ds = zeros(6), dPhiReo_ds = zeros(6), c_F = zeros(6), c_Reo = zeros(6);
         mat dLamF_ds = zeros(6, 6), dLamR_ds = zeros(6, 6), dLamReo_ds = zeros(6, 6), K_cpp = zeros(3, 3);
+        mat dseff_ds_l = eye(6, 6);
+        vec dseff_dre_l = zeros(6), dr_dre_l = zeros(6);
         auto linearise = [&](const vec &sig) {
             if (!lin_stale) return;
             lin_stale = false;
@@ -479,6 +477,9 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
             const vec dseff_dre = A*(Jinv*r);
             const mat dr_ds = G*dseff_ds;
             const vec dr_dre = G*dseff_dre;
+            dseff_ds_l = dseff_ds;
+            dseff_dre_l = dseff_dre;
+            dr_dre_l = dr_dre;
 
             mat dETM_ds = dlTF_ds;
             vec dETM_dF = zeros(6), dETM_dre = zeros(6);
@@ -490,11 +491,8 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
             }
 
             // slopes of the clamped hardening functions and of the penalties
-            double dHfF_dxi = 0., dHfR_dxi = 0.;
-            if ((xi > 0.) && (xi < 1.)) {
-                dHfF_dxi = ((n1 == 1.) && (n2 == 1.)) ? a1 : 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-                dHfR_dxi = ((n3 == 1.) && (n4 == 1.)) ? a2 : 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-            }
+            const SMAHardening hs = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            const double dHfF_dxi = hs.dF, dHfR_dxi = hs.dR;
             const double dl1_dxi = dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
             const double dl0_dxi = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
 
@@ -560,6 +558,12 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
             // flows of the transformation strain: the mixture terms of the effective flows taken out
             inc.dflow_dsigma = join_rows(dLamF_ds - DM, dLamR_ds + DM, dLamReo_ds);
             inc.flow_chain = join_rows(c_F, zeros(6), c_Reo);
+            // S = (1 + lambda1Reo) X and DEReo = Ds_2 lambdaReo as functions of (sigma, Ds) through areo
+            const vec S_end = (1. + lambda1Reo)*X;
+            const vec dS_dre = -1.*dseff_dre_l;
+            const vec dDEReo_dre = lambdaReo + (Ds_j(2)*xi_start)*dr_dre_l;
+            dstored_dsigma = 0.5*((eye(6, 6) - dseff_ds_l).t()*DEReo + (Ds_j(2)*dLamReo_ds).t()*(S_start + S_end));
+            dstored_ds = {0., 0., 0.5*(sum(dS_dre%DEReo) + sum((S_start + S_end)%dDEReo_dre))};
         }
         else {
             // step cut (error stays 1, the guard below requests it), never a cutting-plane fallback
@@ -569,6 +573,11 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     }
     else {
     const vec Ir05_v = Ir05();   // engineering -> tensorial shear
+    // backtracking of the cutting plane: the state before the last step
+    double bt_error = -1., bt_xi = xi;
+    int n_bt = 0;
+    vec bt_s = s_j, bt_ET = ET, bt_DETF = DETF, bt_DETR = DETR, bt_DEReo = DEReo, bt_EReo = EReo, bt_areo = areo, bt_Ds = Ds_j;
+    vec bt_lF = zeros(6), bt_lR = zeros(6), bt_lReo = zeros(6), bt_la = zeros(6), bt_ds = zeros(3);
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
 
         // Reuss mixing
@@ -650,12 +659,11 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
         Phi(2) = Prager_sigma_eff - YReo;
 
         // Hardening derivatives w.r.t. xi
-        if ((n1==1.)&&(n2==1.))                       dHfF = a1;
-        else if ((xi > 0.) && ((1. - xi) > 0.))        dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-        else                                            dHfF = 1.E12;
-        if ((n3==1.)&&(n4==1.))                       dHfR = a2;
-        else if ((xi > 0.) && ((1. - xi) > 0.))        dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-        else                                            dHfR = 1.E12;
+        {
+            const SMAHardening hs = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            dHfF = hs.dF;
+            dHfR = hs.dR;
+        }
 
         // d(Hcur)/d\sigma 
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_sig;
@@ -747,6 +755,23 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
         Ds_j(active) = Ds_active;
         ds_j.zeros();
         ds_j(active) = ds_active;
+        if ((bt_error >= 0.) && (error > 2.*bt_error) && (n_bt < 5)) {
+            // the merit grew: back to the state before the last step, half of it along its flows
+            s_j = bt_s; ET = bt_ET; xi = bt_xi; DETF = bt_DETF; DETR = bt_DETR; DEReo = bt_DEReo;
+            EReo = bt_EReo; areo = bt_areo; Ds_j = bt_Ds;
+            lambdaTF = bt_lF; lambdaTR = bt_lR; lambdaReo = bt_lReo; lambda_areo = bt_la;
+            ds_j = 0.5*bt_ds;
+            bt_ds = ds_j;
+            Ds_j += ds_j;
+            L = inv_cubic(xi*M_M + (1. - xi)*M_A);
+            n_bt++;
+        }
+        else {
+            bt_error = error; n_bt = 0;
+            bt_s = s_j; bt_ET = ET; bt_xi = xi; bt_DETF = DETF; bt_DETR = DETR; bt_DEReo = DEReo;
+            bt_EReo = EReo; bt_areo = areo; bt_Ds = Ds_j - ds_j;
+            bt_lF = lambdaTF; bt_lR = lambdaTR; bt_lReo = lambdaReo; bt_la = lambda_areo; bt_ds = ds_j;
+        }
 
         s_j(0) += ds_j(0);
         s_j(1) += ds_j(1);
@@ -777,8 +802,8 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     }
     }
 
-    // non-converged local solve: request a sub-step, never commit it
-    if (error > simcoon::precision_umat) {
+    // closest point not solved: request a sub-step (the cutting plane commits its last iterate, as unified_T)
+    if (use_cpp && error > simcoon::precision_umat) {
         tnew_dt = 0.5;
     }
 
@@ -803,12 +828,8 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     inc.A_start = {A_xiF_start, A_xiR_start, 0.};
     inc.A_end = {A_xiF, A_xiR, 0.};
     inc.dA_dsigma = join_rows(dA_xiFdsigma, dA_xiRdsigma, zeros(6));
-    // slopes of the hardening clamped to [0,1], as the closest point (the cutting plane's 1e12 is a barrier of its Jacobian)
-    double sF = 0., sR = 0.;
-    if ((xi > 0.) && (xi < 1.)) {
-        sF = ((n1 == 1.) && (n2 == 1.)) ? a1 : 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-        sR = ((n3 == 1.) && (n4 == 1.)) ? a2 : 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-    }
+    const SMAHardening hs_end = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+    const double sF = hs_end.dF, sR = hs_end.dR;
     inc.dA_ds = {{-sF, sF, 0.}, {sR, -sR, 0.}, {0., 0., 0.}};
     const double dA_xiFdtheta = rhoDs0 + sum(stress%Dalpha);
     inc.dA_dtheta = {dA_xiFdtheta, -1.*dA_xiFdtheta, 0.};
@@ -824,6 +845,18 @@ SMAIncrement sma_unified_TR_increment(const string &umat_name, const vec &Etot, 
     inc.xi = xi;
     inc.rhoDs0 = rhoDs0;
     inc.T_init = T_init;
+    inc.add_bound_penalties(c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    {
+        const vec S_end = (1. + lagrange_pow_1(Mises_strain(areo)/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo))
+                          * (HReo * (areo % Ir05()));
+        inc.stored = 0.5*sum((S_start + S_end)%DEReo);
+        if (!use_cpp && Ds_j(2) > 0.) {
+            dstored_dsigma = zeros(6);
+            dstored_ds = {0., 0., 0.5*(sum((stored_slope()*lambda_areo)%DEReo) + sum((S_start + S_end)%lambdaReo))};
+        }
+        inc.dstored_dsigma = dstored_dsigma;
+        inc.dstored_ds = dstored_ds;
+    }
 
     // ---- Statev write-back ----
     statev(0) = T_init;
@@ -876,12 +909,14 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     double Dgamma_loc = 0.5*sum((stress_start+stress) % (inc.DETF - inc.DETR + inc.DEReo))
                       + 0.5*(A_xiF_start + A_xiF)*DxiF
-                      + 0.5*(A_xiR_start + A_xiR)*DxiR;
+                      + 0.5*(A_xiR_start + A_xiR)*DxiR
+                      - inc.stored;
 
     Wm    += 0.5*sum((stress_start+stress) % DEtot);
     Wm_r  += 0.5*sum((stress_start+stress) % (DEtot - inc.DETF + inc.DETR - inc.DEReo))
            - 0.5*(A_xiF_start + A_xiF)*DxiF
-           - 0.5*(A_xiR_start + A_xiR)*DxiR;
+           - 0.5*(A_xiR_start + A_xiR)*DxiR
+           + inc.stored;
     Wm_ir += 0.;   // SMA has no irrecoverable channel by construction
     Wm_d  += Dgamma_loc;
 }

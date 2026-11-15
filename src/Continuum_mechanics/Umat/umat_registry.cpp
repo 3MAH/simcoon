@@ -185,4 +185,9 @@ bool kernel_serves_closest_point(const UmatKernel &kernel, const bool &thermomec
     }
 }
 
+bool kernel_defaults_closest_point(const UmatKernel &kernel)
+{
+    return kernel == K::sma_unified || kernel == K::sma_unified_R;
+}
+
 } //namespace simcoon

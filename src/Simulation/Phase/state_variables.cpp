@@ -156,6 +156,7 @@ state_variables::state_variables(const state_variables& sv)
 //------------------------------------------------------
 {
 	tangent_mode = sv.tangent_mode;
+	integrator = sv.integrator;
 	ncp = sv.ncp;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
@@ -195,6 +196,7 @@ state_variables& state_variables::operator = (const state_variables& sv)
 //----------------------------------------------------------------------
 {
 	tangent_mode = sv.tangent_mode;
+	integrator = sv.integrator;
 	ncp = sv.ncp;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
@@ -466,8 +468,9 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const fr
 state_variables& state_variables::rotate_g2l(const state_variables& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
-	// The solver sets tangent_mode and ncp on the global sv, the kernels read the local one.
+	// The solver sets tangent_mode, integrator and ncp on the global sv, the kernels read the local one.
 	tangent_mode = sv.tangent_mode;
+	integrator = sv.integrator;
 	ncp = sv.ncp;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;

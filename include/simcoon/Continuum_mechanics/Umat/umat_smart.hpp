@@ -547,14 +547,22 @@ void check_integrator_serves(const std::string &umat_name, const int &tangent_mo
  * - integrator_cutting_plane: @p tangent_mode none, continuum or algorithmic, as given;
  * - integrator_closest_point: tangent_closest_point (algorithmic: the exact operator of the
  *   closest-point map), tangent_closest_point_continuum (the continuum operator of the converged
- *   state) or tangent_closest_point_none (the elastic operator).
+ *   state) or tangent_closest_point_none (the elastic operator);
+ * - integrator_default: the integrator of the law @p umat_name, closest point for the unified SMA
+ *   laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC), cutting plane for the others
+ *   (kernel_defaults_closest_point). The single place where the default is resolved: the solver,
+ *   the dispatch of a state (state_variables::integrator) and sim.umat / sim.umat_T go through it.
  * @p tangent_mode = tangent_closest_point is refused: the closest point is chosen by @p integrator.
  * Which laws accept the result is check_integrator_serves; inside one of them, a row without a
  * closest-point update (a Tresca or Drucker row of MODUL) keeps the cutting plane (see the UMAT
  * catalogue).
- * @throw std::invalid_argument for an unknown code or a combination outside the above
+ * @param integrator integrator_cutting_plane, integrator_closest_point or integrator_default
+ * @param tangent_mode tangent_none, tangent_continuum or tangent_algorithmic
+ * @param umat_name the law, read under integrator_default only
+ * @throw std::invalid_argument for an unknown code, a combination outside the above, or
+ *        integrator_default without a law the library serves
  */
-int kernel_tangent_mode(const int &integrator, const int &tangent_mode);
+int kernel_tangent_mode(const int &integrator, const int &tangent_mode, const std::string &umat_name = "");
 
 /**
  * @brief True when the named thermomechanical kernel can run under the total formulation.
