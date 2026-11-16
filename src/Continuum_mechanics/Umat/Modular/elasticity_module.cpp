@@ -21,6 +21,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <simcoon/Simulation/Maths/small_dense.hpp>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
@@ -310,10 +311,10 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
     // V_el = exp(eps_el) passed where F is expected: the returned box tangent is d(tau)/d(eps_el), R = I
     arma::vec::fixed<3> e;
     arma::mat::fixed<3,3> N;
-    arma::mat V_el, b_el;
+    arma::mat::fixed<3,3> V_el, b_el;
     double J_el;
     std::vector<arma::mat> A;
-    arma::vec I_bar;
+    arma::vec::fixed<3> I_bar;
     hyper_kinematics(eps_el, e, N, V_el, b_el, J_el, A, I_bar);
     hyper_invariants_dW dW = hyper_potential_derivatives(hyper_potential_, hyper_props_, I_bar, J_el, A);
     p_vol_ = J_el*dW.dUdJ;
@@ -333,7 +334,7 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
     const bool total = (kinematic_form_ == KinematicForm::total);
     if (!total && A.empty()) {
         // isotropic: closed-form box from the Lie tangent (one decomposition); Truesdell box = Lie tangent
-        arma::mat Lt_Lie;
+        arma::mat::fixed<6,6> Lt_Lie;
         hyper_invariants_response(dW, b_el, J_el, V_el, 4, sigma, Lt_Lie, A);
         Lt = Dtau_LieDD_2_DtauDe_stretch(Lt_Lie, e, N, v2t_stress(sigma));
         return;
@@ -346,9 +347,9 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
 }
 
 void ElasticityModule::hyper_kinematics(const arma::vec& eps_el, arma::vec::fixed<3>& e, arma::mat::fixed<3, 3>& N,
-                                        arma::mat& V_el, arma::mat& b_el, double& J_el, std::vector<arma::mat>& A,
-                                        arma::vec& I_bar) const {
-    const arma::mat eps_t = v2t_strain(eps_el);
+                                        arma::mat::fixed<3, 3>& V_el, arma::mat::fixed<3, 3>& b_el, double& J_el,
+                                        std::vector<arma::mat>& A, arma::vec::fixed<3>& I_bar) const {
+    const arma::mat::fixed<3,3> eps_t = mat_from_voigt(eps_el.memptr(), 0.5);
     if (!eig_sym_3x3(e, N, eps_t)) {
         throw simcoon::exception_expmat_sym("Error in expmat_sym function inside ElasticityModule::evaluate.");
     }
@@ -366,10 +367,10 @@ double ElasticityModule::iso_energy(const arma::vec& eps_el) const {
     if (type_ != ElasticityType::HYPER_INVARIANTS) return 0.;
     arma::vec::fixed<3> e;
     arma::mat::fixed<3,3> N;
-    arma::mat V_el, b_el;
+    arma::mat::fixed<3,3> V_el, b_el;
     double J_el;
     std::vector<arma::mat> A;
-    arma::vec I_bar;
+    arma::vec::fixed<3> I_bar;
     hyper_kinematics(eps_el, e, N, V_el, b_el, J_el, A, I_bar);
     return hyper_potential_energy(hyper_potential_, hyper_props_, I_bar, A);
 }

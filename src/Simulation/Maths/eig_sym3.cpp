@@ -16,12 +16,14 @@
  */
 
 ///@file eig_sym3.cpp
-///@brief Fixed-size spectral decomposition of symmetric 3x3 matrices (cyclic Jacobi, Kopp 2008)
+///@brief Fixed-size spectral decomposition of symmetric 3x3 matrices (Scherzinger-Dohrmann 2008, cyclic Jacobi fallback)
 ///@version 1.0
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/eig_sym3.hpp>
 
 using namespace std;
@@ -29,7 +31,11 @@ using namespace arma;
 
 namespace simcoon{
 
-bool eig_sym_3x3(vec::fixed<3> &lam, mat::fixed<3,3> &Q, const mat::fixed<3,3> &A_in) {
+namespace {
+
+constexpr double eig_relative_gap = 1.e-2;
+
+bool eig_jacobi_3x3(vec::fixed<3> &lam, mat::fixed<3,3> &Q, const mat::fixed<3,3> &A_in) {
 
     // Working copy, symmetrised from the upper triangle (the lower one is never read)
     double A[3][3];
@@ -102,6 +108,102 @@ bool eig_sym_3x3(vec::fixed<3> &lam, mat::fixed<3,3> &Q, const mat::fixed<3,3> &
         lam(k) = w[idx[k]];
         for (int r = 0; r < 3; r++) Q(r, k) = V[r][idx[k]];
     }
+    return true;
+}
+
+// Scherzinger & Dohrmann (2008): the most distinct eigenvalue of the deviator, its eigenvector from
+// two columns of S - eta1 I, then one Jacobi rotation of the 2x2 restriction on the complement
+bool eig_deviatoric_3x3(vec::fixed<3> &lam, mat::fixed<3,3> &Q, const mat::fixed<3,3> &A_in) {
+    const double m = (A_in(0,0) + A_in(1,1) + A_in(2,2))/3.;
+    double S[3][3];
+    double sc = 0.;
+    for (int i = 0; i < 3; i++)
+        for (int j = i; j < 3; j++) {
+            S[i][j] = S[j][i] = A_in(i, j) - (i == j ? m : 0.);
+            sc = std::max(sc, std::fabs(S[i][j]));
+        }
+    const double isc = 1./sc;
+    if (!std::isfinite(isc)) return false;   // subnormal deviator
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) S[i][j] *= isc;
+    const double J2 = 0.5*(S[0][0]*S[0][0] + S[1][1]*S[1][1] + S[2][2]*S[2][2]) + S[0][1]*S[0][1] + S[0][2]*S[0][2] + S[1][2]*S[1][2];
+    const double J3 = S[0][0]*(S[1][1]*S[2][2] - S[1][2]*S[1][2]) - S[0][1]*(S[0][1]*S[2][2] - S[1][2]*S[0][2])
+                    + S[0][2]*(S[0][1]*S[1][2] - S[1][1]*S[0][2]);
+    const double r = std::sqrt(J2/3.);
+    const double c3a = std::max(-1., std::min(1., 0.5*J3/(r*r*r)));
+    const double alpha = std::acos(c3a)/3.;
+    const double eta1 = 2.*r*((alpha < simcoon::pi/6.) ? std::cos(alpha) : std::cos(alpha + 2.*simcoon::pi/3.));
+
+    double R[3][3], nr[3];
+    int imax = 0;
+    for (int k = 0; k < 3; k++) {
+        for (int i = 0; i < 3; i++) R[k][i] = S[i][k] - (i == k ? eta1 : 0.);
+        nr[k] = R[k][0]*R[k][0] + R[k][1]*R[k][1] + R[k][2]*R[k][2];
+        if (nr[k] > nr[imax]) imax = k;
+    }
+    double s1[3], s2[3], v1[3], t[2][3], nt[2];
+    const double in1 = 1./std::sqrt(nr[imax]);
+    for (int i = 0; i < 3; i++) s1[i] = R[imax][i]*in1;
+    for (int a = 0, k = 0; k < 3; k++) {
+        if (k == imax) continue;
+        const double d = s1[0]*R[k][0] + s1[1]*R[k][1] + s1[2]*R[k][2];
+        for (int i = 0; i < 3; i++) t[a][i] = R[k][i] - d*s1[i];
+        nt[a] = t[a][0]*t[a][0] + t[a][1]*t[a][1] + t[a][2]*t[a][2];
+        ++a;
+    }
+    const int b = (nt[0] >= nt[1]) ? 0 : 1;
+    const double in2 = 1./std::sqrt(nt[b]);
+    for (int i = 0; i < 3; i++) s2[i] = t[b][i]*in2;
+    v1[0] = s1[1]*s2[2] - s1[2]*s2[1];
+    v1[1] = s1[2]*s2[0] - s1[0]*s2[2];
+    v1[2] = s1[0]*s2[1] - s1[1]*s2[0];
+
+    double Ss1[3], Ss2[3];
+    for (int i = 0; i < 3; i++) {
+        Ss1[i] = S[i][0]*s1[0] + S[i][1]*s1[1] + S[i][2]*s1[2];
+        Ss2[i] = S[i][0]*s2[0] + S[i][1]*s2[1] + S[i][2]*s2[2];
+    }
+    const double a11 = s1[0]*Ss1[0] + s1[1]*Ss1[1] + s1[2]*Ss1[2];
+    const double a22 = s2[0]*Ss2[0] + s2[1]*Ss2[1] + s2[2]*Ss2[2];
+    const double a12 = s1[0]*Ss2[0] + s1[1]*Ss2[1] + s1[2]*Ss2[2];
+    double c = 1., sn = 0., tt = 0.;
+    if (a12 != 0.) {
+        const double theta = 0.5*(a22 - a11)/a12;
+        tt = 1./(std::fabs(theta) + std::sqrt(1. + theta*theta));
+        if (theta < 0.) tt = -tt;
+        c = 1./std::sqrt(1. + tt*tt);
+        sn = tt*c;
+    }
+    double v2[3], v3[3];
+    for (int i = 0; i < 3; i++) {
+        v2[i] = c*s1[i] - sn*s2[i];
+        v3[i] = sn*s1[i] + c*s2[i];
+    }
+    const double w[3] = {eta1, a11 - tt*a12, a22 + tt*a12};
+    const double *V[3] = {v1, v2, v3};
+    int idx[3] = {0, 1, 2};
+    if (w[idx[0]] > w[idx[1]]) std::swap(idx[0], idx[1]);
+    if (w[idx[1]] > w[idx[2]]) std::swap(idx[1], idx[2]);
+    if (w[idx[0]] > w[idx[1]]) std::swap(idx[0], idx[1]);
+    for (int k = 0; k < 3; k++) {
+        lam(k) = m + sc*w[idx[k]];
+        for (int i = 0; i < 3; i++) Q(i, k) = V[idx[k]][i];
+    }
+    return true;
+}
+
+}  // namespace
+
+bool eig_sym_3x3(vec::fixed<3> &lam, mat::fixed<3,3> &Q, const mat::fixed<3,3> &A) {
+    for (int i = 0; i < 3; i++)
+        for (int j = i; j < 3; j++)
+            if (!std::isfinite(A(i, j))) return false;
+    const int n_off = (A(0,1) != 0.) + (A(0,2) != 0.) + (A(1,2) != 0.);
+    if (n_off <= 1) return eig_jacobi_3x3(lam, Q, A);   // one rotation at most, diagonal exact
+    if (!eig_deviatoric_3x3(lam, Q, A)) return eig_jacobi_3x3(lam, Q, A);
+    const double lmax = std::max(std::fabs(lam(0)), std::fabs(lam(2)));
+    const double lmin = std::min(std::fabs(lam(0)), std::min(std::fabs(lam(1)), std::fabs(lam(2))));
+    if (lmin < eig_relative_gap*lmax) return eig_jacobi_3x3(lam, Q, A);   // relative accuracy of the small eigenvalue
     return true;
 }
 

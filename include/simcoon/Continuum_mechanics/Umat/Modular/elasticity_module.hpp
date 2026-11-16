@@ -146,8 +146,9 @@ private:
 
     /// Kinematics of a hyperelastic block at eps_el (V_el = exp(eps_el) plays F): the spectral data of
     /// eps_el, b_el, J, the pushed structure tensors and the isochoric invariants; evaluate() and iso_energy()
-    void hyper_kinematics(const arma::vec& eps_el, arma::vec::fixed<3>& e, arma::mat::fixed<3, 3>& N, arma::mat& V_el,
-                          arma::mat& b_el, double& J_el, std::vector<arma::mat>& A, arma::vec& I_bar) const;
+    void hyper_kinematics(const arma::vec& eps_el, arma::vec::fixed<3>& e, arma::mat::fixed<3, 3>& N,
+                          arma::mat::fixed<3, 3>& V_el, arma::mat::fixed<3, 3>& b_el, double& J_el,
+                          std::vector<arma::mat>& A, arma::vec::fixed<3>& I_bar) const;
 
     /// Rebuild the typed L/M mirrors after L_/M_ change; every configure_*
     /// path must call this so L_tensor()/M_tensor() stay cheap const-refs.

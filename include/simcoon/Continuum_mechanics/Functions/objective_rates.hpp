@@ -945,6 +945,12 @@ arma::mat Dtau_LieDD_2_DtauDe_corate(const arma::mat &Dtau_LieDD, const int &cor
  * second spectral decomposition and no pull-back. Not valid for an anisotropic response
  * (\f$ \boldsymbol\tau \f$ not an isotropic function of \f$ \mathbf{b} \f$): use the general map.
  *
+ * Evaluated as one 6x6 operator: with \f$ \mathbf{S}_{ab} = \mathrm{sym}(\mathbf{n}_a\otimes\mathbf{n}_b) \f$,
+ * \f$ \tilde{\mathbf{d}} = \sum_{a\le b} w_{ab}H_{ab}(\mathbf{S}_{ab}:\delta\mathbf{e})\,\mathbf{S}_{ab} \f$
+ * (\f$ w_{ab} = 2 \f$ off the diagonal, 1 on it), and \f$ \boldsymbol\tau \f$ coaxial with \f$ \mathbf{N} \f$ gives
+ * \f$ \mathbf{S}_{ab}\boldsymbol\tau + \boldsymbol\tau\mathbf{S}_{ab} = (\tau_a + \tau_b)\mathbf{S}_{ab} \f$,
+ * \f$ \tau_a = \mathbf{n}_a\cdot\boldsymbol\tau\,\mathbf{n}_a \f$.
+ *
  * @param Dtau_LieDD the spatial Kirchhoff-Lie tangent \f$ J\boldsymbol{\mathsf{c}} \f$ (6x6 Voigt)
  * @param e eigenvalues of the logarithmic strain \f$ \mathbf{e} = \ln\mathbf{V} \f$
  * @param N its eigenvectors (columns)

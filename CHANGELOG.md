@@ -229,6 +229,15 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   negated `auto_sym_dyadic_operator` of the inverse, both bit-identical on symmetric inputs. The
   index forms of every rewritten product stay in the Doxygen contracts and in the tensor page of
   the manual (*Transport in index and Mandel notation*).
+- `Dtau_LieDD_2_DtauDe_stretch` (the isotropic hyperelastic block of MODUL) builds its box
+  tangent as one 6x6 operator on the dyads `sym(n_a x n_b)` of the eigenbasis, the stress terms
+  through its eigenvalues (coaxial), instead of six spectral congruences; the block keeps its
+  kinematics in fixed-size storage. Tangents move at round-off, stresses are bit-identical.
+- `eig_sym_3x3` solves with the deviatoric closed form of Scherzinger and Dohrmann (2008) and
+  keeps cyclic Jacobi for the matrices with at most one nonzero off-diagonal entry (diagonal
+  still exact) and when the smallest eigenvalue is below 1e-2 of the largest (relative accuracy
+  of the small eigenvalues of a stiff SPD matrix). The finite-strain kinematics move at
+  round-off; the uniaxial and plane-shear paths are bit-identical.
 - Rounding policy, unchanged: results may move at the round-off level, the gate is
   `dump_results.py compare --rtol 1e-11` (heat tables judged against their stored scale), the
   zero-tolerance pass stays available to pin a defect. `mul6`/`mul66` keep their fixed order:
