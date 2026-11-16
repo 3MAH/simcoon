@@ -233,7 +233,15 @@ namespace simcoon
         const vec6 Hv = H*v;
         const double q = dot(v, Hv);
         CriterionResponse out = zero_response(level);
-        if (!(q > 8.*datum::eps*sqrt(dot(v, v)*dot(Hv, Hv)))) return out;   // round-off of q
+        // round-off of q, bounded by |v|^T |H| |v| (Hv itself is round-off on a null direction of H)
+        const double *h = H.memptr();
+        double q_abs = 0.;
+        for (int j = 0; j < 6; ++j) {
+            double c = 0.;
+            for (int i = 0; i < 6; ++i) c += std::fabs(h[6*j + i])*std::fabs(v(i));
+            q_abs += c*std::fabs(v(j));
+        }
+        if (!(q > 8.*datum::eps*q_abs)) return out;
         out.f = sqrt(q);
         if (level < 1 || out.f < simcoon::iota) return out;
         out.df = Hv/out.f;
