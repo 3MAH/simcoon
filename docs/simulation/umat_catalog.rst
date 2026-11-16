@@ -187,13 +187,7 @@ Shape memory alloys, finite strain, multiscale, plugins
 Unchanged dedicated implementations (out of the modular scope):
 
 - **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified),
-  SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal). The unified
-  laws have a thermomechanical twin with (rho, c_p^A, c_p^M) prepended (SMR* since 2.5: the
-  reorientation does not depend on the temperature). Energy split (2.5): the transformation
-  hardening, the bound penalties of the martensite fraction and the back stress of the
-  reorientation store energy (``Wm_r``, recovered at unloading); only the rest of the
-  transformation and reorientation work is dissipated (``Wm_d``, and the heat source of the
-  thermomechanical twins).
+  SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
   OGDEN (isochoric principal stretches, props = ``N, kappa, mu_1, alpha_1, ...``)
   are kernels built on :math:`\mathbf{F}`. The invariant-based hyperelastic names
