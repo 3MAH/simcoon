@@ -38,8 +38,9 @@ arma::vec sma_transformation_flow(const arma::vec &s, const double &sigmacrit, c
         sstar = 0.;
     }
     const double Hc = Hmin + (Hmax - Hmin) * (1. - std::exp(-1. * k1 * sstar));
-    return aniso_criteria ? Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n)
-                          : Hc * dDrucker_stress(s, prager_b, prager_n);
+    const CriterionResponse dr = aniso_criteria ? Drucker_ani_stress_response(s, DFA_params, prager_b, prager_n, 1)
+                                                : Drucker_stress_response(s, prager_b, prager_n, 1);
+    return Hc * dr.df;
 }
 
 NCPMethod sma_ncp_method(const int &ncp, const int &tangent_mode, const std::string &where) {

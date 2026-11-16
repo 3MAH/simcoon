@@ -142,6 +142,10 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         double K_dfa = props(offset + 29);
         DFA_params = {F_dfa, G_dfa, H_dfa, L_dfa, M_dfa, N_dfa, K_dfa};
     }
+    auto drucker = [&](const vec &s, const int level) {
+        return aniso_criteria ? Drucker_ani_stress_response(s, DFA_params, prager_b, prager_n, level)
+                              : Drucker_stress_response(s, prager_b, prager_n, level);
+    };
 
     ///@brief Temperature initialization
     double T_init = statev(0);
@@ -253,13 +257,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     double Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
 
     //definition of Lambdas associated to transformation
-    vec lambdaTF;
-    if (aniso_criteria) {
-        lambdaTF = Hcur*dDrucker_ani_stress(stress, DFA_params, prager_b, prager_n);
-    }
-    else {
-        lambdaTF = Hcur*dDrucker_stress(stress, prager_b, prager_n);
-    }
+    vec lambdaTF = Hcur*drucker(stress, 1).df;
 
     if (Mises_strain(ET) > 1E-6)
         ETMean = dev(ET) / (xi);
@@ -398,8 +396,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         };
         // Criterion values at (sig, current state).
         auto PhiF_val = [&](const vec &sig) {
-            const double PhF = aniso_criteria ? Hcur*Drucker_ani_stress(sig, DFA_params, prager_b, prager_n)
-                                              : Hcur*Drucker_stress(sig, prager_b, prager_n);
+            const double PhF = Hcur*drucker(sig, 0).f;
             const vec DMsig = DM*sig;
             const double AxF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(sig%DMsig) + sum(sig%Dalpha)*thp - HfF;
             return PhF + AxF - lambda1 - (Y0t + D*Hcur*Mises_stress(sig));
@@ -424,12 +421,10 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             const vec eta = eta_stress(sig);
             vec dHcur = zeros(6);
             if (sig_eq > sigmacrit) dHcur = (Hmax - Hmin)*k1*exp(-1.*k1*(sig_eq - sigmacrit))*eta;
-            const double Dr = aniso_criteria ? Drucker_ani_stress(sig, DFA_params, prager_b, prager_n)
-                                             : Drucker_stress(sig, prager_b, prager_n);
-            const vec g = aniso_criteria ? dDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
-                                         : dDrucker_stress(sig, prager_b, prager_n);
-            const mat ddDr = aniso_criteria ? ddDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
-                                            : ddDrucker_stress(sig, prager_b, prager_n);
+            const CriterionResponse dr = drucker(sig, 2);
+            const double Dr = dr.f;
+            const vec &g = dr.df;
+            const mat &ddDr = dr.ddf;
             const mat dlTF_ds = g*dHcur.t() + Hcur*ddDr;
 
             mat dETM_ds = dlTF_ds;
@@ -527,16 +522,9 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         // equivalent stresses and gradients at the current stress, shared below (Dalpha_T is loop-invariant)
         const double sig_eq = Mises_stress(stress);
         const vec eta_sig = eta_stress(stress);
-        double Dr_sig;
-        vec dDr_sig;
-        if (aniso_criteria) {
-            Dr_sig = Drucker_ani_stress(stress, DFA_params, prager_b, prager_n);
-            dDr_sig = dDrucker_ani_stress(stress, DFA_params, prager_b, prager_n);
-        }
-        else {
-            Dr_sig = Drucker_stress(stress, prager_b, prager_n);
-            dDr_sig = dDrucker_stress(stress, prager_b, prager_n);
-        }
+        const CriterionResponse dr_sig = drucker(stress, 1);
+        const double Dr_sig = dr_sig.f;
+        const vec &dDr_sig = dr_sig.df;
 
         // Hcur at the current stress: the flow and the criterion of an iterate share it
         if (sig_eq > sigmacrit)

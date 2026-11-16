@@ -36,14 +36,6 @@ namespace simcoon{
 
 namespace {
 
-// P_Mises = 3/2 Idev2 in engineering Voigt (rows strain-like, columns stress-like), as constants: deta_stress runs per Newton iteration
-constexpr double P_Mises[6][6] = {{  1., -0.5, -0.5, 0., 0., 0.},
-                                  {-0.5,   1., -0.5, 0., 0., 0.},
-                                  {-0.5, -0.5,   1., 0., 0., 0.},
-                                  {  0.,   0.,   0., 3., 0., 0.},
-                                  {  0.,   0.,   0., 0., 3., 0.},
-                                  {  0.,   0.,   0., 0., 0., 3.}};
-
 inline double norm_voigt(const vec &v, Tensor2Type t) {
     return sqrt(contract_voigt(v.memptr(), v.memptr(), voigt_shear_weight(t)));
 }
@@ -121,13 +113,8 @@ mat::fixed<6,6> deta_stress(const vec &v) {
 	assert(v.size()==6);
 	double d[6];
 	const double sigeq = mises_voigt(v.memptr(), Tensor2Type::stress, d);
-	mat::fixed<6,6> deta(fill::zeros);
-	if (sigeq < simcoon::iota) return deta;
-	const vec::fixed<6> eta = flow_voigt(d, sigeq, 3./2., 2.);
-	const double inv_sigeq = 1./sigeq;
-	for (int j=0; j<6; j++)
-		for (int i=0; i<6; i++)
-			deta.at(i,j) = (P_Mises[i][j] - eta[i]*eta[j])*inv_sigeq;
+	mat::fixed<6,6> deta;
+	mises_hessian_voigt(flow_voigt(d, sigeq, 3./2., 2.), sigeq, deta, simcoon::iota);
 	return deta;
 }
 

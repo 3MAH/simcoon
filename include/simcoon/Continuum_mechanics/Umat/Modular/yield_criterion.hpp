@@ -30,6 +30,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <armadillo>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 
 namespace simcoon {
 
@@ -65,10 +66,15 @@ private:
      */
     std::string type_string() const;
 
+    /**
+     * @brief The response of the criterion at @p sigma up to @p level (criteria.hpp: the one
+     *        evaluation behind every method below); level 2 for a criterion with a flow Hessian only.
+     */
+    CriterionResponse response(const arma::vec& sigma, const int& level) const;
+
 public:
     /**
-     * @brief equivalent_stress(sigma) and flow_direction(sigma) in one call (the quadratic criteria share
-     * \f$ \mathbf{P}\boldsymbol{\sigma} \f$).
+     * @brief equivalent_stress(sigma) and flow_direction(sigma) in one evaluation.
      */
     void equivalent_stress_and_flow(const arma::vec& sigma, double& sigma_eq, arma::vec& flow) const;
 
@@ -196,7 +202,8 @@ public:
 
     /**
      * @brief Whether an analytic flow Hessian is available for this criterion
-     * (required by tangent_mode >= tangent_algorithmic; Tresca and Drucker J2-J3 have none).
+     * (required by tangent_mode >= tangent_algorithmic). Tresca has none; the Drucker J2-J3
+     * Hessian exists (ddDrucker_stress()) but is not exposed to the engine.
      */
     [[nodiscard]] bool has_flow_hessian() const noexcept;
 
@@ -220,8 +227,8 @@ public:
      * \mathrm{d}\boldsymbol{\sigma} = \partial^2\sigma_{eq}/\partial
      * \boldsymbol{\sigma}^2 \f$ (6x6, compliance-like Voigt).
      *
-     * Dispatch: VON_MISES → deta_stress; HILL/DFA/ANISOTROPIC →
-     * ddHill_stress / ddDFA_stress / ddAni_stress with the configured params.
+     * The ddf member of response(): Mises_stress_response() for VON_MISES,
+     * Eq_stress_P_response() on the configured operator for HILL/DFA/ANISOTROPIC.
      * @throws std::invalid_argument if has_flow_hessian() is false.
      */
     [[nodiscard]] arma::mat flow_hessian(const arma::vec& sigma) const;

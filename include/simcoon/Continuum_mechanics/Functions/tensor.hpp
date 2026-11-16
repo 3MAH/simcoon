@@ -106,6 +106,34 @@ inline arma::vec::fixed<6> flow_voigt(const double *x, const double n, const dou
     return eta;
 }
 
+/**
+ * @brief Hessian of the von Mises equivalent stress, the kernel of deta_stress() and Mises_stress_response().
+ * @details \f$ (\mathbf{P}_{M} - \boldsymbol{\eta}\otimes\boldsymbol{\eta})/\sigma^{VM} \f$ with
+ * \f$ \mathbf{P}_{M} = \tfrac{3}{2}\,\mathbb{I}_{dev} \f$ in engineering Voigt (rows strain-like, columns per
+ * stress component); zero below \f$ \sigma^{VM} < \f$ @p floor.
+ * @param eta The flow (flow_voigt() of the stress)
+ * @param sigeq The von Mises equivalent stress
+ * @param H The 6x6 Hessian (output)
+ * @param floor The equivalent stress below which the Hessian is zero (`simcoon::iota` in the library)
+ */
+inline void mises_hessian_voigt(const arma::vec::fixed<6> &eta, const double sigeq, arma::mat::fixed<6,6> &H,
+                                const double floor) {
+    constexpr double P_Mises[6][6] = {{  1., -0.5, -0.5, 0., 0., 0.},
+                                      {-0.5,   1., -0.5, 0., 0., 0.},
+                                      {-0.5, -0.5,   1., 0., 0., 0.},
+                                      {  0.,   0.,   0., 3., 0., 0.},
+                                      {  0.,   0.,   0., 0., 3., 0.},
+                                      {  0.,   0.,   0., 0., 0., 3.}};
+    if (sigeq < floor) {
+        H.zeros();
+        return;
+    }
+    const double inv_sigeq = 1./sigeq;
+    for (int j=0; j<6; j++)
+        for (int i=0; i<6; i++)
+            H.at(i,j) = (P_Mises[i][j] - eta[i]*eta[j])*inv_sigeq;
+}
+
 /// tensor2::from_voigt(v, t).mat() on the stack, without the object; @p v must hold 6 values.
 inline arma::mat::fixed<3,3> voigt_to_mat(const arma::vec &v, Tensor2Type t) {
     if (v.n_elem != 6) {
