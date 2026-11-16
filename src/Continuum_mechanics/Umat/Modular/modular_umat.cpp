@@ -527,12 +527,11 @@ bool ModularUMAT::return_mapping(
 
 void ModularUMAT::evaluate_constraints(const arma::vec& Etot_end, double DTime,
                                        arma::vec& Phi, arma::vec& Y_crit) {
-    arma::vec Phi_m, Y_crit_m;
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
         const int n = mechanisms_[m]->num_constraints();
-        mechanisms_[m]->compute_constraints(sigma_eff_, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
-        Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
-        Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
+        mechanisms_[m]->compute_constraints(sigma_eff_, Etot_end, L_cur_, DTime, Phi_m_, Y_crit_m_);
+        Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m_;
+        Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m_;
     }
 }
 
@@ -1082,8 +1081,7 @@ void ModularUMAT::run_T(
                        && (!active || (ct_cached_ && ct_rows_ == rows_T));
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
         if (reuse && mechanisms_[m]->carries_multipliers()) continue;
-        arma::vec Phi_m, Y_m;
-        mechanisms_[m]->compute_constraints(sigma_eff_, Eth_end, L_cur_, DTime, Phi_m, Y_m);
+        mechanisms_[m]->compute_constraints(sigma_eff_, Eth_end, L_cur_, DTime, Phi_m_, Y_crit_m_);
     }
     ContinuumTangent ct_local;
     arma::mat kappa_local, dPhi_local;

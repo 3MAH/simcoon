@@ -116,6 +116,7 @@ private:
     std::vector<int> rows_;
     arma::mat dLambda_l_;   ///< 6 x 6N, the Hessians of the rows side by side
     std::vector<std::pair<size_t, int>> rows_T_;   ///< the multiplier rows run_T reads
+    arma::vec Phi_m_, Y_crit_m_;   ///< one mechanism's constraints and their scales (evaluate_constraints, run_T)
     bool initialized_;      ///< Whether initialize() has been called
 
     /// The multiplier sub-system of the committed state for the rows @p rows (global constraint

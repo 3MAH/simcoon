@@ -303,7 +303,7 @@ std::unique_ptr<KinematicHardening> KinematicHardening::create(KinHardType type,
     }
 }
 
-arma::vec KinematicHardening::backstress_voigt(int i, const arma::vec& a) const {
+arma::vec::fixed<6> KinematicHardening::backstress_voigt(int i, const arma::vec& a) const {
     // X = (2/3) C alpha: alpha carries the doubled shear, X does not
     const double k = (2.0 / 3.0) * branch_modulus(i);
     arma::vec::fixed<6> X;
@@ -325,7 +325,7 @@ double KinematicHardening::stored_increment(const InternalVariableCollection& iv
     for (int i = 0; i < num_backstresses(); ++i) {
         const InternalVariable& a = *back_strain_variable(ivc, i);
         // X linear in alpha: the trapezoid is the back stress of the mean back-strain
-        W += arma::dot(backstress_voigt(i, arma::vec(0.5*(a.raw_voigt_start() + a.raw_voigt()))), a.delta_vec());
+        W += arma::dot(backstress_voigt(i, arma::vec::fixed<6>(0.5*(a.raw_voigt_start() + a.raw_voigt()))), a.delta_vec());
     }
     return W;
 }

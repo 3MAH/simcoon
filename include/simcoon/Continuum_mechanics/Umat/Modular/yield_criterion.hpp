@@ -231,7 +231,7 @@ public:
      * Eq_stress_P_response() on the configured operator for HILL/DFA/ANISOTROPIC.
      * @throws std::invalid_argument if has_flow_hessian() is false.
      */
-    [[nodiscard]] arma::mat flow_hessian(const arma::vec& sigma) const;
+    [[nodiscard]] arma::mat::fixed<6,6> flow_hessian(const arma::vec& sigma) const;
 
     // ========== Tensor2 overloads ==========
 

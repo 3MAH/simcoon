@@ -22,6 +22,7 @@
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
+#include <simcoon/Simulation/Maths/small_lu.hpp>
 
 using namespace arma;
 
@@ -79,8 +80,10 @@ bool condensed_newton_step(const condensed_state &cs, vec &DEtot, const vec &sig
     const mat L_CC = Lt(cs.C, cs.C);
     // solved before the convergence test: a singular L_CC fails here (step cut), never in the
     // condensation of the converged tangent
-    vec dE;
-    if (!solve(dE, L_CC, res, solve_opts::no_approx) || !dE.is_finite()) return false;
+    small_lu<5> lu;
+    if (!lu.factor(L_CC)) return false;
+    const vec dE = lu.solve(res);
+    if (!dE.is_finite()) return false;
     // relative to the stress, with a floor at the stress of a 1e-14 strain (zero load)
     converged = abs(res).max() <= 1.e-10*abs(sigma).max() + 1.e-14*abs(L_CC).max();
     if (!converged) DEtot(cs.C) -= dE;
@@ -90,7 +93,11 @@ bool condensed_newton_step(const condensed_state &cs, vec &DEtot, const vec &sig
 void condense_tangent(const condensed_state &cs, mat &Lt) {
 
     if (!cs.active()) return;
-    const mat Q = Lt(cs.K, cs.K) - Lt(cs.K, cs.C)*solve(Lt(cs.C, cs.C), Lt(cs.C, cs.K));
+    small_lu<5> lu;
+    if (!lu.factor(Lt(cs.C, cs.C))) {
+        throw std::runtime_error("condense_tangent: singular condensed block");
+    }
+    const mat Q = Lt(cs.K, cs.K) - Lt(cs.K, cs.C)*lu.solve(mat(Lt(cs.C, cs.K)));
     Lt.zeros();
     Lt(cs.K, cs.K) = Q;
 }
@@ -99,7 +106,11 @@ void condense_tangent_T(const condensed_state &cs, mat &dSdE, vec &dSdT, vec &dr
 
     if (!cs.active()) return;
     const vec qT = dSdT, rE = drdE;
-    const mat X = solve(dSdE(cs.C, cs.C), join_rows(dSdE(cs.C, cs.K), qT(cs.C)));   // [L_CC^-1 L_CK | L_CC^-1 dSdT_C]
+    small_lu<5> lu;
+    if (!lu.factor(dSdE(cs.C, cs.C))) {
+        throw std::runtime_error("condense_tangent_T: singular condensed block");
+    }
+    const mat X = lu.solve(mat(join_rows(dSdE(cs.C, cs.K), qT(cs.C))));   // [L_CC^-1 L_CK | L_CC^-1 dSdT_C]
     const uword nK = cs.K.n_elem;
     const mat X_E = X.cols(0, nK - 1);
     const vec X_T = X.col(nK);

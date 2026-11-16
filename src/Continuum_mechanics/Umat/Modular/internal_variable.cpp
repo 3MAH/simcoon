@@ -198,7 +198,7 @@ double InternalVariable::delta_scalar() const {
     return scalar_value_ - scalar_start_;
 }
 
-arma::vec InternalVariable::delta_vec() const {
+arma::vec::fixed<6> InternalVariable::delta_vec() const {
     if (type_ != IVarType::VECTOR_6) {
         throw std::logic_error("InternalVariable '" + name_ + "': attempted delta_vec on non-vector type");
     }

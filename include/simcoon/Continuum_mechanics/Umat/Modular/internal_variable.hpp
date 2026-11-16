@@ -259,7 +259,7 @@ public:
      * @brief Compute vector increment (current - start)
      * @return The increment vector
      */
-    arma::vec delta_vec() const;
+    arma::vec::fixed<6> delta_vec() const;
 
     // ========== State Management ==========
 

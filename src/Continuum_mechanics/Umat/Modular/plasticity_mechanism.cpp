@@ -67,8 +67,8 @@ PlasticityMechanism::PlasticityMechanism(
     , iso_hard_(IsotropicHardening::create(iso_type, N_iso))
     , kin_hard_(KinematicHardening::create(kin_type, N_kin))
     , sigma_Y_(0.0)
-    , flow_dir_(arma::zeros(6))
-    , kappa_(arma::zeros(6))
+    , flow_dir_(arma::fill::zeros)
+    , kappa_(arma::fill::zeros)
 {
     // Configure parameter-free yield criteria immediately.
     // Others will be configured in configure() when props are available.
@@ -173,7 +173,7 @@ void PlasticityMechanism::register_variables() {
 
 // ========== Yield-side queries ==========
 
-arma::vec PlasticityMechanism::total_backstress_voigt() const {
+arma::vec::fixed<6> PlasticityMechanism::total_backstress_voigt() const {
     kin_hard_->compute_backstresses(ivc_, X_branches_);
     arma::vec::fixed<6> X(arma::fill::zeros);
     for (arma::uword i = 0; i < X_branches_.n_cols; ++i) {
@@ -278,9 +278,11 @@ const arma::mat* PlasticityMechanism::dLambda_dsigma(
         return nullptr;
     }
     const bool has_kin = kin_hard_->num_backstresses() > 0;
-    const arma::vec sigma_eff =
-        has_kin ? arma::vec(sigma - total_backstress_voigt()) : sigma;
-    hessian_eng_ = yield_->flow_hessian(sigma_eff);
+    if (has_kin) {
+        hessian_eng_ = yield_->flow_hessian(arma::vec::fixed<6>(sigma - total_backstress_voigt()));
+    } else {
+        hessian_eng_ = yield_->flow_hessian(sigma);
+    }
     hessian_at_ = sigma;
     hessian_valid_ = true;
     return &hessian_eng_;
@@ -379,7 +381,7 @@ double PlasticityMechanism::state_drift(const arma::vec& sigma) const {
     // Committed Dp from the (projected) internal variable, not the raw FB
     // row — update() enforces p >= p_start, the state is the truth.
     const double dp = ivc_.at(p_index_).delta_scalar();
-    const arma::vec dEP = ivc_.at(EP_index_).delta_vec();
+    const arma::vec::fixed<6> dEP = ivc_.at(EP_index_).delta_vec();
     if (dp < simcoon::iota && norm_strain(dEP) < simcoon::iota) {
         // inert increment: avoid evaluating the flow direction at a
         // possibly-zero stress
@@ -498,7 +500,7 @@ void PlasticityMechanism::compute_work(
             return;
         }
     }
-    const arma::vec DEP = EP_var.delta_vec();
+    const arma::vec::fixed<6> DEP = EP_var.delta_vec();
 
     // stored in the hardening: the trapezoids in p (irrecoverable) and in the back-strains (recoverable)
     const double p_start = ivc_.at(p_index_).scalar_start(), p = ivc_.at(p_index_).scalar();
@@ -515,7 +517,7 @@ void PlasticityMechanism::dissipation_sensitivity(const DissipationInputs& in, a
                                     "dedicated thermomechanical kernel");
     }
     const double Dp = ivc_.at(p_index_).delta_scalar();
-    const arma::vec DEP = ivc_.at(EP_index_).delta_vec();
+    const arma::vec::fixed<6> DEP = ivc_.at(EP_index_).delta_vec();
     const double p_start = ivc_.at(p_index_).scalar_start(), p = ivc_.at(p_index_).scalar();
 
     // the direction the update moved along (flow_dir_: the last compute_constraints), X_i at both ends
@@ -552,7 +554,7 @@ void PlasticityMechanism::dissipation_sensitivity(const DissipationInputs& in, a
     }
     for (int i = 0; i < n_kin; ++i) {
         const InternalVariable& a = *kin_hard_->back_strain_variable(ivc_, i);
-        const arma::vec Da = a.delta_vec();
+        const arma::vec::fixed<6> Da = a.delta_vec();
         // d alpha_{n+1} / d Dp at fixed direction: Lambda (Prager); with recovery, (Lambda - D alpha_{n+1}) / (1 + D Dp)
         // of the backward-Euler update, the secant Da / Dp over the explicit cutting-plane iterates (measured: the
         // consistent form of the last iterate is 5x worse there); the back stress follows the flow, dxi = dsigma_eff - X(Lambda) dDp

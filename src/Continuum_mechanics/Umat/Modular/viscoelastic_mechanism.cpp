@@ -220,7 +220,7 @@ void ViscoelasticMechanism::dissipation_sensitivity(const DissipationInputs& in,
     const arma::mat I6 = arma::eye(6, 6);
     for (int i = 0; i < N_prony_; ++i) {
         const InternalVariable& ev = ivc_.at(ev_index_[i]);
-        const arma::vec DEV = ev.delta_vec();
+        const arma::vec::fixed<6> DEV = ev.delta_vec();
         const arma::vec A_mid2 = L_i_[i] * (in.E_start - ev.raw_voigt_start()) + L_i_[i] * (in.E_end - ev.raw_voigt());
         const arma::mat& dEVdE = dEVdE_i_[i];
         dDgamma_dE += 0.5 * (mul6_At(mul66(L_i_[i], I6 - dEVdE), DEV) + mul6_At(dEVdE, A_mid2));
