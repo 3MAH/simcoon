@@ -679,11 +679,9 @@ It is resolved in one place, ``kernel_tangent_mode`` (``umat_smart.hpp``), from 
 ``simcoon.solver.solve``, ``sim.umat`` / ``sim.umat_T``, the C++ solver
 (``solver_params::integrator``) and the dispatch of a state (``state_variables::integrator``,
 micromechanics phases included), all ``integrator_default`` unless set. On the SMA laws the
-closest point is the more accurate update at a given increment (a superelastic loop at 40
-increments: 0.024 MPa from the converged answer against 0.29 MPa for the cutting plane; a
-reorientation path of ``SMRAI`` at 200 increments: 12 MPa against 86 MPa). It costs 2.3 to 2.8
-times the cutting plane on a superelastic loop at 40 to 400 increments, and is faster where the
-cutting plane cuts its steps (10 increments at 320 K: 1.1 against 9.1 ms).
+closest point is the more accurate update at a given increment. It costs 2.3 to 2.8
+times the cutting plane on a superelastic loop at 40 to 400 increments, but is faster where the
+cutting plane cuts its steps.
 ``integrator="cutting_plane"`` keeps the cutting plane, one scheme for both families (the
 transformation hardening at the stress of the iterate, the step halved when the residual
 doubles).
