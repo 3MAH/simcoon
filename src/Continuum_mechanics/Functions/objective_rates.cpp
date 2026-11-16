@@ -659,16 +659,7 @@ struct dk_spectral {
 // Fixed-size Voigt helpers of the 6-column tangent maps below: per column, 3x3 products on the
 // stack and the 6x6 box applied by hand (a BLAS gemv call per column otherwise).
 
-// engineering-Voigt unit strain e_j as a tensor (v2t_strain of the j-th basis vector)
-inline m33 unit_strain_tensor(const int j) {
-    m33 e(arma::fill::zeros);
-    const double v = (j < 3) ? 1. : 0.5;
-    e(voigt_i[j], voigt_j[j]) = v;
-    e(voigt_j[j], voigt_i[j]) = v;
-    return e;
-}
-
-// Q^T e_j Q for the unit strain e_j of unit_strain_tensor, from two rows of Q (e_j has one or two entries)
+// Q^T e_j Q for the engineering-Voigt unit strain e_j (v2t_strain of the j-th basis vector), from two rows of Q (e_j has one or two entries)
 inline m33 congruence_unit_strain(const m33 &Q, const int j) {
     const int a = voigt_i[j], b = voigt_j[j];
     m33 D;
@@ -1151,23 +1142,37 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
 }
 
 mat Dtau_LieDD_2_DtauDe_stretch(const mat &Dtau_LieDD, const vec::fixed<3> &e, const mat::fixed<3,3> &N, const mat &tau) {
-    m33 H;
-    for (int a = 0; a < 3; ++a) {
-        for (int b = 0; b < 3; ++b) {
-            const double d = e(a) - e(b);
-            H(a, b) = (std::fabs(d) > 1.e-4) ? std::tanh(d)/d : 1. - d*d/3. + 2.*d*d*d*d/15.;   // Taylor of tanh(d)/d
+    const m33 tau_(tau);
+    double t[3];
+    for (int a = 0; a < 3; ++a) t[a] = dot(N.col(a), tau_*N.col(a));
+    // dt = sum_alpha c_alpha (S_alpha : de) S_alpha, S_alpha = sym(n_a x n_b): columns of B in stress Voigt
+    double B[36], c1[6], c2[6];
+    for (int al = 0; al < 6; ++al) {
+        const int a = voigt_i[al], b = voigt_j[al];
+        const double d = e(a) - e(b);
+        const double H = (std::fabs(d) > 1.e-4) ? std::tanh(d)/d : 1. - d*d/3. + 2.*d*d*d*d/15.;   // Taylor of tanh(d)/d
+        c1[al] = (al < 3) ? 1. : 2.*H;
+        c2[al] = c1[al]*(t[a] + t[b]);   // S tau + tau S = (t_a + t_b) S, tau coaxial
+        for (int I = 0; I < 6; ++I) {
+            const int k = voigt_i[I], l = voigt_j[I];
+            B[I + 6*al] = 0.5*(N(k, a)*N(l, b) + N(k, b)*N(l, a));
         }
     }
-    const arma::mat::fixed<6,6> Jc(Dtau_LieDD);
-    const m33 tau_(tau);
-    mat Lt(6, 6);
-    double y[6];
-    for (int j = 0; j < 6; ++j) {
-        const m33 dt = spectral_congruence(N, H, unit_strain_tensor(j));
-        box_apply(Jc, dt, y);
-        const m33 dtau = mat_from_voigt(y, 1.) + mul3(dt, tau_) + mul3(tau_, dt);
-        voigt_from_mat(Lt.colptr(j), dtau, 0.5);
+    // Lt = (Jc Ds B diag(c1) + B diag(c2)) B^T, Ds doubles the shears (engineering strain)
+    double K[36];
+    for (int al = 0; al < 6; ++al) {
+        double x[6], y[6];
+        for (int I = 0; I < 6; ++I) x[I] = (I < 3 ? 1. : 2.)*B[I + 6*al];
+        mul6(Dtau_LieDD.memptr(), x, y);
+        for (int I = 0; I < 6; ++I) K[I + 6*al] = c1[al]*y[I] + c2[al]*B[I + 6*al];
     }
+    mat Lt(6, 6);
+    for (int j = 0; j < 6; ++j)
+        for (int i = 0; i < 6; ++i) {
+            double s = 0.;
+            for (int al = 0; al < 6; ++al) s += K[i + 6*al]*B[j + 6*al];
+            Lt(i, j) = s;
+        }
     return Lt;
 }
 
