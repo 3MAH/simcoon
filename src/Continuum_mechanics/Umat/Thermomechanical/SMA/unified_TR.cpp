@@ -665,7 +665,7 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
             dHfR = hs.dR;
         }
 
-        // d(Hcur)/d\sigma 
+        // d(Hcur)/d\sigma
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_sig;
 
         // ---- Forward derivatives ----
