@@ -30,7 +30,9 @@
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
-#include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Simulation/Maths/small_dense.hpp>
+#include <simcoon/Simulation/Maths/small_voigt.hpp>
 
 using namespace std;
 using namespace arma;
@@ -38,232 +40,82 @@ using namespace arma;
 namespace simcoon
 {
 
-    double Drucker_stress(const vec &v, const double &b, const double &n)
-    {
-        assert(v.size() == 6);
-        assert(b >= 0.);
-        assert(n > 0.);
-        double temp;
-        double m;
-        const double Mises = Mises_stress(v);
-
-        // Below iota the invariants are roundoff and 1 + b J3/J2^1.5 can leave its bounds: NaN
-        if (Mises > simcoon::iota)
-        {
-            if (n < 10.)
-            {
-                m = 1. / n;
-                temp = Mises * pow((1. + b * J3_stress(v) / pow(J2_stress(v), 1.5)), m);
-            }
-            else
-            {
-                m = 0.;
-                temp = Mises;
-            }
-        }
-        else
-        {
-            m = 0.;
-            temp = 0.;
-        }
-        return temp;
-    }
-
-    vec dDrucker_stress(const vec &v, const double &b, const double &n)
-    {
-        assert(v.size() == 6);
-        assert(b >= 0.);
-        assert(n > 0.);  
-
-        double Mises = Mises_stress(v);
-
-        double m;
-        vec temp;
-
-        if (Mises > simcoon::iota)   // same floor as Drucker_stress
-        {
-            if (n < 10.)
-            {
-                m = 1. / n;
-
-                vec dMises = eta_stress(v);
-                double J2 = J2_stress(v);
-                double J3 = J3_stress(v);
-                double J2_3_2 = pow(J2, 1.5);
-                double J2_5_2 = pow(J2, 2.5);
-                mat sigma = v2t_stress(v);
-                mat dJ2_mat=dJ2DS(sigma);
-                mat dJ3_mat=dJ3DS(sigma);
-                vec dJ2 = t2v_strain(dJ2_mat);
-                vec dJ3 = t2v_strain(dJ3_mat);
-
-                temp = pow((1. + b * J3 / J2_3_2), m) * dMises + Mises * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
-            }
-            else
-            {
-                m = 0.;
-                temp = eta_stress(v);
-            }
-        }
-        else
-        {
-            m = 0.;
-            temp = zeros(6);
-        }
-        return temp;
-    }
-
-    double Tresca_stress(const vec &v)
-    {
-        mat sigma = v2t_stress(v);
-        vec lambda = eig_sym(sigma);
-
-        // eig_sym is in ascending order
-        return lambda(2) - lambda(0);
-    }
-
-    vec dTresca_stress(const vec &v)
-    {
-        return eta_stress(v);
-    }
-
     namespace {
-    // rows strain-typed, columns per stress component (as deta_stress / ddEq_stress_P)
-    mat drucker_hessian(const vec &v, const double &f, const vec &df, const mat &ddf, const double &b, const double &n)
+
+    using vec6 = vec::fixed<6>;
+    using mat6 = mat::fixed<6, 6>;
+    using mat3 = mat::fixed<3, 3>;
+
+    // the response of a stress below the floor of a criterion: zero up to the level asked
+    CriterionResponse zero_response(const int &level)
     {
-        if (f <= simcoon::iota) return zeros(6, 6);   // same floor as the value and the gradient
-        if (n >= 10.) return ddf;
-
-        const double m = 1. / n;
-        const mat sigma = v2t_stress(v);
-        const mat s = dev(sigma);
-        const double J2 = J2_stress(v);
-        const double J3 = J3_stress(v);
-        const vec dJ2 = t2v_strain(dJ2DS(sigma));
-        const vec dJ3 = t2v_strain(dJ3DS(sigma));
-
-        // d2J2/dsigma2 (constant) and d2J3/dsigma2: derivative of s.s - (2/3) J2 I along each
-        // Voigt stress component (a shear component moves both symmetric entries)
-        mat ddJ2 = { { 2./3., -1./3., -1./3., 0., 0., 0.},
-                     {-1./3.,  2./3., -1./3., 0., 0., 0.},
-                     {-1./3., -1./3.,  2./3., 0., 0., 0.},
-                     {    0.,     0.,     0., 2., 0., 0.},
-                     {    0.,     0.,     0., 0., 2., 0.},
-                     {    0.,     0.,     0., 0., 0., 2.} };
-        mat ddJ3(6, 6);
-        const int ia[6] = {0, 1, 2, 0, 0, 1};
-        const int ib[6] = {0, 1, 2, 1, 2, 2};
-        for (int c = 0; c < 6; c++) {
-            mat E = zeros(3, 3);
-            E(ia[c], ib[c]) = 1.;
-            E(ib[c], ia[c]) = 1.;
-            const mat dS = dev(E);
-            const mat dt = dS*s + s*dS - (2./3.)*accu(s%dS)*eye(3, 3);
-            ddJ3.col(c) = t2v_strain(dt);
-        }
-
-        const double J2_3_2 = pow(J2, 1.5);
-        const double J2_5_2 = pow(J2, 2.5);
-        const double J2_7_2 = pow(J2, 3.5);
-        const vec q = dJ3/J2_3_2 - 1.5*J3*dJ2/J2_5_2;                       // d(J3/J2^1.5)/dsigma
-        const mat Q = ddJ3/J2_3_2 - 1.5*(dJ3*dJ2.t() + dJ2*dJ3.t())/J2_5_2
-                      - 1.5*J3*ddJ2/J2_5_2 + 3.75*J3*(dJ2*dJ2.t())/J2_7_2;
-        const double r = 1. + b*J3/J2_3_2;
-        return pow(r, m)*ddf
-             + m*b*pow(r, m - 1.)*(df*q.t() + q*df.t() + f*Q)
-             + f*m*(m - 1.)*b*b*pow(r, m - 2.)*(q*q.t());
-    }
+        CriterionResponse out;
+        if (level >= 1) out.df.zeros();
+        if (level >= 2) out.ddf.zeros();
+        return out;
     }
 
-    mat ddDrucker_stress(const vec &v, const double &b, const double &n)
+    // deviator of a 3x3
+    mat3 dev3(const mat3 &m)
     {
-        assert(v.size() == 6);
-        return drucker_hessian(v, Mises_stress(v), eta_stress(v), deta_stress(v), b, n);
+        return m - (trace(m)/3.)*mat3(fill::eye);
     }
 
-    mat ddDrucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
+    // strain-like Voigt of a symmetric 3x3 (doubled shears)
+    vec6 strain_voigt(const mat3 &m)
     {
-        assert(v.size() == 6);
-        return drucker_hessian(v, DFA_stress(v, params), dDFA_stress(v, params), ddDFA_stress(v, params), b, n);
+        vec6 x;
+        voigt_from_mat(x.memptr(), m, voigt_shear_out(Tensor2Type::strain));
+        return x;
     }
 
-    double Drucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
+    // Drucker J3 correction applied to a base response (Mises or DFA)
+    CriterionResponse drucker_correction(const vec &v, const CriterionResponse &base, const double &b, const double &n,
+                                         const int &level)
     {
-        assert(v.size() == 6);
-        assert(b >= 0.);
-        assert(n > 0.);
-        double temp;
-        double m;
+        if (!(base.f > simcoon::iota)) return zero_response(level);
+        if (n >= 10.) return base;
+        const mat3 s = mat_from_voigt(dev(v).memptr(), voigt_shear_in(Tensor2Type::stress));
+        const double J2 = 0.5*accu(s % s);
+        if (!(sqrt(3.*J2) > simcoon::iota)) return base; // DFA base: pressure part without deviator
 
-        double dfa_stress = DFA_stress(v, params);
+        const double m = 1./n;
+        const double J3 = det(s);
+        const double J2_32 = J2*sqrt(J2);
+        const double r = 1. + b*J3/J2_32;
+        const double r_m = pow(r, m);
+        CriterionResponse out;
+        out.f = base.f*r_m;
+        if (level < 1) return out;
 
-        // Below iota the invariants are roundoff and 1 + b J3/J2^1.5 can leave [1-2b/(3 sqrt 3), 1+...]: NaN
-        if (dfa_stress > simcoon::iota)
-        {
-            if (n < 10.)
-            {
-                m = 1. / n;
-                temp = dfa_stress * pow((1. + b * J3_stress(v) / pow(J2_stress(v), 1.5)), m);
-            }
-            else
-            {
-                m = 0.;
-                temp = dfa_stress;
-            }
+        // gradients of J2 and J3 (strain-like) and of J3/J2^(3/2)
+        const double J2_52 = J2_32*J2;
+        const mat3 s2 = s*s;
+        const vec6 dJ2 = strain_voigt(s);
+        const vec6 dJ3 = strain_voigt(dev3(s2));
+        const vec6 q = dJ3/J2_32 - (1.5*J3/J2_52)*dJ2;
+        out.df = r_m*base.df + (base.f*m*b*r_m/r)*q;
+        if (level < 2) return out;
+
+        // d(dev(s s))/dsigma per Voigt component, a shear component moving both symmetric entries
+        mat6 ddJ3;
+        for (int c = 0; c < 6; ++c) {
+            mat3 E(fill::zeros);
+            E(voigt_i[c], voigt_j[c]) = 1.;
+            E(voigt_j[c], voigt_i[c]) = 1.;
+            const mat3 dS = dev3(E);
+            ddJ3.col(c) = strain_voigt(dev3(dS*s + s*dS));
         }
-        else
-        {
-            m = 0.;
-            temp = 0.;
-        }
-        return temp;
+        const mat6 ddJ2 = Idev2();
+        const double J2_72 = J2_52*J2;
+        const mat6 Q = ddJ3/J2_32 - (1.5/J2_52)*(outer6(dJ3.memptr(), dJ2.memptr()) + outer6(dJ2.memptr(), dJ3.memptr()))
+                       - (1.5*J3/J2_52)*ddJ2 + (3.75*J3/J2_72)*outer6(dJ2.memptr(), dJ2.memptr());
+        out.ddf = r_m*base.ddf
+                + (m*b*r_m/r)*(outer6(base.df.memptr(), q.memptr()) + outer6(q.memptr(), base.df.memptr()) + base.f*Q)
+                + (base.f*m*(m - 1.)*b*b*r_m/(r*r))*outer6(q.memptr(), q.memptr());
+        return out;
     }
 
-    vec dDrucker_ani_stress(const vec &v,  const vec &params, const double &b, const double &n)
-    {
-        assert(v.size() == 6);
-        assert(b >= 0.);
-        assert(n > 0.);  
-
-        double Dfa_stress = DFA_stress(v, params);
-
-        double m;
-        vec temp;
-
-        if (Dfa_stress > simcoon::iota)   // same floor as Drucker_ani_stress
-        {
-            if (n < 10.)
-            {
-                m = 1. / n;
-
-                vec dDfa_stress = dDFA_stress(v,params);
-                double J2 = J2_stress(v);
-                double J3 = J3_stress(v);
-                double J2_3_2 = pow(J2, 1.5);
-                double J2_5_2 = pow(J2, 2.5);
-                mat sigma = v2t_stress(v);
-                mat dJ2_mat=dJ2DS(sigma);
-                mat dJ3_mat=dJ3DS(sigma);
-                vec dJ2 = t2v_strain(dJ2_mat);
-                vec dJ3 = t2v_strain(dJ3_mat);
-
-                temp = pow((1. + b * J3 / J2_3_2), m) * dDfa_stress + Dfa_stress * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
-            }
-            else
-            {
-                m = 0.;
-                temp = eta_stress(v);
-            }
-        }
-        else
-        {
-            m = 0.;
-            temp = zeros(6);
-        }
-        return temp;
-    }
-
-    namespace {
     // anisotropy operators into a caller-provided 6x6 (stack in the criteria, heap in P_Ani/P_Hill/P_DFA)
     void fill_P_Ani(const vec &params, mat &P)
     {
@@ -320,6 +172,14 @@ namespace simcoon
         P(4, 4) = 2. * params(4);                         // P_55 = M
         P(5, 5) = 2. * params(3);                         // P_66 = L
     }
+
+    // a quadratic-form criterion of the parameters (Hill, DFA, Ani)
+    CriterionResponse quadratic_response(const vec &v, const vec &params, void (*fill)(const vec &, mat &), const int &level)
+    {
+        mat6 P;
+        fill(params, P);
+        return Eq_stress_P_response(v, P, level);
+    }
     }
 
     mat P_Ani(const vec &params)
@@ -343,111 +203,87 @@ namespace simcoon
         return P;
     }
 
-    double Eq_stress_P(const vec &v, const mat &H)
-    {
 
-        if (norm(v, 2) > simcoon::iota)
-        {
-            return pow(sum(v % (H * v)), 0.5);
-        }
-        else
-        {
-            return 0.;
-        }
+    CriterionResponse Mises_stress_response(const vec &v, const int &level)
+    {
+        CriterionResponse out;
+        double d[6];
+        out.f = mises_voigt(v.memptr(), Tensor2Type::stress, d);
+        if (level >= 1) out.df = flow_voigt(d, out.f, 3./2., 2.);
+        if (level >= 2) mises_hessian_voigt(out.df, out.f, out.ddf, simcoon::iota);
+        return out;
     }
 
-    vec dEq_stress_P(const vec &v, const mat &H)
+    CriterionResponse Tresca_stress_response(const vec &v, const int &level)
     {
-
-        if (norm(v, 2) > simcoon::iota)
-        {
-            const vec Hv = H * v;   // shared by the gradient and the norm (Eq_stress_P)
-            return Hv / pow(sum(v % Hv), 0.5);
+        assert(v.size() == 6);
+        if (level >= 2) {
+            throw std::invalid_argument("Tresca_stress_response: the Tresca surface has no Hessian (vertex flow)");
         }
-        else
-        {
-            return zeros(6);
-        }
+        CriterionResponse out;
+        const vec lambda = eig_sym(v2t_stress(v));   // ascending
+        out.f = lambda(2) - lambda(0);
+        if (level >= 1) out.df = eta_stress(v);
+        return out;
     }
 
-    mat ddEq_stress_P(const vec &v, const mat &H)
+    CriterionResponse Eq_stress_P_response(const vec &v, const mat &H, const int &level)
     {
-        if (norm(v, 2) <= simcoon::iota)
-        {
-            return zeros(6, 6);
-        }
-        const vec Hv = H * v;
-        double sigeq = pow(sum(v % Hv), 0.5);   // Eq_stress_P(v, H)
-        if (sigeq < simcoon::iota)
-        {
-            return zeros(6, 6);
-        }
-        vec Lambda = Hv / sigeq; // == dEq_stress_P(v, H)
-        return (H - Lambda * Lambda.t()) / sigeq;
+        assert(v.size() == 6);
+        const vec6 Hv = H*v;
+        const double q = dot(v, Hv);
+        CriterionResponse out = zero_response(level);
+        if (!(q > 8.*datum::eps*sqrt(dot(v, v)*dot(Hv, Hv)))) return out;   // round-off of q
+        out.f = sqrt(q);
+        if (level < 1 || out.f < simcoon::iota) return out;
+        out.df = Hv/out.f;
+        if (level >= 2) out.ddf = (H - outer6(out.df.memptr(), out.df.memptr()))/out.f;
+        return out;
     }
 
-    mat ddHill_stress(const vec &v, const vec &params)
+    CriterionResponse Drucker_stress_response(const vec &v, const double &b, const double &n, const int &level)
     {
-        mat::fixed<6, 6> P;
-        fill_P_Hill(params, P);
-        return ddEq_stress_P(v, P);
+        assert(b >= 0.);
+        assert(n > 0.);
+        return drucker_correction(v, Mises_stress_response(v, level), b, n, level);
     }
 
-    mat ddDFA_stress(const vec &v, const vec &params)
+    CriterionResponse Drucker_ani_stress_response(const vec &v, const vec &params, const double &b, const double &n,
+                                                  const int &level)
     {
-        mat::fixed<6, 6> P;
+        assert(b >= 0.);
+        assert(n > 0.);
+        mat6 P;
         fill_P_DFA(params, P);
-        return ddEq_stress_P(v, P);
+        return drucker_correction(v, Eq_stress_P_response(v, P, level), b, n, level);
     }
 
-    mat ddAni_stress(const vec &v, const vec &params)
-    {
-        mat::fixed<6, 6> P;
-        fill_P_Ani(params, P);
-        return ddEq_stress_P(v, P);
-    }
+    double Drucker_stress(const vec &v, const double &b, const double &n) { return Drucker_stress_response(v, b, n, 0).f; }
+    vec dDrucker_stress(const vec &v, const double &b, const double &n) { return Drucker_stress_response(v, b, n, 1).df; }
+    mat ddDrucker_stress(const vec &v, const double &b, const double &n) { return Drucker_stress_response(v, b, n, 2).ddf; }
 
-    double Hill_stress(const vec &v, const vec &params)
-    {
-        mat::fixed<6, 6> P;
-        fill_P_Hill(params, P);
-        return Eq_stress_P(v, P);
-    }
+    double Drucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n) { return Drucker_ani_stress_response(v, params, b, n, 0).f; }
+    vec dDrucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n) { return Drucker_ani_stress_response(v, params, b, n, 1).df; }
+    mat ddDrucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n) { return Drucker_ani_stress_response(v, params, b, n, 2).ddf; }
 
-    vec dHill_stress(const vec &v, const vec &params)
-    {
-        mat::fixed<6, 6> P;
-        fill_P_Hill(params, P);
-        return dEq_stress_P(v, P);
-    }
+    double Tresca_stress(const vec &v) { return Tresca_stress_response(v, 0).f; }
+    vec dTresca_stress(const vec &v) { return Tresca_stress_response(v, 1).df; }
 
-    double DFA_stress(const vec &v, const vec &params)
-    {
-        mat::fixed<6, 6> P;
-        fill_P_DFA(params, P);
-        return Eq_stress_P(v, P);
-    }
+    double Eq_stress_P(const vec &v, const mat &H) { return Eq_stress_P_response(v, H, 0).f; }
+    vec dEq_stress_P(const vec &v, const mat &H) { return Eq_stress_P_response(v, H, 1).df; }
+    mat ddEq_stress_P(const vec &v, const mat &H) { return Eq_stress_P_response(v, H, 2).ddf; }
 
-    vec dDFA_stress(const vec &v, const vec &params)
-    {
-        mat::fixed<6, 6> P;
-        fill_P_DFA(params, P);
-        return dEq_stress_P(v, P);
-    }
+    double Hill_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_Hill, 0).f; }
+    vec dHill_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_Hill, 1).df; }
+    mat ddHill_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_Hill, 2).ddf; }
 
-    double Ani_stress(const vec &v, const vec &params)
-    {
-        mat::fixed<6, 6> P;
-        fill_P_Ani(params, P);
-        return Eq_stress_P(v, P);
-    }
+    double DFA_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_DFA, 0).f; }
+    vec dDFA_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_DFA, 1).df; }
+    mat ddDFA_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_DFA, 2).ddf; }
 
-    vec dAni_stress(const vec &v, const vec &params)
-    {
-        mat::fixed<6, 6> P;
-        fill_P_Ani(params, P);
-        return dEq_stress_P(v, P);
-    }
+    double Ani_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_Ani, 0).f; }
+    vec dAni_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_Ani, 1).df; }
+    mat ddAni_stress(const vec &v, const vec &params) { return quadratic_response(v, params, fill_P_Ani, 2).ddf; }
 
     double Eq_stress(const vec &v, const string &eq_type, const vec &param)
     {

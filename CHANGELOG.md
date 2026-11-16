@@ -173,6 +173,11 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Changed
 
+- The yield criteria evaluate a criterion once: `CriterionResponse` (value, gradient, Hessian,
+  fixed size) and one response function per criterion (`Mises_stress_response`,
+  `Tresca_stress_response`, `Eq_stress_P_response`, `Drucker_stress_response`,
+  `Drucker_ani_stress_response`); the scalar functions return one member, the modular
+  `YieldCriterion` and the SMA kernels call the responses. SMADI -14 %, SMRAI -22 %.
 - Energy split of the unified SMA laws (SMA*, SMR*, both faces): the work of the bound penalties of
   the martensite fraction and of the reorientation back stress `(1 + lambda_Reo) X` is recoverable
   (`Wm_r`), like the transformation hardening, and no longer counted as dissipation (`Wm_d`).
@@ -231,6 +236,12 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Fixed
 
+- The quadratic-form criteria (Hill, DFA, Ani, anisotropic Drucker) returned NaN for a
+  near-hydrostatic stress (form rounded below zero): the value is zero there, the gradient and the
+  Hessian vanish below `iota` (previously a stress of norm below `iota` returned zero). This removes
+  forced step cuts during stress-free cooling with SMRAI.
+- `dDrucker_ani_stress` for `n >= 10` returned the von Mises direction: it returns the DFA gradient.
+  The anisotropic Drucker with K > 0 returned NaN under a hydrostatic stress: it reduces to DFA.
 - A `SyntaxWarning` at import (`tensor.py`): a LaTeX docstring of `Tensor4` had an invalid `\m`
   escape.
 

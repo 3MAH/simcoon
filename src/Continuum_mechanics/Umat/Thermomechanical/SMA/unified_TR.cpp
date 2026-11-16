@@ -131,6 +131,10 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
                       props(aniso_offset + 6)};
         aniso_offset += 7;
     }
+    auto drucker = [&](const vec &s, const int level) {
+        return aniso_criteria ? Drucker_ani_stress_response(s, DFA_params, prager_b, prager_n, level)
+                              : Drucker_stress_response(s, prager_b, prager_n, level);
+    };
 
     // Reorientation parameters (Form B: saturation-coupled Phi_Reo)
     double YReo = props(aniso_offset);
@@ -243,14 +247,10 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
 
     // Forward flow direction
     auto build_lambdaTF = [&](const vec& s) -> vec {
-        return aniso_criteria
-            ? Hcur * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n)
-            : Hcur * dDrucker_stress(s, prager_b, prager_n);
+        return Hcur * drucker(s, 1).df;
     };
     auto build_PhihatF = [&](const vec& s) -> double {
-        return aniso_criteria
-            ? Hcur * Drucker_ani_stress(s, DFA_params, prager_b, prager_n)
-            : Hcur * Drucker_stress(s, prager_b, prager_n);
+        return Hcur * drucker(s, 0).f;
     };
 
     vec lambdaTF = build_lambdaTF(sigma);
@@ -388,13 +388,11 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
         // r = dDrucker(sigma_eff), its Hessian, and dsigma_eff/dareo
         auto reo_direction = [&](const vec &seff) -> vec {
             if (!(Mises_stress(seff) > simcoon::iota)) return zeros(6);
-            return aniso_criteria ? dDrucker_ani_stress(seff, DFA_params, prager_b, prager_n)
-                                  : dDrucker_stress(seff, prager_b, prager_n);
+            return drucker(seff, 1).df;
         };
         auto reo_hessian = [&](const vec &seff) -> mat {
             if (!(Mises_stress(seff) > simcoon::iota)) return zeros(6, 6);
-            return aniso_criteria ? ddDrucker_ani_stress(seff, DFA_params, prager_b, prager_n)
-                                  : ddDrucker_stress(seff, prager_b, prager_n);
+            return drucker(seff, 2).ddf;
         };
         auto dsigma_eff_dareo = [&]() -> mat { return -1.*backstress_slope(); };
         auto set_sigma_eff = [&](const vec &sig) {
@@ -456,8 +454,7 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
             return -1.*sum(sig%ETMean) + AxR + lambda0 - (Y0t + D*sum(sig%ETMean));
         };
         auto PhiReo_val = [&](const vec &) {
-            const double Pse = aniso_criteria ? Drucker_ani_stress(sigma_eff, DFA_params, prager_b, prager_n)
-                                              : Drucker_stress(sigma_eff, prager_b, prager_n);
+            const double Pse = drucker(sigma_eff, 0).f;
             return Pse - YReo;
         };
         auto LamF_val   = [&](const vec &sig) { return vec(lambdaTF + DM*sig + Dalpha*thp); };
@@ -477,12 +474,10 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
             const vec eta = eta_stress(sig);
             vec dHcur = zeros(6);
             if (sig_eq > sigmacrit) dHcur = (Hmax - Hmin)*k1*exp(-1.*k1*(sig_eq - sigmacrit))*eta;
-            const double Dr = aniso_criteria ? Drucker_ani_stress(sig, DFA_params, prager_b, prager_n)
-                                             : Drucker_stress(sig, prager_b, prager_n);
-            const vec g = aniso_criteria ? dDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
-                                         : dDrucker_stress(sig, prager_b, prager_n);
-            const mat ddDr = aniso_criteria ? ddDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
-                                            : ddDrucker_stress(sig, prager_b, prager_n);
+            const CriterionResponse dr = drucker(sig, 2);
+            const double Dr = dr.f;
+            const vec &g = dr.df;
+            const mat &ddDr = dr.ddf;
             const mat dlTF_ds = g*dHcur.t() + Hcur*ddDr;
 
             // reorientation chain
@@ -606,15 +601,9 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
         // equivalent stresses and gradients at the current sigma, shared below (Dalpha_T is loop-invariant)
         const double sig_eq = Mises_stress(sigma);
         const vec eta_sig = eta_stress(sigma);
-        double Dr_sig;
-        vec dDr_sig;
-        if (aniso_criteria) {
-            Dr_sig = Drucker_ani_stress(sigma, DFA_params, prager_b, prager_n);
-            dDr_sig = dDrucker_ani_stress(sigma, DFA_params, prager_b, prager_n);
-        } else {
-            Dr_sig = Drucker_stress(sigma, prager_b, prager_n);
-            dDr_sig = dDrucker_stress(sigma, prager_b, prager_n);
-        }
+        const CriterionResponse dr_sig = drucker(sigma, 1);
+        const double Dr_sig = dr_sig.f;
+        const vec &dDr_sig = dr_sig.df;
 
         // Hcur explicit (depends on \sigma )
         if (sig_eq > sigmacrit) sigmastar = sig_eq - sigmacrit;
@@ -634,11 +623,7 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
         // Raw (per-unit-martensite) reorientation flow: \bar{\Lambda}^re = dDrucker(\sigma_eff).
         vec lambdaReo_raw;
         if (Mises_stress(sigma_eff) > simcoon::iota) {
-            if (aniso_criteria) {
-                lambdaReo_raw = dDrucker_ani_stress(sigma_eff, DFA_params, prager_b, prager_n);
-            } else {
-                lambdaReo_raw = dDrucker_stress(sigma_eff, prager_b, prager_n);
-            }
+            lambdaReo_raw = drucker(sigma_eff, 1).df;
         } else {
             lambdaReo_raw = zeros(6);
         }
@@ -670,9 +655,7 @@ void umat_sma_unified_TR_T(const string &umat_name, const vec &Etot, const vec &
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;
 
         // Reorientation criterion, per unit martensite (thesis eq. 664, Form B)
-        double Prager_sigma_eff = aniso_criteria
-            ? Drucker_ani_stress(sigma_eff, DFA_params, prager_b, prager_n)
-            : Drucker_stress(sigma_eff, prager_b, prager_n);
+        double Prager_sigma_eff = drucker(sigma_eff, 0).f;
         Phi(2) = Prager_sigma_eff - YReo;
 
         // Hardening derivatives w.r.t. xi

@@ -335,3 +335,63 @@ TEST(Tcriteria, dTresca_stress_numerical)
     EXPECT_EQ(dTresca.n_elem, (arma::uword)6);
     EXPECT_GT(norm(dTresca, 2), 0.);
 }
+// A near-hydrostatic stress (the stress-free cooling of an SMA) makes the quadratic form of the
+// pressure-insensitive criteria vanish, and round-off can leave it below zero: the equivalent
+// stress is zero and every derivative finite, not NaN.
+TEST(Tcriteria, quadratic_form_criteria_vanish_on_hydrostatic_stress)
+{
+    const vec v = {0x1.f5c28f5c29035p-5, 0x1.f5c28f5c294eep-5, 0x1.f5c28f5c290d2p-5, 0., 0., 0.};
+    const vec dfa = {0.5, 0.5, 0.5, 1.5, 1.5, 1.5, 0.0};
+    EXPECT_EQ(DFA_stress(v, dfa), 0.);
+    EXPECT_TRUE(dDFA_stress(v, dfa).is_finite());
+    EXPECT_TRUE(ddDFA_stress(v, dfa).is_finite());
+    EXPECT_EQ(Drucker_ani_stress(v, dfa, 1.4, 2.), 0.);
+    EXPECT_TRUE(dDrucker_ani_stress(v, dfa, 1.4, 2.).is_finite());
+    EXPECT_TRUE(ddDrucker_ani_stress(v, dfa, 1.4, 2.).is_finite());
+    for (double p : {1., -1., 1.e3}) {
+        const vec h = {p, p, p, 0., 0., 0.};
+        EXPECT_EQ(DFA_stress(h, dfa), 0.);
+        EXPECT_TRUE(dDFA_stress(h, dfa).is_finite());
+        const vec n = {nextafter(p, 2.*p), p, nextafter(p, 0.), 0., 0., 0.};
+        EXPECT_EQ(DFA_stress(n, dfa), 0.);
+        EXPECT_TRUE(approx_equal(dDFA_stress(n, dfa), vec(zeros(6)), "absdiff", 0.));
+    }
+    const vec dfa_K = {0.5, 0.5, 0.5, 1.5, 1.5, 1.5, 0.3};
+    const vec h = {200., 200., 200., 0., 0., 0.};
+    EXPECT_EQ(Drucker_ani_stress(h, dfa_K, 1.4, 2.), DFA_stress(h, dfa_K));
+    EXPECT_TRUE(approx_equal(dDrucker_ani_stress(h, dfa_K, 1.4, 2.), dDFA_stress(h, dfa_K), "absdiff", 0.));
+    EXPECT_TRUE(ddDrucker_ani_stress(h, dfa_K, 1.4, 2.).is_finite());
+}
+
+// One response per criterion: its members are the scalar functions, its Hessian the derivative of
+// its gradient (central differences), and the anisotropic Drucker reduces to DFA for n >= 10.
+TEST(Tcriteria, criterion_responses)
+{
+    const vec v = {120., -35., 60., 40., -25., 15.};
+    const vec dfa = {0.5, 0.6, 0.7, 1.5, 1.5, 1.6, 0.3};
+    const double b = 1.2, n = 2.;
+    const CriterionResponse D = Drucker_stress_response(v, b, n);
+    EXPECT_EQ(D.f, Drucker_stress(v, b, n));
+    EXPECT_TRUE(approx_equal(vec(D.df), dDrucker_stress(v, b, n), "absdiff", 0.));
+    const CriterionResponse A = Drucker_ani_stress_response(v, dfa, b, n);
+    EXPECT_EQ(A.f, Drucker_ani_stress(v, dfa, b, n));
+
+    const double h = 1.e-5;
+    vec gd_D(6), gd_A(6);
+    mat fd_D(6, 6), fd_A(6, 6);
+    for (int c = 0; c < 6; ++c) {
+        vec e = zeros(6);
+        e(c) = h;
+        gd_D(c) = (Drucker_stress(v + e, b, n) - Drucker_stress(v - e, b, n))/(2.*h);
+        gd_A(c) = (Drucker_ani_stress(v + e, dfa, b, n) - Drucker_ani_stress(v - e, dfa, b, n))/(2.*h);
+        fd_D.col(c) = (dDrucker_stress(v + e, b, n) - dDrucker_stress(v - e, b, n))/(2.*h);
+        fd_A.col(c) = (dDrucker_ani_stress(v + e, dfa, b, n) - dDrucker_ani_stress(v - e, dfa, b, n))/(2.*h);
+    }
+    EXPECT_LT(norm(vec(D.df) - gd_D, "inf"), 1.e-7*norm(gd_D, "inf"));
+    EXPECT_LT(norm(vec(A.df) - gd_A, "inf"), 1.e-7*norm(gd_A, "inf"));
+    EXPECT_LT(norm(mat(D.ddf) - fd_D, "inf"), 1.e-6*norm(fd_D, "inf"));
+    EXPECT_LT(norm(mat(A.ddf) - fd_A, "inf"), 1.e-6*norm(fd_A, "inf"));
+
+    EXPECT_TRUE(approx_equal(dDrucker_ani_stress(v, dfa, b, 12.), dDFA_stress(v, dfa), "absdiff", 1.e-14));
+    EXPECT_THROW(Tresca_stress_response(v, 2), std::invalid_argument);
+}

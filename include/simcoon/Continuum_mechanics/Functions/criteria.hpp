@@ -123,11 +123,12 @@ namespace simcoon
      * @details Returns an anisotropic equivalent stress that combines the Drucker yield criterion
         with the Deshpande-Fleck-Ashby (DFA) anisotropic formulation:
     \f[
-        \sigma^{P}_{ani} = \sigma^{DFA} \left( \frac{1 + b \cdot J_3(\mathbf{\sigma})}{(J_2(\mathbf{\sigma}))^{3/2}} \right)^{1/n}
+        \sigma^{P}_{ani} = \sigma^{DFA} \left( 1 + b\,\frac{J_3(\mathbf{\sigma})}{(J_2(\mathbf{\sigma}))^{3/2}} \right)^{1/n}
     \f]
         where \f$ \sigma^{DFA} \f$ is the DFA anisotropic equivalent stress (see DFA_stress()).
         This formulation is particularly useful for modeling porous shape memory alloys (SMA).
-        Note that if \f$ n > 10 \f$, the criterion reduces to the DFA stress to avoid numerical instabilities.
+        It reduces to the DFA stress for \f$ n \ge 10 \f$ or a vanishing deviator, and is zero below
+        \f$ \sigma^{DFA} \le \f$ `iota` (see Drucker_ani_stress_response()).
      * @code
             vec sigma = randu(6);
             vec params = {0.5, 0.6, 0.7, 1.5, 1.5, 1.6, 1.2};
@@ -149,8 +150,8 @@ namespace simcoon
         This derivative is computed using the chain rule combining the derivatives of the DFA stress,
         \f$ J_2 \f$, and \f$ J_3 \f$ invariants. It is primarily used to define evolution equations
         for strain based on an associated flow rule.
-        Note that if \f$ n > 10 \f$, the derivative reduces to the standard stress flow direction
-        \f$ \eta_{stress} \f$ to avoid numerical instabilities.
+        Note that if \f$ n \ge 10 \f$, the derivative reduces to the gradient of the DFA equivalent
+        stress, the value the function reduces to.
      * @code
             vec sigma = randu(6);
             vec params = {0.5, 0.6, 0.7, 1.5, 1.5, 1.6, 1.2};
@@ -185,7 +186,8 @@ namespace simcoon
     /**
      * @brief Hessian of the anisotropic Drucker equivalent stress (DFA in place of von Mises), \f$ \partial^2 \sigma^{D,ani} / \partial \boldsymbol{\sigma}^2 \f$ (6x6).
      *
-     * Same expression as ddDrucker_stress() with \f$ \sigma^{DFA} \f$, dDFA_stress() and ddDFA_stress() in place of the von Mises terms.
+     * Same expression as ddDrucker_stress() with \f$ \sigma^{DFA} \f$, dDFA_stress() and ddDFA_stress() in place of the von Mises terms;
+     * same floors as Drucker_ani_stress().
      * @param v The stress vector
      * @param params The DFA parameters vector (F,G,H,L,M,N,K) - see P_DFA()
      * @param b Parameter that defines the equivalent stress
@@ -193,6 +195,83 @@ namespace simcoon
      * @return The 6x6 Hessian (arma::mat)
      */
     arma::mat ddDrucker_ani_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+
+    /**
+     * @brief An equivalent stress with its gradient and its Hessian at one stress.
+     *
+     * The response functions below evaluate a criterion once, up to the level asked (0: the value,
+     * 1: and the gradient, 2: and the Hessian): the invariants, the operator product and the powers
+     * the three share are computed once. Each of the scalar functions of this file
+     * (Drucker_stress(), dHill_stress(), ddDFA_stress(), ...) returns one member of a response.
+     * The members up to the level asked are set (each response states its floor); the ones beyond
+     * it are left uninitialized.
+     */
+    struct CriterionResponse {
+        double f = 0.;                ///< the equivalent stress
+        arma::vec::fixed<6> df;       ///< its gradient, strain-like (the flow direction); level >= 1
+        arma::mat::fixed<6,6> ddf;    ///< its Hessian (rows strain-like, columns per stress component); level 2
+    };
+
+    /**
+     * @brief The von Mises equivalent stress: Mises_stress(), eta_stress(), deta_stress(), on one
+     *        deviator. The gradient is zero only at \f$ \sigma^{VM} = 0 \f$ (as eta_stress()), the
+     *        Hessian below \f$ \sigma^{VM} < \f$ `iota`.
+     * @param v The stress vector
+     * @param level 0: the value; 1: and the gradient; 2: and the Hessian
+     * @return The response up to @p level
+     */
+    CriterionResponse Mises_stress_response(const arma::vec &v, const int &level = 2);
+
+    /**
+     * @brief The Tresca equivalent stress and its flow, the von Mises direction.
+     * @param v The stress vector
+     * @param level 0: the value; 1: and the gradient
+     * @return The response up to @p level
+     * @throws std::invalid_argument for level 2 (vertex flow, no Hessian)
+     */
+    CriterionResponse Tresca_stress_response(const arma::vec &v, const int &level = 1);
+
+    /**
+     * @brief The quadratic-form equivalent stress \f$ \sqrt{\boldsymbol{\sigma}:\mathbf{H}:\boldsymbol{\sigma}} \f$
+     *        (Hill, DFA, Ani through their operator): Eq_stress_P(), dEq_stress_P(), ddEq_stress_P().
+     *
+     * Zero when the form is within its round-off, \f$ q \le 8\,\epsilon\,|\boldsymbol{\sigma}|\,|\mathbf{H}\boldsymbol{\sigma}| \f$
+     * (a near-hydrostatic stress for a pressure-insensitive operator); the gradient and the Hessian are zero below
+     * \f$ \sigma^{eq} < \f$ `iota`, where the direction is undefined.
+     * @param v The stress vector
+     * @param H The operator (P_Hill(), P_DFA(), P_Ani())
+     * @param level 0: the value; 1: and the gradient; 2: and the Hessian
+     * @return The response up to @p level
+     */
+    CriterionResponse Eq_stress_P_response(const arma::vec &v, const arma::mat &H, const int &level = 2);
+
+    /**
+     * @brief The Drucker equivalent stress: Drucker_stress(), dDrucker_stress(), ddDrucker_stress().
+     *
+     * The \f$ J_3 \f$ correction \f$ r^{1/n} \f$, \f$ r = 1 + b\,J_3/J_2^{3/2} \f$, on the von Mises
+     * response; the von Mises response itself for \f$ n \ge 10 \f$ or a vanishing deviator, zero below
+     * the floor \f$ \sigma^{VM} \le \f$ `iota`.
+     * @param v The stress vector
+     * @param b Parameter that defines the equivalent stress
+     * @param n Parameter that defines the equivalent stress
+     * @param level 0: the value; 1: and the gradient; 2: and the Hessian
+     * @return The response up to @p level
+     */
+    CriterionResponse Drucker_stress_response(const arma::vec &v, const double &b, const double &n, const int &level = 2);
+
+    /**
+     * @brief The anisotropic Drucker equivalent stress: Drucker_ani_stress(), dDrucker_ani_stress(),
+     *        ddDrucker_ani_stress(); the same correction on the DFA response (Eq_stress_P_response()
+     *        with P_DFA()), which it reduces to for \f$ n \ge 10 \f$ or a vanishing deviator; zero
+     *        below the floor \f$ \sigma^{DFA} \le \f$ `iota`.
+     * @param v The stress vector
+     * @param params The DFA parameters vector (F,G,H,L,M,N,K) - see P_DFA()
+     * @param b Parameter that defines the equivalent stress
+     * @param n Parameter that defines the equivalent stress
+     * @param level 0: the value; 1: and the gradient; 2: and the Hessian
+     * @return The response up to @p level
+     */
+    CriterionResponse Drucker_ani_stress_response(const arma::vec &v, const arma::vec &params, const double &b, const double &n, const int &level = 2);
 
     /**
      * @brief Returns an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix)
@@ -338,6 +417,8 @@ namespace simcoon
      * @param H The configurational tensor
      * @return The anisotropic equivalent stress (double)
      * @details Returns anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
+     * Zero when the form is not positive: a hydrostatic stress makes it vanish for the pressure
+     * insensitive operators (Hill, DFA, Ani), and round-off can leave it slightly negative.
      * @code
             vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6};
             mat P = P_Hill(P_params);
@@ -356,6 +437,8 @@ namespace simcoon
     \f[
         \sigma^{eq}_{ani} = \frac{\mathbf{H} : \mathbf{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
     \f]
+     * Zero below the floor of ddEq_stress_P() (\f$ \sigma^{eq}_{ani} < \f$ `iota`, a vanishing or round-off
+     * negative form included), where the direction is undefined.
      * @code
             vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6};
             mat P = P_Hill(P_params);

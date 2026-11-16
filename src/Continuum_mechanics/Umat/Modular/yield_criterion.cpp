@@ -22,7 +22,6 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/yield_criterion.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
-#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/parameter.hpp>
 #include <cmath>
 #include <stdexcept>
@@ -166,93 +165,56 @@ void YieldCriterion::configure(YieldType type, const arma::vec& props, int& offs
 
 // ========== Yield Function Computations ==========
 
-// the criteria.cpp kernels called by type, the quadratic ones on P_ built at configuration
-
-double YieldCriterion::equivalent_stress(const arma::vec& sigma) const {
+// the criteria.cpp responses called by type, the quadratic ones on P_ built at configuration
+CriterionResponse YieldCriterion::response(const arma::vec& sigma, const int& level) const {
     if (!configured_) {
         throw std::invalid_argument("YieldCriterion: not configured");
     }
     switch (type_) {
         case YieldType::TRESCA:
-            return Tresca_stress(sigma);
+            return Tresca_stress_response(sigma, level);
         case YieldType::DRUCKER:
-            return Drucker_stress(sigma, params_(0), params_(1));
+            return Drucker_stress_response(sigma, params_(0), params_(1), level);
         case YieldType::HILL:
         case YieldType::DFA:
         case YieldType::ANISOTROPIC:
-            return Eq_stress_P(sigma, P_);
+            return Eq_stress_P_response(sigma, P_, level);
         default:   // VON_MISES (type_string's fallback too)
-            return Mises_stress(sigma);
+            return Mises_stress_response(sigma, level);
     }
 }
 
+double YieldCriterion::equivalent_stress(const arma::vec& sigma) const {
+    return response(sigma, 0).f;
+}
+
 arma::vec YieldCriterion::flow_direction(const arma::vec& sigma) const {
-    if (!configured_) {
-        throw std::invalid_argument("YieldCriterion: not configured");
-    }
-    switch (type_) {
-        case YieldType::TRESCA:
-            return dTresca_stress(sigma);
-        case YieldType::DRUCKER:
-            return dDrucker_stress(sigma, params_(0), params_(1));
-        case YieldType::HILL:
-        case YieldType::DFA:
-        case YieldType::ANISOTROPIC:
-            return dEq_stress_P(sigma, P_);
-        default:   // VON_MISES
-            return eta_stress(sigma);
-    }
+    return response(sigma, 1).df;
 }
 
 void YieldCriterion::equivalent_stress_and_flow(const arma::vec& sigma, double& sigma_eq,
                                                 arma::vec& flow) const {
-    switch (type_) {
-        case YieldType::HILL:
-        case YieldType::DFA:
-        case YieldType::ANISOTROPIC: {
-            if (!configured_) {
-                throw std::runtime_error("YieldCriterion: not configured");
-            }
-            // Eq_stress_P and dEq_stress_P on one P sigma: the latter is P sigma over the former
-            if (arma::norm(sigma, 2) > simcoon::iota) {
-                const arma::vec P_sigma = P_ * sigma;
-                sigma_eq = std::pow(arma::sum(sigma % P_sigma), 0.5);
-                flow = P_sigma / sigma_eq;
-            } else {
-                sigma_eq = 0.;
-                flow = arma::zeros(6);
-            }
-            return;
-        }
-        case YieldType::VON_MISES: {   // Mises_stress and eta_stress on one deviator
-            double d[6];
-            sigma_eq = mises_voigt(sigma.memptr(), Tensor2Type::stress, d);
-            flow = flow_voigt(d, sigma_eq, 3./2., 2.);
-            return;
-        }
-        default:
-            sigma_eq = equivalent_stress(sigma);
-            flow = flow_direction(sigma);
+    if (type_ == YieldType::VON_MISES) {
+        // Mises_stress_response kernels written into the outputs: engine hot path
+        double d[6];
+        sigma_eq = mises_voigt(sigma.memptr(), Tensor2Type::stress, d);
+        flow = flow_voigt(d, sigma_eq, 3./2., 2.);
+        return;
     }
+    const CriterionResponse r = response(sigma, 1);
+    sigma_eq = r.f;
+    flow = r.df;
 }
 
 void YieldCriterion::equivalent_stress_flow_hessian(const arma::vec& sigma, double& sigma_eq,
                                                     arma::vec& flow, arma::mat& hessian) const {
-    equivalent_stress_and_flow(sigma, sigma_eq, flow);
-    switch (type_) {
-        case YieldType::HILL:
-        case YieldType::DFA:
-        case YieldType::ANISOTROPIC:
-            // ddEq_stress_P(sigma, P_) (criteria.cpp) on the flow just built: its Lambda
-            if (sigma_eq < simcoon::iota) {
-                hessian = arma::zeros(6, 6);
-            } else {
-                hessian = (P_ - flow * flow.t()) / sigma_eq;
-            }
-            return;
-        default:
-            hessian = flow_hessian(sigma);
+    if (!has_flow_hessian()) {
+        throw std::invalid_argument("YieldCriterion: no analytic flow Hessian for " + type_string());
     }
+    const CriterionResponse r = response(sigma, 2);
+    sigma_eq = r.f;
+    flow = r.df;
+    hessian = r.ddf;
 }
 
 arma::vec YieldCriterion::plastic_flow(const arma::vec& sigma) const {
@@ -291,17 +253,11 @@ arma::mat YieldCriterion::flow_hessian(const arma::vec& sigma) const {
     if (!configured_) {
         throw std::invalid_argument("YieldCriterion: not configured");
     }
-    switch (type_) {
-        case YieldType::VON_MISES:
-            return deta_stress(sigma);
-        case YieldType::HILL:
-        case YieldType::DFA:
-        case YieldType::ANISOTROPIC:
-            return ddEq_stress_P(sigma, P_);   // ddHill_stress / ddDFA_stress / ddAni_stress
-        default:
-            throw std::invalid_argument(
-                "YieldCriterion: no analytic flow Hessian for " + type_string());
+    if (!has_flow_hessian()) {
+        throw std::invalid_argument(
+            "YieldCriterion: no analytic flow Hessian for " + type_string());
     }
+    return response(sigma, 2).ddf;
 }
 
 double YieldCriterion::equivalent_stress(const tensor2& sigma) const {
