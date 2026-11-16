@@ -249,7 +249,7 @@ bool YieldCriterion::has_stable_flow_direction() const noexcept {
     return false;  // unreachable for a valid YieldType
 }
 
-arma::mat YieldCriterion::flow_hessian(const arma::vec& sigma) const {
+arma::mat::fixed<6,6> YieldCriterion::flow_hessian(const arma::vec& sigma) const {
     if (!configured_) {
         throw std::invalid_argument("YieldCriterion: not configured");
     }

@@ -504,7 +504,7 @@ public:
      * @brief Back stress of branch @p i for a back-strain @p a (the linear map of compute_backstresses),
      *        engineering stress Voigt
      */
-    [[nodiscard]] arma::vec backstress_voigt(int i, const arma::vec& a) const;
+    [[nodiscard]] arma::vec::fixed<6> backstress_voigt(int i, const arma::vec& a) const;
 
     /**
      * @brief Energy stored in the back stresses over the increment, per unit volume,

@@ -173,6 +173,18 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Changed
 
+- Modular engine: fewer dynamic temporaries on the plasticity path. `PlasticityMechanism`
+  keeps its flow direction and `L n` in fixed-size storage, and `ModularUMAT` reuses one
+  constraint buffer per mechanism. Fixed-size returns: `YieldCriterion::flow_hessian`
+  (`mat::fixed<6,6>`), `PlasticityMechanism::total_backstress_voigt`,
+  `KinematicHardening::backstress_voigt` and `InternalVariable::delta_vec`
+  (`vec::fixed<6>`). Source compatible (they convert to `arma::mat` / `arma::vec`); the ABI
+  of these classes changes. Results bit-identical.
+- The condensed stress states (`ndi < 3`: truss, beams, plane stress) solve their free block
+  with the fixed-size `small_lu` instead of a LAPACK `solve` (the local Newton step and the
+  condensation of `Lt` and of the thermomechanical derivatives). Condensed results move at
+  round-off (within 7e-16); the 3D dumps are bit-identical. A singular block still reports
+  as before (step cut in the Newton step, exception in the condensation).
 - The yield criteria evaluate a criterion once: `CriterionResponse` (value, gradient, Hessian,
   fixed size) and one response function per criterion (`Mises_stress_response`,
   `Tresca_stress_response`, `Eq_stress_P_response`, `Drucker_stress_response`,

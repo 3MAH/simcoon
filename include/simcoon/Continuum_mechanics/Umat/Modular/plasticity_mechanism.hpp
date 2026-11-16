@@ -96,8 +96,8 @@ private:
 
     // Per-iteration caches populated by compute_constraints, raw engineering Voigt;
     // dPhi_dsigma() and kappa() return const-refs to their one-column views.
-    mutable arma::vec flow_dir_;                ///< ∂Φ/∂σ (associated flow direction)
-    mutable arma::vec kappa_;                   ///< L_ref · flow_dir_
+    mutable arma::vec::fixed<6> flow_dir_;                ///< ∂Φ/∂σ (associated flow direction)
+    mutable arma::vec::fixed<6> kappa_;                   ///< L_ref · flow_dir_
     mutable arma::mat dPhi_column_ = arma::mat(6, 1);    ///< flow_dir_ as the 6 x 1 of the interface
     mutable arma::mat kappa_column_ = arma::mat(6, 1);   ///< kappa_ as the 6 x 1 of the interface
     mutable arma::mat::fixed<6, 6> hessian_eng_;   ///< flow Hessian at the shifted stress (dLambda_dsigma)
@@ -119,7 +119,7 @@ private:
     std::vector<ClosestPointIngredients> cpp_cache_{ClosestPointIngredients{}};  ///< built by refresh_state, read by closest_point_ingredients
 
     /// Total backstress (engineering stress Voigt), summed in the X_branches_ buffer it overwrites (no allocation)
-    [[nodiscard]] arma::vec total_backstress_voigt() const;
+    [[nodiscard]] arma::vec::fixed<6> total_backstress_voigt() const;
 
 public:
     /**
