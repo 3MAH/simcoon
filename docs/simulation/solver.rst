@@ -143,10 +143,10 @@ Solver parameters
      - Tangent operator (default ``"algorithmic"``): see below
    * - integrator
      - string
-     - Local integrator, ``"cutting_plane"`` (default) or ``"closest_point"``: see below
+     - Local integrator, ``"default"`` (the law's own), ``"cutting_plane"`` or ``"closest_point"``: see below
    * - ncp
      - string
-     - Complementarity function of the cutting plane, ``"fischer_burmeister"`` (default) or ``"min"`` (see the UMAT catalog)
+     - Complementarity function of the local step, ``"fischer_burmeister"`` (default), ``"min"`` or ``"active_set"`` (see the UMAT catalog)
    * - solver_type
      - int
      - Solver strategy (0: Newton-Raphson)
@@ -193,12 +193,14 @@ by ``integrator`` (below):
        the note below); approximate otherwise (this was mode 1 before the 2.0
        renumbering)
 
-``integrator="closest_point"`` replaces the cutting-plane local loop (the
-default ``"cutting_plane"``) by the closest-point projection: the plastic strain
-uses the flow of the converged state, so the algorithmic operator becomes the
-exact Jacobian of the discrete update for every criterion and hardening law the
-integrator supports; a law or a row without it keeps the cutting plane. It takes
-``tangent_mode="algorithmic"``. It used to be ``tangent_mode=3``, which is no
+``integrator="closest_point"`` replaces the cutting-plane local loop by the
+closest-point projection: the plastic strain uses the flow of the converged
+state, so the algorithmic operator becomes the exact Jacobian of the discrete
+update for every criterion and hardening law the integrator supports; a row
+without it keeps the cutting plane. The default, ``integrator="default"``, is
+the law's own: the closest point for the unified SMA laws (SMA*, SMR*), the
+cutting plane for every other law, resolved the same way by the C++ solver and
+dispatch. The closest point used to be ``tangent_mode=3``, which is no
 longer accepted (``ValueError``). See the UMAT catalog, integrator and tangent
 operator.
 

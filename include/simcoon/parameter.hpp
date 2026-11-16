@@ -79,12 +79,14 @@ constexpr int tangent_choice_of(const int tangent_mode) {
          : tangent_mode == tangent_closest_point_none ? tangent_none : tangent_mode;
 }
 
-// Local integrator of the laws with a return mapping (the integrator option of solve / sim.umat).
-// Not a kernel argument: kernel_tangent_mode() folds it with the tangent choice into the code
-// the kernels read, where the closest point is tangent_closest_point[_continuum|_none] (kernel
-// codes, not choices the Python API takes as tangent_mode).
-constexpr int integrator_cutting_plane = 0;   ///< convex cutting plane (default)
+// Local integrator of the laws with a return mapping (the integrator option of solve / sim.umat,
+// solver_params::integrator, state_variables::integrator). Not a kernel argument:
+// kernel_tangent_mode() folds it with the tangent choice into the code the kernels read, where the
+// closest point is tangent_closest_point[_continuum|_none] (kernel codes, not choices the Python API
+// takes as tangent_mode).
+constexpr int integrator_cutting_plane = 0;   ///< convex cutting plane
 constexpr int integrator_closest_point = 1;   ///< closest-point projection, backward Euler (return_mapping.hpp)
+constexpr int integrator_default = 2;         ///< the law's own: closest point for the unified SMA laws, cutting plane for the others (kernel_defaults_closest_point)
 
 /// Finite-strain formulation carried in the corate_type slot. Rate formulation: corate_type 0..5
 /// (corate_kinematics), the law works on \f$ \ln\mathbf{V} \f$ and the Kirchhoff stress

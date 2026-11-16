@@ -320,9 +320,9 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     }
     //"lambda_solver" is the documented spelling (lambda is a Python keyword); "lambda" kept as alias
     ctrl.lambda = dget<double>(params_py, "lambda_solver", dget<double>(params_py, "lambda", ctrl.lambda));
-    // integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
-    ctrl.tangent_mode = simcoon::kernel_tangent_mode(dget<int>(params_py, "integrator", simcoon::integrator_cutting_plane),
-                                                     dget<int>(params_py, "tangent_mode", ctrl.tangent_mode));
+    // integrator (the law's own by default) and tangent choice; the dispatch folds them into the kernel code
+    ctrl.integrator = dget<int>(params_py, "integrator", ctrl.integrator);
+    ctrl.tangent_mode = dget<int>(params_py, "tangent_mode", ctrl.tangent_mode);
     ctrl.ncp = dget<int>(params_py, "ncp", ctrl.ncp);
 
     //Loading blocks

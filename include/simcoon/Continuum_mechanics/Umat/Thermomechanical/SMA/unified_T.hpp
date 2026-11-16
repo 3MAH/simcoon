@@ -179,6 +179,9 @@ namespace simcoon{
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step ratio for adaptive time stepping [output]
+ * @param tangent_mode kernel tangent code (parameter.hpp): 0 none, 1 continuum, 2 algorithmic,
+ *        3 to 5 the closest-point integrator with the algorithmic, continuum or elastic operator
+ * @param ncp NCPMethod code of the local step (0 Fischer-Burmeister, the default; see sma_ncp_method)
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note flagT = 0 converts the given Ms, Mf, As, Af (read on the measured curve) into the model's
@@ -188,25 +191,39 @@ namespace simcoon{
  * @ref umat_sma_unified_T (see its note).
  * @note The reverse row of the local Jacobian uses the ETMean chain rule of
  * @ref umat_sma_unified_T (see its note).
- * @note **Tangent modes.** `tangent_none`, `tangent_algorithmic` and `tangent_closest_point` are
- * all clamped to the continuum tangent: the sensitivities \f$ \mathbf{P}_\varepsilon \f$ and
- * \f$ \hat{\mathbf{B}}^{-1} \f$ also feed the physical heat source \f$ r \f$ and its
- * linearisation, the finite-difference flow Hessian of the algorithmic mode is near-singular
- * on the plateau, and this kernel has no closest-point branch. The thermal cross-tangents are
+ * @note **Tangent modes.** Under the cutting plane `tangent_none`, `tangent_algorithmic` and
+ * `tangent_continuum` all give the continuum tangent: the sensitivities \f$ \mathbf{P}_\varepsilon \f$
+ * and \f$ \hat{\mathbf{B}}^{-1} \f$ also feed the physical heat source \f$ r \f$ and its
+ * linearisation, and the finite-difference flow Hessian of the algorithmic mode is near-singular
+ * on the plateau. The closest point (codes 3 to 5) takes the operator of its code on the converged
+ * solve, the elastic choice taking the continuum sensitivities; with the algorithmic operator the
+ * thermal face is the exact derivative of the update.
+ * @note **Thermal face.** With \f$ \boldsymbol{\alpha}_q \f$ the thermal expansion of the elastic
+ * prediction (\f$ \boldsymbol{\alpha}(\xi_n) \f$ under the cutting plane, \f$ \boldsymbol{\alpha}(\xi_{n+1}) \f$
+ * under the closest point, whose frozen \f$ \boldsymbol{\alpha}(\xi_n) \f$ carries \f$ \Delta\boldsymbol{\alpha} \f$
+ * in its flows) and \f$ \tilde{\mathbf{L}} \f$, \f$ \tilde{\boldsymbol{\kappa}} \f$ those of the operator
+ * (ContinuumTangent: \f$ \mathbf{L} \f$ and \f$ \boldsymbol{\kappa} \f$ but for the algorithmic one),
  * \f[
  * \mathbf{P}_\theta = \hat{\mathbf{B}}^{-1}\left(\frac{\partial \Phi_l}{\partial \theta}
- * - \frac{\partial \Phi_l}{\partial \boldsymbol{\sigma}} : \mathbf{L}\,\boldsymbol{\alpha}\right)_l, \qquad
- * \frac{\partial \boldsymbol{\sigma}}{\partial T} = -\mathbf{L}\,\boldsymbol{\alpha} - \sum_j \boldsymbol{\kappa}_j\,P_{\theta,j},
+ * - \frac{\partial \Phi_l}{\partial \boldsymbol{\sigma}} : \tilde{\mathbf{L}}\,\boldsymbol{\alpha}_q\right)_l, \qquad
+ * \frac{\partial \boldsymbol{\sigma}}{\partial T} = -\tilde{\mathbf{L}}\,\boldsymbol{\alpha}_q - \sum_j \tilde{\boldsymbol{\kappa}}_j\,P_{\theta,j}.
  * \f]
- * with \f$ \hat{B}_{lj} \f$ row = criterion \f$ l \f$, column = mechanism \f$ j \f$. The
- * dissipation derivatives hold the transformation directions fixed over the increment
- * (\f$ \mathrm{d}\Delta\boldsymbol{\varepsilon}^{T} = \boldsymbol{\Lambda}^F P_F + \boldsymbol{\Lambda}^R P_R \f$),
- * and the entropy is
- * \f$ \eta = c_0(\xi)\ln(T/T_{init}) + \boldsymbol{\alpha}(\xi):\boldsymbol{\sigma} + \rho\Delta s_0\,\xi \f$.
+ * The dissipation of the increment is
+ * \f$ \Delta\gamma = \tfrac12(\boldsymbol{\sigma}_n + \boldsymbol{\sigma}):\Delta\boldsymbol{\varepsilon}^{T}
+ * + \sum_j \tfrac12 (A_{j,n} + A_j)\,\Delta\xi_j \f$, the bound penalties of \f$ \xi \f$ in the forces
+ * \f$ A_j \f$ (stored like the transformation hardening, recovered at unloading); under the cutting
+ * plane its derivatives hold the flow directions fixed over the increment, under the closest point
+ * they are exact. The entropy is
+ * \f$ \eta = c_0(\xi)\ln(T/T_{init}) + \boldsymbol{\alpha}(\xi_n):\boldsymbol{\sigma} + \rho\Delta s_0\,\xi \f$;
+ * heat_source_increment() forms \f$ r \f$, \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$,
+ * \f$ \partial r/\partial T \f$.
  *
  * @see umat_sma_unified_T() for the mechanical-only version (no thermal coupling)
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)
+ *
+ * **Complementarity function**: @p ncp drives the local step of the closest point; the cutting
+ * plane takes Fischer-Burmeister and refuses @c min / @c active_set (sma_ncp_method).
  *
  * **References:**
  * - Chatziathanasiou, D. (2016). Ph.D. Thesis — Phenomenological constitutive modeling
@@ -215,7 +232,7 @@ namespace simcoon{
  *   "A constitutive model for cyclic actuation of high-temperature shape memory alloys."
  *   *Mechanics of Materials*, 68, 120-136.
  */
-void umat_sma_unified_T_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::vec &dSdT, arma::vec &drdE, double &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
+void umat_sma_unified_T_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::vec &dSdT, arma::vec &drdE, double &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default, const int &ncp = 0);
 
 /** @} */ // end of umat_thermomechanical group
 

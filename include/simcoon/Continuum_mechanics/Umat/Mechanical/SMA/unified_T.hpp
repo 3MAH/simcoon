@@ -181,6 +181,9 @@ namespace simcoon{
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step ratio for adaptive time stepping [output]
+ * @param tangent_mode kernel tangent code (parameter.hpp): 0 none, 1 continuum, 2 algorithmic,
+ *        3 to 5 the closest-point integrator with the algorithmic, continuum or elastic operator
+ * @param ncp NCPMethod code of the local step (0 Fischer-Burmeister, the default; see sma_ncp_method)
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note flagT = 0 converts the given Ms, Mf, As, Af (read on the measured curve) into the model's
@@ -257,6 +260,11 @@ namespace simcoon{
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)
  * @see umat_sma_mono() for the micromechanical monocrystal SMA model
  *
+ * **Complementarity function**: @p ncp (NCPMethod code, 0 Fischer-Burmeister by default) drives
+ * the local step of the closest point (ReturnMappingControl::ncp, UMAT catalogue), whose merit is
+ * then the one of ncp_step; the cutting plane takes Fischer-Burmeister and refuses
+ * @c min / @c active_set (sma_ncp_method).
+ *
  * **References:**
  * - Chatziathanasiou, D. (2016). Ph.D. Thesis — Phenomenological constitutive modeling
  *   of shape memory alloys.
@@ -264,7 +272,7 @@ namespace simcoon{
  *   "A constitutive model for cyclic actuation of high-temperature shape memory alloys."
  *   *Mechanics of Materials*, 68, 120-136.
  */
-void umat_sma_unified_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
+void umat_sma_unified_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default, const int &ncp = 0);
 
 /** @} */ // end of umat_mechanical group
 

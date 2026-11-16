@@ -20,8 +20,6 @@
 #include <stdexcept>
 #include <string>
 #include <armadillo>
-#include <algorithm>
-#include <vector>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -401,9 +399,8 @@ NCPMethod ncp_method_of(const int &code, const string &where)
     if (code == 0) return NCPMethod::fischer_burmeister;
     if (code == 1) return NCPMethod::min_fb_fallback;
     if (code == 2) return NCPMethod::active_set;
-    if (code == 3) return NCPMethod::penalized_fischer_burmeister;
     throw std::invalid_argument(where + ": ncp must be 0 (Fischer-Burmeister), 1 (min-NCP with a Fischer-Burmeister "
-                                "fallback), 2 (active set) or 3 (penalized Fischer-Burmeister); got " + std::to_string(code));
+                                "fallback) or 2 (active set); got " + std::to_string(code));
 }
 
 bool ncp_is_semismooth(const NCPMethod &method)
@@ -414,33 +411,6 @@ bool ncp_is_semismooth(const NCPMethod &method)
 void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp, vec &dp, double &error)
 {
     const uword n = Phi.n_elem;
-    if (method_ == NCPMethod::penalized_fischer_burmeister) {
-        // phi_lambda = lambda FB + (1 - lambda) a+ b+, a = -Phi, b = Dp*: Newton on the n rows
-        const double lam = ncp_penalty_lambda;
-        vec phi(n);
-        mat J = denom_FB_m(Phi, denom, Dp) * lam;
-        error = 0.;
-        for (uword i = 0; i < n; i++) {
-            const double f = fabs(denom(i, i));
-            const double a = std::max(-Phi(i), 0.), b = std::max(Dp(i)*f, 0.);
-            phi(i) = lam*fb_m_value(Phi(i), Dp(i)*f) + (1. - lam)*a*b;
-            for (uword j = 0; j < n; j++) {
-                double d = 0.;
-                if (a > 0.) d -= b*denom(i, j);                // d(a+)/dDp_j = -B_ij
-                if (b > 0. && i == j) d += a*f;                // d(b+)/dDp_i = |B_ii|
-                J(i, j) += (1. - lam)*d;
-            }
-            error += fabs(phi(i))/fabs(Y_crit(i));
-        }
-        dp.zeros(n);
-        try {
-            if (fabs(det(J)) > simcoon::limit) dp = -solve(J, phi);
-        } catch (const std::runtime_error &e) {
-            throw simcoon::exception_det(string("ncp_step: penalized Fischer-Burmeister system: ") + e.what());
-        }
-        Dp += dp;
-        return;
-    }
     // min_fb_fallback: uncoupled rows only (a plain semi-smooth Newton cycles on coupled ones); active_set: every row
     bool semismooth = ncp_is_semismooth(method_) && !fallback_;
     if (semismooth && method_ == NCPMethod::min_fb_fallback)
@@ -452,35 +422,36 @@ void ncp_step::operator()(const vec &Phi, const vec &Y_crit, const mat &denom, v
         return;
     }
     if (method_ == NCPMethod::active_set) {
-        // the active rows solve Phi_A + B_AA dp_A + B_AI dp_I = 0 together, the inactive ones go back to zero
-        std::vector<uword> A;
+        uvec A(n);
+        uvec is_active(n, fill::zeros);
+        uword nA = 0;
         vec r(n);
         double err = 0.;
         for (uword i = 0; i < n; i++) {
             const double f = fabs(denom(i, i));
             const bool active = (Phi(i) > 0.) || (-Phi(i) < Dp(i)*f);
-            if (active) A.push_back(i);
+            if (active) { A(nA++) = i; is_active(i) = 1; }
             r(i) = active ? -Phi(i) : Dp(i)*f;
             err += 2.*fabs(r(i))/fabs(Y_crit(i));
         }
         dp.set_size(n);
         for (uword i = 0; i < n; i++) dp(i) = -Dp(i);          // inactive: reset
         bool singular = false;
-        if (!A.empty()) {
-            mat BA(A.size(), A.size());
-            vec rhs(A.size());
-            for (uword a = 0; a < A.size(); a++) {
-                rhs(a) = -Phi(A[a]);
+        if (nA > 0) {
+            mat BA(nA, nA);
+            vec rhs(nA);
+            for (uword a = 0; a < nA; a++) {
+                rhs(a) = -Phi(A(a));
                 for (uword i = 0; i < n; i++)
-                    if (std::find(A.begin(), A.end(), i) == A.end()) rhs(a) -= denom(A[a], i)*dp(i);
-                for (uword b = 0; b < A.size(); b++) BA(a, b) = denom(A[a], A[b]);
+                    if (!is_active(i)) rhs(a) -= denom(A(a), i)*dp(i);
+                for (uword b = 0; b < nA; b++) BA(a, b) = denom(A(a), A(b));
             }
             vec dA;
             try {
                 singular = !(fabs(det(BA)) > simcoon::limit);
                 if (!singular) dA = solve(BA, rhs);
             } catch (const std::runtime_error &) { singular = true; }
-            if (!singular) for (uword a = 0; a < A.size(); a++) dp(A[a]) = dA(a);
+            if (!singular) for (uword a = 0; a < nA; a++) dp(A(a)) = dA(a);
         }
         if ((prev_error_ >= 0. && err > prev_error_) || singular) {
             fallback_ = true;

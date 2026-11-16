@@ -49,7 +49,8 @@ struct solver_params {
     double precision = 1.E-6;   ///< convergence tolerance on the residual norm (absolute)
     double precision_rel = 0.;  ///< > 0: tolerance max(precision, precision_rel |tau|), |tau| the Euclidean norm of the Kirchhoff stress (Voigt), so that stiff or highly loaded cases are not asked for more digits than soft ones (de Souza Neto et al. 2008, sec. 4.2); 0: precision alone (default)
     double lambda = 10000.;     ///< penalty stiffness for strain-controlled components
-    int tangent_mode = tangent_default; ///< tangent_* constants (parameter.hpp)
+    int tangent_mode = tangent_default; ///< tangent choice: tangent_none, tangent_continuum or tangent_algorithmic (parameter.hpp); a closest-point kernel code 3 to 5 is kept as given
+    int integrator = integrator_default; ///< local integrator (integrator_* constants, parameter.hpp): the law's own by default
     int ncp = 0;                ///< complementarity function of the local cutting plane (NCPMethod code), see state_variables::ncp
 };
 

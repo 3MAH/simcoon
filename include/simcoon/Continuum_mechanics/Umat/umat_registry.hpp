@@ -126,7 +126,7 @@ enum class UmatKernel {
     zener_N,                    ///< umat_zener_Nfast / _T (ZENNK)
     prony_N,                    ///< umat_prony_Nfast / _T (PRONK_closed)
     sma_unified,                ///< umat_sma_unified_T / _T_T (SMADI, SMADC, SMAAI, SMAAC)
-    sma_unified_R,              ///< umat_sma_unified_TR (SMRDI, SMRDC, SMRAI, SMRAC)
+    sma_unified_R,              ///< umat_sma_unified_TR / _TR_T (SMRDI, SMRDC, SMRAI, SMRAC)
     sma_mono,                   ///< umat_sma_mono (SMAMO, SMAMC)
     hypoelasticity_ortho,       ///< umat_hypoelasticity_ortho (HYPOO), finite route
     saint_venant,               ///< umat_saint_venant (SNTVE), finite route
@@ -189,10 +189,9 @@ const umat_entry *umat_entry_of(const std::string &umat_name);
 int mean_field_scheme(const UmatKernel &kernel);
 
 /**
- * @brief True when a kernel reads the complementarity option of a run (NCPMethod) in its
- *        cutting plane: the modular engine, the names it serves and the dedicated
- *        plasticity_iso on the mechanical faces; the modular engine and its adapters on the
- *        thermomechanical one.
+ * @brief True when a kernel reads the complementarity option of a run (NCPMethod): the kernels
+ *        whose local Newton steps through ncp_step. The single list of those laws (the UMAT
+ *        catalogue documents it).
  */
 bool kernel_reads_ncp(const UmatKernel &kernel, const bool &thermomechanical);
 
@@ -201,8 +200,15 @@ bool kernel_reads_ncp(const UmatKernel &kernel, const bool &thermomechanical);
  *        mechanical faces plasticity_iso, plasticity_chaboche, johnson_cook (its radial cutting
  *        plane is the projection by construction), the modular engine and its adapters, the SMA
  *        kernels sma_unified and sma_unified_R; on the thermomechanical face plasticity_iso,
- *        plasticity_kin_iso, the modular engine and its adapters.
+ *        plasticity_kin_iso, the modular engine and its adapters, sma_unified and sma_unified_R.
  */
 bool kernel_serves_closest_point(const UmatKernel &kernel, const bool &thermomechanical);
+
+/**
+ * @brief True when a kernel integrates with the closest point under integrator_default: the
+ *        unified SMA kernels sma_unified and sma_unified_R, on both faces. Every other kernel
+ *        runs its cutting plane under the default.
+ */
+bool kernel_defaults_closest_point(const UmatKernel &kernel);
 
 } //namespace simcoon

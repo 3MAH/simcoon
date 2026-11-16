@@ -31,7 +31,7 @@ def solve(
     raise_on_abort: bool = True,
     kinematic_form: Union[str, int, None] = None,
     ncp: str = "fischer_burmeister",
-    integrator: str = "cutting_plane",
+    integrator: str = "default",
     **params,
 ) -> SolverResults:
     """Solve a homogeneous loading path with the C++ simcoon solver, in memory.
@@ -105,22 +105,24 @@ def solve(
         local iterations for isotropic or linear (Prager) kinematic hardening,
         the same return to the local tolerance; 'active_set', the min step on
         every row, coupled surfaces solved together on their active set, the
-        same fallback; 'penalized_fischer_burmeister', the Chen-Chen-Kanzow
-        function (lambda = 0.95), smooth, no fallback. Read by the modular
-        engine (MODUL and the legacy names it serves, mechanical and
-        thermomechanical) and by EPICP_closed, under either integrator; the
-        cutting plane refuses the two semi-smooth ones for an
-        Armstrong-Frederick back stress (its iterates integrate the back
-        stress), the closest point takes every function for every composition
+        same fallback (it pays under the closest point on the
+        transformation-dominated paths of the SMA laws). Read by the laws
+        whose local solve takes it (the UMAT catalog lists them); the cutting
+        plane refuses 'min' and 'active_set' for an Armstrong-Frederick back
+        stress and for the SMA laws (its iterates integrate the back stress or
+        the transformation strain), the closest point takes every function
         (one backward-Euler system, the same root). Any other law raises
         ValueError for a function other than the default. See the UMAT
         catalog.
     integrator : str, optional
-        Local integrator of the laws with a return mapping: 'cutting_plane'
-        (the default) or 'closest_point', the backward-Euler closest-point
+        Local integrator of the laws with a return mapping: 'default', the
+        law's own (closest point for the unified SMA laws SMADI, SMADC, SMAAI,
+        SMAAC, SMRDI, SMRDC, SMRAI, SMRAC, cutting plane for every other law);
+        'cutting_plane'; or 'closest_point', the backward-Euler closest-point
         projection, a different discrete update (EPCHA: 1 to 2 % apart on
-        coarse increments) with its exact operator. It takes
-        ``tangent_mode='algorithmic'``. Served by the modular engine (MODUL and
+        coarse increments) with its exact operator. The C++ solver and the
+        dispatch resolve 'default' the same way. 'closest_point' is
+        served by the modular engine (MODUL and
         the legacy names it serves, mechanical and thermomechanical), the
         dedicated EPICP_closed, EPCHA_closed, EPKCP_closed, EPJCK and the SMA
         kernels: any other law raises ValueError. Inside MODUL, a Tresca or

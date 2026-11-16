@@ -602,9 +602,9 @@ def test_closest_point_refused_for_laws_without_one():
             sim.umat(name, col(np.zeros(6)), col([1e-3, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0),
                      col(np.zeros(6)), eye, col(zener), col(np.zeros(8)), 0.0, 1.0, col(np.zeros(4)),
                      temp=np.full(1, 290.0), n_threads=1, integrator="closest_point")
-    # thermomechanical: EPICP and EPKCP only (the SMA kernel keeps its cutting plane)
-    with pytest.raises(ValueError, match=r"'SMADI' \(thermomechanical\) has none"):
-        sim.umat_T("SMADI", col(np.zeros(6)), col(np.zeros(6)), col(np.zeros(6)), eye, col(np.zeros(30)),
+    # thermomechanical: a dedicated kernel without one
+    with pytest.raises(ValueError, match=r"'ZENER_closed' \(thermomechanical\) has none"):
+        sim.umat_T("ZENER_closed", col(np.zeros(6)), col(np.zeros(6)), col(np.zeros(6)), eye, col(np.zeros(30)),
                    col(np.zeros(30)), 0.0, 1.0, np.zeros((4, 1), order="F"), np.zeros((3, 1), order="F"),
                    np.array([290.0]), np.array([0.0]), integrator="closest_point")
 

@@ -39,6 +39,24 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Breaking changes
 
+- The unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC, mechanical and
+  thermomechanical) integrate with the closest point by default: `integrator` takes `"default"`,
+  the law's own (closest point for those laws, cutting plane for every other one), and that is
+  the new default of `simcoon.solver.solve`, `sim.umat` and `sim.umat_T`.
+  `integrator="cutting_plane"` gives the cutting plane back. The default is resolved in one
+  place, `kernel_tangent_mode(integrator, tangent_mode, umat_name)` (`integrator_default`,
+  `kernel_defaults_closest_point`), for every entry: the C++ solver (`solver_params::integrator`)
+  and the dispatch of a state (`state_variables::integrator`, micromechanics phases included)
+  take `integrator_default` unless set, and the dispatch folds it with `tangent_mode`, now a
+  tangent choice (a closest-point kernel code 3 to 5 set directly passes as given). The SMA
+  results move: the closest point is the more accurate update at a given increment (superelastic
+  SMADI loop, error against a 4000-increment reference: 0.073 / 0.024 / 0.0026 MPa at 10 / 40 /
+  400 increments, against 0.13 / 0.094 / 0.014 for the former cutting plane; `SMA_TR` example at
+  10 degC, 200 increments per step: 12 MPa against 86 MPa). Cost, superelastic SMADI loop:
+  2.3 to 2.8 times the cutting plane at 40 and 400 increments (24.8 against 9.1 ms at 400),
+  faster where the cutting plane cuts its steps (320 K, 10 increments: 1.1 against 9.1 ms).
+  `ncp="min"` / `"active_set"` run on those laws by default. ABI: `state_variables` and `solver_params` gain the `integrator` member
+  (rebuild code that links them).
 - EPJCK runs the modular engine on its mechanical faces (`legacy_adapters.cpp`): a new isotropic
   hardening block, `JohnsonCookHardening` (`IsoHardType::JOHNSON_COOK`, props `B, n, C, pdot0, m,
   T_ref, T_melt`, `sigma_Y` = the A of the law), the rate- and temperature-dependent member of
@@ -100,17 +118,43 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   3 (`parameter.hpp`: `integrates_closest_point`, `tangent_choice_of`), `cpp_tangent()` in
   `return_mapping.hpp`; the plasticity, Chaboche, kinematic and SMA kernels and `MODUL` read the
   choice.
-- Two more complementarity functions, measured against Fischer-Burmeister and `min` under both
-  integrators (UMAT catalog, `ncp`): `ncp="active_set"` (the min step on every row, coupled
-  surfaces solved together on their active set, the same fallback) and
-  `ncp="penalized_fischer_burmeister"` (Chen, Chen and Kanzow, `lambda = 0.95`, smooth, no
-  fallback, served with an Armstrong-Frederick back stress under the cutting plane). Same
-  return everywhere (closest point: one root, within 4e-10; cutting plane: the active set is
-  another iteration path on coupled surfaces, 4e-4 on a two-surface composition); neither is
-  faster than `min`, the penalized function is 1.3 to 8 times slower than Fischer-Burmeister.
-  `NCPMethod` codes 2 and 3, `ncp_is_semismooth`, `ncp_step` carries the two steps.
+- `ncp="active_set"`, measured against Fischer-Burmeister and `min` under both integrators (UMAT
+  catalog, `ncp`): the min step on every row, coupled surfaces solved together on their active
+  set, the same fallback. The same root under the closest point (within 4e-10); under the
+  cutting plane another iteration path on coupled surfaces (4e-4 on a two-surface plastic
+  composition). `NCPMethod` code 2, `ncp_is_semismooth`, `ncp_step` carries the step.
+- The unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC, both faces) read `ncp`
+  under the closest point, their default (`ReturnMappingControl::ncp`). Their cutting plane keeps
+  Fischer-Burmeister and refuses `min` / `active_set` (`sma_ncp_method`): a semi-smooth step
+  sends a multiplier back to zero, which the cutting plane cannot undo since it adds the
+  transformation strain of every iterate (measured state gap up to 1.3e-2). Measured on the
+  `SMA_T` and `SMA_TR` materials under the closest point: the active set is up to 6 times faster
+  on transformation-dominated paths (SMRAI superelastic, 41.0 -> 6.8 ms at 50 increments per
+  step) and 1.1 to 3.3 times slower on reorientation-dominated ones; `min` keeps the
+  Fischer-Burmeister step on the coupled rows. Fischer-Burmeister stays the default (Kiefer,
+  Bartel and Menzel 2012). ABI: `umat_sma_unified_T`, `umat_sma_unified_TR` and
+  `umat_sma_unified_T_T` take a trailing `const int &ncp = 0`, source compatible; their symbols
+  change (rebuild code that links them).
+- Thermomechanical SMR* laws (SMRDI/SMRDC/SMRAI/SMRAC under `umat_T` and thermomechanical blocks):
+  `umat_sma_unified_TR_T`, props `rho, c_p^A, c_p^M` then the SMR* props, the 30 statev of the
+  mechanical law. The reorientation does not depend on the temperature (no
+  entropy term). A full kernel, as every thermomechanical law: its mechanical part is the one of
+  `umat_sma_unified_TR` (the stress and state of `sim.umat_T` are those of `sim.umat`, bit for
+  bit), its thermal part the one of `umat_sma_unified_T_T` with the reorientation row.
+- `integrator="closest_point"` on the thermomechanical SMA laws (SMA*, SMR*): the closest point of
+  the mechanical kernels, in each thermomechanical kernel, whose thermal face is the exact
+  derivative of the update with the algorithmic operator (`dSdE`, `dSdT`, `drdE`, `drdT` within
+  1e-8 of finite differences, reorientation included: the turning of the flows enters the
+  dissipation derivatives).
+- The four unified SMA kernels (`umat_sma_unified_T`, `umat_sma_unified_TR` and their `_T` twins)
+  are self-contained, as the other laws: each reads its props, runs its local solve under both
+  integrators and forms its tangent, works and heat. The constitutive functions they share (forward
+  flow `sma_transformation_flow`, hardening `sma_hardening`, complementarity check `sma_ncp_method`)
+  are in `Continuum_mechanics/Functions/sma.hpp`.
 - The In-progress bullet on fedoo was stale: fedoo forwards `ncp` and `integrator` since its
-  commit f7f195a0 (its docstring and tests follow simcoon 2.4 in fedoo's own PR).
+  commit f7f195a0. fedoo PR #81 forwards `integrator` only when given (`integrator=None`, its new
+  default), so a fedoo law gets the default of the law (the closest point for the unified SMA
+  laws from 2.5), and accepts the `_closed` names; its tests run with simcoon 2.4 and 2.5.
 - The external plugins run under finite strain (NLGEOM), with no change to the plugin API: the
   finite dispatch serves UMEXT, UMABA and UMANS as log-strain boxes in the material frame. UMEXT
   follows the simcoon convention exactly like PYEXT and the built-in kernels (logarithmic strain in,
@@ -129,6 +173,42 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ### Changed
 
+- Energy split of the unified SMA laws (SMA*, SMR*, both faces): the work of the bound penalties of
+  the martensite fraction and of the reorientation back stress `(1 + lambda_Reo) X` is recoverable
+  (`Wm_r`), like the transformation hardening, and no longer counted as dissipation (`Wm_d`).
+  The penalties enter the transformation forces; the back strain of the reorientation carries
+  the force `A_Reo = -(1 + lambda_Reo) X`, whose work enters as the back stresses of EPCHA do, with
+  its exact sensitivities (the
+  thermomechanical closest point stays the exact derivative of the update: `drdE`, `drdT` within
+  1e-9 of finite differences at the bound of xi and under reorientation). Stress and state of
+  the mechanical face are unchanged, bit for bit; `Wm_r` and `Wm_d` move (SMR* reorientation
+  increments: `Wm_d` 0.072 -> 0.014, `Wm_r` -0.050 -> +0.008 on a shear increment), and `Wm_d` no
+  longer decreases on a converged update (it fell by up to 0.3 per increment on a tension,
+  unloading, shear and unloading cycle of SMRDI; the cutting plane can still commit an
+  unconverged iterate). The heat source of the thermomechanical laws is lower by the recovered
+  work, so a coupled run moves (`thermomechanical/SMA_T` example: temperature within 0.06 K,
+  stress within 0.47 MPa).
+- The cutting plane of SMR* commits its last iterate when it does not converge, as SMA* does; the
+  sub-step request stays for the closest point (all SMA laws). Measured on 20 coarse SMR*
+  reorientation paths: unchanged (it never triggered there).
+- One cutting plane for the unified SMA laws (SMA* and SMR*, both faces, `integrator="cutting_plane"`):
+  the transformation hardening is evaluated at the state of the iterate before the multipliers
+  (SMA* used the previous iterate's), the iterate is taken back and the step halved (up to 5
+  times) when the Fischer-Burmeister residual more than doubles, and the martensite fraction
+  enters the hardening clamped to [0, 1] with zero slope outside (`sma_hardening`, `Functions/sma.hpp`;
+  the former slope of 1e12 froze the fraction out of bounds and an unconverged loop could commit
+  up to 3; the hardening functions of the mechanical and thermomechanical kernels, which extrapolated
+  differently out of bounds, are one, and the typo `0.5*a1 - 1 + a3` of the mechanical one below
+  xi = 0 is gone). SMR* without reorientation now agrees with SMA* to round-off (it was 0.19 to 0.25 MPa apart). Measured
+  against a 4000-increment closest-point reference: SMR* paths as accurate as before or better,
+  two coarse reorientation paths that aborted now converge, coarse SMA* paths more robust (353 K,
+  2 increments: 1.29 -> 6e-3 relative), but fine-increment SMA* accuracy about 3 times lower
+  (superelastic loop at 40 increments: 0.094 -> 0.29 MPa): the former ordering compensated the
+  path error of SMA* by chance, and widened SMR*'s by up to 50 times. On a coarse SMADI cycle through
+  the bounds of xi (tension to 7 %, unloading, shear, unloading; 60 increments per step) the former
+  scheme ran to the end 845 MPa away from the converged answer, with xi up to 1.002; the new one
+  stops (status 1) where its local loop diverges, 14 MPa away until then (120 increments: both
+  run). The closest point, now the default of those laws, is the accurate integrator.
 - The transports of `tensor4` (`push_forward`, `pull_back`, the corotational overload) are the
   Mandel congruence `Q C Q^T`, `Q` the 6x6 matrix of `X -> K X K^T` for the kernel `K` (`F` or
   `F^-T` by type): the same congruence as `rotate`, exact for a tensor with both minor
@@ -148,6 +228,11 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   `dump_results.py compare --rtol 1e-11` (heat tables judged against their stored scale), the
   zero-tolerance pass stays available to pin a defect. `mul6`/`mul66` keep their fixed order:
   they replace the BLAS, they do not imitate it.
+
+### Fixed
+
+- A `SyntaxWarning` at import (`tensor.py`): a LaTeX docstring of `Tensor4` had an invalid `\m`
+  escape.
 
 ## [2.4.0] - 2026-11-12
 

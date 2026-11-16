@@ -67,6 +67,7 @@
 */
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_T.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_TR.hpp>
 
 using namespace std;
 using namespace arma;
@@ -117,12 +118,11 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 
 // NCPMethod code of the ncp name of sim.umat / sim.umat_T
 int ncp_code(const std::string &name, const char *entry) {
-	static const std::map<std::string, int> codes = {{"fischer_burmeister", 0}, {"min", 1}, {"active_set", 2},
-	                                                 {"penalized_fischer_burmeister", 3}};
+	static const std::map<std::string, int> codes = {{"fischer_burmeister", 0}, {"min", 1}, {"active_set", 2}};
 	const auto it = codes.find(name);
 	if (it == codes.end())
-		throw std::invalid_argument(std::string(entry) + ": ncp must be 'fischer_burmeister', 'min', 'active_set' or "
-		                            "'penalized_fischer_burmeister'; got '" + name + "'");
+		throw std::invalid_argument(std::string(entry) + ": ncp must be 'fischer_burmeister', 'min' or 'active_set'; got '"
+		                            + name + "'");
 	return it->second;
 }
 
@@ -130,7 +130,8 @@ int ncp_code(const std::string &name, const char *entry) {
 int integrator_code(const std::string &name) {
 	if (name == "cutting_plane") return simcoon::integrator_cutting_plane;
 	if (name == "closest_point") return simcoon::integrator_closest_point;
-	throw std::invalid_argument("umat: integrator must be 'cutting_plane' or 'closest_point'; got '" + name + "'");
+	if (name == "default") return simcoon::integrator_default;
+	throw std::invalid_argument("umat: integrator must be 'default', 'cutting_plane' or 'closest_point'; got '" + name + "'");
 }
 
 // Code of a kinematic form given as "total", "rate" (log_R), or an objective rate by name or
@@ -248,7 +249,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// throw would std::terminate the host process.
 		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
-		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
+		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py, umat_name_py);
 		// ncp: complementarity function of the local cutting plane, by name (NCPMethod)
 		const int ncp = ncp_code(ncp_name, "umat");
 		simcoon::check_ncp_serves(umat_name_py, ncp, false);
@@ -291,6 +292,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
+		// the same, with the trailing NCPMethod code of the kernels that read the ncp option
+		void (*umat_function_ncp)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, corate_type, tangent_mode)
 		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		const int ncomp=6;
@@ -375,7 +378,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			case simcoon::UmatKernel::plasticity_iso: {
-				arguments_type = 5;   // EPICP, called by name: it takes the ncp option
+				umat_function_ncp = &simcoon::umat_plasticity_iso;
+				arguments_type = 5;   // it takes the ncp option
 				break;
 			}
 			case simcoon::UmatKernel::johnson_cook: {
@@ -389,13 +393,13 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified: {
-				umat_function = &simcoon::umat_sma_unified_T;
-				arguments_type = 1;
+				umat_function_ncp = &simcoon::umat_sma_unified_T;
+				arguments_type = 5;
 				break;
 			}
 			case simcoon::UmatKernel::sma_unified_R: { // SMA_TR (unified reduced-tangent model)
-				umat_function = &simcoon::umat_sma_unified_TR;
-				arguments_type = 1;
+				umat_function_ncp = &simcoon::umat_sma_unified_TR;
+				arguments_type = 5;
 				break;
 			}
 			case simcoon::UmatKernel::damage_LLD0: {
@@ -636,7 +640,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						break;
 					}
 					case 5: {
-						simcoon::umat_plasticity_iso(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
+						umat_function_ncp(umat_name_py, etot, Detot_pt, sigma, Lt_s, L_pt, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 					case 2: {
@@ -777,7 +781,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 		const bool condense_material = condense_material_face(condense);   // checked on every call, condensed or not
 		// integrator (cutting plane / closest point) and tangent operator, folded into the kernel code
-		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py);
+		const int tangent_mode = simcoon::kernel_tangent_mode(integrator_code(integrator_py), tangent_mode_py, umat_name_py);
 		const int ncp = ncp_code(ncp_name, "umat_T");
 		simcoon::check_ncp_serves(umat_name_py, ncp, true);
 		simcoon::check_integrator_serves(umat_name_py, tangent_mode, true);
@@ -789,8 +793,8 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 		// Unified thermomechanical function pointer: (Etot, DEtot, sigma, r, dSdE, dSdT, drdE, drdT, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
-		// SMA family variant carrying the umat_name as leading argument
-		void (*umat_function_named)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
+		// SMA family variant carrying the umat_name as leading argument and the trailing NCPMethod code
+		void (*umat_function_named)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::vec &, arma::vec &, double &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 
 		const int ncomp = 6;
 		int nshr;
@@ -939,6 +943,11 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				arguments_type = 2;
 				break;
 			}
+			case simcoon::UmatKernel::sma_unified_R: {
+				umat_function_named = &simcoon::umat_sma_unified_TR_T;
+				arguments_type = 2;
+				break;
+			}
 			case simcoon::UmatKernel::modular: {
 				arguments_type = 3;   // the modular face, props [rho, c_p, stream]
 				break;
@@ -1019,7 +1028,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 						break;
 					}
 					case 2: {
-						umat_function_named(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode);
+						umat_function_named(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE_s, dSdT_s, drdE_s, drdT_s, DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode, ncp);
 						break;
 					}
 					case 3: {

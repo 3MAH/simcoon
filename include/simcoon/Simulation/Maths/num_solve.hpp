@@ -157,19 +157,15 @@ void Fischer_Burmeister_m_limits(const arma::vec &Phi_p, const arma::vec &Phi_l,
 enum class NCPMethod : int {
     fischer_burmeister = 0,  ///< normalised Fischer-Burmeister function (Fischer_Burmeister_m)
     min_fb_fallback = 1,     ///< min-NCP semi-smooth Newton on uncoupled rows, Fischer-Burmeister once the error grows
-    active_set = 2,          ///< min-NCP semi-smooth Newton on every row, the coupled rows solved together on their active set, the same fallback
-    penalized_fischer_burmeister = 3   ///< penalized Fischer-Burmeister of Chen, Chen and Kanzow (2000), weight ncp_penalty_lambda
+    active_set = 2           ///< min-NCP semi-smooth Newton on every row, the coupled rows solved together on their active set, the same fallback
 };
-
-/// Weight \f$ \lambda \f$ of the penalized Fischer-Burmeister function \f$ \phi_\lambda = \lambda\,\phi_{FB} + (1-\lambda)\, a_+ b_+ \f$.
-constexpr double ncp_penalty_lambda = 0.95;
 
 /// True for the semi-smooth (min-type) functions, whose full step the cutting plane cannot take with an
 /// Armstrong-Frederick back stress (ModularUMAT::set_ncp): min_fb_fallback and active_set.
 bool ncp_is_semismooth(const NCPMethod &method);
 
 /**
- * @brief The NCP method of a code (solver_params::ncp, state_variables::ncp), checked: 0 to 3.
+ * @brief The NCP method of a code (solver_params::ncp, state_variables::ncp), checked: 0 to 2.
  * @param code the code
  * @param where the caller, for the error message
  * @throw std::invalid_argument for any other value
@@ -178,18 +174,6 @@ NCPMethod ncp_method_of(const int &code, const std::string &where);
 
 /**
  * @brief One Newton step per call of a local complementarity solve, with the chosen function.
- *
- * NCPMethod::active_set is the min step on every row: the active rows (\f$ \Phi_i > 0 \f$ or
- * \f$ -\Phi_i < \Delta p^*_i \f$) solve their linearised constraints together,
- * \f$ \Phi_A + B_{AA}\,\delta p_A + B_{AI}\,\delta p_I = 0 \f$ with the inactive multipliers sent back
- * to zero (\f$ \delta p_I = -\Delta p_I \f$); on uncoupled rows it is the min_fb_fallback step, step for
- * step, on coupled ones the primal-dual active set of Hintermueller, Ito and Kunisch, with the same
- * fallback to Fischer-Burmeister (error growth, singular system) as its combinatorial safeguard.
- * NCPMethod::penalized_fischer_burmeister takes the Newton step of
- * \f$ \phi_\lambda(a, b) = \lambda\,\phi_{FB}(a, b) + (1-\lambda)\, a_+\, b_+ \f$, \f$ a = -\Phi_i \f$,
- * \f$ b = \Delta p^*_i \f$ (Chen, Chen and Kanzow 2000), \f$ \lambda \f$ = ncp_penalty_lambda: the
- * product term keeps the iterate off the boundary where the Fischer-Burmeister function is not
- * differentiable; its error is \f$ \sum_i |\phi_{\lambda,i}| / |Y^{crit}_i| \f$, it never falls back.
  *
  * NCPMethod::fischer_burmeister forwards to Fischer_Burmeister_m. NCPMethod::min_fb_fallback takes
  * the semi-smooth Newton step of \f$ \min(\Delta p^*_i, -\Phi_i) = 0 \f$ (\f$ \Delta p^*_i = \Delta p_i |B_{ii}| \f$):
@@ -203,12 +187,19 @@ NCPMethod ncp_method_of(const int &code, const std::string &where);
  * uncoupled (@p denom diagonal): a single surface, or a surface next to the always-satisfied
  * rows of the viscoelastic and damage mechanisms of MODUL (\f$ \Phi = -Y^{crit} \f$, no
  * multiplier, no cross term), which stay at zero. A coupled system (off-diagonal terms, e.g.
- * several yield surfaces) keeps the Fischer-Burmeister step, the active set of coupled surfaces
- * making the plain semi-smooth Newton cycle. When the error grows from one call to the next, or
- * a row is singular, the solve falls back to Fischer-Burmeister for the remaining calls (a
- * nonlinear kinematic hardening can make the full step overshoot).
+ * several yield surfaces) keeps the Fischer-Burmeister step under min_fb_fallback, the active set of
+ * coupled surfaces making the plain semi-smooth Newton cycle. When the error grows from one call to
+ * the next, or a row is singular, the solve falls back to Fischer-Burmeister for the remaining calls
+ * (a nonlinear kinematic hardening can make the full step overshoot).
  *
- * One object per local solve (its state is the fallback).
+ * NCPMethod::active_set is the min step on every row: the active rows (\f$ \Phi_i > 0 \f$ or
+ * \f$ -\Phi_i < \Delta p^*_i \f$) solve their linearised constraints together,
+ * \f$ \Phi_A + B_{AA}\,\delta p_A + B_{AI}\,\delta p_I = 0 \f$ with the inactive multipliers sent back
+ * to zero (\f$ \delta p_I = -\Delta p_I \f$); on uncoupled rows it is the min_fb_fallback step, step for
+ * step, on coupled ones the primal-dual active set of Hintermueller, Ito and Kunisch, with the same
+ * fallback to Fischer-Burmeister (error growth, singular system) as its combinatorial safeguard.
+ *
+ * Construct one object per local solve: it holds the fallback state of that solve.
  */
 class ncp_step {
 public:

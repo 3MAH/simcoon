@@ -1783,7 +1783,7 @@ class Tensor2(_TensorBase):
 # ======================================================================
 
 class Tensor4(_TensorBase):
-    """A 4th-order tensor with a type tag driving rotation dispatch and Voigt factors.
+    r"""A 4th-order tensor with a type tag driving rotation dispatch and Voigt factors.
 
     A single object transparently represents either one tensor or a batch:
     the stored numpy array is ``(6,6)`` (engineering Voigt) for a single

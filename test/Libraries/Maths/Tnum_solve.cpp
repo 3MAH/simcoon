@@ -181,9 +181,9 @@ TEST(Tnum_solve, Fischer_Burmeister_m_small_systems)
     }
 }
 
-// active set and penalized Fischer-Burmeister: the same root as Fischer-Burmeister on a coupled
-// two-surface system (affine constraints Phi = Phi0 + B Dp), the active set in one step
-TEST(Tnum_solve, active_set_and_penalized_fb_find_the_fb_root)
+// active set: the same root as Fischer-Burmeister on a coupled two-surface system (affine
+// constraints Phi = Phi0 + B Dp), in one step
+TEST(Tnum_solve, active_set_finds_the_fb_root)
 {
     const vec Phi0 = {30., 10.}, Y = {300., 300.};
     mat B = {{-2000., -400.}, {-400., -1500.}};
@@ -197,15 +197,13 @@ TEST(Tnum_solve, active_set_and_penalized_fb_find_the_fb_root)
         }
         return Dp;
     };
-    int n_fb, n_as, n_pfb;
+    int n_fb, n_as;
     const vec Dp_fb = iterate(NCPMethod::fischer_burmeister, n_fb);
     const vec Dp_as = iterate(NCPMethod::active_set, n_as);
-    const vec Dp_pfb = iterate(NCPMethod::penalized_fischer_burmeister, n_pfb);
     // both surfaces active: the exact solution of B Dp = -Phi0
     const vec Dp_ref = solve(B, -Phi0);
     EXPECT_LT(norm(Dp_fb - Dp_ref, 2), 1.e-9*norm(Dp_ref, 2));
     EXPECT_LT(norm(Dp_as - Dp_ref, 2), 1.e-12*norm(Dp_ref, 2));
-    EXPECT_LT(norm(Dp_pfb - Dp_ref, 2), 1.e-9*norm(Dp_ref, 2));
     EXPECT_LE(n_as, 2);   // one Newton step on the active set, one to confirm
     EXPECT_LT(n_as, n_fb);
     // a surface that must stay inactive (Phi0 < 0 on the second row): its multiplier returns to zero
@@ -219,10 +217,9 @@ TEST(Tnum_solve, active_set_and_penalized_fb_find_the_fb_root)
     EXPECT_FALSE(step.fell_back());
     // the semi-smooth family and the code map
     EXPECT_TRUE(ncp_is_semismooth(NCPMethod::active_set));
-    EXPECT_FALSE(ncp_is_semismooth(NCPMethod::penalized_fischer_burmeister));
+    EXPECT_FALSE(ncp_is_semismooth(NCPMethod::fischer_burmeister));
     EXPECT_EQ(ncp_method_of(2, "test"), NCPMethod::active_set);
-    EXPECT_EQ(ncp_method_of(3, "test"), NCPMethod::penalized_fischer_burmeister);
-    EXPECT_THROW(ncp_method_of(4, "test"), std::invalid_argument);
+    EXPECT_THROW(ncp_method_of(3, "test"), std::invalid_argument);
 }
 
 TEST(Tnum_solve, min_ncp_step)

@@ -1,8 +1,8 @@
 """Numerical options of the local and global Newton loops (all off by default).
 
-- solve(ncp=...), sim.umat(ncp=...): complementarity function of the local cutting plane,
-  'fischer_burmeister' (default) or 'min' (min-NCP with a Fischer-Burmeister fallback; single
-  surface, isotropic or Prager hardening), read by EPICP, EPKCP and MODUL;
+- solve(ncp=...), sim.umat(ncp=...): complementarity function of the local return mapping,
+  'fischer_burmeister' (default), 'min' (min-NCP with a Fischer-Burmeister fallback) or
+  'active_set', read by MODUL and its adapters, EPICP_closed and the unified SMA laws;
 - solve(precision_rel=...): stress-scaled tolerance of the global residual.
 The default is the historical behaviour, bit for bit.
 """
@@ -23,6 +23,8 @@ from simcoon.solver import Block, StepMeca
 EPICP = [200000.0, 0.3, 1e-5, 300.0, 1000.0, 0.5]
 EPICP_LIN = [200000.0, 0.3, 1e-5, 300.0, 2000.0, 1.0]   # linear hardening: one return step
 EPKCP = [200000.0, 0.3, 1e-5, 300.0, 1000.0, 0.5, 10000.0]
+SMADI = [0, 67538.0, 67538.0, 0.349, 0.349, 1e-6, 1e-6, 0.0, 0.0418, 0.021, 0.0, 10.0, 10.0, 250.0, 230.0,
+         260.0, 280.0, 0.2, 0.2, 0.2, 0.2, 300.0, 1.4, 2.0, 1e-6, 1e-3, 1.0, 1e8]
 EPCHA = [140000.0, 0.3, 1e-6, 62.859017, 416.004456, 4.788635, 30382.293921, 172.425687, 195142.490843,
          3012.614659]
 
@@ -36,8 +38,9 @@ def cyclic(emax=0.02, ninc=50, ncycle=2):
     return Block(steps=steps)
 
 
-def run(name, props, nstatev, **kw):
-    res = sim.solver.solve(cyclic(), name, np.asarray(props, float), nstatev, T_init=293.15, **kw)
+def run(name, props, nstatev, path=None, T_init=293.15, **kw):
+    res = sim.solver.solve(cyclic() if path is None else path, name, np.asarray(props, float), nstatev,
+                           T_init=T_init, **kw)
     assert res.status == 0
     return res
 
@@ -101,36 +104,109 @@ def test_closest_point_serves_the_continuum_and_elastic_operators():
     assert np.isfinite(out[3]).all()
 
 
-@pytest.mark.parametrize("method", ["active_set", "penalized_fischer_burmeister"])
 @pytest.mark.parametrize("integrator", ["cutting_plane", "closest_point"])
-def test_other_complementarity_functions_find_the_same_return(method, integrator):
-    """active_set (the min step on every row, coupled surfaces together) and the penalized
-    Fischer-Burmeister function: the same return as Fischer-Burmeister to the local tolerance on a
-    single surface and on a coupled two-surface composition under the closest point (one root);
-    under the cutting plane the active set, a different iteration path on coupled surfaces, lands
-    within the path dependence of that integrator."""
+def test_active_set_finds_the_same_return(integrator):
+    """active_set (the min step on every row, coupled surfaces together): the same return as
+    Fischer-Burmeister to the local tolerance on a single surface and on a coupled two-surface
+    composition under the closest point (one root); under the cutting plane, a different iteration
+    path on coupled surfaces, it lands within the path dependence of that integrator."""
     iso = IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5)
     one = ModularMaterial(iso, [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5))])
     two = ModularMaterial(iso, [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5)),
                                 Plasticity(sigma_Y=320.0, isotropic_hardening=PowerLawHardening(k=3000.0, m=0.7))])
     for name, props, nstatev, tol in (("MODUL", one.props, one.nstatev, 1e-8), ("EPICP_closed", EPICP, 8, 1e-8),
-                                      ("MODUL", two.props, two.nstatev, 1e-8 if (integrator == "closest_point" or method != "active_set") else 1e-3)):
+                                      ("MODUL", two.props, two.nstatev, 1e-8 if integrator == "closest_point" else 1e-3)):
         ref = run(name, props, nstatev, integrator=integrator)
-        res = run(name, props, nstatev, integrator=integrator, ncp=method)
-        assert rel(res["Stress"], ref["Stress"]) < tol, (name, method, integrator)
+        res = run(name, props, nstatev, integrator=integrator, ncp="active_set")
+        assert rel(res["Stress"], ref["Stress"]) < tol, (name, integrator)
+
+
+SMRDI = SMADI + [100.0, 5000.0, 0.05, 1e-6, 1e-3, 1.0, 1e8]   # + Y_Reo, H_Reo, ETRmax, lambda_Reo
+
+
+@pytest.mark.parametrize("name, props, nstatev", [("SMADI", SMADI, 17), ("SMRDI", SMRDI, 30)])
+def test_sma_laws_read_the_complementarity_function(name, props, nstatev):
+    """The unified SMA laws integrate with the closest point by default and read ncp there:
+    active_set lands on the Fischer-Burmeister root (one backward-Euler system), min keeps the
+    Fischer-Burmeister step on their coupled rows, bit for bit. Their cutting plane refuses both: a
+    multiplier sent back to zero cannot take back the transformation strain of the iterates."""
+    uni = ["strain"] + ["stress"] * 5
+    path = Block(steps=[StepMeca(control=uni, value=[0.05, 0, 0, 0, 0, 0], time=1.0, ninc=50, Dn_mini=0.01),
+                        StepMeca(control=["stress"] * 6, value=[0] * 6, time=1.0, ninc=50, Dn_mini=0.01)])
+    go = lambda **kw: run(name, props, nstatev, path=path, T_init=320.0, **kw)
+    ref = go(integrator="closest_point")
+    np.testing.assert_array_equal(go()["Stress"], ref["Stress"])
+    np.testing.assert_array_equal(go(ncp="min")["Stress"], ref["Stress"])
+    assert rel(go(ncp="active_set")["Stress"], ref["Stress"]) < 1e-8
+    for ncp in ("min", "active_set"):
+        with pytest.raises(Exception, match="closest_point"):
+            go(integrator="cutting_plane", ncp=ncp)
+
+
+def test_sma_ncp_through_sim_umat():
+    """sim.umat forwards ncp to the SMA kernels: one forward-transformation increment under the
+    closest point (the default of the law), active set against Fischer-Burmeister; the cutting
+    plane refuses it."""
+    col = lambda v: np.asfortranarray(np.asarray(v, float).reshape(-1, 1))
+    I3 = np.asfortranarray(np.eye(3)[:, :, None])
+    call = lambda **kw: sim.umat("SMADI", col(np.zeros(6)), col([3e-2, -1e-2, -1e-2, 0, 0, 0]), np.empty(0),
+                                 np.empty(0), col(np.zeros(6)), I3, col(SMADI), col(np.zeros(17)), 0.0, 1.0,
+                                 col(np.zeros(4)), temp=np.full(1, 320.0), n_threads=1, **kw)
+    fb = call(integrator="closest_point")
+    act = call(ncp="active_set")
+    assert fb[1][1, 0] > 1e-3   # transformation is active
+    np.testing.assert_array_equal(call()[0], fb[0])
+    assert rel(act[0], fb[0]) < 1e-8
+    with pytest.raises(Exception, match="closest_point"):
+        call(integrator="cutting_plane", ncp="active_set")
+
+
+def test_sma_ncp_on_the_thermomechanical_face():
+    """The thermomechanical SMA laws read ncp under the closest point, their default (the solver
+    passes it to call_umat_T, sim.umat_T forwards it): active_set lands on the Fischer-Burmeister
+    root; their cutting plane refuses it."""
+    from simcoon.solver import StepThermomeca
+    uni = ["strain"] + ["stress"] * 5
+    path = Block(steps=[StepThermomeca(control=uni, value=[0.05, 0, 0, 0, 0, 0], time=1.0, ninc=50, T_final=320.0),
+                        StepThermomeca(control=["stress"] * 6, value=[0] * 6, time=1.0, ninc=50, T_final=320.0)])
+    for name, props, nstatev in (("SMADI", SMADI, 17), ("SMRDI", SMRDI, 30)):
+        tprops = [5.5, 0.5, 0.5] + props
+        go = lambda **kw: run(name, tprops, nstatev, path=path, T_init=320.0, **kw)
+        ref = go(integrator="closest_point")
+        np.testing.assert_array_equal(go()["Stress"], ref["Stress"])
+        assert rel(go(ncp="active_set")["Stress"], ref["Stress"]) < 1e-8
+        with pytest.raises(Exception, match="closest_point"):
+            go(integrator="cutting_plane", ncp="active_set")
+    col = lambda v: np.asfortranarray(np.asarray(v, float).reshape(-1, 1))
+    call = lambda **kw: sim.umat_T("SMRDI", col(np.zeros(6)), col([1.5e-2, -5e-3, -5e-3, 0, 0, 0]), col(np.zeros(6)),
+                                   np.asfortranarray(np.eye(3)[:, :, None]), col([5.5, 0.5, 0.5] + SMRDI),
+                                   col(np.zeros(30)), 0.0, 1.0, np.zeros((4, 1), order="F"),
+                                   np.zeros((3, 1), order="F"), np.array([320.0]), np.array([0.0]), n_threads=1, **kw)
+    fb, act = call(integrator="closest_point"), call(ncp="active_set")
+    assert fb[1][1, 0] > 1e-3 and rel(act[0], fb[0]) < 1e-8
+    np.testing.assert_array_equal(call()[0], fb[0])
+    with pytest.raises(Exception, match="closest_point"):
+        call(integrator="cutting_plane", ncp="active_set")
+
+
+def test_default_integrator_is_the_law_s_own():
+    """integrator='default' resolves per law in the C++ dispatch: the cutting plane for EPICP (the
+    same bits), an unknown name is refused."""
+    np.testing.assert_array_equal(run("EPICP", EPICP, 8)["Stress"],
+                                  run("EPICP", EPICP, 8, integrator="cutting_plane")["Stress"])
+    with pytest.raises(ValueError, match="integrator"):
+        run("EPICP", EPICP, 8, integrator="backward_euler")
 
 
 def test_complementarity_function_admission():
     """The semi-smooth functions (min, active_set) are refused with an Armstrong-Frederick back stress
-    under the cutting plane only; the penalized Fischer-Burmeister function is smooth and served there;
-    an unknown name and a law that does not read ncp are refused."""
+    under the cutting plane only; an unknown name and a law that does not read ncp are refused."""
     from simcoon.modular import ArmstrongFrederickHardening
     mat = ModularMaterial(IsotropicElasticity(C1=200000.0, C2=0.3, alpha=1e-5),
                           [Plasticity(sigma_Y=300.0, isotropic_hardening=PowerLawHardening(k=1000.0, m=0.5),
                                       kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=100.0))])
     with pytest.raises(Exception, match="Armstrong-Frederick"):
         run("MODUL", mat.props, mat.nstatev, ncp="active_set")
-    assert run("MODUL", mat.props, mat.nstatev, ncp="penalized_fischer_burmeister").status == 0
     assert run("MODUL", mat.props, mat.nstatev, ncp="active_set", integrator="closest_point").status == 0
     with pytest.raises(ValueError):
         run("MODUL", mat.props, mat.nstatev, ncp="smoothed")

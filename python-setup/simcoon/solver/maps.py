@@ -7,6 +7,7 @@ from simcoon._core import (  # noqa: F401  (re-exported)
     tangent_default,
     integrator_cutting_plane,
     integrator_closest_point,
+    integrator_default,
     corate_type_total as _corate_type_total,
 )
 
@@ -68,6 +69,7 @@ TANGENT_MODES = {
 
 #: Local integrators of the laws with a return mapping (folded with tangent_mode into the kernel code)
 INTEGRATORS = {
+    "default": integrator_default,
     "cutting_plane": integrator_cutting_plane,
     "closest_point": integrator_closest_point,
 }
@@ -77,7 +79,6 @@ NCP_METHODS = {
     "fischer_burmeister": 0,
     "min": 1,
     "active_set": 2,
-    "penalized_fischer_burmeister": 3,
 }
 
 

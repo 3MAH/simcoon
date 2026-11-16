@@ -12,6 +12,7 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Functions/kinematics.cpp
   Continuum_mechanics/Functions/objective_rates.cpp
   Continuum_mechanics/Functions/recovery_props.cpp
+  Continuum_mechanics/Functions/sma.cpp
   Continuum_mechanics/Functions/stress.cpp
   Continuum_mechanics/Functions/tensor.cpp
   Continuum_mechanics/Functions/transfer.cpp
@@ -76,6 +77,7 @@ target_sources(simcoon PRIVATE
 
   # Continuum Mechanics - UMAT Thermomechanical SMA
   Continuum_mechanics/Umat/Thermomechanical/SMA/unified_T.cpp
+  Continuum_mechanics/Umat/Thermomechanical/SMA/unified_TR.cpp
 
   # Continuum Mechanics - UMAT Thermomechanical Viscoelasticity
   Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Prony_Nfast.cpp

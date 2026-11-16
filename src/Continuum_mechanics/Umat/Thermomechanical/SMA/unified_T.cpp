@@ -29,24 +29,27 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
+#include <simcoon/Continuum_mechanics/Functions/sma.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_T.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon {
 
-void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
+void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, vec &dSdT, vec &drdE, double &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode, const int &ncp) {
+    const NCPMethod ncp_m = sma_ncp_method(ncp, tangent_mode, "unified_T_T");
 
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
-    UNUSED(tnew_dt);
+    UNUSED(ndi);
+    UNUSED(nshr);
 
     ///@brief Determine elasticity type and criteria type from umat_name
     bool cubic_elasticity = false;
@@ -244,7 +247,6 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     vec	sigma_start = sigma;
     vec ET_start = ET;
     double xi_start = xi;
-    vec alpha_start = alpha;
 
     // Find Hcur explicit
     if (Mises_stress(sigma) > sigmacrit)
@@ -279,23 +281,10 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double HfF = 0.;
     double HfR = 0.;
 
-    //Hardening function definition (Smooth hardening functions)
-    if ((xi > 0.)&&((1. - xi) > 0.)) {
-        HfF = 0.5*a1*(1. + pow(xi,n1) - pow(1. - xi,n2)) + a3;
-        HfR = 0.5*a2*(1. + pow(xi,n3) - pow((1. - xi),n4)) - a3;
-    }
-    else if ((xi <= 0.)&&((1. - xi) > 0.)) {
-        HfF = 0.5*a1*(1. - pow(1. - xi,n2)) + a3;
-        HfR = 0.5*a2*(1. - pow((1. - xi),n4)) - a3;
-    }
-    else if ((xi > 0.)&&((1. - xi) <= 0.)) {
-        HfF = 0.5*a1*(1. + pow(xi,n1)) + a3;
-        HfR = 0.5*a2*(1. + pow(xi,n3)) - a3;
-    }
-    else {
-        HfF =  a3;
-        HfR = - a3;
-    }
+    //Hardening functions at xi clamped to [0,1]
+    SMAHardening hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+    HfF = hf.F;
+    HfR = hf.R;
 
     //Lagrange multiplliers due to Physical limitations
     double lambda0 = 0.;
@@ -376,7 +365,166 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     int compteur = 0;
     double error = 1.;
 
+    // closest point: L(xi), alpha(xi) frozen at xi_n, exact since both are linear in xi (see header)
+    ReturnMappingResult rm;
+    mat dflow_dsigma;   // closest point: total dLambda^j/dsigma of the transformation flows (6x12)
+    vec chain_F;        // closest point: Ds_R dLambda^R/dDs_F through ETMean (6)
+    const bool use_cpp = integrates_closest_point(tangent_mode);
+    const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
+    if (use_cpp) {
+        const double xi_n = xi;
+        const double thp = (T + DT - T_init);
+        vec Dl_cur = zeros(2);        // multipliers of the refreshed state
+        bool ETMean_is_flow = false;  // the guard branch ETMean = lambdaTF is active
+        bool lin_stale = true;        // the linearisation below is not the one of the refreshed state
+
+        // Backward-Euler state at (sig, Dl): xi, Hcur, lambdaTF, ETMean, ET, hardening, Lagrange.
+        auto refresh_state = [&](const vec &sig, const vec &Dl) {
+            Dl_cur = Dl;
+            lin_stale = true;
+            xi = xi_n + Dl(0) - Dl(1);
+            Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*std::max(Mises_stress(sig) - sigmacrit, 0.)));
+            lambdaTF = sma_transformation_flow(sig, sigmacrit, Hmin, Hmax, k1, aniso_criteria, DFA_params, prager_b, prager_n);
+            // closed form ETMean (xi + Dl_R) = dev(ET_n) + Dl_F dev(lambdaTF): the sweep diverges when Dl_R > xi
+            const double xi_before = xi + Dl(1);
+            ETMean_is_flow = !(xi_before > simcoon::precision_umat);
+            ETMean = ETMean_is_flow ? lambdaTF : vec((dev(ET_start) + Dl(0)*dev(lambdaTF))/xi_before);
+            ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
+            if (!((Mises_strain(ET) > simcoon::precision_umat) && (xi > simcoon::precision_umat))) {
+                ETMean_is_flow = true;
+                ETMean = lambdaTF;
+                ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
+            }
+            hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            HfF = hf.F;
+            HfR = hf.R;
+            lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            return true;
+        };
+        // Criterion values at (sig, current state).
+        auto PhiF_val = [&](const vec &sig) {
+            const double PhF = aniso_criteria ? Hcur*Drucker_ani_stress(sig, DFA_params, prager_b, prager_n)
+                                              : Hcur*Drucker_stress(sig, prager_b, prager_n);
+            const vec DMsig = DM*sig;
+            const double AxF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(sig%DMsig) + sum(sig%Dalpha)*thp - HfF;
+            return PhF + AxF - lambda1 - (Y0t + D*Hcur*Mises_stress(sig));
+        };
+        auto PhiR_val = [&](const vec &sig) {
+            const vec DMsig = DM*sig;
+            const double AxR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(sig%DMsig) - sum(sig%Dalpha)*thp + HfR;
+            return -1.*sum(sig%ETMean) + AxR + lambda0 - (Y0t + D*sum(sig%ETMean));
+        };
+        // effective flows: stiffness/CTE mixture variation folded in
+        auto LamF_val = [&](const vec &sig) { return vec(lambdaTF + DM*sig + Dalpha*thp); };
+        auto LamR_val = [&](const vec &sig) { return vec(-1.*ETMean - DM*sig - Dalpha*thp); };
+        // analytic total derivatives at (sig, Dl_cur), once per iterate (derivation in header)
+        mat dev_op = eye(6, 6);   // dev() of a Voigt vector
+        dev_op.submat(0, 0, 2, 2) -= ones(3, 3)/3.;
+        vec dPhiF_ds = zeros(6), dPhiR_ds = zeros(6), c_F = zeros(6);
+        mat dLamF_ds = zeros(6, 6), dLamR_ds = zeros(6, 6), K_cpp = zeros(2, 2);
+        auto linearise = [&](const vec &sig) {
+            if (!lin_stale) return;
+            lin_stale = false;
+            const double sig_eq = Mises_stress(sig);
+            const vec eta = eta_stress(sig);
+            vec dHcur = zeros(6);
+            if (sig_eq > sigmacrit) dHcur = (Hmax - Hmin)*k1*exp(-1.*k1*(sig_eq - sigmacrit))*eta;
+            const double Dr = aniso_criteria ? Drucker_ani_stress(sig, DFA_params, prager_b, prager_n)
+                                             : Drucker_stress(sig, prager_b, prager_n);
+            const vec g = aniso_criteria ? dDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
+                                         : dDrucker_stress(sig, prager_b, prager_n);
+            const mat ddDr = aniso_criteria ? ddDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
+                                            : ddDrucker_stress(sig, prager_b, prager_n);
+            const mat dlTF_ds = g*dHcur.t() + Hcur*ddDr;
+
+            mat dETM_ds = dlTF_ds;
+            vec dETM_dF = zeros(6);
+            if (!ETMean_is_flow) {
+                const double xi_before = xi_n + Dl_cur(0);
+                dETM_ds = (Dl_cur(0)/xi_before)*(dev_op*dlTF_ds);
+                dETM_dF = (dev(lambdaTF) - ETMean)/xi_before;
+            }
+
+            // slopes of the clamped hardening functions and of the penalties
+            const SMAHardening hs = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            const double dHfF_dxi = hs.dF, dHfR_dxi = hs.dR;
+            const double dl1_dxi = dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            const double dl0_dxi = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+
+            const vec DMsig = DM*sig;
+            dPhiF_ds = Dr*dHcur + Hcur*g + DMsig + Dalpha*thp - D*(sig_eq*dHcur + Hcur*eta);
+            dPhiR_ds = -1.*(1. + D)*(ETMean + dETM_ds.t()*sig) - DMsig - Dalpha*thp;
+            dLamF_ds = dlTF_ds + DM;
+            dLamR_ds = -1.*dETM_ds - DM;
+            K_cpp(0, 0) = -1.*(dHfF_dxi + dl1_dxi);
+            K_cpp(0, 1) = dHfF_dxi + dl1_dxi;
+            K_cpp(1, 0) = -1.*(1. + D)*sum(sig%dETM_dF) + dHfR_dxi + dl0_dxi;
+            K_cpp(1, 1) = -1.*(dHfR_dxi + dl0_dxi);
+            c_F = -1.*Dl_cur(1)*dETM_dF;
+        };
+        std::vector<ReturnMechanism> mechs(2);
+        mechs[0].Phi = PhiF_val;
+        mechs[1].Phi = PhiR_val;
+        mechs[0].Lambda = [&](const vec &sig, vec &Lam) { Lam = LamF_val(sig); };
+        mechs[1].Lambda = [&](const vec &sig, vec &Lam) { Lam = LamR_val(sig); };
+        mechs[0].dPhi_dsigma = [&](const vec &sig, vec &n) { linearise(sig); n = dPhiF_ds; };
+        mechs[1].dPhi_dsigma = [&](const vec &sig, vec &n) { linearise(sig); n = dPhiR_ds; };
+        mechs[0].dLambda_dsigma = [&](const vec &sig, mat &D) { linearise(sig); D = dLamF_ds; };
+        mechs[1].dLambda_dsigma = [&](const vec &sig, mat &D) { linearise(sig); D = dLamR_ds; };
+        ReturnStateHooks hooks;
+        hooks.update_state = refresh_state;
+        hooks.K = [&](const vec &sig, const vec &, mat &K) { linearise(sig); K = K_cpp; };
+        hooks.flow_state_coupling = [&](const vec &sig, const vec &, mat &dLdDs) { linearise(sig); dLdDs.col(0) = c_F; dLdDs.col(1).zeros(); };
+        vec Ycrit_cpp(2);
+        // FB scales floored at an absolute material scale: both thresholds vanish in virgin states
+        const double Yfloor = 0.1*std::max(Y0t + D*Hmax*sigmacaliber, 1.e-2);
+        Ycrit_cpp(0) = std::max(std::fabs(Y0t) + std::fabs(D*Hcur*Mises_stress(sigma)), Yfloor);
+        Ycrit_cpp(1) = std::max(std::fabs(Y0t) + std::fabs(D*sum(sigma%ETMean)), Yfloor);
+
+        ReturnMappingControl control;
+        control.ncp = ncp_m;
+        rm = closest_point_return_mapping(sigma, L_cpp, mechs, hooks, Ycrit_cpp, control);
+        if (rm.converged) {
+            sigma = rm.sigma;
+            Ds_j = rm.Dlambda;
+            s_j += Ds_j;
+            xiF = s_j(0);
+            xiR = s_j(1);
+            DETF = Ds_j(0)*lambdaTF;
+            DETR = Ds_j(1)*ETMean;
+            // output L at the converged xi; the tangent keeps the frozen L_cpp
+            M_eff = xi*M_M + (1. - xi)*M_A;
+            L = inv_cubic(M_eff);
+            A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(sigma%(DM*sigma)) + sum(sigma%Dalpha)*thp - HfF;
+            A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(sigma%(DM*sigma)) - sum(sigma%Dalpha)*thp + HfR;
+            hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+            dHfF = hf.dF;
+            dHfR = hf.dR;
+            dA_xiFdsigma = DM*sigma + Dalpha*thp;
+            dA_xiRdsigma = -1.*dA_xiFdsigma;
+            dA_xiFdxiF = -dHfF;
+            dA_xiFdxiR = dHfF;
+            dA_xiRdxiF = dHfR;
+            dA_xiRdxiR = -dHfR;
+            lambdaTR = -1.*ETMean;
+            // flows of the transformation strain (mixture terms of the effective flows taken out), for the heat
+            dflow_dsigma = join_rows(dLamF_ds - DM, dLamR_ds + DM);
+            chain_F = c_F;
+        }
+        else {
+            // step cut, never a silent cutting-plane fallback
+            tnew_dt = 0.5;
+            sigma = sigma_start;
+            refresh_state(sigma, zeros(2));
+        }
+    }
+    else {
     //Loop
+    // backtracking of the cutting plane: the state before the last step
+    double bt_error = -1., bt_xi = xi;
+    int n_bt = 0;
+    vec bt_s = s_j, bt_ET = ET, bt_DETF = DETF, bt_DETR = DETR, bt_Ds = Ds_j, bt_lF = zeros(6), bt_lR = zeros(6), bt_ds = zeros(2);
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
 
         // Reuss mixing on compliance tensor
@@ -399,45 +547,24 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
             dDr_sig = dDrucker_stress(sigma, prager_b, prager_n);
         }
 
-        lambdaTF = Hcur * dDr_sig;
-        lambdaTR = -1. * ETMean;
-
-        kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
-        kappa_j[1] = L*(lambdaTR - DM_sig - Dalpha_T); //derivative w/ xiR is minus derivative w/ xi
-
-        //Hardening function definition (Smooth hardening functions)
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfF = 0.5*a1*(1. + pow(xi, n1) - pow(1. - xi, n2)) + a3;
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            HfF = 0.5*a1*(1. - pow(1. - xi, n2)) + a3;
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            HfF = 0.5*a1*(1. + pow(xi, n1)) + a3;
-        }
-        else  {
-            HfF = 0.5*a1 + a3;
-        }
-
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfR = 0.5*a2*(1. + pow(xi, n3) - pow((1. - xi), n4)) - a3;
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            HfR = 0.5*a2*(1. - pow((1. - xi), n4)) - a3;
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            HfR = 0.5*a2*(1. + pow(xi, n3)) - a3;
-        }
-        else
-            HfR = - a3;
-
-        // Find Hcur explicit
+        // Hcur at the current stress: the flow and the criterion of an iterate share it
         if (sig_eq > sigmacrit)
             sigmastar = sig_eq - sigmacrit;
         else
             sigmastar = 0.;
 
         Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
+
+        lambdaTF = Hcur * dDr_sig;
+        lambdaTR = -1. * ETMean;
+
+        kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
+        kappa_j[1] = L*(lambdaTR - DM_sig - Dalpha_T); //derivative w/ xiR is minus derivative w/ xi
+
+        //Hardening functions at xi clamped to [0,1]
+        hf = sma_hardening(xi, a1, a2, a3, n1, n2, n3, n4);
+        HfF = hf.F;
+        HfR = hf.R;
 
         //Forward transformation thermodynamic force
         PhihatF = Hcur*Dr_sig;
@@ -454,33 +581,8 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         YtR = Y0t + D*PhihatR;
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;  // PhiR < 0.
 
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            dHfF = 0.5*a1*(n2*pow(1. - xi, n2 - 1.));
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.));
-        }
-        else
-        {
-            dHfF = 0.;
-        }
-
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
-        }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            dHfR = 0.5*a2*(n4*pow(1. - xi, n4 - 1.));
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.));
-        }
-        else
-        {
-            dHfR = 0.;
-        }
+        dHfF = hf.dF;
+        dHfR = hf.dR;
 
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_sig;
 
@@ -543,6 +645,21 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         Y_crit(1) = std::max(fabs(Y0t) + fabs(D*PhihatR), simcoon::iota);
 
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+        if ((bt_error >= 0.) && (error > 2.*bt_error) && (n_bt < 5)) {
+            // the merit grew: back to the state before the last step, half of it along its flows
+            s_j = bt_s; ET = bt_ET; xi = bt_xi; DETF = bt_DETF; DETR = bt_DETR; Ds_j = bt_Ds;
+            lambdaTF = bt_lF; lambdaTR = bt_lR;
+            ds_j = 0.5*bt_ds;
+            bt_ds = ds_j;
+            Ds_j += ds_j;
+            L = inv_cubic(xi*M_M + (1. - xi)*M_A);
+            n_bt++;
+        }
+        else {
+            bt_error = error; n_bt = 0;
+            bt_s = s_j; bt_ET = ET; bt_xi = xi; bt_DETF = DETF; bt_DETR = DETR; bt_Ds = Ds_j - ds_j;
+            bt_lF = lambdaTF; bt_lR = lambdaTR; bt_ds = ds_j;
+        }
 
         s_j(0) += ds_j(0);
         s_j(1) += ds_j(1);
@@ -568,106 +685,122 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
         sigma = el_pred(L, Eel);
     }
+    }
 
-    //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
-    vec DET = ET - ET_start;
-    double DxiF = Ds_j[0];
-    double DxiR = Ds_j[1];
+    // bound penalties of xi in the transformation forces, with their slopes: stored like the hardening
+    A_xiF_start -= lagrange_pow_1(xi_start, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiR_start -= lagrange_pow_0(xi_start, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiF -= lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    A_xiR -= lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+    {
+        const double dl1 = dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+        const double dl0 = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+        dA_xiFdxiF -= dl1;
+        dA_xiFdxiR += dl1;
+        dA_xiRdxiF += dl0;
+        dA_xiRdxiR -= dl0;
+    }
 
-    double dA_xiFdtheta = rhoDs0 + sum(sigma%Dalpha);
-    double dA_xiRdtheta = -1.*rhoDs0 - sum(sigma%Dalpha);
-
-    double dPhiFdtheta = dA_xiFdtheta;
-    double dPhiRdtheta = dA_xiRdtheta;
-
-
-    mat Bhat = zeros(2, 2);
-    Bhat(0,0) = sum(dPhiFdsigma%kappa_j[0]) - K(0,0);
-    Bhat(0,1) = sum(dPhiFdsigma%kappa_j[1]) - K(0,1);
-    Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
-    Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
-
-    // none/algorithmic/closest-point clamped to continuum: P_epsilon, invBhat feed r (see header)
-    const int tangent_mode_eff = (tangent_mode == tangent_none ||
-                                  tangent_mode == tangent_algorithmic ||
-                                  integrates_closest_point(tangent_mode))
-        ? tangent_continuum : tangent_mode;
-    const ContinuumTangent ct = compute_tangent_operator(
-        tangent_mode_eff, Bhat, join_rows(kappa_j[0], kappa_j[1]), join_rows(dPhiFdsigma, dPhiRdsigma), Ds_j, L,
-        [&]() -> mat {  // lazy: evaluated only in algorithmic mode
-            // Simo-Hughes: dLambda^F/dsigma by central FD + DM, ETMean held fixed; dSdE only
-            auto lambdaTF_at = [&](const vec &s) -> vec {
-                return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
-                                               aniso_criteria, DFA_params,
-                                               prager_b, prager_n);
-            };
-            const double hfd = 1.e-5 * (norm(sigma, 2) + 1.);
-            mat dLambdaF = zeros(6, 6);
-            for (int c = 0; c < 6; c++) {
-                vec sp = sigma, sm = sigma;
-                sp(c) += hfd;
-                sm(c) -= hfd;
-                dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
-            }
-            dLambdaF += DM;
-            return join_rows(dLambdaF, -1. * DM);
-        });
+    // tangent: closest point on its converged solve (frozen L_cpp), cutting plane on its last iterate;
+    // none clamped to continuum: P_epsilon, invBhat feed r
+    const mat &L_tan = use_cpp ? L_cpp : L;
+    mat kappa, dPhi;
+    ContinuumTangent ct;
+    if (use_cpp) {
+        ct = cpp_tangent(rm, L_cpp, tangent_mode == tangent_closest_point_none ? tangent_closest_point_continuum : tangent_mode);
+        kappa = rm.kappa_j;
+        dPhi = rm.dPhidsigma_l;
+    }
+    else {
+        kappa = join_rows(kappa_j[0], kappa_j[1]);
+        dPhi = join_rows(dPhiFdsigma, dPhiRdsigma);
+        mat Bhat = zeros(2, 2);
+        Bhat(0,0) = sum(dPhiFdsigma%kappa_j[0]) - K(0,0);
+        Bhat(0,1) = sum(dPhiFdsigma%kappa_j[1]) - K(0,1);
+        Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
+        Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
+        ct = compute_tangent_operator(tangent_continuum, Bhat, kappa, dPhi, Ds_j, L);
+    }
     dSdE = ct.Lt;
-    const mat& P_epsilon = ct.P_epsilon;
-    const mat& invBhat = ct.invBhat;
+    // closest point without a solve (elastic trial, step cut): the elastic operator, zero sensitivities
+    const bool solved = !use_cpp || (rm.converged && !rm.kappa_j.is_empty());
+    const mat P_epsilon = solved ? ct.P_epsilon : mat(6, 2, fill::zeros);
+    const mat invBhat = solved ? ct.invBhat : mat(2, 2, fill::zeros);
 
-    // Delta s = invBhat * rhs, Bhat(l, j) = criterion l, mechanism j
-    std::vector<double> P_theta(2);
-    const vec L_alpha = L*alpha;
-    const double rhsF = dPhiFdtheta - sum(dPhiFdsigma%L_alpha);
-    const double rhsR = dPhiRdtheta - sum(dPhiRdsigma%L_alpha);
-    P_theta[0] = invBhat(0, 0)*rhsF + invBhat(0, 1)*rhsR;
-    P_theta[1] = invBhat(1, 0)*rhsF + invBhat(1, 1)*rhsR;
+    // trial stress rate of a temperature move: the closest point freezes alpha at xi_n and folds
+    // Dalpha into the flows, so its thermal strain is alpha(xi_n+1); the algorithmic operator acts through M^-1
+    const bool algo = solved && !ct.kappa_tilde.is_empty();
+    const vec alpha_q = use_cpp ? vec(alpha + (xi - xi_start)*Dalpha) : alpha;
+    const vec L_alpha = algo ? vec(ct.L_tilde*alpha_q) : vec(L_tan*alpha_q);
+    const mat kappa_q = !solved ? mat(6, 2, fill::zeros) : (algo ? ct.kappa_tilde : kappa);
+    const mat dPhi_q = solved ? dPhi : mat(6, 2, fill::zeros);
 
-    dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0] + kappa_j[1]*P_theta[1]);
+    // P_theta = invBhat (dPhi/dtheta - dPhi/dsigma : L alpha)
+    const double dA_xiFdtheta = rhoDs0 + sum(sigma%Dalpha);
+    const double dA_xiRdtheta = -1.*rhoDs0 - sum(sigma%Dalpha);
+    const double rhs0 = dA_xiFdtheta - sum(dPhi_q.col(0)%L_alpha);
+    const double rhs1 = dA_xiRdtheta - sum(dPhi_q.col(1)%L_alpha);
+    vec P_theta(2);
+    P_theta(0) = invBhat(0, 0)*rhs0 + invBhat(0, 1)*rhs1;
+    P_theta(1) = invBhat(1, 0)*rhs0 + invBhat(1, 1)*rhs1;
+    vec kP = kappa_q.col(0)*P_theta(0);
+    kP += kappa_q.col(1)*P_theta(1);
+    dSdT = -1.*L_alpha - kP;
 
     //Preliminaries for the computation of mechanical and thermal work
-    double c_0A = rho*c_pA;
-    double c_0M = rho*c_pM;
-    double c_0 = c_0A*(1-xi) + c_0M*xi;
-    double Dc_0 = c_0M - c_0A;
-
-    double eta_r = (c_0A + Dc_0*xi)*log((T+DT)/T_init) + sum(alpha%sigma) + rhoDs0*xi;
-    double eta_r_start = (c_0A + Dc_0*xi_start)*log(T/T_init) + sum(alpha_start%sigma_start) + rhoDs0*xi_start;
-
-    double eta_ir = 0.;
-    double eta_ir_start = 0.;
-
-    double eta = eta_r + eta_ir;
-    double eta_start = eta_r_start + eta_ir_start;
-
-    vec dA_thetadsigma = alpha;
-    double dA_thetadxiF = Dc_0*log((T+DT)/T_init) + sum(Dalpha%sigma) + rhoDs0;
-    double dA_thetadxiR = -1.*Dc_0*log((T+DT)/T_init) - sum(Dalpha%sigma) - rhoDs0;
-
-    double Deta = eta - eta_start;
-    double Deta_r = eta_r - eta_r_start;
-    double Deta_ir = eta_ir - eta_ir_start;
-
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%(DET)) + 0.5*(A_xiF_start + A_xiF)*DxiF + 0.5*(A_xiR_start + A_xiR)*DxiR;
-
-    // dissipation derivatives, transformation directions held fixed over the increment
-    const double f_F = 0.5*(sum((sigma_start+sigma)%lambdaTF) + A_xiF_start + A_xiF);
-    const double f_R = 0.5*(sum((sigma_start+sigma)%lambdaTR) + A_xiR_start + A_xiR);
-    const vec dDgamma_dE = 0.5*(dSdE.t()*DET
-        + (dSdE.t()*dA_xiFdsigma + dA_xiFdxiF*P_epsilon.col(0) + dA_xiFdxiR*P_epsilon.col(1))*DxiF
-        + (dSdE.t()*dA_xiRdsigma + dA_xiRdxiF*P_epsilon.col(0) + dA_xiRdxiR*P_epsilon.col(1))*DxiR)
-        + f_F*P_epsilon.col(0) + f_R*P_epsilon.col(1);
-    const double dDgamma_dT = 0.5*(sum(dSdT%DET)
-        + (dA_xiFdtheta + sum(dA_xiFdsigma%dSdT) + dA_xiFdxiF*P_theta[0] + dA_xiFdxiR*P_theta[1])*DxiF
-        + (dA_xiRdtheta + sum(dA_xiRdsigma%dSdT) + dA_xiRdxiF*P_theta[0] + dA_xiRdxiR*P_theta[1])*DxiR)
-        + f_F*P_theta[0] + f_R*P_theta[1];
-
-    // Entropy derivatives at the end of the increment, eta = c_0(xi) ln(T/T_init) + alpha(xi):sigma + rho Ds0 xi
+    const double c_0A = rho*c_pA;
+    const double c_0M = rho*c_pM;
+    const double c_0 = c_0A*(1-xi) + c_0M*xi;
+    const double Dc_0 = c_0M - c_0A;
     const double T1 = T + DT;
-    const vec deta_dE = dSdE.t()*dA_thetadsigma + dA_thetadxiF*P_epsilon.col(0) + dA_thetadxiR*P_epsilon.col(1);
-    const double deta_dT = c_0/T1 + sum(dSdT%dA_thetadsigma) + dA_thetadxiF*P_theta[0] + dA_thetadxiR*P_theta[1];
+
+    const double eta_r = (c_0A + Dc_0*xi)*log(T1/T_init) + sum(alpha%sigma) + rhoDs0*xi;
+    const double eta_r_start = (c_0A + Dc_0*xi_start)*log(T/T_init) + sum(alpha%sigma_start) + rhoDs0*xi_start;
+    const double Deta = eta_r - eta_r_start;
+
+    // entropy forces of the transformation rows
+    const double dA_theta_dsF = Dc_0*log(T1/T_init) + sum(Dalpha%sigma) + rhoDs0;
+    const double dA_theta_dsR = -1.*Dc_0*log(T1/T_init) - sum(Dalpha%sigma) - rhoDs0;
+
+    const vec DET = ET - ET_start;
+    const double DxiF = Ds_j(0);
+    const double DxiR = Ds_j(1);
+    const double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DET) + 0.5*(A_xiF_start + A_xiF)*DxiF + 0.5*(A_xiR_start + A_xiR)*DxiR;
+
+    // dissipation derivatives, flow directions held fixed over the increment
+    vec dD = dSdE.t()*DET;
+    vec gF = dSdE.t()*dA_xiFdsigma;
+    gF += dA_xiFdxiF*P_epsilon.col(0);
+    gF += dA_xiFdxiR*P_epsilon.col(1);
+    dD += gF*DxiF;
+    vec gR = dSdE.t()*dA_xiRdsigma;
+    gR += dA_xiRdxiF*P_epsilon.col(0);
+    gR += dA_xiRdxiR*P_epsilon.col(1);
+    dD += gR*DxiR;
+    const double g_TF = dA_xiFdtheta + sum(dA_xiFdsigma%dSdT) + dA_xiFdxiF*P_theta(0) + dA_xiFdxiR*P_theta(1);
+    const double g_TR = dA_xiRdtheta + sum(dA_xiRdsigma%dSdT) + dA_xiRdxiF*P_theta(0) + dA_xiRdxiR*P_theta(1);
+    double f_F = 0.5*(sum((sigma_start+sigma)%lambdaTF) + A_xiF_start + A_xiF);
+    const double f_R = 0.5*(sum((sigma_start+sigma)%lambdaTR) + A_xiR_start + A_xiR);
+    double dD_T_turn = 0.;
+    // closest point: the turning of the flows and their multiplier chain, d DET = sum_k (Lambda_k dDs_k + Ds_k dLambda_k)
+    if (!dflow_dsigma.is_empty()) {
+        vec turn = zeros(6);
+        turn += DxiF*(dflow_dsigma.cols(0, 5).t()*(sigma_start+sigma));
+        turn += DxiR*(dflow_dsigma.cols(6, 11).t()*(sigma_start+sigma));
+        dD += dSdE.t()*turn;
+        f_F += 0.5*sum((sigma_start+sigma)%chain_F);
+        dD_T_turn = sum(dSdT%turn);
+    }
+    vec dDgamma_dE = 0.5*dD;
+    dDgamma_dE += f_F*P_epsilon.col(0);
+    dDgamma_dE += f_R*P_epsilon.col(1);
+    double dD_T = sum(dSdT%DET) + g_TF*DxiF + g_TR*DxiR;
+    dD_T += dD_T_turn;
+    const double dDgamma_dT = 0.5*dD_T + f_F*P_theta(0) + f_R*P_theta(1);
+
+    // Entropy derivatives at the end of the increment
+    const vec deta_dE = dSdE.t()*alpha + dA_theta_dsF*P_epsilon.col(0) + dA_theta_dsR*P_epsilon.col(1);
+    const double deta_dT = c_0/T1 + sum(dSdT%alpha) + dA_theta_dsF*P_theta(0) + dA_theta_dsR*P_theta(1);
 
     // heat of the increment and its derivatives (heat_source_increment)
     heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, deta_dE, deta_dT, T1, r, drdE, drdT);
@@ -678,9 +811,9 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
 
-    Wt += (T+DT)*Deta;
-    Wt_r += (T+DT)*Deta_r;
-    Wt_ir += (T+DT)*Deta_ir;
+    Wt += T1*Deta;
+    Wt_r += T1*Deta;
+    Wt_ir += 0.;
 
     ///@brief statev evolving variables
     statev(0) = T_init;
