@@ -31,12 +31,20 @@ namespace simcoon{
 /**
  * @brief Eigen-decomposition of a symmetric 3x3 matrix, \f$ \mathbf{A} = \mathbf{Q}\,\mathrm{diag}(\boldsymbol{\lambda})\,\mathbf{Q}^T \f$.
  *
- * Cyclic Jacobi rotations (Kopp 2008, dsyevj3) on fixed-size storage: no heap allocation and no
- * LAPACK call, about three times cheaper than arma::eig_sym (dsyevd) on a 3x3, and accurate to
- * the last digits for every eigenvalue, the small ones of a stiff SPD matrix included. Only the
- * upper triangle of @p A is read. The eigenvalues come in ascending order, as with
- * arma::eig_sym; the eigenvectors are the orthonormal columns of @p Q (sign arbitrary). A
- * diagonal @p A is returned exactly (@p Q a permutation).
+ * Fixed-size storage, no heap allocation and no LAPACK call. Two solvers behind one contract:
+ * - the deviatoric closed form of Scherzinger and Dohrmann (2008): the most distinct eigenvalue
+ *   \f$ \eta_1 \f$ of \f$ \mathbf{S} = \mathrm{dev}\,\mathbf{A} \f$ from the Lode angle, its eigenvector
+ *   from two columns of \f$ \mathbf{S} - \eta_1\mathbf{I} \f$, then one rotation of the 2x2 restriction
+ *   on the complement. Robust for double and nearly double eigenvalues, accurate to
+ *   \f$ \epsilon\,\max_a|\lambda_a| \f$, about 2.4 times cheaper than Jacobi;
+ * - cyclic Jacobi rotations (Kopp 2008, dsyevj3), accurate to the last digits for every eigenvalue,
+ *   the small ones of a stiff SPD matrix included. It serves the matrices with at most one nonzero
+ *   off-diagonal entry (a diagonal @p A is returned exactly, @p Q a permutation), and replaces the
+ *   closed form when \f$ \min_a|\lambda_a| < 10^{-2}\max_a|\lambda_a| \f$, where the absolute
+ *   accuracy of the closed form is no longer a relative one on the small eigenvalue.
+ *
+ * Only the upper triangle of @p A is read. The eigenvalues come in ascending order, as with
+ * arma::eig_sym; the eigenvectors are the orthonormal columns of @p Q (sign arbitrary).
  *
  * This is the solver behind the per-point spectral functions of the finite-strain kinematics
  * (polar decompositions, logarithmic strains, Daleckii-Krein derivatives).
