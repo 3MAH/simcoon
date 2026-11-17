@@ -104,7 +104,7 @@ TEST(TRotationClass, from_euler_zxz)
     Rotation rz1 = Rotation::from_axis_angle(psi, 3);
     Rotation rx  = Rotation::from_axis_angle(theta, 1);
     Rotation rz2 = Rotation::from_axis_angle(phi, 3);
-    Rotation r_ref = rz2 * rx * rz1;
+    Rotation r_ref = rz1 * rx * rz2;
 
     // Create rotation using from_euler
     Rotation r = Rotation::from_euler(psi, theta, phi, "zxz", true, false);
@@ -122,7 +122,7 @@ TEST(TRotationClass, from_euler_zyz)
     Rotation rz1 = Rotation::from_axis_angle(psi, 3);
     Rotation ry  = Rotation::from_axis_angle(theta, 2);
     Rotation rz2 = Rotation::from_axis_angle(phi, 3);
-    Rotation r_ref = rz2 * ry * rz1;
+    Rotation r_ref = rz1 * ry * rz2;
 
     Rotation r = Rotation::from_euler(psi, theta, phi, "zyz", true, false);
 
@@ -501,14 +501,12 @@ TEST(TRotationClass, from_euler_xyz)
 {
     double psi = 0.4, theta = 0.6, phi = 0.8;
 
-    // Build reference from individual axis rotations (extrinsic xyz = intrinsic zyx)
     Rotation rx = Rotation::from_axis_angle(psi, 1);
     Rotation ry = Rotation::from_axis_angle(theta, 2);
     Rotation rz = Rotation::from_axis_angle(phi, 3);
 
-    // Intrinsic xyz: apply x, then y', then z''
-    // Quaternion order: rz * ry * rx
-    Rotation r_ref = rz * ry * rx;
+    // Intrinsic xyz: x, then the new y, then the new z
+    Rotation r_ref = rx * ry * rz;
     Rotation r_xyz = Rotation::from_euler(psi, theta, phi, "xyz", true, false);
 
     EXPECT_TRUE(r_ref.equals(r_xyz, 1.E-9));
@@ -522,8 +520,8 @@ TEST(TRotationClass, from_euler_zyx)
     Rotation ry = Rotation::from_axis_angle(theta, 2);
     Rotation rx = Rotation::from_axis_angle(phi, 1);
 
-    // Intrinsic zyx: apply z, then y', then x''
-    Rotation r_ref = rx * ry * rz;
+    // Intrinsic zyx: z, then the new y, then the new x
+    Rotation r_ref = rz * ry * rx;
     Rotation r_zyx = Rotation::from_euler(psi, theta, phi, "zyx", true, false);
 
     EXPECT_TRUE(r_ref.equals(r_zyx, 1.E-9));
@@ -537,8 +535,8 @@ TEST(TRotationClass, from_euler_xyx)
     Rotation ry  = Rotation::from_axis_angle(theta, 2);
     Rotation rx2 = Rotation::from_axis_angle(phi, 1);
 
-    // Intrinsic xyx: apply x, then y', then x''
-    Rotation r_ref = rx2 * ry * rx1;
+    // Intrinsic xyx: x, then the new y, then the new x
+    Rotation r_ref = rx1 * ry * rx2;
     Rotation r_xyx = Rotation::from_euler(psi, theta, phi, "xyx", true, false);
 
     EXPECT_TRUE(r_ref.equals(r_xyx, 1.E-9));

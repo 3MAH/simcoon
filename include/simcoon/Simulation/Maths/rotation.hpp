@@ -142,6 +142,16 @@ public:
 
     /**
      * @brief Create rotation from Euler angles.
+     *
+     * With the axes \f$ a_1 a_2 a_3 \f$ of `conv`, the intrinsic sequence (rotation about
+     * \f$ a_1 \f$, then about the new \f$ a_2 \f$, then about the new \f$ a_3 \f$) is
+     * \f$ \mathbf{R} = \mathbf{R}_{a_1}(\psi)\,\mathbf{R}_{a_2}(\theta)\,\mathbf{R}_{a_3}(\phi) \f$,
+     * scipy's uppercase sequence (`"zxz"` = `'ZXZ'`); the extrinsic one (fixed axes) is
+     * \f$ \mathbf{R}_{a_3}(\phi)\,\mathbf{R}_{a_2}(\theta)\,\mathbf{R}_{a_1}(\psi) \f$, scipy's
+     * lowercase sequence. `"user"` takes the axes `axis_psi`, `axis_theta`, `axis_phi`
+     * (parameter.hpp). Up to simcoon 2.5 the default (intrinsic) composed the extrinsic
+     * product: the same orientation now reads \f$ (\phi, \theta, \psi) \f$.
+     *
      * @param psi First Euler angle in radians (or degrees if degrees=true)
      * @param theta Second Euler angle in radians (or degrees if degrees=true)
      * @param phi Third Euler angle in radians (or degrees if degrees=true)
@@ -218,7 +228,8 @@ public:
     /**
      * @brief Get rotation as Euler angles.
      * @param conv Euler angle convention
-     * @param intrinsic If true, return intrinsic angles; if false, extrinsic
+     * @param intrinsic If true, return intrinsic angles; if false, extrinsic (the inverse
+     *        of from_euler with the same flag)
      * @param degrees If true, return angles in degrees
      * @return 3-element vector of Euler angles [psi, theta, phi]
      */

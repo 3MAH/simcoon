@@ -11,9 +11,9 @@
         "phi": 0.0
       },
       "geometry_orientation": {
-        "psi": 0.0,
+        "psi": -90.0,
         "theta": 90.0,
-        "phi": -90.0
+        "phi": 0.0
       },
       "nstatev": 1,
       "props": {
@@ -50,9 +50,9 @@
         "phi": 0.0
       },
       "geometry_orientation": {
-        "psi": 0.0,
+        "psi": -90.0,
         "theta": 90.0,
-        "phi": -90.0
+        "phi": 0.0
       },
       "nstatev": 1,
       "props": {

@@ -1,6 +1,6 @@
 """JSON round-trip for materials and loading paths.
 
-Schema (the orientation is the 'zxz' Euler angles in degrees, see
+Schema (the orientation is the intrinsic 'ZXZ' Euler angles in degrees, see
 :func:`~simcoon.solver.micromechanics.as_rotation`)::
 
     material.json: {"name": "ELISO", "props": [...], "nstatev": 1,

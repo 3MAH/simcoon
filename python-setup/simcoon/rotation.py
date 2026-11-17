@@ -487,12 +487,12 @@ class Rotation(ScipyRotation):
 _ANGLES = ('psi', 'theta', 'phi')
 
 #: The Euler convention of the C++ side. ``Rotation::from_euler(psi, theta, phi, "zxz")``
-#: composes the three axis rotations as scipy's *extrinsic* ``'zxz'`` does, and the
-#: solver applies it actively (material frame -> global frame): a phase at
-#: ``(psi, theta, phi)`` responds with ``R.apply_stiffness(L_local)``,
-#: ``R = Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)``. Pinned by
+#: is the intrinsic sequence (psi about z, theta about the new x, phi about the new z),
+#: scipy's ``'ZXZ'``, and the solver applies it actively (material frame -> global
+#: frame): a phase at ``(psi, theta, phi)`` responds with ``R.apply_stiffness(L_local)``,
+#: ``R = Rotation.from_euler('ZXZ', [psi, theta, phi], degrees=True)``. Pinned by
 #: test_micromechanics.py::TestOrientationConvention against the solver and L_eff.
-EULER_SEQ = 'zxz'
+EULER_SEQ = 'ZXZ'
 
 Orientation = Union[Rotation, Dict[str, float], Sequence[float], None]
 
@@ -503,7 +503,7 @@ def as_rotation(value: Orientation) -> Rotation:
     ``value`` is a ``Rotation`` (returned as is), the Euler angles ``(psi, theta, phi)``
     in degrees as a 3-sequence or as the ``{"psi", "theta", "phi"}`` dict of the JSON
     files (missing angles are 0), or ``None`` for the identity. The angles are the
-    ``'zxz'`` Euler angles the C++ side reads (see ``EULER_SEQ``).
+    intrinsic ``'ZXZ'`` Euler angles the C++ side reads (see ``EULER_SEQ``).
     """
     if value is None:
         return Rotation.identity()
