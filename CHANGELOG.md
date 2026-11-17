@@ -37,6 +37,30 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-17
+
+Euler angles are read as the intrinsic `ZXZ` sequence of scipy and microgen: orientations given
+as angles with `theta != 0` and `psi != phi` move, swap `psi` and `phi` to keep them (see
+**Breaking changes**). The Linux conda package builds again (#170).
+
+### Breaking changes
+
+- Euler angles are the intrinsic `ZXZ` sequence, as scipy's `'ZXZ'` and microgen:
+  `(psi, theta, phi)` is a rotation of `psi` about z, then `theta` about the new x, then `phi`
+  about the new z, `R = R_z(psi) R_x(theta) R_z(phi)`, applied actively (material or
+  geometry frame to global frame). `Rotation::from_euler(..., intrinsic = true)`, the
+  default, composed the extrinsic product `R_z(phi) R_x(theta) R_z(psi)` (scipy's lowercase
+  `'zxz'`), and the Python side followed it (`simcoon.rotation.EULER_SEQ = 'zxz'`, now
+  `'ZXZ'`). Every orientation read as Euler angles moves (material, RVE, ellipsoid, cylinder,
+  layer and section orientations, JSON files, `solve(orientation=...)`, `L_eff`) unless
+  `theta = 0` or `psi = phi`. **Migration**: swap `psi` and `phi` in material and phase files
+  written for simcoon 2.5 or earlier; `(psi, theta, phi)` then becomes `(phi, theta, psi)`,
+  the same orientation (`L_eff` of a layered RVE identical to the bit). An orientation given
+  as a `simcoon.Rotation` does not move. `scripts/legacy_to_json.py` swaps the angles of the
+  legacy files it converts. `as_euler(conv, intrinsic = true)` returns the intrinsic angles
+  (it returned the extrinsic ones, and its extrinsic branch was wrong); the `"user"`
+  convention follows the same rule.
+
 ### Fixed
 
 - Linux conda package: the build passes the binutils to CMake with their full path. Since
@@ -738,7 +762,8 @@ See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.1).
 
 See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.0).
 
-[Unreleased]: https://github.com/3MAH/simcoon/compare/2.5.0...HEAD
+[Unreleased]: https://github.com/3MAH/simcoon/compare/2.5.1...HEAD
+[2.5.1]: https://github.com/3MAH/simcoon/compare/2.5.0...2.5.1
 [2.5.0]: https://github.com/3MAH/simcoon/compare/2.4.0...2.5.0
 [2.4.0]: https://github.com/3MAH/simcoon/compare/2.3.0...2.4.0
 [2.3.0]: https://github.com/3MAH/simcoon/compare/2.2.0...2.3.0

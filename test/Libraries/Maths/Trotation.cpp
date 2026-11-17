@@ -43,8 +43,8 @@ TEST(Trotation, basic_rotation)
     mat R2b = { {cos(theta),0,sin(theta)}, {0,1,0}, {-sin(theta),0,cos(theta)} };
     mat R3 = { {cos(phi),-sin(phi),0}, {sin(phi),cos(phi), 0}, {0,0,1}};
     
-    mat R_zxz = R3*R2*R1;
-    mat R_zyz = R3*R2b*R1;
+    mat R_zxz = R1*R2*R3;
+    mat R_zyz = R1*R2b*R3;
     
     mat R_zxz_a = mat(Rotation::from_euler(psi, theta, phi, "zxz", true).as_matrix());
     mat R_zxz_p = mat(Rotation::from_euler(psi, theta, phi, "zxz", true).as_matrix()).t();
@@ -61,9 +61,9 @@ TEST(Trotation, basic_rotation)
     
     vec upp = R_zxz*u;
     
-    vec upp2 = R1*u;
+    vec upp2 = R3*u;
     upp2 = R2*upp2;
-    upp2 = R3*upp2;
+    upp2 = R1*upp2;
 
     EXPECT_LT( norm(R_zxz-R_zxz_a,2),1.E-9);
     EXPECT_LT( norm(trans(R_zxz)-R_zxz_p,2),1.E-9);
@@ -94,8 +94,7 @@ TEST(Trotation, rotation)
     mat R2 = { {1,0,0}, {0,cos(theta),-sin(theta)}, {0,sin(theta),cos(theta)} };
     mat R3 = { {cos(phi),-sin(phi),0}, {sin(phi),cos(phi), 0}, {0,0,1}};
     
-    mat R = R3*R2*R1;
-//    mat Rb = trans(R3)*trans(R2)*trans(R1);
+    mat R = R1*R2*R3;
 
     //test of rotate A
     mat S_c = Eshelby_cylinder(0.12);
@@ -108,9 +107,9 @@ TEST(Trotation, rotation)
     mat S_c22 = rotate_strain_concentration(S_c,R2);
     mat S_c33 = rotate_strain_concentration(S_c,R3);
 
-    mat S_cR = rotate_strain_concentration(S_c, R1);
+    mat S_cR = rotate_strain_concentration(S_c, R3);
     S_cR = rotate_strain_concentration(S_cR, R2);
-    S_cR = rotate_strain_concentration(S_cR, R3);
+    S_cR = rotate_strain_concentration(S_cR, R1);
     
     mat S_cRR = rotate_strain_concentration(S_c,R);
     

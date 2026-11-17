@@ -153,10 +153,10 @@ in those objects is a :class:`simcoon.Rotation`: the material frame of a phase
     fibre.geometry_orientation = {"psi": 45., "theta": 0., "phi": 0.}  # the JSON form
     euler_angles(fibre.geometry_orientation)   # {'psi': 45.0, 'theta': 0.0, 'phi': 0.0}
 
-The Euler angles are the ``'zxz'`` sequence the C++ side reads, in degrees:
-``as_rotation((psi, theta, phi))`` is
-``Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)`` (scipy's extrinsic
-``zxz``), applied actively. A phase at that orientation responds with
+The Euler angles are the intrinsic ``'ZXZ'`` sequence the C++ side reads, in degrees
+(:math:`\psi` about :math:`z`, :math:`\theta` about the new :math:`x`, :math:`\phi` about
+the new :math:`z`): ``as_rotation((psi, theta, phi))`` is
+``Rotation.from_euler('ZXZ', [psi, theta, phi], degrees=True)``, applied actively. A phase at that orientation responds with
 ``R.apply_stiffness(L_local)``, which the test suite pins against the solver and
 ``L_eff``. The JSON files and the dicts handed to the extension keep the angles;
 ``euler_angles`` writes them back, with the usual caveat that the decomposition is not

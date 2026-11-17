@@ -311,7 +311,8 @@ def material_from_file(path_data: str = "data", materialfile: str = "material.da
     dict
         {'umat_name', 'props', 'nstatev', 'orientation'} — mergeable into
         :func:`~simcoon.solver.solve` like the JSON loader. The orientation is the
-        file's Euler angles, in degrees, as solve() takes them.
+        file's Euler angles, in degrees, as solve() takes them (see
+        :func:`_legacy_orientation`).
     """
     with open(os.path.join(path_data, materialfile), encoding=_LEGACY_ENCODING) as f:
         tk = _Tokens(f.read())
@@ -332,7 +333,7 @@ def material_from_file(path_data: str = "data", materialfile: str = "material.da
         "umat_name": umat_name,
         "props": props,
         "nstatev": int(nstatev),
-        "orientation": (psi, theta, phi),
+        "orientation": _legacy_orientation(psi, theta, phi),
     }
 
 
@@ -545,6 +546,16 @@ def _dat_rows(filepath: Union[str, Path], kind: str) -> List[List[str]]:
     return rows
 
 
+def _legacy_orientation(psi: float, theta: float, phi: float) -> Tuple[float, float, float]:
+    """The Euler angles of a legacy file, in the convention simcoon reads now.
+
+    Up to simcoon 2.5 the angles composed as scipy's extrinsic ``'zxz'``
+    (``R_z(phi) R_x(theta) R_z(psi)``); simcoon now reads them as the intrinsic ``'ZXZ'``
+    (``R_z(psi) R_x(theta) R_z(phi)``). The same orientation is the swapped triplet.
+    """
+    return (phi, theta, psi)
+
+
 def _dat_props(tokens: List[str], n_fixed: int) -> np.ndarray:
     """The property values of a row, which follow the fixed columns."""
     return np.array([float(t) for t in tokens[n_fixed:]], dtype=float)
@@ -559,7 +570,7 @@ def load_phases_dat(filepath: Union[str, Path], _seen=()) -> List[Phase]:
             umat_name=t[1],
             save=int(t[2]),
             concentration=float(t[3]),
-            material_orientation=(float(t[4]), float(t[5]), float(t[6])),
+            material_orientation=_legacy_orientation(float(t[4]), float(t[5]), float(t[6])),
             nstatev=int(t[8]),
             props=_dat_props(t, n),
         )
@@ -576,8 +587,8 @@ def load_layers_dat(filepath: Union[str, Path], _seen=()) -> List[Layer]:
             umat_name=t[1],
             save=int(t[2]),
             concentration=float(t[3]),
-            material_orientation=(float(t[4]), float(t[5]), float(t[6])),
-            geometry_orientation=(float(t[7]), float(t[8]), float(t[9])),
+            material_orientation=_legacy_orientation(float(t[4]), float(t[5]), float(t[6])),
+            geometry_orientation=_legacy_orientation(float(t[7]), float(t[8]), float(t[9])),
             nstatev=int(t[11]),
             props=_dat_props(t, n),
         )
@@ -595,11 +606,11 @@ def load_ellipsoids_dat(filepath: Union[str, Path], _seen=()) -> List[Ellipsoid]
             umat_name=t[2],
             save=int(t[3]),
             concentration=float(t[4]),
-            material_orientation=(float(t[5]), float(t[6]), float(t[7])),
+            material_orientation=_legacy_orientation(float(t[5]), float(t[6]), float(t[7])),
             a1=float(t[8]),
             a2=float(t[9]),
             a3=float(t[10]),
-            geometry_orientation=(float(t[11]), float(t[12]), float(t[13])),
+            geometry_orientation=_legacy_orientation(float(t[11]), float(t[12]), float(t[13])),
             nstatev=int(t[15]),
             props=_dat_props(t, n),
         )
@@ -617,10 +628,10 @@ def load_cylinders_dat(filepath: Union[str, Path], _seen=()) -> List[Cylinder]:
             umat_name=t[2],
             save=int(t[3]),
             concentration=float(t[4]),
-            material_orientation=(float(t[5]), float(t[6]), float(t[7])),
+            material_orientation=_legacy_orientation(float(t[5]), float(t[6]), float(t[7])),
             L=float(t[8]),
             R=float(t[9]),
-            geometry_orientation=(float(t[10]), float(t[11]), float(t[12])),
+            geometry_orientation=_legacy_orientation(float(t[10]), float(t[11]), float(t[12])),
             nstatev=int(t[14]),
             props=_dat_props(t, n),
         )
@@ -640,7 +651,7 @@ def load_sections_dat(filepath: Union[str, Path]) -> List[Section]:
             number=int(t[0]),
             name=t[1],
             umat_name=t[2],
-            material_orientation=(float(t[3]), float(t[4]), float(t[5])),
+            material_orientation=_legacy_orientation(float(t[3]), float(t[4]), float(t[5])),
             nstatev=int(t[7]),
             props=_dat_props(t, n),
         )

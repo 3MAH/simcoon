@@ -96,77 +96,6 @@ vec::fixed<4> quat_conjugate(const vec::fixed<4>& q) {
     return {-q(0), -q(1), -q(2), q(3)};
 }
 
-// Internal: Generate a 3x3 rotation matrix for rotation around a single axis
-mat fillR_internal(const double &alpha, const int &axis, const bool &active) {
-    double act = active ? 1. : -1.;
-
-    mat R = zeros(3,3);
-    double c = cos(alpha);
-    double s = act*sin(alpha);
-
-    switch(axis) {
-        case 1: {
-            R = { {1,0,0}, {0,c,-s}, {0,s,c} };
-            break;
-        }
-        case 2: {
-            R = mat {{c, 0, s}, {0,1,0}, {-s,0,c}};
-            break;
-        }
-        case 3: {
-            R = {{c,-s,0}, {s,c, 0}, {0,0,1}};
-            break;
-        }
-        default: {
-            throw invalid_argument("Please choose the axis 1, 2 or 3");
-        }
-    }
-    return R;
-}
-
-// Internal: Generate a 3x3 rotation matrix using Euler angles
-mat fillR_euler_internal(const double &psi, const double &theta, const double &phi, const bool &active, const std::string &conv) {
-    mat R = zeros(3,3);
-
-    if(conv == "zxz") {
-        double c1 = cos(psi);
-        double s1 = sin(psi);
-        double c2 = cos(theta);
-        double s2 = sin(theta);
-        double c3 = cos(phi);
-        double s3 = sin(phi);
-
-        if (active)
-            R = { {c3*c1-c2*s3*s1,-c3*s1-c2*c1*s3,s3*s2}, {c1*s3+c3*c2*s1,c3*c2*c1-s3*s1,-c3*s2}, {s2*s1,c1*s2,c2} };
-        else
-            R = { {c3*c1-c2*s3*s1,c1*s3+c3*c2*s1,s2*s1}, {-c3*s1-c2*c1*s3,c3*c2*c1-s3*s1,c1*s2}, {s3*s2,-c3*s2,c2} };
-    }
-    else if(conv == "zyz") {
-        double c1 = cos(psi);
-        double s1 = sin(psi);
-        double c2 = cos(theta);
-        double s2 = sin(theta);
-        double c3 = cos(phi);
-        double s3 = sin(phi);
-
-        if (active)
-            R = { {c3*c2*c1-s3*s1,-c1*s3-c3*c2*s1,c3*s2}, {c3*s1+c2*c1*s3,c3*c1-c2*s3*s1,s3*s2}, {-c1*s2,s2*s1,c2} };
-        else
-            R = { {c3*c2*c1-s3*s1,c3*s1+c2*c1*s3,-c1*s2}, {-c1*s3-c3*c2*s1,c3*c1-c2*s3*s1,s2*s1}, {c3*s2,s3*s2,c2} };
-    }
-    else if(conv == "user") {
-        mat R1 = fillR_internal(psi, simcoon::axis_psi, active);
-        mat R2 = fillR_internal(theta, simcoon::axis_theta, active);
-        mat R3 = fillR_internal(phi, simcoon::axis_phi, active);
-        R = R3*R2*R1;
-    }
-    else {
-        throw std::invalid_argument("error in Simulation/Maths/rotation.cpp: invalid Euler convention '" + conv + "'. Supported conventions: zxz, zyz, xyz, xzy, yxz, yzx, zxy, zyx, xyx, xzx, yxy, yzy, user");
-    }
-
-    return R;
-}
-
 // Internal: Generate 6x6 stress Voigt rotation matrix from angle/axis
 mat::fixed<6,6> fill_voigt_stress(const double &alpha, const int &axis, const bool &active) {
     double act = active ? 1. : -1.;
@@ -445,15 +374,14 @@ Rotation Rotation::from_euler(double psi, double theta, double phi,
         phi *= simcoon::pi / 180.0;
     }
 
-    if (conv == "user") {
-        mat R = fillR_euler_internal(psi, theta, phi, true, "user");
-        mat::fixed<3,3> R_fixed;
-        R_fixed = R;
-        return from_matrix(R_fixed);
-    }
-
     int axis1, axis2, axis3;
-    parse_euler_convention(conv, axis1, axis2, axis3);
+    if (conv == "user") {
+        axis1 = axis_psi - 1;
+        axis2 = axis_theta - 1;
+        axis3 = axis_phi - 1;
+    } else {
+        parse_euler_convention(conv, axis1, axis2, axis3);
+    }
 
     auto axis_quat = [](double angle, int axis) -> vec::fixed<4> {
         double half_angle = angle / 2.0;
@@ -470,9 +398,9 @@ Rotation Rotation::from_euler(double psi, double theta, double phi,
 
     vec::fixed<4> result;
     if (intrinsic) {
-        result = quat_multiply(quat_multiply(q3, q2), q1);
-    } else {
         result = quat_multiply(quat_multiply(q1, q2), q3);
+    } else {
+        result = quat_multiply(quat_multiply(q3, q2), q1);
     }
 
     return Rotation(normalize_quat(result));
@@ -582,8 +510,9 @@ vec::fixed<3> Rotation::as_euler(const string& conv, bool intrinsic, bool degree
         parse_euler_convention(conv, axis1, axis2, axis3);
     }
 
-    mat::fixed<3,3> R_work = intrinsic ? R : R.t();
-    if (!intrinsic) {
+    // R1(a) R2(b) R3(c) is the extrinsic sequence (axis3, axis2, axis1) of angles (c, b, a)
+    const mat::fixed<3,3>& R_work = R;
+    if (intrinsic) {
         swap(axis1, axis3);
     }
 
@@ -623,7 +552,7 @@ vec::fixed<3> Rotation::as_euler(const string& conv, bool intrinsic, bool degree
         }
     }
 
-    if (!intrinsic) {
+    if (intrinsic) {
         swap(angles(0), angles(2));
     }
 

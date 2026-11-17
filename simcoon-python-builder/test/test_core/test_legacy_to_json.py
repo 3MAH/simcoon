@@ -216,7 +216,10 @@ alpha 1.E-5
     assert kw["umat_name"] == "ELISO"
     assert kw["nstatev"] == 1
     np.testing.assert_allclose(kw["props"], [70000.0, 0.3, 1.0e-5])
-    assert kw["orientation"] == (0.1, 0.2, 0.3)
+    # the file's angles are pre-2.6 (scipy's extrinsic 'zxz'): same orientation, swapped
+    assert kw["orientation"] == (0.3, 0.2, 0.1)
+    assert sim.rotation.as_rotation(kw["orientation"]).approx_equal(
+        sim.Rotation.from_euler("zxz", [0.1, 0.2, 0.3], degrees=True))
     res = solve(StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=10),
                 T_init=290.0, **kw)
     assert res.status == 0
@@ -393,8 +396,10 @@ class TestLegacyDatReaders:
     def test_layers_carry_geometry_orientation(self, tmp_path):
         layers = legacy.load_layers_dat(_write_dat(tmp_path, "Nlayers0.dat", LAYERS_DAT))
         assert len(layers) == 2
+        assert euler_angles(layers[0].geometry_orientation)["psi"] == pytest.approx(-90)
         assert euler_angles(layers[0].geometry_orientation)["theta"] == pytest.approx(90)
-        assert euler_angles(layers[0].geometry_orientation)["phi"] == pytest.approx(-90)
+        assert layers[0].geometry_orientation.approx_equal(
+            sim.Rotation.from_euler("zxz", [0, 90, -90], degrees=True))
         assert layers[0].material_orientation.is_identity()
 
     def test_ellipsoids_semi_axes_and_shape(self, tmp_path):
@@ -474,7 +479,7 @@ class TestDatToJsonConversion:
         out = legacy.convert_dat_to_json(dat, tmp_path / "chosen.json")
         assert out.name == "chosen.json"
         layers = load_layers_json(out)
-        assert [euler_angles(lay.geometry_orientation)["phi"] for lay in layers] == pytest.approx([-90, -90])
+        assert [euler_angles(lay.geometry_orientation)["psi"] for lay in layers] == pytest.approx([-90, -90])
 
     def test_unknown_kind_is_refused(self, tmp_path):
         dat = _write_dat(tmp_path, "mystery.dat", PHASES_DAT)

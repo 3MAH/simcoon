@@ -136,7 +136,10 @@ The ``from_euler`` and ``as_euler`` methods support multiple conventions:
 **Parameters:**
 
 - ``intrinsic`` (bool): If ``true`` (default), rotations are about the axes of the rotating
-  coordinate system. If ``false``, rotations are about the fixed coordinate system (extrinsic).
+  coordinate system, scipy's uppercase sequence (``"zxz"`` is ``'ZXZ'``). If ``false``,
+  rotations are about the fixed coordinate system (extrinsic), scipy's lowercase sequence.
+  Up to simcoon 2.5 the default composed the extrinsic product: the same orientation now
+  reads :math:`(\phi, \theta, \psi)`.
 - ``degrees`` (bool): If ``true``, angles are in degrees. Default is ``false`` (radians).
 
 .. code-block:: cpp
