@@ -12,6 +12,22 @@ if [ -z "$PYBIND11_DIR" ]; then
 fi
 echo "Using pybind11 from: $PYBIND11_DIR"
 
+# The compiler activation may name the binutils without a path (gcc_linux-64 16.2.0 build 3);
+# CMake then resolves them against the source directory. Pass them with their full path.
+args=""
+for arg in ${CMAKE_ARGS}; do
+  case "$arg" in
+    -DCMAKE_*AR=*|-DCMAKE_*RANLIB=*|-DCMAKE_LINKER=*|-DCMAKE_STRIP=*)
+      tool="${arg#*=}"
+      if [[ "$tool" != */* ]] && command -v "$tool" >/dev/null 2>&1; then
+        arg="${arg%%=*}=$(command -v "$tool")"
+      fi
+      ;;
+  esac
+  args="$args $arg"
+done
+CMAKE_ARGS="$args"
+
 # Configure with Python bindings enabled
 # CONDA_BUILD env var is detected by CMakeLists.txt to enable SIMCOON_BUILD_PYTHON
 cmake ${CMAKE_ARGS} -G Ninja -S . -B build \
