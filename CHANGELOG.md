@@ -37,6 +37,18 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-17
+
+The unified SMA laws integrate with the closest point by default, with `ncp="min"` /
+`"active_set"` and a common cutting plane for SMA* and SMR* (#164, #165). The yield criteria
+evaluate once through `CriterionResponse` (#166), the hyperelastic names and EPJCK run on the
+modular engine (#159, #163), the external plugins run under finite strain (#160), the mean-field
+schemes are served by name (#162), and Fastor is no longer a dependency (#158). Performance:
+isotropic hyperelastic MODUL laws -26 to -29 % from the 6x6 box operator, NEOHI -42 % with the
+hybrid `eig_sym_3x3` (#167), fewer temporaries on the MODUL plasticity path and `small_lu` for
+the condensed stress states (#168). Breaking: the SMA default integrator (results move) and the
+ABI of `state_variables` / `solver_params` (rebuild plugins): see **Breaking changes**.
+
 ### Breaking changes
 
 - The unified SMA laws (SMADI/SMADC/SMAAI/SMAAC, SMRDI/SMRDC/SMRAI/SMRAC, mechanical and
@@ -719,7 +731,8 @@ See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.1).
 
 See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.0).
 
-[Unreleased]: https://github.com/3MAH/simcoon/compare/2.4.0...HEAD
+[Unreleased]: https://github.com/3MAH/simcoon/compare/2.5.0...HEAD
+[2.5.0]: https://github.com/3MAH/simcoon/compare/2.4.0...2.5.0
 [2.4.0]: https://github.com/3MAH/simcoon/compare/2.3.0...2.4.0
 [2.3.0]: https://github.com/3MAH/simcoon/compare/2.2.0...2.3.0
 [2.2.0]: https://github.com/3MAH/simcoon/compare/2.1.0...2.2.0
