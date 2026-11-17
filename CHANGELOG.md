@@ -37,6 +37,13 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+### Fixed
+
+- Linux conda package: the build passes the binutils to CMake with their full path. Since
+  `gcc_linux-64` / `gxx_linux-64` 16.2.0 build 3, the compiler activation names them without a
+  path (`CMAKE_AR=x86_64-conda-linux-gnu-ar`), CMake looked for them in the source directory
+  and the 2.5.0 Linux conda build failed at the first static library (`libdylib.a`).
+
 ## [2.5.0] - 2026-11-17
 
 The unified SMA laws integrate with the closest point by default, with `ncp="min"` /
