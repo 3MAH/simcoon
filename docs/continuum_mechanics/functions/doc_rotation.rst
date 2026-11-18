@@ -468,6 +468,22 @@ and without the GIL, with no scipy conversion to quaternions. It returns what
 
 .. autofunction:: simcoon.rotate_voigt
 
+The conversions between rotation vectors and matrices have the same batch form on the
+slice-last layout, without a ``Rotation`` object: ``rotvec_to_matrix`` maps ``(3, N)``
+rotation vectors to ``(3, 3, N)`` matrices (exponential map), ``matrix_to_rotvec`` the
+reverse (logarithm map, angle in :math:`[0, \pi]`), and ``dR_drotvec`` takes a ``(3, N)``
+batch:
+
+.. code-block:: python
+
+   rotvec = np.random.randn(3, N)
+   R = smc.rotvec_to_matrix(rotvec)          # (3, 3, N)
+   rotvec_back = smc.matrix_to_rotvec(R)     # (3, N)
+   dR = smc.dR_drotvec(rotvec)               # (3, 3, 3, N)
+
+.. autofunction:: simcoon.rotvec_to_matrix
+.. autofunction:: simcoon.matrix_to_rotvec
+
 Example 4: Averaging Orientations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

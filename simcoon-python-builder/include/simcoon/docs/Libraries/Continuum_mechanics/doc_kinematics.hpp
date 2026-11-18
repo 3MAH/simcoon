@@ -310,6 +310,40 @@ constexpr auto Euler_Almansi = R"pbdoc(
         print(A)
 )pbdoc";
 
+constexpr auto G_UdX_to_F = R"pbdoc(
+    Transformation gradient from the displacement gradient, the inverse of :func:`G_UdX`.
+
+    Computes :math:`\mathbf{F} = \mathbf{I} + \partial \mathbf{u} / \partial \mathbf{X}`
+    and, on request, :math:`J = \det \mathbf{F}` (closed form).
+
+    Parameters
+    ----------
+    G : numpy.ndarray
+        Displacement gradient :math:`\partial \mathbf{u} / \partial \mathbf{X}`, a (3, 3)
+        matrix or a batch (3, 3, N), one point per slice.
+    return_J : bool
+        Also return the determinant: the call then returns ``(F, J)``.
+    n_threads : int
+        Batch only: 1 runs the points serially; otherwise they run in parallel.
+
+    Returns
+    -------
+    numpy.ndarray or tuple
+        F with the shape of G (Fortran ordered); with ``return_J``, ``(F, J)`` where J is a
+        float for one point or a (N,) array for a batch.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import simcoon as sim
+
+        G = 0.01 * np.random.rand(3, 3, 100)
+        F = sim.G_UdX_to_F(G)
+        F, J = sim.G_UdX_to_F(G, return_J=True)
+)pbdoc";
+
 constexpr auto Log_strain = R"pbdoc(
     Computes the logarithmic strain tensor from the transformation gradient.
 

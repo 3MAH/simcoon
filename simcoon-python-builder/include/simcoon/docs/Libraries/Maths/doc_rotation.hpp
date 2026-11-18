@@ -303,23 +303,68 @@ constexpr auto dR_drotvec = R"pbdoc(
 constexpr auto dR_drotvec_free = R"pbdoc(
     Compute the derivatives of R(omega) w.r.t. rotation vector components.
 
-    Free function version — takes a rotation vector directly.
+    Free function version — takes rotation vectors directly, one or a batch.
 
     Parameters
     ----------
     rotvec : numpy.ndarray
-        A 1D array of 3 elements: rotation vector (axis * angle).
+        A rotation vector (axis * angle) of shape (3,), or a batch (3, N), one
+        rotation vector per column.
+    n_threads : int
+        Batch only: 1 runs the points serially; otherwise they run in parallel.
 
     Returns
     -------
     numpy.ndarray
         A (3, 3, 3) array where ``result[:, :, k]`` is
-        :math:`\partial R / \partial \omega_k`.
+        :math:`\partial R / \partial \omega_k`, or (3, 3, 3, N) for a batch
+        (``result[:, :, k, n]`` for the column n).
 
     References
     ----------
     Gallego & Yezzi, "A Compact Formula for the Derivative of a 3-D
     Rotation in Exponential Coordinates", J. Math. Imaging Vis., 2015.
+)pbdoc";
+
+constexpr auto rotvec_to_matrix = R"pbdoc(
+    Rotation matrices from rotation vectors (exponential map of SO(3)).
+
+    The batch counterpart of ``Rotation.from_rotvec(v).as_matrix()`` on the
+    slice-last layout: it builds no ``Rotation`` object and runs the points in
+    parallel without the GIL.
+
+    Parameters
+    ----------
+    rotvec : numpy.ndarray
+        A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N),
+        one rotation vector per column.
+    n_threads : int
+        Batch only: 1 runs the points serially; otherwise they run in parallel.
+
+    Returns
+    -------
+    numpy.ndarray
+        The rotation matrix (3, 3), or a batch (3, 3, N), one matrix per slice.
+)pbdoc";
+
+constexpr auto matrix_to_rotvec = R"pbdoc(
+    Rotation vectors from rotation matrices (logarithm map of SO(3)).
+
+    The batch counterpart of ``Rotation.from_matrix(R).as_rotvec()`` on the
+    slice-last layout. The angle lies in :math:`[0, \pi]`. The matrices must be
+    rotations: they are not orthogonalized.
+
+    Parameters
+    ----------
+    R : numpy.ndarray
+        A rotation matrix (3, 3), or a batch (3, 3, N), one matrix per slice.
+    n_threads : int
+        Batch only: 1 runs the points serially; otherwise they run in parallel.
+
+    Returns
+    -------
+    numpy.ndarray
+        The rotation vector (3,), or a batch (3, N), one per column.
 )pbdoc";
 
 constexpr auto rotate_voigt = R"pbdoc(

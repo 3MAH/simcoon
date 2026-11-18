@@ -474,3 +474,30 @@ class TestBatchedMechanics:
         got = np.asarray(batch_rot.apply_stiffness(L_in))
         np.testing.assert_allclose(got, L_in, rtol=1e-9,
                                    atol=1e-9 * np.abs(np.asarray(L_iso)).max())
+
+
+# ---------------------------------------------------------------------------
+# Slice-last batch conversions (free functions)
+# ---------------------------------------------------------------------------
+
+def test_rotvec_matrix_batch_round_trip():
+    rng = np.random.default_rng(5)
+    v = rng.standard_normal((3, 150))
+    v *= np.pi * rng.random(150) / np.linalg.norm(v, axis=0)
+    v[:, 0] = 0.0  # identity
+    v[:, 1] = [1e-9, 0.0, 0.0]  # small angle
+    v[:, 2] = [0.0, np.pi - 1e-7, 0.0]  # close to pi
+    R = sim.rotvec_to_matrix(v)
+    assert R.shape == (3, 3, 150)
+    np.testing.assert_allclose(R, ScipyRotation.from_rotvec(v.T).as_matrix().transpose(1, 2, 0), atol=1e-14)
+    w = sim.matrix_to_rotvec(R)
+    assert w.shape == (3, 150)
+    np.testing.assert_allclose(w, v, atol=1e-8)  # 1e-7 from pi: conditioned as 1/sin
+    np.testing.assert_allclose(w[:, 1], v[:, 1], rtol=1e-7)
+    for n in (0, 1, 2, 75):  # single point = batch slice
+        np.testing.assert_array_equal(sim.rotvec_to_matrix(v[:, n].copy()), R[:, :, n])
+        np.testing.assert_array_equal(sim.matrix_to_rotvec(R[:, :, n].copy()), w[:, n])
+    with pytest.raises(ValueError):
+        sim.rotvec_to_matrix(np.zeros((4, 2)))
+    with pytest.raises(ValueError):
+        sim.matrix_to_rotvec(np.zeros((3, 2, 5)))

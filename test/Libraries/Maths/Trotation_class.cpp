@@ -727,3 +727,31 @@ TEST(TRotationClass, frame_rotation_matches_apply_bitwise)
     // a wrong size on a real frame throws
     EXPECT_THROW(frame.rotate_strain(w5), std::invalid_argument);
 }
+
+TEST(TRotationClass, batch_rotvec_conversions)
+{
+    // the batches give the single-rotation values, past the parallel cutoff
+    const int N = 150;
+    mat rotvecs = randn(3, N);
+    rotvecs.col(0).zeros();                     // identity
+    rotvecs.col(1) = vec({1e-9, 0.0, 0.0});     // small angle
+    rotvecs.col(2) = vec({0.0, 3.0, 0.0});      // angle < pi
+
+    const cube R = batch_rotvec_to_matrix(rotvecs);
+    const mat back = batch_matrix_to_rotvec(R);
+    const cube dR = batch_dR_drotvec(rotvecs);
+    ASSERT_EQ(R.n_slices, static_cast<uword>(N));
+    ASSERT_EQ(back.n_cols, static_cast<uword>(N));
+    ASSERT_EQ(dR.n_slices, static_cast<uword>(3 * N));
+    for (int n = 0; n < N; ++n) {
+        const vec::fixed<3> omega = rotvecs.col(n);
+        const Rotation r = Rotation::from_rotvec(omega);
+        EXPECT_TRUE(approx_equal(mat(R.slice(n)), mat(r.as_matrix()), "absdiff", 0.0));
+        EXPECT_TRUE(approx_equal(vec(back.col(n)), vec(Rotation::from_matrix(r.as_matrix()).as_rotvec()),
+                                 "absdiff", 0.0));
+        const cube d = dR_drotvec(omega);
+        for (int k = 0; k < 3; ++k) {
+            EXPECT_TRUE(approx_equal(mat(dR.slice(3 * n + k)), mat(d.slice(k)), "absdiff", 0.0));
+        }
+    }
+}

@@ -411,10 +411,7 @@ class Rotation(ScipyRotation):
             The slice axis is last, matching simcoon's project-wide cube
             convention ((3,3,N), (6,6,N), ...).
         """
-        rotvec = self.as_rotvec()
-        if rotvec.ndim == 1:
-            return _dR_drotvec(rotvec)
-        return np.stack([_dR_drotvec(r) for r in rotvec], axis=-1)
+        return _dR_drotvec(self.as_rotvec().T)
 
     # ------------------------------------------------------------------
     # Compatibility helpers

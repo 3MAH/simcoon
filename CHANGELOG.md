@@ -37,6 +37,30 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+### Added
+
+- Batch kinematics and rotation conversions on the slice-last layout, for the finite-element
+  loops of fedoo (one parallel C++ call instead of numpy temporaries or scipy): `G_UdX_to_F`
+  builds `F = I + G` from the displacement gradient (inverse of `G_UdX`) and
+  `batch_G_UdX_to_F` also returns `J = det F` (bound as `G_UdX_to_F`, returning `(F, J)`);
+  `batch_rotvec_to_matrix` / `batch_matrix_to_rotvec` (bound as `rotvec_to_matrix` /
+  `matrix_to_rotvec`) convert (3, N) rotation vectors and (3, 3, N) matrices;
+  `batch_dR_drotvec` serves `dR_drotvec` on a (3, N) batch (result (3, 3, 3, N)).
+  Batch kernels of this kind live in the library (`batch_*`, `n_threads`), the bindings only
+  convert and release the GIL.
+
+### Changed
+
+- `dR_drotvec` writes its three derivatives without `Cube::slice()`, whose first access per
+  slice takes a lock; `Rotation.dR_drotvec` on a batch calls the batch binding instead of a
+  Python loop.
+
+### Fixed
+
+- `dR_drotvec` below about 0.1 rad: the coefficients of the derivative lost their digits to
+  cancellation (at 1e-9 rad the second-order term was 1e9 instead of 0); they now come from
+  `1 - cos = 2 sin^2(t/2)` and from series below 0.1, exact to rounding.
+
 ## [2.5.1] - 2026-11-17
 
 Euler angles are read as the intrinsic `ZXZ` sequence of scipy and microgen: orientations given

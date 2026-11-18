@@ -731,6 +731,30 @@ arma::cube batch_voigt_stress_rotation(const arma::mat &quats, const bool &activ
  */
 arma::cube batch_voigt_strain_rotation(const arma::mat &quats, const bool &active = true);
 
+/**
+ * @brief Batch exponential map of SO(3): rotation matrices of N rotation vectors.
+ * @param rotvecs (3, N) rotation vectors (axis * angle, radians), one per column
+ * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
+ * @return (3, 3, N) cube of rotation matrices
+ */
+arma::cube batch_rotvec_to_matrix(const arma::mat &rotvecs, unsigned int n_threads = 0);
+
+/**
+ * @brief Batch logarithm map of SO(3): rotation vectors of N rotation matrices (not orthogonalized).
+ * @param R (3, 3, N) cube of rotation matrices
+ * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
+ * @return (3, N) rotation vectors, angle in \f$ [0, \pi] \f$
+ */
+arma::mat batch_matrix_to_rotvec(const arma::cube &R, unsigned int n_threads = 0);
+
+/**
+ * @brief Batch dR_drotvec: derivatives of N rotation matrices w.r.t. their rotation vectors.
+ * @param rotvecs (3, N) rotation vectors, one per column
+ * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
+ * @return (3, 3, 3N) cube: slice 3n + k is \f$ \partial \mathbf{R}_n / \partial \omega_k \f$
+ */
+arma::cube batch_dR_drotvec(const arma::mat &rotvecs, unsigned int n_threads = 0);
+
 /** @} */ // end of maths group
 
 } //namespace simcoon

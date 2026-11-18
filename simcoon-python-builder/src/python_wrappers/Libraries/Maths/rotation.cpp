@@ -291,15 +291,68 @@ void register_rotation(py::module_& m) {
         py::arg("n_threads") = 4,
         simcoon_docs::rotate_voigt);
 
+    // slice-last batches: rotation vectors (3, N), matrices (3, 3, N), one point per column/slice
     m.def("dR_drotvec",
-        [](py::array_t<double> rotvec) {
-            validate_vector_size(rotvec, 3, "rotvec");
-            auto r = rotvec.unchecked<1>();
-            vec::fixed<3> omega = {r(0), r(1), r(2)};
-            return simpy::arma_to_numpy::cube_to_arr(simcoon::dR_drotvec(omega));
+        [](py::array_t<double> rotvec, unsigned int n_threads) -> py::array_t<double> {
+            if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {
+                throw invalid_argument("dR_drotvec: rotvec must have shape (3,) or (3, N)");
+            }
+            if (rotvec.ndim() == 1) {
+                return simpy::arma_to_numpy::cube_to_arr(
+                    simcoon::dR_drotvec(vec::fixed<3>(simpy::numpy_to_arma::arr_to_col(rotvec))));
+            }
+            const mat v = simpy::numpy_to_arma::arr_to_mat_view(rotvec);
+            cube result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_dR_drotvec(v, n_threads);
+            }
+            // (3, 3, 3N) -> (3, 3, 3, N): a view, slices 3n + k are contiguous in Fortran order
+            return py::array_t<double>(simpy::arma_to_numpy::cube_to_arr(std::move(result)).attr("reshape")(
+                py::make_tuple(3, 3, 3, v.n_cols), py::arg("order") = "F"));
         },
-        py::arg("rotvec"),
+        py::arg("rotvec"), py::arg("n_threads") = 4,
         simcoon_docs::dR_drotvec_free);
+
+    m.def("rotvec_to_matrix",
+        [](py::array_t<double> rotvec, unsigned int n_threads) -> py::array_t<double> {
+            if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {
+                throw invalid_argument("rotvec_to_matrix: rotvec must have shape (3,) or (3, N)");
+            }
+            if (rotvec.ndim() == 1) {
+                return simpy::arma_to_numpy::mat_to_arr(mat(simcoon::Rotation::from_rotvec(
+                    vec::fixed<3>(simpy::numpy_to_arma::arr_to_col(rotvec))).as_matrix()));
+            }
+            const mat v = simpy::numpy_to_arma::arr_to_mat_view(rotvec);
+            cube result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_rotvec_to_matrix(v, n_threads);
+            }
+            return simpy::arma_to_numpy::cube_to_arr(std::move(result));
+        },
+        py::arg("rotvec"), py::arg("n_threads") = 4,
+        simcoon_docs::rotvec_to_matrix);
+
+    m.def("matrix_to_rotvec",
+        [](py::array_t<double> R, unsigned int n_threads) -> py::array_t<double> {
+            if ((R.ndim() != 2 && R.ndim() != 3) || R.shape(0) != 3 || R.shape(1) != 3) {
+                throw invalid_argument("matrix_to_rotvec: R must have shape (3, 3) or (3, 3, N)");
+            }
+            const bool single = R.ndim() == 2;
+            const cube R_cpp = as_cube(R);
+            mat result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_matrix_to_rotvec(R_cpp, n_threads);
+            }
+            if (single) {
+                return py::array_t<double>(simpy::arma_to_numpy::col_to_arr(vec(result.col(0))).attr("reshape")(3));
+            }
+            return simpy::arma_to_numpy::mat_to_arr(std::move(result));
+        },
+        py::arg("R"), py::arg("n_threads") = 4,
+        simcoon_docs::matrix_to_rotvec);
 }
 
 } // namespace simpy

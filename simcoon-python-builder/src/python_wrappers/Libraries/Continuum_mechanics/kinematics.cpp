@@ -181,6 +181,35 @@ py::array_t<double> Log_strain(const py::array_t<double> &F, const bool &voigt_f
     }
 }
 
+//Transformation gradient F = I + G from the displacement gradient G = dU/dX, and J = det F on request
+py::object G_UdX_to_F(const py::array_t<double> &G, const bool &return_J, const unsigned int &n_threads) {
+    if ((G.ndim() != 2 && G.ndim() != 3) || G.shape(0) != 3 || G.shape(1) != 3) {
+        throw std::invalid_argument("G_UdX_to_F: G must have shape (3, 3) or (3, 3, N)");
+    }
+    const bool single = G.ndim() == 2;
+    const cube G_cpp = single ? cube(simpy::numpy_to_arma::arr_to_mat(G).memptr(), 3, 3, 1)
+                              : simpy::numpy_to_arma::arr_to_cube_view(G);
+    vec J;
+    cube F;
+    {
+        py::gil_scoped_release release;
+        F = simcoon::batch_G_UdX_to_F(G_cpp, J, n_threads);
+    }
+    py::object F_out, J_out;
+    if (single) {
+        F_out = simpy::arma_to_numpy::mat_to_arr(mat(F.slice(0)));
+        J_out = py::float_(J(0));
+    } else {
+        const py::ssize_t N = J.n_elem;
+        F_out = simpy::arma_to_numpy::cube_to_arr(std::move(F));
+        J_out = simpy::arma_to_numpy::col_to_arr(std::move(J)).attr("reshape")(N);
+    }
+    if (return_J) {
+        return py::make_tuple(F_out, J_out);
+    }
+    return F_out;
+}
+
 //This function computes the velocity difference
 py::array_t<double> finite_L(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
     mat F0_cpp = simpy::numpy_to_arma::arr_to_mat(F0);

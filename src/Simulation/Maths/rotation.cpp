@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cassert>
 #include <stdexcept>
+#include <algorithm>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/parallel.hpp>
@@ -999,35 +1000,86 @@ namespace {
     }
 }
 
-cube dR_drotvec(const vec::fixed<3>& omega) {
-    double theta = norm(omega);
-    cube result(3, 3, 3);
+namespace {
+    // dR/d(omega_k), k = 0..2, written as 3 consecutive column-major 3x3 blocks at out: no
+    // Cube::slice(), whose first access per slice locks the cube (see parallel.hpp).
+    void dR_drotvec_into(const vec::fixed<3>& omega, double* out) {
+        double theta = norm(omega);
 
-    if (theta < simcoon::iota) {
-        // d/d(omega_k) [ exp([omega]x) ] at omega=0 is [e_k]x.
-        for (int k = 0; k < 3; ++k) {
-            result.slice(k) = skew_basis(k);
+        if (theta < simcoon::iota) {
+            // d/d(omega_k) [ exp([omega]x) ] at omega=0 is [e_k]x.
+            for (int k = 0; k < 3; ++k) {
+                const mat::fixed<3,3> dR = skew_basis(k);
+                std::copy(dR.memptr(), dR.memptr() + 9, out + 9 * k);
+            }
+            return;
         }
-        return result;
+
+        mat::fixed<3,3> W  = skew(omega);
+        mat::fixed<3,3> W2 = W * W;
+
+        // R = I + a W + b W^2, a = sin(t)/t, b = (1 - cos(t))/t^2; da, db their t-derivatives.
+        // 1 - cos(t) = 2 sin^2(t/2) keeps b exact; below t = 0.1, da and db (cancellations of
+        // order t^3 and t^4) come from their series, exact to rounding there.
+        double s = sin(theta), c = cos(theta);
+        double t2 = theta * theta;
+        double sh = sin(0.5 * theta);
+        double one_minus_c = 2.0 * sh * sh;
+        double a  = s / theta;
+        double b  = one_minus_c / t2;
+        double da, db;
+        if (theta < 0.1) {
+            da = theta * (-1.0/3.0 + t2 * (1.0/30.0 + t2 * (-1.0/840.0 + t2 * (1.0/45360.0 - t2 / 3991680.0))));
+            db = theta * (-1.0/12.0 + t2 * (1.0/180.0 + t2 * (-1.0/6720.0 + t2 * (1.0/453600.0 - t2 / 47900160.0))));
+        } else {
+            da = (c * theta - s) / t2;
+            db = (s * theta - 2.0 * one_minus_c) / (t2 * theta);
+        }
+
+        for (int k = 0; k < 3; ++k) {
+            mat::fixed<3,3> dW  = skew_basis(k);
+            mat::fixed<3,3> dW2 = dW * W + W * dW;
+            double dtk = omega(k) / theta;
+            const mat::fixed<3,3> dR = da * dtk * W + a * dW + db * dtk * W2 + b * dW2;
+            std::copy(dR.memptr(), dR.memptr() + 9, out + 9 * k);
+        }
     }
+}
 
-    mat::fixed<3,3> W  = skew(omega);
-    mat::fixed<3,3> W2 = W * W;
+cube dR_drotvec(const vec::fixed<3>& omega) {
+    cube result(3, 3, 3, fill::none);
+    dR_drotvec_into(omega, result.memptr());
+    return result;
+}
 
-    double s = sin(theta), c = cos(theta);
-    double t2 = theta * theta;
-    double a  = s / theta;
-    double b  = (1.0 - c) / t2;
-    double da = (c * theta - s) / t2;
-    double db = (s * theta - 2.0 * (1.0 - c)) / (t2 * theta);
+cube batch_rotvec_to_matrix(const mat &rotvecs, unsigned int n_threads) {
+    const int N = rotvecs.n_cols;
+    cube result(3, 3, N, fill::none);   // every slice written below
+    simcoon_parallel_for_safe(N, [&](int n) {
+        const vec::fixed<3> omega(rotvecs.colptr(n));
+        mat out = slice_view(result, n);
+        out = Rotation::from_rotvec(omega).as_matrix();
+    }, simcoon_parallel_cutoff, n_threads);
+    return result;
+}
 
-    for (int k = 0; k < 3; ++k) {
-        mat::fixed<3,3> dW  = skew_basis(k);
-        mat::fixed<3,3> dW2 = dW * W + W * dW;
-        double dtk = omega(k) / theta;
-        result.slice(k) = da * dtk * W + a * dW + db * dtk * W2 + b * dW2;
-    }
+mat batch_matrix_to_rotvec(const cube &R, unsigned int n_threads) {
+    const int N = R.n_slices;
+    mat result(3, N, fill::none);
+    simcoon_parallel_for_safe(N, [&](int n) {
+        const mat::fixed<3,3> Rn(R.memptr() + 9 * static_cast<uword>(n));
+        vec out = result.unsafe_col(n);
+        out = Rotation::from_matrix(Rn).as_rotvec();
+    }, simcoon_parallel_cutoff, n_threads);
+    return result;
+}
 
+cube batch_dR_drotvec(const mat &rotvecs, unsigned int n_threads) {
+    const int N = rotvecs.n_cols;
+    cube result(3, 3, 3 * static_cast<uword>(N), fill::none);
+    simcoon_parallel_for_safe(N, [&](int n) {
+        dR_drotvec_into(vec::fixed<3>(rotvecs.colptr(n)), result.memptr() + 27 * static_cast<uword>(n));
+    }, simcoon_parallel_cutoff, n_threads);
     return result;
 }
 

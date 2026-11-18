@@ -15,6 +15,7 @@ pybind11::array_t<double> G_UdX(const pybind11::array_t<double> &F, const bool &
 
 //This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor
 pybind11::array_t<double> G_Udx(const pybind11::array_t<double> &F, const bool &copy=true);
+pybind11::object G_UdX_to_F(const pybind11::array_t<double> &G, const bool &return_J=false, const unsigned int &n_threads=4);
 
 //This function computes the Right Cauchy-Green C
 pybind11::array_t<double> R_Cauchy_Green(const pybind11::array_t<double> &F, const bool &copy=true);
