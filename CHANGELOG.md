@@ -37,6 +37,37 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+### Added
+
+- Batch kinematics and rotation conversions on the slice-last layout, for the finite-element
+  loops of fedoo: one parallel call with the GIL released instead of numpy temporaries or
+  scipy (#172). `G_UdX_to_F` builds `F = I + G` from the displacement gradient (the inverse of
+  `G_UdX`), and with `return_J=True` returns `(F, J)`, `J = det F`; `rotvec_to_matrix` /
+  `matrix_to_rotvec` convert (3, N) rotation vectors and (3, 3, N) matrices; `dR_drotvec` takes
+  a (3, N) batch (result (3, 3, 3, N)). Measured against scipy at N = 200 000 (macOS arm64,
+  4 threads): `matrix_to_rotvec` 105 to 4.9 ms, `rotvec_to_matrix` 11 to 3.0 ms, `F` with `J`
+  30 to 1.0 ms. The loops are in the bindings around the single-point functions: the library
+  gains no batch entry point.
+- `dexp` / `dexp_inv`: the left Jacobian of the exponential map of SO(3),
+  `dR R^T = [dexp(w) dw]x`, and its inverse, with series below 0.1 rad (`dexp_inv` raises from
+  `|w| = 2 pi - 1e-6` on, where it is singular: wrap the rotation vector to `|w| <= pi`),
+  on one rotation vector or a (3, N) batch (#172). The tangent operator of geometrically exact
+  beams (curvature, Simo-Reissner).
+
+### Changed
+
+- `dR_drotvec` is `[dexp(w) e_k]x R`: one table of coefficients for `R`, `dexp` and the
+  derivative. `Rotation.dR_drotvec` on a batch calls the batch binding instead of a Python
+  loop (#172).
+
+### Fixed
+
+- `dR_drotvec` below about 0.1 rad: the coefficients of the derivative lost their digits to
+  cancellation (at 1e-9 rad the second-order term was 1e9 instead of 0); below 1e-12 rad it
+  returned `[e_k]x`, without the first-order term. Now exact to rounding at every angle (#172).
+- `Rotation.from_rotvec` / `as_rotvec` below 1e-12 rad returned the identity / a zero rotation
+  vector; only an exact zero does now (#172).
+
 ## [2.5.1] - 2026-11-17
 
 Euler angles are read as the intrinsic `ZXZ` sequence of scipy and microgen: orientations given

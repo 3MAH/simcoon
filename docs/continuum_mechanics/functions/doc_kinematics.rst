@@ -4,6 +4,7 @@ The Kinematics Library
 .. autofunction:: simcoon.ER_to_F
 .. autofunction:: simcoon.eR_to_F
 .. autofunction:: simcoon.G_UdX
+.. autofunction:: simcoon.G_UdX_to_F
 .. autofunction:: simcoon.G_Udx
 .. autofunction:: simcoon.R_Cauchy_Green
 .. autofunction:: simcoon.L_Cauchy_Green

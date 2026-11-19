@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cassert>
 #include <stdexcept>
+#include <algorithm>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/parallel.hpp>
@@ -418,7 +419,7 @@ Rotation Rotation::from_rotvec(const vec::fixed<3>& rotvec, bool degrees) {
         angle *= simcoon::pi / 180.0;
     }
 
-    if (angle < simcoon::iota) {
+    if (angle == 0.0) {
         return identity();
     }
 
@@ -569,7 +570,7 @@ vec::fixed<3> Rotation::as_rotvec(bool degrees) const {
 
     double sin_half = norm(qv);
 
-    if (sin_half < simcoon::iota) {
+    if (sin_half == 0.0) {
         vec::fixed<3> result = {0.0, 0.0, 0.0};
         return result;
     }
@@ -991,44 +992,64 @@ namespace {
         return S;
     }
 
-    inline mat::fixed<3,3> skew_basis(int k) {
-        vec::fixed<3> e;
-        e.zeros();
-        e(k) = 1.0;
-        return skew(e);
+    // R = I + a W + b W^2 and dexp = I + b W + c W^2 (W = [omega]x, t = |omega|):
+    // a = sin t / t, b = (1 - cos t) / t^2, c = (t - sin t) / t^3, series below t = 0.1
+    struct so3_coefficients { double a, b, c; };
+
+    so3_coefficients so3_coeffs(const double theta) {
+        const double t2 = theta * theta;
+        if (theta < 0.1) {
+            return {1.0 + t2 * (-1.0/6.0 + t2 * (1.0/120.0 + t2 * (-1.0/5040.0 + t2 / 362880.0))),
+                    0.5 + t2 * (-1.0/24.0 + t2 * (1.0/720.0 + t2 * (-1.0/40320.0 + t2 / 3628800.0))),
+                    1.0/6.0 + t2 * (-1.0/120.0 + t2 * (1.0/5040.0 + t2 * (-1.0/362880.0 + t2 / 39916800.0)))};
+        }
+        const double s = sin(theta), sh = sin(0.5 * theta);
+        return {s / theta, 2.0 * sh * sh / t2, (theta - s) / (t2 * theta)};
     }
 }
 
 cube dR_drotvec(const vec::fixed<3>& omega) {
-    double theta = norm(omega);
-    cube result(3, 3, 3);
-
-    if (theta < simcoon::iota) {
-        // d/d(omega_k) [ exp([omega]x) ] at omega=0 is [e_k]x.
-        for (int k = 0; k < 3; ++k) {
-            result.slice(k) = skew_basis(k);
-        }
-        return result;
+    const so3_coefficients k = so3_coeffs(norm(omega));
+    const mat::fixed<3,3> W = skew(omega);
+    const mat::fixed<3,3> W2 = W * W;
+    mat::fixed<3,3> R = k.a * W + k.b * W2;
+    R.diag() += 1.0;
+    mat::fixed<3,3> T = k.b * W + k.c * W2;
+    T.diag() += 1.0;
+    cube dR(3, 3, 3, fill::none);
+    for (int i = 0; i < 3; ++i) {
+        const mat::fixed<3,3> dRi = skew(vec::fixed<3>(T.colptr(i))) * R;   // [T e_i]x R
+        std::copy(dRi.memptr(), dRi.memptr() + 9, dR.slice_memptr(i));
     }
+    return dR;
+}
 
-    mat::fixed<3,3> W  = skew(omega);
-    mat::fixed<3,3> W2 = W * W;
+mat::fixed<3,3> dexp(const vec::fixed<3>& omega) {
+    const so3_coefficients k = so3_coeffs(norm(omega));
+    const mat::fixed<3,3> W = skew(omega);
+    mat::fixed<3,3> T = k.b * W + k.c * (W * W);
+    T.diag() += 1.0;
+    return T;
+}
 
-    double s = sin(theta), c = cos(theta);
-    double t2 = theta * theta;
-    double a  = s / theta;
-    double b  = (1.0 - c) / t2;
-    double da = (c * theta - s) / t2;
-    double db = (s * theta - 2.0 * (1.0 - c)) / (t2 * theta);
-
-    for (int k = 0; k < 3; ++k) {
-        mat::fixed<3,3> dW  = skew_basis(k);
-        mat::fixed<3,3> dW2 = dW * W + W * dW;
-        double dtk = omega(k) / theta;
-        result.slice(k) = da * dtk * W + a * dW + db * dtk * W2 + b * dW2;
+mat::fixed<3,3> dexp_inv(const vec::fixed<3>& omega) {
+    // T^-1 = I - W/2 + e W^2, e = (1 - (t/2) cot(t/2))/t^2
+    const double theta = norm(omega);
+    const double t2 = theta * theta;
+    double e;
+    if (theta < 0.1) {
+        e = 1.0/12.0 + t2 * (1.0/720.0 + t2 * (1.0/30240.0 + t2 * (1.0/1209600.0 + t2 / 47900160.0)));
+    } else if (theta < 2.0 * simcoon::pi - 1.e-6) {
+        const double half = 0.5 * theta;
+        e = (1.0 - half * cos(half) / sin(half)) / t2;
+    } else {
+        throw std::invalid_argument("dexp_inv: |omega| = " + std::to_string(theta)
+            + " rad, at or past the singularity at 2 pi; wrap the rotation vector to |omega| <= pi");
     }
-
-    return result;
+    const mat::fixed<3,3> W = skew(omega);
+    mat::fixed<3,3> Tinv = -0.5 * W + e * (W * W);
+    Tinv.diag() += 1.0;
+    return Tinv;
 }
 
 } //namespace simcoon

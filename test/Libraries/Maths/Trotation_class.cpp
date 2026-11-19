@@ -727,3 +727,54 @@ TEST(TRotationClass, frame_rotation_matches_apply_bitwise)
     // a wrong size on a real frame throws
     EXPECT_THROW(frame.rotate_strain(w5), std::invalid_argument);
 }
+
+TEST(TRotationClass, dexp_tangent_and_inverse)
+{
+    // T w = w and T T^-1 = I from 0 to beyond pi (series, closed form, half-angle cot)
+    const vec::fixed<3> dir = normalise(vec({0.3, -0.5, 0.8}));
+    for (double angle : {0.0, 1e-13, 1e-9, 1e-4, 0.0999, 0.1001, 1.0, 3.0, simcoon::pi, 4.0, 6.0}) {
+        const vec::fixed<3> w = angle * dir;
+        const mat::fixed<3,3> T = dexp(w);
+        EXPECT_LT(abs(vec(T * w) - vec(w)).max(), 1e-15 * (1.0 + angle));
+        EXPECT_LT(abs(mat(T * dexp_inv(w)) - eye(3, 3)).max(), angle < 5.0 ? 1e-14 : 1e-13);
+    }
+    // singular at 2 pi: refused, not a meaningless matrix
+    for (double angle : {2.0 * simcoon::pi - 1e-7, 2.0 * simcoon::pi, 7.0}) {
+        EXPECT_THROW(dexp_inv(vec::fixed<3>(angle * dir)), std::invalid_argument);
+    }
+}
+
+TEST(TRotationClass, dR_drotvec_finite_differences)
+{
+    // central differences of from_rotvec on both sides of the series switch and past pi
+    const vec::fixed<3> dir = normalise(vec({0.3, -0.5, 0.8}));
+    const double h = 1e-6;
+    for (double angle : {1e-3, 0.0999, 0.1001, 1.0, 3.0, simcoon::pi - 1e-3, 4.0}) {
+        const vec::fixed<3> w = angle * dir;
+        const cube dR = dR_drotvec(w);
+        for (int k = 0; k < 3; ++k) {
+            vec::fixed<3> wp = w, wm = w;
+            wp(k) += h;
+            wm(k) -= h;
+            const mat fd = (mat(Rotation::from_rotvec(wp).as_matrix()) - mat(Rotation::from_rotvec(wm).as_matrix())) / (2.0 * h);
+            EXPECT_LT(abs(mat(dR.slice(k)) - fd).max(), 1e-9);
+        }
+    }
+}
+
+TEST(TRotationClass, tiny_rotation_vectors)
+{
+    // below 1e-12 rad: R = I + W, the rotation vector comes back, dR_k = [e_k]x + ([e_k]x W + W [e_k]x)/2
+    const vec::fixed<3> w = 1e-13 * normalise(vec({0.3, -0.5, 0.8}));
+    const mat W = {{0.0, -w(2), w(1)}, {w(2), 0.0, -w(0)}, {-w(1), w(0), 0.0}};
+    const Rotation r = Rotation::from_rotvec(w);
+    EXPECT_LT(abs(mat(r.as_matrix()) - (eye(3, 3) + W)).max(), 1e-25);
+    EXPECT_LT(abs(vec(r.as_rotvec()) - vec(w)).max(), 1e-28);
+    const cube dR = dR_drotvec(w);
+    for (int k = 0; k < 3; ++k) {
+        vec::fixed<3> e(fill::zeros);
+        e(k) = 1.0;
+        const mat E = {{0.0, -e(2), e(1)}, {e(2), 0.0, -e(0)}, {-e(1), e(0), 0.0}};
+        EXPECT_LT(abs(mat(dR.slice(k)) - (E + 0.5 * (E * W + W * E))).max(), 1e-25);
+    }
+}

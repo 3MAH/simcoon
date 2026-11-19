@@ -524,9 +524,10 @@ private:
 /**
  * @brief Compute derivatives of R(omega) w.r.t. rotation vector components.
  *
- * Given a rotation vector omega (axis * angle), computes the three 3x3
- * matrices dR/d(omega_k) for k = 0, 1, 2 using exact differentiation of
- * the Rodrigues formula.
+ * \f$ \partial \mathbf{R} / \partial \omega_k = [\mathbf{T}\,\mathbf{e}_k]_\times \mathbf{R} \f$
+ * for \f$ \mathbf{R} = \exp([\boldsymbol{\omega}]_\times) \f$, with \f$ \mathbf{T} \f$ the left
+ * Jacobian dexp, both from the coefficients of dexp (series below 0.1 rad, exact to rounding at
+ * every angle including \f$ \boldsymbol{\omega} \to 0 \f$).
  *
  * @param omega Rotation vector (3 elements)
  * @return 3x3x3 cube where slice(k) is dR/d(omega_k)
@@ -537,6 +538,31 @@ private:
  *          J. Math. Imaging Vis., 2015.
  */
 arma::cube dR_drotvec(const arma::vec::fixed<3>& omega);
+
+/**
+ * @brief Left Jacobian of the exponential map of SO(3) (tangent operator of the rotation vector).
+ *
+ * \f$ \mathbf{T}(\boldsymbol{\omega}) = \mathbf{I} + \frac{1 - \cos\theta}{\theta^2} \mathbf{W}
+ *     + \frac{\theta - \sin\theta}{\theta^3} \mathbf{W}^2 \f$, \f$ \mathbf{W} = [\boldsymbol{\omega}]_\times \f$,
+ * \f$ \theta = |\boldsymbol{\omega}| \f$: \f$ \mathrm{d}\mathbf{R}\,\mathbf{R}^T = [\mathbf{T}\,\mathrm{d}\boldsymbol{\omega}]_\times \f$
+ * for \f$ \mathbf{R} = \exp(\mathbf{W}) \f$ (spatial spin). The right Jacobian (material spin,
+ * \f$ \mathbf{R}^T \mathrm{d}\mathbf{R} \f$) is its transpose. Series below 0.1 rad: exact to rounding.
+ * @param omega Rotation vector (axis * angle, radians)
+ * @return The 3x3 left Jacobian
+ */
+arma::mat::fixed<3,3> dexp(const arma::vec::fixed<3>& omega);
+
+/**
+ * @brief Inverse of the left Jacobian of SO(3), dexp:
+ * \f$ \mathbf{T}^{-1} = \mathbf{I} - \frac{1}{2} \mathbf{W}
+ *     + \frac{1 - \frac{\theta}{2} \cot\frac{\theta}{2}}{\theta^2} \mathbf{W}^2 \f$ (singular at
+ * \f$ \theta = 2\pi \f$). Series below 0.1 rad: exact to rounding.
+ * @throws std::invalid_argument for \f$ \theta \ge 2\pi - 10^{-6} \f$ (wrap accumulated rotation
+ *         vectors to \f$ \theta \le \pi \f$ first)
+ * @param omega Rotation vector (axis * angle, radians)
+ * @return The 3x3 inverse left Jacobian
+ */
+arma::mat::fixed<3,3> dexp_inv(const arma::vec::fixed<3>& omega);
 
 // =========================================================================
 // Convenience Free Functions

@@ -163,6 +163,7 @@ PYBIND11_MODULE(_core, m)
     m.def("eR_to_F", &eR_to_F, "e"_a, "R"_a, "copy"_a = true, simcoon_docs::eR_to_F);
     m.def("G_UdX", &G_UdX, "F"_a, "copy"_a = true, simcoon_docs::G_UdX);
     m.def("G_Udx", &G_Udx, "F"_a, "copy"_a = true, simcoon_docs::G_Udx);
+    m.def("G_UdX_to_F", &G_UdX_to_F, "G"_a, "return_J"_a = false, "n_threads"_a = 4, simcoon_docs::G_UdX_to_F);
     m.def("R_Cauchy_Green", &R_Cauchy_Green, "F"_a, "copy"_a = true, simcoon_docs::R_Cauchy_Green);
     m.def("L_Cauchy_Green", &L_Cauchy_Green, "F"_a, "copy"_a = true, simcoon_docs::L_Cauchy_Green);
     m.def("RU_decomposition", &RU_decomposition, "F"_a, "copy"_a = true, simcoon_docs::RU_decomposition);

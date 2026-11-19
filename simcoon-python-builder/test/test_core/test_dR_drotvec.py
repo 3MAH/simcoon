@@ -120,6 +120,20 @@ class TestFiniteDifference:
             np.testing.assert_allclose(analytic[:, :, k], fd, atol=1e-7, rtol=1e-7)
 
 
+@pytest.mark.parametrize("angle", [1e-9, 1e-6, 1e-3, 0.05, 0.0999, 0.1001, 0.5])
+def test_small_angles_match_the_first_order_limit_and_fd(angle):
+    # dR/d(omega_k) -> [e_k]x as omega -> 0, with an O(|omega|) correction: no cancellation
+    direction = np.array([0.3, -0.5, 0.8]) / np.linalg.norm([0.3, -0.5, 0.8])
+    rotvec = angle * direction
+    analytic = sim.dR_drotvec(rotvec)
+    for k in range(3):
+        x, y, z = np.eye(3)[k]
+        limit = np.array([[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]])  # [e_k]x
+        assert np.abs(analytic[:, :, k] - limit).max() < 2 * angle
+        if angle >= 1e-3:
+            np.testing.assert_allclose(analytic[:, :, k], _fd_slice(rotvec, k), atol=1e-8)
+
+
 # ---------------------------------------------------------------------------
 # Batch consistency
 # ---------------------------------------------------------------------------
@@ -132,6 +146,17 @@ class TestBatch:
             single = sim.dR_drotvec(rv)
             np.testing.assert_allclose(batch[:, :, :, n], single, atol=0.0)
 
+    def test_free_batch_past_the_parallel_cutoff(self):
+        # (3, N) -> (3, 3, 3, N), with identity, small-angle and near-pi columns
+        rotvecs = np.random.default_rng(5).standard_normal((3, 150))
+        rotvecs[:, 0] = 0.0
+        rotvecs[:, 1] = [1e-9, 0.0, 0.0]
+        rotvecs[:, 2] = [0.0, np.pi - 1e-7, 0.0]
+        batch = sim.dR_drotvec(rotvecs)
+        assert batch.shape == (3, 3, 3, 150)
+        for n in (0, 1, 2, 75):
+            np.testing.assert_array_equal(batch[..., n], sim.dR_drotvec(rotvecs[:, n].copy()))
+
 
 # ---------------------------------------------------------------------------
 # Input validation
@@ -142,6 +167,51 @@ class TestValidation:
         with pytest.raises(Exception):
             sim.dR_drotvec(np.zeros(2))
 
-    def test_rejects_2d_input(self):
+    def test_rejects_wrong_batch_shape(self):
         with pytest.raises(Exception):
-            sim.dR_drotvec(np.zeros((3, 1)))
+            sim.dR_drotvec(np.zeros((1, 3)))
+
+
+# ---------------------------------------------------------------------------
+# Left Jacobian of SO(3): dexp, dexp_inv
+# ---------------------------------------------------------------------------
+
+def _skew(v):
+    return np.array([[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]])
+
+
+@pytest.mark.parametrize("angle", [0.0, 1e-9, 1e-4, 0.0999, 0.1001, 1.0, 3.0])
+def test_dexp_is_the_spatial_tangent_of_exp(angle):
+    direction = np.array([0.3, -0.5, 0.8]) / np.linalg.norm([0.3, -0.5, 0.8])
+    w = angle * direction
+    T, T_inv = sim.dexp(w), sim.dexp_inv(w)
+    R = _R(w)
+    dR = sim.dR_drotvec(w)
+    for k in range(3):  # dR/dw_k R^T = [T e_k]x
+        np.testing.assert_allclose(dR[:, :, k] @ R.T, _skew(T[:, k]), atol=1e-14)
+    np.testing.assert_allclose(T @ T_inv, np.eye(3), atol=1e-14)
+    np.testing.assert_allclose(T @ w, w, atol=1e-15)  # T leaves the axis invariant
+
+
+def test_dexp_batch():
+    rotvecs = np.random.default_rng(7).standard_normal((3, 150))
+    rotvecs[:, 0] = 0.0
+    rotvecs[:, 1] = [1e-9, 0.0, 0.0]
+    T, T_inv = sim.dexp(rotvecs), sim.dexp_inv(rotvecs)
+    assert T.shape == T_inv.shape == (3, 3, 150)
+    for n in (0, 1, 75, 149):
+        np.testing.assert_array_equal(T[:, :, n], sim.dexp(rotvecs[:, n].copy()))
+        np.testing.assert_array_equal(T_inv[:, :, n], sim.dexp_inv(rotvecs[:, n].copy()))
+    with pytest.raises(ValueError):
+        sim.dexp(np.zeros((2, 4)))
+
+
+def test_dexp_inv_refuses_the_2pi_singularity():
+    # one singular point in a parallel batch raises (rethrown after the loop), as a single call does
+    rotvecs = np.random.default_rng(3).standard_normal((3, 150))
+    rotvecs[:, 120] = [0.0, 0.0, 2.0 * np.pi]
+    with pytest.raises(ValueError, match="2 pi"):
+        sim.dexp_inv(rotvecs)
+    with pytest.raises(ValueError, match="2 pi"):
+        sim.dexp_inv(np.array([0.0, 7.0, 0.0]))
+    np.testing.assert_allclose(sim.dexp(rotvecs[:, :100]).shape, (3, 3, 100))

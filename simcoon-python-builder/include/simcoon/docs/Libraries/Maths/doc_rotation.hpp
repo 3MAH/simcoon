@@ -303,23 +303,124 @@ constexpr auto dR_drotvec = R"pbdoc(
 constexpr auto dR_drotvec_free = R"pbdoc(
     Compute the derivatives of R(omega) w.r.t. rotation vector components.
 
-    Free function version — takes a rotation vector directly.
+    Free function version — takes rotation vectors directly, one or a batch.
 
     Parameters
     ----------
     rotvec : numpy.ndarray
-        A 1D array of 3 elements: rotation vector (axis * angle).
+        A rotation vector (axis * angle) of shape (3,), or a batch (3, N), one
+        rotation vector per column.
+    n_threads : int
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------
     numpy.ndarray
         A (3, 3, 3) array where ``result[:, :, k]`` is
-        :math:`\partial R / \partial \omega_k`.
+        :math:`\partial R / \partial \omega_k`, or (3, 3, 3, N) for a batch
+        (``result[:, :, k, n]`` for the column n).
 
     References
     ----------
     Gallego & Yezzi, "A Compact Formula for the Derivative of a 3-D
     Rotation in Exponential Coordinates", J. Math. Imaging Vis., 2015.
+)pbdoc";
+
+constexpr auto dexp = R"pbdoc(
+    Left Jacobian of the exponential map of SO(3) (tangent operator of the rotation vector).
+
+    :math:`\mathbf{T}(\boldsymbol{\omega}) = \mathbf{I} + \frac{1 - \cos\theta}{\theta^2}\mathbf{W}
+    + \frac{\theta - \sin\theta}{\theta^3}\mathbf{W}^2`, with :math:`\mathbf{W} = [\boldsymbol{\omega}]_\times`
+    and :math:`\theta = |\boldsymbol{\omega}|`, so that
+    :math:`\mathrm{d}\mathbf{R}\,\mathbf{R}^T = [\mathbf{T}\,\mathrm{d}\boldsymbol{\omega}]_\times`
+    (spatial spin). The right Jacobian (material spin :math:`\mathbf{R}^T \mathrm{d}\mathbf{R}`) is
+    its transpose. Small angles use a series: the result is exact to rounding down to 0.
+
+    Parameters
+    ----------
+    rotvec : numpy.ndarray
+        A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N), one per column.
+    n_threads : int
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
+
+    Returns
+    -------
+    numpy.ndarray
+        The (3, 3) left Jacobian, or a batch (3, 3, N), one per slice.
+)pbdoc";
+
+constexpr auto dexp_inv = R"pbdoc(
+    Inverse of the left Jacobian of SO(3), :func:`dexp`.
+
+    :math:`\mathbf{T}^{-1} = \mathbf{I} - \frac{1}{2}\mathbf{W}
+    + \frac{1 - \frac{\theta}{2}\cot\frac{\theta}{2}}{\theta^2}\mathbf{W}^2`, for
+    :math:`\theta < 2\pi`: singular at :math:`2\pi`, a ``ValueError`` is raised from
+    :math:`2\pi - 10^{-6}` on (for any point of a batch). Wrap accumulated rotation vectors to
+    :math:`\theta \le \pi` first. It maps a spatial spin back to the rotation-vector increment, e.g. for the
+    curvature of a geometrically exact beam. Small angles use a series.
+
+    Parameters
+    ----------
+    rotvec : numpy.ndarray
+        A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N), one per column.
+    n_threads : int
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
+
+    Returns
+    -------
+    numpy.ndarray
+        The (3, 3) inverse left Jacobian, or a batch (3, 3, N), one per slice.
+)pbdoc";
+
+constexpr auto rotvec_to_matrix = R"pbdoc(
+    Rotation matrices from rotation vectors (exponential map of SO(3)).
+
+    The batch counterpart of ``Rotation.from_rotvec(v).as_matrix()`` on the
+    slice-last layout: it builds no ``Rotation`` object and runs the points in
+    parallel without the GIL.
+
+    Parameters
+    ----------
+    rotvec : numpy.ndarray
+        A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N),
+        one rotation vector per column.
+    n_threads : int
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
+
+    Returns
+    -------
+    numpy.ndarray
+        The rotation matrix (3, 3), or a batch (3, 3, N), one matrix per slice.
+)pbdoc";
+
+constexpr auto matrix_to_rotvec = R"pbdoc(
+    Rotation vectors from rotation matrices (logarithm map of SO(3)).
+
+    The batch counterpart of ``Rotation.from_matrix(R).as_rotvec()`` on the
+    slice-last layout. The angle lies in :math:`[0, \pi]`. The matrices must be
+    rotations: they are not orthogonalized.
+
+    Parameters
+    ----------
+    R : numpy.ndarray
+        A rotation matrix (3, 3), or a batch (3, 3, N), one matrix per slice.
+    n_threads : int
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
+
+    Returns
+    -------
+    numpy.ndarray
+        The rotation vector (3,), or a batch (3, N), one per column.
 )pbdoc";
 
 constexpr auto rotate_voigt = R"pbdoc(

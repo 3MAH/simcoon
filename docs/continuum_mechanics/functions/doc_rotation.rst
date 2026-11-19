@@ -468,6 +468,35 @@ and without the GIL, with no scipy conversion to quaternions. It returns what
 
 .. autofunction:: simcoon.rotate_voigt
 
+The conversions between rotation vectors and matrices have the same batch form on the
+slice-last layout, without a ``Rotation`` object: ``rotvec_to_matrix`` maps ``(3, N)``
+rotation vectors to ``(3, 3, N)`` matrices (exponential map), ``matrix_to_rotvec`` the
+reverse (logarithm map, angle in :math:`[0, \pi]`), and ``dR_drotvec`` takes a ``(3, N)``
+batch:
+
+.. code-block:: python
+
+   rotvec = np.random.randn(3, N)
+   R = smc.rotvec_to_matrix(rotvec)          # (3, 3, N)
+   rotvec_back = smc.matrix_to_rotvec(R)     # (3, N)
+   dR = smc.dR_drotvec(rotvec)               # (3, 3, 3, N)
+
+.. autofunction:: simcoon.rotvec_to_matrix
+.. autofunction:: simcoon.matrix_to_rotvec
+.. autofunction:: simcoon.dR_drotvec
+
+The tangent operator of the rotation vector, the left Jacobian of SO(3), and its inverse take
+the same layout (:math:`\mathrm{d}\mathbf{R}\,\mathbf{R}^T = [\mathbf{T}\,\mathrm{d}\boldsymbol{\omega}]_\times`
+with :math:`\mathbf{T}` = ``dexp(omega)``; the right Jacobian is its transpose):
+
+.. code-block:: python
+
+   T = smc.dexp(rotvec)              # (3, 3, N)
+   T_inv = smc.dexp_inv(rotvec)      # (3, 3, N)
+
+.. autofunction:: simcoon.dexp
+.. autofunction:: simcoon.dexp_inv
+
 Example 4: Averaging Orientations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

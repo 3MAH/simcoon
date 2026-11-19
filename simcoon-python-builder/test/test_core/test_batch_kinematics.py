@@ -1,4 +1,4 @@
-"""Batch (3,3,N) forms of RU_decomposition, VR_decomposition, isochoric_pstretch and stress_convert:
+"""Batch (3,3,N) forms of RU_decomposition, VR_decomposition, isochoric_pstretch, stress_convert and G_UdX_to_F:
 the same values as the single-matrix calls, point by point (they run in parallel past 100 points)."""
 
 import numpy as np
@@ -82,8 +82,26 @@ def test_stress_convert_tensor_batch(key):
     np.testing.assert_array_equal(sim.stress_convert(s, np.ascontiguousarray(F.transpose(2, 0, 1)), key), out)
 
 
+def test_G_UdX_to_F_batch():
+    F_ref = _F()
+    G = np.ascontiguousarray(F_ref - np.eye(3)[:, :, None])  # C-ordered input: converted
+    F, J = sim.G_UdX_to_F(G, return_J=True)
+    assert F.shape == (3, 3, N) and J.shape == (N,)
+    np.testing.assert_allclose(F, F_ref, rtol=1e-15, atol=1e-15)
+    np.testing.assert_array_equal(sim.G_UdX_to_F(G), F)  # F alone by default
+    for i in range(N):
+        F_i, J_i = sim.G_UdX_to_F(_slice(G, i), return_J=True)
+        np.testing.assert_array_equal(F_i, F[:, :, i])
+        assert J_i == J[i]
+    np.testing.assert_allclose(J, np.linalg.det(F_ref.transpose(2, 0, 1)), rtol=1e-13)
+    # inverse of G_UdX
+    np.testing.assert_allclose(sim.G_UdX_to_F(sim.G_UdX(_slice(F_ref, 0))), F_ref[:, :, 0], rtol=1e-15)
+
+
 def test_batch_shape_errors():
     with pytest.raises(Exception):
         sim.VR_decomposition(np.zeros((3, 2, 4)))
     with pytest.raises(Exception):
         sim.stress_convert(np.zeros((3, 3, 4)), _F(5), "Cauchy2PKI")
+    with pytest.raises(Exception):
+        sim.G_UdX_to_F(np.zeros((3, 2, 5)))
