@@ -538,6 +538,29 @@ private:
  */
 arma::cube dR_drotvec(const arma::vec::fixed<3>& omega);
 
+/**
+ * @brief Left Jacobian of the exponential map of SO(3) (tangent operator of the rotation vector).
+ *
+ * \f$ \mathbf{T}(\boldsymbol{\omega}) = \mathbf{I} + \frac{1 - \cos\theta}{\theta^2} \mathbf{W}
+ *     + \frac{\theta - \sin\theta}{\theta^3} \mathbf{W}^2 \f$, \f$ \mathbf{W} = [\boldsymbol{\omega}]_\times \f$,
+ * \f$ \theta = |\boldsymbol{\omega}| \f$: \f$ \mathrm{d}\mathbf{R}\,\mathbf{R}^T = [\mathbf{T}\,\mathrm{d}\boldsymbol{\omega}]_\times \f$
+ * for \f$ \mathbf{R} = \exp(\mathbf{W}) \f$ (spatial spin). The right Jacobian (material spin,
+ * \f$ \mathbf{R}^T \mathrm{d}\mathbf{R} \f$) is its transpose. Series below 0.1 rad: exact to rounding.
+ * @param omega Rotation vector (axis * angle, radians)
+ * @return The 3x3 left Jacobian
+ */
+arma::mat::fixed<3,3> dexp(const arma::vec::fixed<3>& omega);
+
+/**
+ * @brief Inverse of the left Jacobian of SO(3), dexp:
+ * \f$ \mathbf{T}^{-1} = \mathbf{I} - \frac{1}{2} \mathbf{W}
+ *     + \frac{1 - \frac{\theta}{2} \cot\frac{\theta}{2}}{\theta^2} \mathbf{W}^2 \f$ (singular at
+ * \f$ \theta = 2\pi \f$). Series below 0.1 rad: exact to rounding.
+ * @param omega Rotation vector (axis * angle, radians)
+ * @return The 3x3 inverse left Jacobian
+ */
+arma::mat::fixed<3,3> dexp_inv(const arma::vec::fixed<3>& omega);
+
 // =========================================================================
 // Convenience Free Functions
 // =========================================================================
@@ -754,6 +777,22 @@ arma::mat batch_matrix_to_rotvec(const arma::cube &R, unsigned int n_threads = 0
  * @return (3, 3, 3N) cube: slice 3n + k is \f$ \partial \mathbf{R}_n / \partial \omega_k \f$
  */
 arma::cube batch_dR_drotvec(const arma::mat &rotvecs, unsigned int n_threads = 0);
+
+/**
+ * @brief Batch dexp: left Jacobians of SO(3) of N rotation vectors.
+ * @param rotvecs (3, N) rotation vectors, one per column
+ * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
+ * @return (3, 3, N) cube of left Jacobians
+ */
+arma::cube batch_dexp(const arma::mat &rotvecs, unsigned int n_threads = 0);
+
+/**
+ * @brief Batch dexp_inv: inverse left Jacobians of SO(3) of N rotation vectors.
+ * @param rotvecs (3, N) rotation vectors, one per column
+ * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
+ * @return (3, 3, N) cube of inverse left Jacobians
+ */
+arma::cube batch_dexp_inv(const arma::mat &rotvecs, unsigned int n_threads = 0);
 
 /** @} */ // end of maths group
 

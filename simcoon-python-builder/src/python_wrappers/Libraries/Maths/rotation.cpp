@@ -314,6 +314,32 @@ void register_rotation(py::module_& m) {
         py::arg("rotvec"), py::arg("n_threads") = 4,
         simcoon_docs::dR_drotvec_free);
 
+    // left Jacobian of SO(3) and its inverse: (3,) -> (3, 3), (3, N) -> (3, 3, N)
+    auto bind_dexp = [&m](const char *name, auto single_fn, auto batch_fn, const char *doc) {
+        m.def(name,
+            [name, single_fn, batch_fn](py::array_t<double> rotvec, unsigned int n_threads) -> py::array_t<double> {
+                if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {
+                    throw invalid_argument(string(name) + ": rotvec must have shape (3,) or (3, N)");
+                }
+                if (rotvec.ndim() == 1) {
+                    return simpy::arma_to_numpy::mat_to_arr(
+                        mat(single_fn(vec::fixed<3>(simpy::numpy_to_arma::arr_to_col(rotvec)))));
+                }
+                const mat v = simpy::numpy_to_arma::arr_to_mat_view(rotvec);
+                cube result;
+                {
+                    py::gil_scoped_release release;
+                    result = batch_fn(v, n_threads);
+                }
+                return simpy::arma_to_numpy::cube_to_arr(std::move(result));
+            },
+            py::arg("rotvec"), py::arg("n_threads") = 4, doc);
+    };
+    bind_dexp("dexp", [](const vec::fixed<3>& w) { return simcoon::dexp(w); },
+              [](const mat& v, unsigned int n) { return simcoon::batch_dexp(v, n); }, simcoon_docs::dexp);
+    bind_dexp("dexp_inv", [](const vec::fixed<3>& w) { return simcoon::dexp_inv(w); },
+              [](const mat& v, unsigned int n) { return simcoon::batch_dexp_inv(v, n); }, simcoon_docs::dexp_inv);
+
     m.def("rotvec_to_matrix",
         [](py::array_t<double> rotvec, unsigned int n_threads) -> py::array_t<double> {
             if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {

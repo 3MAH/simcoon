@@ -326,6 +326,50 @@ constexpr auto dR_drotvec_free = R"pbdoc(
     Rotation in Exponential Coordinates", J. Math. Imaging Vis., 2015.
 )pbdoc";
 
+constexpr auto dexp = R"pbdoc(
+    Left Jacobian of the exponential map of SO(3) (tangent operator of the rotation vector).
+
+    :math:`\mathbf{T}(\boldsymbol{\omega}) = \mathbf{I} + \frac{1 - \cos\theta}{\theta^2}\mathbf{W}
+    + \frac{\theta - \sin\theta}{\theta^3}\mathbf{W}^2`, with :math:`\mathbf{W} = [\boldsymbol{\omega}]_\times`
+    and :math:`\theta = |\boldsymbol{\omega}|`, so that
+    :math:`\mathrm{d}\mathbf{R}\,\mathbf{R}^T = [\mathbf{T}\,\mathrm{d}\boldsymbol{\omega}]_\times`
+    (spatial spin). The right Jacobian (material spin :math:`\mathbf{R}^T \mathrm{d}\mathbf{R}`) is
+    its transpose. Small angles use a series: the result is exact to rounding down to 0.
+
+    Parameters
+    ----------
+    rotvec : numpy.ndarray
+        A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N), one per column.
+    n_threads : int
+        Batch only: 1 runs the points serially; otherwise they run in parallel.
+
+    Returns
+    -------
+    numpy.ndarray
+        The (3, 3) left Jacobian, or a batch (3, 3, N), one per slice.
+)pbdoc";
+
+constexpr auto dexp_inv = R"pbdoc(
+    Inverse of the left Jacobian of SO(3), :func:`dexp`.
+
+    :math:`\mathbf{T}^{-1} = \mathbf{I} - \frac{1}{2}\mathbf{W}
+    + \frac{1 - \frac{\theta}{2}\cot\frac{\theta}{2}}{\theta^2}\mathbf{W}^2`, singular at
+    :math:`\theta = 2\pi`. It maps a spatial spin back to the rotation-vector increment, e.g. for the
+    curvature of a geometrically exact beam. Small angles use a series.
+
+    Parameters
+    ----------
+    rotvec : numpy.ndarray
+        A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N), one per column.
+    n_threads : int
+        Batch only: 1 runs the points serially; otherwise they run in parallel.
+
+    Returns
+    -------
+    numpy.ndarray
+        The (3, 3) inverse left Jacobian, or a batch (3, 3, N), one per slice.
+)pbdoc";
+
 constexpr auto rotvec_to_matrix = R"pbdoc(
     Rotation matrices from rotation vectors (exponential map of SO(3)).
 

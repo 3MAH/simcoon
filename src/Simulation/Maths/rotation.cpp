@@ -1052,6 +1052,62 @@ cube dR_drotvec(const vec::fixed<3>& omega) {
     return result;
 }
 
+mat::fixed<3,3> dexp(const vec::fixed<3>& omega) {
+    // T = I + b W + c W^2, b = (1 - cos t)/t^2 = 2 sin^2(t/2)/t^2, c = (t - sin t)/t^3
+    const double theta = norm(omega);
+    const double t2 = theta * theta;
+    double b, c;
+    if (theta < 0.1) {
+        b = 0.5 + t2 * (-1.0/24.0 + t2 * (1.0/720.0 + t2 * (-1.0/40320.0 + t2 / 3628800.0)));
+        c = 1.0/6.0 + t2 * (-1.0/120.0 + t2 * (1.0/5040.0 + t2 * (-1.0/362880.0 + t2 / 39916800.0)));
+    } else {
+        const double sh = sin(0.5 * theta);
+        b = 2.0 * sh * sh / t2;
+        c = (theta - sin(theta)) / (t2 * theta);
+    }
+    const mat::fixed<3,3> W = skew(omega);
+    mat::fixed<3,3> T = b * W + c * (W * W);
+    T.diag() += 1.0;
+    return T;
+}
+
+mat::fixed<3,3> dexp_inv(const vec::fixed<3>& omega) {
+    // T^-1 = I - W/2 + e W^2, e = (1 - (t/2) cot(t/2))/t^2
+    const double theta = norm(omega);
+    const double t2 = theta * theta;
+    double e;
+    if (theta < 0.1) {
+        e = 1.0/12.0 + t2 * (1.0/720.0 + t2 * (1.0/30240.0 + t2 * (1.0/1209600.0 + t2 / 47900160.0)));
+    } else {
+        const double half = 0.5 * theta;
+        e = (1.0 - half * cos(half) / sin(half)) / t2;
+    }
+    const mat::fixed<3,3> W = skew(omega);
+    mat::fixed<3,3> Tinv = -0.5 * W + e * (W * W);
+    Tinv.diag() += 1.0;
+    return Tinv;
+}
+
+cube batch_dexp(const mat &rotvecs, unsigned int n_threads) {
+    const int N = rotvecs.n_cols;
+    cube result(3, 3, N, fill::none);
+    simcoon_parallel_for_safe(N, [&](int n) {
+        const mat::fixed<3,3> T = dexp(vec::fixed<3>(rotvecs.colptr(n)));
+        std::copy(T.memptr(), T.memptr() + 9, result.slice_memptr(n));
+    }, simcoon_parallel_cutoff, n_threads);
+    return result;
+}
+
+cube batch_dexp_inv(const mat &rotvecs, unsigned int n_threads) {
+    const int N = rotvecs.n_cols;
+    cube result(3, 3, N, fill::none);
+    simcoon_parallel_for_safe(N, [&](int n) {
+        const mat::fixed<3,3> Tinv = dexp_inv(vec::fixed<3>(rotvecs.colptr(n)));
+        std::copy(Tinv.memptr(), Tinv.memptr() + 9, result.slice_memptr(n));
+    }, simcoon_parallel_cutoff, n_threads);
+    return result;
+}
+
 cube batch_rotvec_to_matrix(const mat &rotvecs, unsigned int n_threads) {
     const int N = rotvecs.n_cols;
     cube result(3, 3, N, fill::none);   // every slice written below

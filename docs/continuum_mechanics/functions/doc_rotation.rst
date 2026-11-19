@@ -484,6 +484,17 @@ batch:
 .. autofunction:: simcoon.rotvec_to_matrix
 .. autofunction:: simcoon.matrix_to_rotvec
 
+The tangent operator of the rotation vector, the left Jacobian of SO(3), and its inverse take
+the same layout (``dR R^T = [dexp(omega) d omega]x``; the right Jacobian is its transpose):
+
+.. code-block:: python
+
+   T = smc.dexp(rotvec)              # (3, 3, N)
+   T_inv = smc.dexp_inv(rotvec)      # (3, 3, N)
+
+.. autofunction:: simcoon.dexp
+.. autofunction:: simcoon.dexp_inv
+
 Example 4: Averaging Orientations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -48,6 +48,10 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   `batch_dR_drotvec` serves `dR_drotvec` on a (3, N) batch (result (3, 3, 3, N)).
   Batch kernels of this kind live in the library (`batch_*`, `n_threads`), the bindings only
   convert and release the GIL.
+- `dexp` / `dexp_inv` (and `batch_dexp` / `batch_dexp_inv`, bound with the same names on a
+  (3, N) batch): the left Jacobian of the exponential map of SO(3), `dR R^T = [dexp(w) dw]x`,
+  and its inverse, with series below 0.1 rad. The tangent operator of geometrically exact
+  beams (curvature, Simo-Reissner).
 
 ### Changed
 

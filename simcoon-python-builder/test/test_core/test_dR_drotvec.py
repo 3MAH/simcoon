@@ -170,3 +170,37 @@ class TestValidation:
     def test_rejects_wrong_batch_shape(self):
         with pytest.raises(Exception):
             sim.dR_drotvec(np.zeros((1, 3)))
+
+
+# ---------------------------------------------------------------------------
+# Left Jacobian of SO(3): dexp, dexp_inv
+# ---------------------------------------------------------------------------
+
+def _skew(v):
+    return np.array([[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]])
+
+
+@pytest.mark.parametrize("angle", [0.0, 1e-9, 1e-4, 0.0999, 0.1001, 1.0, 3.0])
+def test_dexp_is_the_spatial_tangent_of_exp(angle):
+    direction = np.array([0.3, -0.5, 0.8]) / np.linalg.norm([0.3, -0.5, 0.8])
+    w = angle * direction
+    T, T_inv = sim.dexp(w), sim.dexp_inv(w)
+    R = _R(w)
+    dR = sim.dR_drotvec(w)
+    for k in range(3):  # dR/dw_k R^T = [T e_k]x
+        np.testing.assert_allclose(dR[:, :, k] @ R.T, _skew(T[:, k]), atol=1e-14)
+    np.testing.assert_allclose(T @ T_inv, np.eye(3), atol=1e-14)
+    np.testing.assert_allclose(T @ w, w, atol=1e-15)  # T leaves the axis invariant
+
+
+def test_dexp_batch():
+    rotvecs = np.random.default_rng(7).standard_normal((3, 150))
+    rotvecs[:, 0] = 0.0
+    rotvecs[:, 1] = [1e-9, 0.0, 0.0]
+    T, T_inv = sim.dexp(rotvecs), sim.dexp_inv(rotvecs)
+    assert T.shape == T_inv.shape == (3, 3, 150)
+    for n in (0, 1, 75, 149):
+        np.testing.assert_array_equal(T[:, :, n], sim.dexp(rotvecs[:, n].copy()))
+        np.testing.assert_array_equal(T_inv[:, :, n], sim.dexp_inv(rotvecs[:, n].copy()))
+    with pytest.raises(ValueError):
+        sim.dexp(np.zeros((2, 4)))
