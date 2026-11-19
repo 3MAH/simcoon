@@ -311,7 +311,9 @@ constexpr auto dR_drotvec_free = R"pbdoc(
         A rotation vector (axis * angle) of shape (3,), or a batch (3, N), one
         rotation vector per column.
     n_threads : int
-        Batch only: 1 runs the points serially; otherwise they run in parallel.
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------
@@ -341,7 +343,9 @@ constexpr auto dexp = R"pbdoc(
     rotvec : numpy.ndarray
         A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N), one per column.
     n_threads : int
-        Batch only: 1 runs the points serially; otherwise they run in parallel.
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------
@@ -353,8 +357,10 @@ constexpr auto dexp_inv = R"pbdoc(
     Inverse of the left Jacobian of SO(3), :func:`dexp`.
 
     :math:`\mathbf{T}^{-1} = \mathbf{I} - \frac{1}{2}\mathbf{W}
-    + \frac{1 - \frac{\theta}{2}\cot\frac{\theta}{2}}{\theta^2}\mathbf{W}^2`, singular at
-    :math:`\theta = 2\pi`. It maps a spatial spin back to the rotation-vector increment, e.g. for the
+    + \frac{1 - \frac{\theta}{2}\cot\frac{\theta}{2}}{\theta^2}\mathbf{W}^2`, for
+    :math:`\theta < 2\pi`: singular at :math:`2\pi`, a ``ValueError`` is raised from
+    :math:`2\pi - 10^{-6}` on (for any point of a batch). Wrap accumulated rotation vectors to
+    :math:`\theta \le \pi` first. It maps a spatial spin back to the rotation-vector increment, e.g. for the
     curvature of a geometrically exact beam. Small angles use a series.
 
     Parameters
@@ -362,7 +368,9 @@ constexpr auto dexp_inv = R"pbdoc(
     rotvec : numpy.ndarray
         A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N), one per column.
     n_threads : int
-        Batch only: 1 runs the points serially; otherwise they run in parallel.
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------
@@ -383,7 +391,9 @@ constexpr auto rotvec_to_matrix = R"pbdoc(
         A rotation vector (axis * angle, radians) of shape (3,), or a batch (3, N),
         one rotation vector per column.
     n_threads : int
-        Batch only: 1 runs the points serially; otherwise they run in parallel.
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------
@@ -403,7 +413,9 @@ constexpr auto matrix_to_rotvec = R"pbdoc(
     R : numpy.ndarray
         A rotation matrix (3, 3), or a batch (3, 3, N), one matrix per slice.
     n_threads : int
-        Batch only: 1 runs the points serially; otherwise they run in parallel.
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------

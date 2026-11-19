@@ -7,6 +7,7 @@
 #include <string>
 #include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <armadillo>
 
 #include <simcoon/Simulation/Maths/rotation.hpp>
@@ -50,6 +51,34 @@ namespace {
         }
         const mat m = simpy::numpy_to_arma::arr_to_mat(arr);
         return cube(m.memptr(), m.n_rows, m.n_cols, 1);
+    }
+
+    // rotvec (3,) or (3, N) -> a cube of `blocks` 3x3 slices per point, written by
+    // kernel(omega, out) in a loop with the GIL released (rotvec converted before)
+    template<typename K>
+    cube map_rotvecs(const string& name, const py::array_t<double>& rotvec, uword blocks,
+                     unsigned int n_threads, K kernel) {
+        if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {
+            throw invalid_argument(name + ": rotvec must have shape (3,) or (3, N)");
+        }
+        const mat v = rotvec.ndim() == 1 ? mat(simpy::numpy_to_arma::arr_to_col(rotvec))
+                                         : simpy::numpy_to_arma::arr_to_mat_view(rotvec);
+        cube out(3, 3, blocks * v.n_cols, fill::none);
+        simpy::parallel_for_nogil(static_cast<int>(v.n_cols), [&](int n) {
+            kernel(vec::fixed<3>(v.colptr(n)), out.memptr() + 9 * blocks * static_cast<uword>(n));
+        }, n_threads);
+        return out;
+    }
+
+    // one 3x3 block per point: (3,) -> (3, 3), (3, N) -> (3, 3, N)
+    template<typename K>
+    py::array_t<double> rotvec_map_3x3(const string& name, const py::array_t<double>& rotvec,
+                                       unsigned int n_threads, K kernel) {
+        cube out = map_rotvecs(name, rotvec, 1, n_threads, kernel);
+        if (rotvec.ndim() == 1) {
+            return simpy::arma_to_numpy::mat_to_arr(mat(out.memptr(), 3, 3));
+        }
+        return simpy::arma_to_numpy::cube_to_arr(std::move(out));
     }
 
     void check_rotation_count(const cube& R, uword N) {
@@ -294,68 +323,46 @@ void register_rotation(py::module_& m) {
     // slice-last batches: rotation vectors (3, N), matrices (3, 3, N), one point per column/slice
     m.def("dR_drotvec",
         [](py::array_t<double> rotvec, unsigned int n_threads) -> py::array_t<double> {
-            if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {
-                throw invalid_argument("dR_drotvec: rotvec must have shape (3,) or (3, N)");
-            }
+            cube out = map_rotvecs("dR_drotvec", rotvec, 3, n_threads,
+                [](const vec::fixed<3>& w, double* o) {
+                    const cube dR = simcoon::dR_drotvec(w);
+                    std::copy(dR.memptr(), dR.memptr() + 27, o);
+                });
             if (rotvec.ndim() == 1) {
-                return simpy::arma_to_numpy::cube_to_arr(
-                    simcoon::dR_drotvec(vec::fixed<3>(simpy::numpy_to_arma::arr_to_col(rotvec))));
-            }
-            const mat v = simpy::numpy_to_arma::arr_to_mat_view(rotvec);
-            cube result;
-            {
-                py::gil_scoped_release release;
-                result = simcoon::batch_dR_drotvec(v, n_threads);
+                return simpy::arma_to_numpy::cube_to_arr(std::move(out));
             }
             // (3, 3, 3N) -> (3, 3, 3, N): a view, slices 3n + k are contiguous in Fortran order
-            return py::array_t<double>(simpy::arma_to_numpy::cube_to_arr(std::move(result)).attr("reshape")(
-                py::make_tuple(3, 3, 3, v.n_cols), py::arg("order") = "F"));
+            const py::ssize_t N = rotvec.shape(1);
+            return py::array_t<double>(simpy::arma_to_numpy::cube_to_arr(std::move(out)).attr("reshape")(
+                py::make_tuple(3, 3, 3, N), py::arg("order") = "F"));
         },
         py::arg("rotvec"), py::arg("n_threads") = 4,
         simcoon_docs::dR_drotvec_free);
 
-    // left Jacobian of SO(3) and its inverse: (3,) -> (3, 3), (3, N) -> (3, 3, N)
-    auto bind_dexp = [&m](const char *name, auto single_fn, auto batch_fn, const char *doc) {
-        m.def(name,
-            [name, single_fn, batch_fn](py::array_t<double> rotvec, unsigned int n_threads) -> py::array_t<double> {
-                if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {
-                    throw invalid_argument(string(name) + ": rotvec must have shape (3,) or (3, N)");
-                }
-                if (rotvec.ndim() == 1) {
-                    return simpy::arma_to_numpy::mat_to_arr(
-                        mat(single_fn(vec::fixed<3>(simpy::numpy_to_arma::arr_to_col(rotvec)))));
-                }
-                const mat v = simpy::numpy_to_arma::arr_to_mat_view(rotvec);
-                cube result;
-                {
-                    py::gil_scoped_release release;
-                    result = batch_fn(v, n_threads);
-                }
-                return simpy::arma_to_numpy::cube_to_arr(std::move(result));
-            },
-            py::arg("rotvec"), py::arg("n_threads") = 4, doc);
-    };
-    bind_dexp("dexp", [](const vec::fixed<3>& w) { return simcoon::dexp(w); },
-              [](const mat& v, unsigned int n) { return simcoon::batch_dexp(v, n); }, simcoon_docs::dexp);
-    bind_dexp("dexp_inv", [](const vec::fixed<3>& w) { return simcoon::dexp_inv(w); },
-              [](const mat& v, unsigned int n) { return simcoon::batch_dexp_inv(v, n); }, simcoon_docs::dexp_inv);
+    m.def("dexp",
+        [](py::array_t<double> rotvec, unsigned int n_threads) {
+            return rotvec_map_3x3("dexp", rotvec, n_threads, [](const vec::fixed<3>& w, double* o) {
+                const mat::fixed<3,3> T = simcoon::dexp(w);
+                std::copy(T.memptr(), T.memptr() + 9, o);
+            });
+        },
+        py::arg("rotvec"), py::arg("n_threads") = 4, simcoon_docs::dexp);
+
+    m.def("dexp_inv",
+        [](py::array_t<double> rotvec, unsigned int n_threads) {
+            return rotvec_map_3x3("dexp_inv", rotvec, n_threads, [](const vec::fixed<3>& w, double* o) {
+                const mat::fixed<3,3> Ti = simcoon::dexp_inv(w);
+                std::copy(Ti.memptr(), Ti.memptr() + 9, o);
+            });
+        },
+        py::arg("rotvec"), py::arg("n_threads") = 4, simcoon_docs::dexp_inv);
 
     m.def("rotvec_to_matrix",
-        [](py::array_t<double> rotvec, unsigned int n_threads) -> py::array_t<double> {
-            if ((rotvec.ndim() != 1 && rotvec.ndim() != 2) || rotvec.shape(0) != 3) {
-                throw invalid_argument("rotvec_to_matrix: rotvec must have shape (3,) or (3, N)");
-            }
-            if (rotvec.ndim() == 1) {
-                return simpy::arma_to_numpy::mat_to_arr(mat(simcoon::Rotation::from_rotvec(
-                    vec::fixed<3>(simpy::numpy_to_arma::arr_to_col(rotvec))).as_matrix()));
-            }
-            const mat v = simpy::numpy_to_arma::arr_to_mat_view(rotvec);
-            cube result;
-            {
-                py::gil_scoped_release release;
-                result = simcoon::batch_rotvec_to_matrix(v, n_threads);
-            }
-            return simpy::arma_to_numpy::cube_to_arr(std::move(result));
+        [](py::array_t<double> rotvec, unsigned int n_threads) {
+            return rotvec_map_3x3("rotvec_to_matrix", rotvec, n_threads, [](const vec::fixed<3>& w, double* o) {
+                const mat::fixed<3,3> R = simcoon::Rotation::from_rotvec(w).as_matrix();
+                std::copy(R.memptr(), R.memptr() + 9, o);
+            });
         },
         py::arg("rotvec"), py::arg("n_threads") = 4,
         simcoon_docs::rotvec_to_matrix);
@@ -365,17 +372,17 @@ void register_rotation(py::module_& m) {
             if ((R.ndim() != 2 && R.ndim() != 3) || R.shape(0) != 3 || R.shape(1) != 3) {
                 throw invalid_argument("matrix_to_rotvec: R must have shape (3, 3) or (3, 3, N)");
             }
-            const bool single = R.ndim() == 2;
             const cube R_cpp = as_cube(R);
-            mat result;
-            {
-                py::gil_scoped_release release;
-                result = simcoon::batch_matrix_to_rotvec(R_cpp, n_threads);
+            mat out(3, R_cpp.n_slices, fill::none);
+            simpy::parallel_for_nogil(static_cast<int>(R_cpp.n_slices), [&](int n) {
+                const mat::fixed<3,3> Rn(R_cpp.slice_memptr(n));
+                const vec::fixed<3> w = simcoon::Rotation::from_matrix(Rn).as_rotvec();
+                std::copy(w.memptr(), w.memptr() + 3, out.colptr(n));
+            }, n_threads);
+            if (R.ndim() == 2) {
+                return simpy::arma_to_numpy::col_to_arr(vec(out.col(0))).attr("reshape")(3);
             }
-            if (single) {
-                return py::array_t<double>(simpy::arma_to_numpy::col_to_arr(vec(result.col(0))).attr("reshape")(3));
-            }
-            return simpy::arma_to_numpy::mat_to_arr(std::move(result));
+            return simpy::arma_to_numpy::mat_to_arr(std::move(out));
         },
         py::arg("R"), py::arg("n_threads") = 4,
         simcoon_docs::matrix_to_rotvec);

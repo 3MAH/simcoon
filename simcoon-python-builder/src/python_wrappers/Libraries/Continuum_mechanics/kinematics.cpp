@@ -8,7 +8,6 @@
 #include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <armadillo>
 #include <simcoon/slice_view.hpp>
-#include <simcoon/python_wrappers/parallel_nogil.hpp>
 
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -189,18 +188,25 @@ py::object G_UdX_to_F(const py::array_t<double> &G, const bool &return_J, const 
     const bool single = G.ndim() == 2;
     const cube G_cpp = single ? cube(simpy::numpy_to_arma::arr_to_mat(G).memptr(), 3, 3, 1)
                               : simpy::numpy_to_arma::arr_to_cube_view(G);
-    vec J;
-    cube F;
-    {
-        py::gil_scoped_release release;
-        F = simcoon::batch_G_UdX_to_F(G_cpp, J, n_threads);
-    }
+    const int N = static_cast<int>(G_cpp.n_slices);
+    cube F(3, 3, N, fill::none);
+    vec J(N, fill::none);
+    double* j = J.memptr();
+    // closed-form det on raw slices: at 3x3 the Armadillo objects cost more than the work
+    simpy::parallel_for_nogil(N, [&](int n) {
+        const double *g = G_cpp.slice_memptr(n);
+        double *f = F.slice_memptr(n);
+        std::copy(g, g + 9, f);
+        f[0] += 1.0; f[4] += 1.0; f[8] += 1.0;
+        j[n] = f[0] * (f[4] * f[8] - f[7] * f[5])
+             - f[3] * (f[1] * f[8] - f[7] * f[2])
+             + f[6] * (f[1] * f[5] - f[4] * f[2]);
+    }, n_threads);
     py::object F_out, J_out;
     if (single) {
         F_out = simpy::arma_to_numpy::mat_to_arr(mat(F.slice(0)));
         J_out = py::float_(J(0));
     } else {
-        const py::ssize_t N = J.n_elem;
         F_out = simpy::arma_to_numpy::cube_to_arr(std::move(F));
         J_out = simpy::arma_to_numpy::col_to_arr(std::move(J)).attr("reshape")(N);
     }

@@ -524,9 +524,10 @@ private:
 /**
  * @brief Compute derivatives of R(omega) w.r.t. rotation vector components.
  *
- * Given a rotation vector omega (axis * angle), computes the three 3x3
- * matrices dR/d(omega_k) for k = 0, 1, 2 using exact differentiation of
- * the Rodrigues formula.
+ * \f$ \partial \mathbf{R} / \partial \omega_k = [\mathbf{T}\,\mathbf{e}_k]_\times \mathbf{R} \f$
+ * for \f$ \mathbf{R} = \exp([\boldsymbol{\omega}]_\times) \f$, with \f$ \mathbf{T} \f$ the left
+ * Jacobian dexp, both from the coefficients of dexp (series below 0.1 rad, exact to rounding at
+ * every angle including \f$ \boldsymbol{\omega} \to 0 \f$).
  *
  * @param omega Rotation vector (3 elements)
  * @return 3x3x3 cube where slice(k) is dR/d(omega_k)
@@ -556,6 +557,8 @@ arma::mat::fixed<3,3> dexp(const arma::vec::fixed<3>& omega);
  * \f$ \mathbf{T}^{-1} = \mathbf{I} - \frac{1}{2} \mathbf{W}
  *     + \frac{1 - \frac{\theta}{2} \cot\frac{\theta}{2}}{\theta^2} \mathbf{W}^2 \f$ (singular at
  * \f$ \theta = 2\pi \f$). Series below 0.1 rad: exact to rounding.
+ * @throws std::invalid_argument for \f$ \theta \ge 2\pi - 10^{-6} \f$ (wrap accumulated rotation
+ *         vectors to \f$ \theta \le \pi \f$ first)
  * @param omega Rotation vector (axis * angle, radians)
  * @return The 3x3 inverse left Jacobian
  */
@@ -753,46 +756,6 @@ arma::cube batch_voigt_stress_rotation(const arma::mat &quats, const bool &activ
  * @return (6, 6, N) cube of strain rotation matrices
  */
 arma::cube batch_voigt_strain_rotation(const arma::mat &quats, const bool &active = true);
-
-/**
- * @brief Batch exponential map of SO(3): rotation matrices of N rotation vectors.
- * @param rotvecs (3, N) rotation vectors (axis * angle, radians), one per column
- * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
- * @return (3, 3, N) cube of rotation matrices
- */
-arma::cube batch_rotvec_to_matrix(const arma::mat &rotvecs, unsigned int n_threads = 0);
-
-/**
- * @brief Batch logarithm map of SO(3): rotation vectors of N rotation matrices (not orthogonalized).
- * @param R (3, 3, N) cube of rotation matrices
- * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
- * @return (3, N) rotation vectors, angle in \f$ [0, \pi] \f$
- */
-arma::mat batch_matrix_to_rotvec(const arma::cube &R, unsigned int n_threads = 0);
-
-/**
- * @brief Batch dR_drotvec: derivatives of N rotation matrices w.r.t. their rotation vectors.
- * @param rotvecs (3, N) rotation vectors, one per column
- * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
- * @return (3, 3, 3N) cube: slice 3n + k is \f$ \partial \mathbf{R}_n / \partial \omega_k \f$
- */
-arma::cube batch_dR_drotvec(const arma::mat &rotvecs, unsigned int n_threads = 0);
-
-/**
- * @brief Batch dexp: left Jacobians of SO(3) of N rotation vectors.
- * @param rotvecs (3, N) rotation vectors, one per column
- * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
- * @return (3, 3, N) cube of left Jacobians
- */
-arma::cube batch_dexp(const arma::mat &rotvecs, unsigned int n_threads = 0);
-
-/**
- * @brief Batch dexp_inv: inverse left Jacobians of SO(3) of N rotation vectors.
- * @param rotvecs (3, N) rotation vectors, one per column
- * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
- * @return (3, 3, N) cube of inverse left Jacobians
- */
-arma::cube batch_dexp_inv(const arma::mat &rotvecs, unsigned int n_threads = 0);
 
 /** @} */ // end of maths group
 

@@ -483,9 +483,11 @@ batch:
 
 .. autofunction:: simcoon.rotvec_to_matrix
 .. autofunction:: simcoon.matrix_to_rotvec
+.. autofunction:: simcoon.dR_drotvec
 
 The tangent operator of the rotation vector, the left Jacobian of SO(3), and its inverse take
-the same layout (``dR R^T = [dexp(omega) d omega]x``; the right Jacobian is its transpose):
+the same layout (:math:`\mathrm{d}\mathbf{R}\,\mathbf{R}^T = [\mathbf{T}\,\mathrm{d}\boldsymbol{\omega}]_\times`
+with :math:`\mathbf{T}` = ``dexp(omega)``; the right Jacobian is its transpose):
 
 .. code-block:: python
 

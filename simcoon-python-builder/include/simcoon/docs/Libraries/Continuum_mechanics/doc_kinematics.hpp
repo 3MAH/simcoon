@@ -319,12 +319,15 @@ constexpr auto G_UdX_to_F = R"pbdoc(
     Parameters
     ----------
     G : numpy.ndarray
-        Displacement gradient :math:`\partial \mathbf{u} / \partial \mathbf{X}`, a (3, 3)
-        matrix or a batch (3, 3, N), one point per slice.
+        Displacement gradient :math:`\partial \mathbf{u} / \partial \mathbf{X}`,
+        ``G[i, J]`` :math:`= \partial u_i / \partial X_J`, a (3, 3) matrix or a batch
+        (3, 3, N), one point per slice.
     return_J : bool
         Also return the determinant: the call then returns ``(F, J)``.
     n_threads : int
-        Batch only: 1 runs the points serially; otherwise they run in parallel.
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------
@@ -356,7 +359,9 @@ constexpr auto Log_strain = R"pbdoc(
     copy : bool
         Return a copy of the result array.
     n_threads : int
-        Batch only: 1 runs the points serially; otherwise they run in parallel.
+        Number of threads of the batch loop: 1 runs serially, 0 uses all the cores.
+        Default 4, as :func:`simcoon.umat`. Batches of at most 100 points always run
+        serially; the GIL is released during the loop.
 
     Returns
     -------

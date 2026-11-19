@@ -90,30 +90,6 @@ TEST(Tkinematics, displacement_gradients)
     EXPECT_LT(norm(Eul_id, 2), 1.E-9);
 }
 
-TEST(Tkinematics, G_UdX_to_F)
-{
-    // F = I + G, the inverse of G_UdX
-    mat F = {{1.1, 0.2, 0.0}, {0.05, 0.95, 0.1}, {0.0, -0.1, 1.2}};
-    EXPECT_LT(norm(G_UdX_to_F(G_UdX(F)) - F, "fro"), simcoon::iota);
-    EXPECT_LT(norm(G_UdX_to_F(zeros(3, 3)) - eye(3, 3), "fro"), simcoon::iota);
-}
-
-TEST(Tkinematics, batch_G_UdX_to_F)
-{
-    // past the parallel cutoff: F_n = I + G_n, J_n = det(F_n)
-    const int N = 150;
-    cube G(3, 3, N, fill::randn);
-    G *= 0.1;
-    vec J;
-    const cube F = batch_G_UdX_to_F(G, J);
-    ASSERT_EQ(F.n_slices, static_cast<uword>(N));
-    ASSERT_EQ(J.n_elem, static_cast<uword>(N));
-    for (int n = 0; n < N; ++n) {
-        EXPECT_TRUE(approx_equal(mat(F.slice(n)), G_UdX_to_F(G.slice(n)), "absdiff", 0.0));
-        EXPECT_NEAR(J(n), det(mat(F.slice(n))), 1.E-14);
-    }
-}
-
 TEST(Tkinematics, Cauchy_Green_tensors)
 {
     mat F = eye(3, 3);

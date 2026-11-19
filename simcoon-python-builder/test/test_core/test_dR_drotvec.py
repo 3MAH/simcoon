@@ -204,3 +204,14 @@ def test_dexp_batch():
         np.testing.assert_array_equal(T_inv[:, :, n], sim.dexp_inv(rotvecs[:, n].copy()))
     with pytest.raises(ValueError):
         sim.dexp(np.zeros((2, 4)))
+
+
+def test_dexp_inv_refuses_the_2pi_singularity():
+    # one singular point in a parallel batch raises (rethrown after the loop), as a single call does
+    rotvecs = np.random.default_rng(3).standard_normal((3, 150))
+    rotvecs[:, 120] = [0.0, 0.0, 2.0 * np.pi]
+    with pytest.raises(ValueError, match="2 pi"):
+        sim.dexp_inv(rotvecs)
+    with pytest.raises(ValueError, match="2 pi"):
+        sim.dexp_inv(np.array([0.0, 7.0, 0.0]))
+    np.testing.assert_allclose(sim.dexp(rotvecs[:, :100]).shape, (3, 3, 100))

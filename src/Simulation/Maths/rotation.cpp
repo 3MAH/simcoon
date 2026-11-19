@@ -419,7 +419,7 @@ Rotation Rotation::from_rotvec(const vec::fixed<3>& rotvec, bool degrees) {
         angle *= simcoon::pi / 180.0;
     }
 
-    if (angle < simcoon::iota) {
+    if (angle == 0.0) {
         return identity();
     }
 
@@ -570,7 +570,7 @@ vec::fixed<3> Rotation::as_rotvec(bool degrees) const {
 
     double sin_half = norm(qv);
 
-    if (sin_half < simcoon::iota) {
+    if (sin_half == 0.0) {
         vec::fixed<3> result = {0.0, 0.0, 0.0};
         return result;
     }
@@ -992,81 +992,42 @@ namespace {
         return S;
     }
 
-    inline mat::fixed<3,3> skew_basis(int k) {
-        vec::fixed<3> e;
-        e.zeros();
-        e(k) = 1.0;
-        return skew(e);
-    }
-}
+    // R = I + a W + b W^2 and dexp = I + b W + c W^2 (W = [omega]x, t = |omega|):
+    // a = sin t / t, b = (1 - cos t) / t^2, c = (t - sin t) / t^3, series below t = 0.1
+    struct so3_coefficients { double a, b, c; };
 
-namespace {
-    // dR/d(omega_k), k = 0..2, written as 3 consecutive column-major 3x3 blocks at out: no
-    // Cube::slice(), whose first access per slice locks the cube (see parallel.hpp).
-    void dR_drotvec_into(const vec::fixed<3>& omega, double* out) {
-        double theta = norm(omega);
-
-        if (theta < simcoon::iota) {
-            // d/d(omega_k) [ exp([omega]x) ] at omega=0 is [e_k]x.
-            for (int k = 0; k < 3; ++k) {
-                const mat::fixed<3,3> dR = skew_basis(k);
-                std::copy(dR.memptr(), dR.memptr() + 9, out + 9 * k);
-            }
-            return;
-        }
-
-        mat::fixed<3,3> W  = skew(omega);
-        mat::fixed<3,3> W2 = W * W;
-
-        // R = I + a W + b W^2, a = sin(t)/t, b = (1 - cos(t))/t^2; da, db their t-derivatives.
-        // 1 - cos(t) = 2 sin^2(t/2) keeps b exact; below t = 0.1, da and db (cancellations of
-        // order t^3 and t^4) come from their series, exact to rounding there.
-        double s = sin(theta), c = cos(theta);
-        double t2 = theta * theta;
-        double sh = sin(0.5 * theta);
-        double one_minus_c = 2.0 * sh * sh;
-        double a  = s / theta;
-        double b  = one_minus_c / t2;
-        double da, db;
+    so3_coefficients so3_coeffs(const double theta) {
+        const double t2 = theta * theta;
         if (theta < 0.1) {
-            da = theta * (-1.0/3.0 + t2 * (1.0/30.0 + t2 * (-1.0/840.0 + t2 * (1.0/45360.0 - t2 / 3991680.0))));
-            db = theta * (-1.0/12.0 + t2 * (1.0/180.0 + t2 * (-1.0/6720.0 + t2 * (1.0/453600.0 - t2 / 47900160.0))));
-        } else {
-            da = (c * theta - s) / t2;
-            db = (s * theta - 2.0 * one_minus_c) / (t2 * theta);
+            return {1.0 + t2 * (-1.0/6.0 + t2 * (1.0/120.0 + t2 * (-1.0/5040.0 + t2 / 362880.0))),
+                    0.5 + t2 * (-1.0/24.0 + t2 * (1.0/720.0 + t2 * (-1.0/40320.0 + t2 / 3628800.0))),
+                    1.0/6.0 + t2 * (-1.0/120.0 + t2 * (1.0/5040.0 + t2 * (-1.0/362880.0 + t2 / 39916800.0)))};
         }
-
-        for (int k = 0; k < 3; ++k) {
-            mat::fixed<3,3> dW  = skew_basis(k);
-            mat::fixed<3,3> dW2 = dW * W + W * dW;
-            double dtk = omega(k) / theta;
-            const mat::fixed<3,3> dR = da * dtk * W + a * dW + db * dtk * W2 + b * dW2;
-            std::copy(dR.memptr(), dR.memptr() + 9, out + 9 * k);
-        }
+        const double s = sin(theta), sh = sin(0.5 * theta);
+        return {s / theta, 2.0 * sh * sh / t2, (theta - s) / (t2 * theta)};
     }
 }
 
 cube dR_drotvec(const vec::fixed<3>& omega) {
-    cube result(3, 3, 3, fill::none);
-    dR_drotvec_into(omega, result.memptr());
-    return result;
+    const so3_coefficients k = so3_coeffs(norm(omega));
+    const mat::fixed<3,3> W = skew(omega);
+    const mat::fixed<3,3> W2 = W * W;
+    mat::fixed<3,3> R = k.a * W + k.b * W2;
+    R.diag() += 1.0;
+    mat::fixed<3,3> T = k.b * W + k.c * W2;
+    T.diag() += 1.0;
+    cube dR(3, 3, 3, fill::none);
+    for (int i = 0; i < 3; ++i) {
+        const mat::fixed<3,3> dRi = skew(vec::fixed<3>(T.colptr(i))) * R;   // [T e_i]x R
+        std::copy(dRi.memptr(), dRi.memptr() + 9, dR.slice_memptr(i));
+    }
+    return dR;
 }
 
 mat::fixed<3,3> dexp(const vec::fixed<3>& omega) {
-    // T = I + b W + c W^2, b = (1 - cos t)/t^2 = 2 sin^2(t/2)/t^2, c = (t - sin t)/t^3
-    const double theta = norm(omega);
-    const double t2 = theta * theta;
-    double b, c;
-    if (theta < 0.1) {
-        b = 0.5 + t2 * (-1.0/24.0 + t2 * (1.0/720.0 + t2 * (-1.0/40320.0 + t2 / 3628800.0)));
-        c = 1.0/6.0 + t2 * (-1.0/120.0 + t2 * (1.0/5040.0 + t2 * (-1.0/362880.0 + t2 / 39916800.0)));
-    } else {
-        const double sh = sin(0.5 * theta);
-        b = 2.0 * sh * sh / t2;
-        c = (theta - sin(theta)) / (t2 * theta);
-    }
+    const so3_coefficients k = so3_coeffs(norm(omega));
     const mat::fixed<3,3> W = skew(omega);
-    mat::fixed<3,3> T = b * W + c * (W * W);
+    mat::fixed<3,3> T = k.b * W + k.c * (W * W);
     T.diag() += 1.0;
     return T;
 }
@@ -1078,65 +1039,17 @@ mat::fixed<3,3> dexp_inv(const vec::fixed<3>& omega) {
     double e;
     if (theta < 0.1) {
         e = 1.0/12.0 + t2 * (1.0/720.0 + t2 * (1.0/30240.0 + t2 * (1.0/1209600.0 + t2 / 47900160.0)));
-    } else {
+    } else if (theta < 2.0 * simcoon::pi - 1.e-6) {
         const double half = 0.5 * theta;
         e = (1.0 - half * cos(half) / sin(half)) / t2;
+    } else {
+        throw std::invalid_argument("dexp_inv: |omega| = " + std::to_string(theta)
+            + " rad, at or past the singularity at 2 pi; wrap the rotation vector to |omega| <= pi");
     }
     const mat::fixed<3,3> W = skew(omega);
     mat::fixed<3,3> Tinv = -0.5 * W + e * (W * W);
     Tinv.diag() += 1.0;
     return Tinv;
-}
-
-cube batch_dexp(const mat &rotvecs, unsigned int n_threads) {
-    const int N = rotvecs.n_cols;
-    cube result(3, 3, N, fill::none);
-    simcoon_parallel_for_safe(N, [&](int n) {
-        const mat::fixed<3,3> T = dexp(vec::fixed<3>(rotvecs.colptr(n)));
-        std::copy(T.memptr(), T.memptr() + 9, result.slice_memptr(n));
-    }, simcoon_parallel_cutoff, n_threads);
-    return result;
-}
-
-cube batch_dexp_inv(const mat &rotvecs, unsigned int n_threads) {
-    const int N = rotvecs.n_cols;
-    cube result(3, 3, N, fill::none);
-    simcoon_parallel_for_safe(N, [&](int n) {
-        const mat::fixed<3,3> Tinv = dexp_inv(vec::fixed<3>(rotvecs.colptr(n)));
-        std::copy(Tinv.memptr(), Tinv.memptr() + 9, result.slice_memptr(n));
-    }, simcoon_parallel_cutoff, n_threads);
-    return result;
-}
-
-cube batch_rotvec_to_matrix(const mat &rotvecs, unsigned int n_threads) {
-    const int N = rotvecs.n_cols;
-    cube result(3, 3, N, fill::none);   // every slice written below
-    simcoon_parallel_for_safe(N, [&](int n) {
-        const vec::fixed<3> omega(rotvecs.colptr(n));
-        mat out = slice_view(result, n);
-        out = Rotation::from_rotvec(omega).as_matrix();
-    }, simcoon_parallel_cutoff, n_threads);
-    return result;
-}
-
-mat batch_matrix_to_rotvec(const cube &R, unsigned int n_threads) {
-    const int N = R.n_slices;
-    mat result(3, N, fill::none);
-    simcoon_parallel_for_safe(N, [&](int n) {
-        const mat::fixed<3,3> Rn(R.memptr() + 9 * static_cast<uword>(n));
-        vec out = result.unsafe_col(n);
-        out = Rotation::from_matrix(Rn).as_rotvec();
-    }, simcoon_parallel_cutoff, n_threads);
-    return result;
-}
-
-cube batch_dR_drotvec(const mat &rotvecs, unsigned int n_threads) {
-    const int N = rotvecs.n_cols;
-    cube result(3, 3, 3 * static_cast<uword>(N), fill::none);
-    simcoon_parallel_for_safe(N, [&](int n) {
-        dR_drotvec_into(vec::fixed<3>(rotvecs.colptr(n)), result.memptr() + 27 * static_cast<uword>(n));
-    }, simcoon_parallel_cutoff, n_threads);
-    return result;
 }
 
 } //namespace simcoon

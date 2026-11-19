@@ -728,57 +728,53 @@ TEST(TRotationClass, frame_rotation_matches_apply_bitwise)
     EXPECT_THROW(frame.rotate_strain(w5), std::invalid_argument);
 }
 
-TEST(TRotationClass, batch_rotvec_conversions)
+TEST(TRotationClass, dexp_tangent_and_inverse)
 {
-    // the batches give the single-rotation values, past the parallel cutoff
-    const int N = 150;
-    mat rotvecs = randn(3, N);
-    rotvecs.col(0).zeros();                     // identity
-    rotvecs.col(1) = vec({1e-9, 0.0, 0.0});     // small angle
-    rotvecs.col(2) = vec({0.0, 3.0, 0.0});      // angle < pi
+    // T w = w and T T^-1 = I from 0 to beyond pi (series, closed form, half-angle cot)
+    const vec::fixed<3> dir = normalise(vec({0.3, -0.5, 0.8}));
+    for (double angle : {0.0, 1e-13, 1e-9, 1e-4, 0.0999, 0.1001, 1.0, 3.0, simcoon::pi, 4.0, 6.0}) {
+        const vec::fixed<3> w = angle * dir;
+        const mat::fixed<3,3> T = dexp(w);
+        EXPECT_LT(abs(vec(T * w) - vec(w)).max(), 1e-15 * (1.0 + angle));
+        EXPECT_LT(abs(mat(T * dexp_inv(w)) - eye(3, 3)).max(), angle < 5.0 ? 1e-14 : 1e-13);
+    }
+    // singular at 2 pi: refused, not a meaningless matrix
+    for (double angle : {2.0 * simcoon::pi - 1e-7, 2.0 * simcoon::pi, 7.0}) {
+        EXPECT_THROW(dexp_inv(vec::fixed<3>(angle * dir)), std::invalid_argument);
+    }
+}
 
-    const cube R = batch_rotvec_to_matrix(rotvecs);
-    const mat back = batch_matrix_to_rotvec(R);
-    const cube dR = batch_dR_drotvec(rotvecs);
-    ASSERT_EQ(R.n_slices, static_cast<uword>(N));
-    ASSERT_EQ(back.n_cols, static_cast<uword>(N));
-    ASSERT_EQ(dR.n_slices, static_cast<uword>(3 * N));
-    for (int n = 0; n < N; ++n) {
-        const vec::fixed<3> omega = rotvecs.col(n);
-        const Rotation r = Rotation::from_rotvec(omega);
-        EXPECT_TRUE(approx_equal(mat(R.slice(n)), mat(r.as_matrix()), "absdiff", 0.0));
-        EXPECT_TRUE(approx_equal(vec(back.col(n)), vec(Rotation::from_matrix(r.as_matrix()).as_rotvec()),
-                                 "absdiff", 0.0));
-        const cube d = dR_drotvec(omega);
+TEST(TRotationClass, dR_drotvec_finite_differences)
+{
+    // central differences of from_rotvec on both sides of the series switch and past pi
+    const vec::fixed<3> dir = normalise(vec({0.3, -0.5, 0.8}));
+    const double h = 1e-6;
+    for (double angle : {1e-3, 0.0999, 0.1001, 1.0, 3.0, simcoon::pi - 1e-3, 4.0}) {
+        const vec::fixed<3> w = angle * dir;
+        const cube dR = dR_drotvec(w);
         for (int k = 0; k < 3; ++k) {
-            EXPECT_TRUE(approx_equal(mat(dR.slice(3 * n + k)), mat(d.slice(k)), "absdiff", 0.0));
+            vec::fixed<3> wp = w, wm = w;
+            wp(k) += h;
+            wm(k) -= h;
+            const mat fd = (mat(Rotation::from_rotvec(wp).as_matrix()) - mat(Rotation::from_rotvec(wm).as_matrix())) / (2.0 * h);
+            EXPECT_LT(abs(mat(dR.slice(k)) - fd).max(), 1e-9);
         }
     }
 }
 
-TEST(TRotationClass, dexp_tangent_and_inverse)
+TEST(TRotationClass, tiny_rotation_vectors)
 {
-    // dR/dw_k R^T = [dexp(w) e_k]x, dexp * dexp_inv = I, from 0 to 3 rad (series and closed form)
-    const vec::fixed<3> dir = normalise(vec({0.3, -0.5, 0.8}));
-    for (double angle : {0.0, 1e-9, 1e-4, 0.0999, 0.1001, 1.0, 3.0}) {
-        const vec::fixed<3> w = angle * dir;
-        const mat::fixed<3,3> T = dexp(w);
-        const mat R = Rotation::from_rotvec(w).as_matrix();
-        const cube dR = dR_drotvec(w);
-        for (int k = 0; k < 3; ++k) {
-            const mat spin = dR.slice(k) * R.t();
-            const vec::fixed<3> t = T.col(k);
-            const mat skew_t = {{0.0, -t(2), t(1)}, {t(2), 0.0, -t(0)}, {-t(1), t(0), 0.0}};
-            EXPECT_LT(abs(spin - skew_t).max(), 1e-14);
-        }
-        EXPECT_LT(abs(mat(T * dexp_inv(w)) - eye(3, 3)).max(), 1e-14);
-    }
-    // batches give the single values
-    const mat rotvecs = randn(3, 150);
-    const cube Tb = batch_dexp(rotvecs), Tib = batch_dexp_inv(rotvecs);
-    for (int n = 0; n < 150; ++n) {
-        const vec::fixed<3> w = rotvecs.col(n);
-        EXPECT_TRUE(approx_equal(mat(Tb.slice(n)), mat(dexp(w)), "absdiff", 0.0));
-        EXPECT_TRUE(approx_equal(mat(Tib.slice(n)), mat(dexp_inv(w)), "absdiff", 0.0));
+    // below 1e-12 rad: R = I + W, the rotation vector comes back, dR_k = [e_k]x + ([e_k]x W + W [e_k]x)/2
+    const vec::fixed<3> w = 1e-13 * normalise(vec({0.3, -0.5, 0.8}));
+    const mat W = {{0.0, -w(2), w(1)}, {w(2), 0.0, -w(0)}, {-w(1), w(0), 0.0}};
+    const Rotation r = Rotation::from_rotvec(w);
+    EXPECT_LT(abs(mat(r.as_matrix()) - (eye(3, 3) + W)).max(), 1e-25);
+    EXPECT_LT(abs(vec(r.as_rotvec()) - vec(w)).max(), 1e-28);
+    const cube dR = dR_drotvec(w);
+    for (int k = 0; k < 3; ++k) {
+        vec::fixed<3> e(fill::zeros);
+        e(k) = 1.0;
+        const mat E = {{0.0, -e(2), e(1)}, {e(2), 0.0, -e(0)}, {-e(1), e(0), 0.0}};
+        EXPECT_LT(abs(mat(dR.slice(k)) - (E + 0.5 * (E * W + W * E))).max(), 1e-25);
     }
 }

@@ -20,7 +20,6 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/parallel.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/eig_sym3.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -64,30 +63,6 @@ mat eR_to_F(const mat &e, const mat &R) {
     
 mat G_UdX(const mat &F) {
     return F - eye(3,3);
-}
-
-mat G_UdX_to_F(const mat &G) {
-    mat F = G;
-    F.diag() += 1.0;
-    return F;
-}
-
-cube batch_G_UdX_to_F(const cube &G, vec &J, unsigned int n_threads) {
-    const int N = G.n_slices;
-    cube F(3, 3, N, fill::none);
-    J.set_size(N);
-    // Raw column-major slices and a closed-form det: at 3x3 the per-point Armadillo objects
-    // (slice_view, arma::det) cost 5-8 times this loop.
-    simcoon_parallel_for_safe(N, [&](int n) {
-        const double *g = G.slice_memptr(n);
-        double *f = F.slice_memptr(n);
-        for (int k = 0; k < 9; ++k) f[k] = g[k];
-        f[0] += 1.0; f[4] += 1.0; f[8] += 1.0;
-        J(n) = f[0] * (f[4] * f[8] - f[7] * f[5])
-             - f[3] * (f[1] * f[8] - f[7] * f[2])
-             + f[6] * (f[1] * f[5] - f[4] * f[2]);
-    }, simcoon_parallel_cutoff, n_threads);
-    return F;
 }
 
 mat G_Udx(const mat &F) {

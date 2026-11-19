@@ -96,24 +96,6 @@ arma::mat eR_to_F(const arma::mat &e, const arma::mat &R);
 arma::mat G_UdX(const arma::mat &F);
 
 /**
- * @brief Provides the transformation gradient from the gradient of the displacement (Lagrangian),
- * the inverse of G_UdX: \f$ \mathbf{F} = \mathbf{I} + \nabla_X \mathbf{U} \f$.
- * @param G The gradient of the displacement \f$ \nabla_X \mathbf{U} \f$ (3x3 arma::mat)
- * @return The transformation gradient \f$ \mathbf{F} \f$ (3x3 arma::mat)
- */
-arma::mat G_UdX_to_F(const arma::mat &G);
-
-/**
- * @brief Batch G_UdX_to_F with the determinants: \f$ \mathbf{F}_n = \mathbf{I} + \mathbf{G}_n \f$ and
- * \f$ J_n = \det \mathbf{F}_n \f$ for N displacement gradients, in parallel.
- * @param G (3, 3, N) displacement gradients \f$ \nabla_X \mathbf{U} \f$, one per slice
- * @param[out] J The N determinants (resized)
- * @param n_threads Threads of the loop (0 = runtime default, 1 = serial; see parallel.hpp)
- * @return (3, 3, N) transformation gradients
- */
-arma::cube batch_G_UdX_to_F(const arma::cube &G, arma::vec &J, unsigned int n_threads = 0);
-
-/**
  * @brief Provides the gradient of the displacement (Eulerian) from the transformation gradient.
  * 
  * The gradient of the displacement (Eulerian) is related to the transformation gradient \f$\mathbf{F}\f$ by the following equation:
