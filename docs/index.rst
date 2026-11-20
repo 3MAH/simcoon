@@ -6,6 +6,10 @@ simcoon
    Constitutive laws, material-point simulation and mean-field micromechanics
    for nonlinear and heterogeneous materials.
 
+.. image:: _static/hero.png
+   :alt: Cyclic plasticity, adiabatic superelasticity and mean-field homogenization computed with simcoon
+   :class: sc-hero
+
 **simcoon** is a C++ library with a Python interface. It provides
 constitutive laws (elastoplasticity, viscoelasticity, hyperelasticity, shape
 memory alloys, damage), a thermomechanical material-point solver under
@@ -160,7 +164,7 @@ Install
 
       .. code-block:: bash
 
-         conda install -c conda-forge simcoon
+         conda install -c conda-forge -c set3mah simcoon
 
    .. tab-item:: pip
 

@@ -29,6 +29,10 @@
   color: #555;
   margin-top: -0.6em;
 }
+img.sc-hero {
+  width: 100%;
+  margin: 0.5em 0 1.2em;
+}
 .sc-buttons {
   display: flex;
   flex-wrap: wrap;
