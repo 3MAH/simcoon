@@ -22,6 +22,8 @@ special cases where some measures can accidentally coincide.
 
 """
 
+# sphinx_gallery_thumbnail_path = '_static/thumbnails/eq_stress_transfer_helpers.png'
+
 ###################################################################################
 # Notes
 #

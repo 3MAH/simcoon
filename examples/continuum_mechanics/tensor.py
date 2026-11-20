@@ -19,6 +19,8 @@ Batch operations loop in C++ over the same functions used by single tensors,
 so results are always bit-identical.
 """
 
+# sphinx_gallery_thumbnail_path = '_static/thumbnails/eq_tensor.png'
+
 import numpy as np
 import simcoon as sim
 

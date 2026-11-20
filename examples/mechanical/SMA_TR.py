@@ -12,7 +12,7 @@ plt.rcParams["figure.figsize"] = (18, 8)
 
 ###################################################################################
 # The ``SMRAI`` constitutive law adds a third rate-independent mechanism to the
-# superelastic transformation model of :ref:`SMA_T <sphx_glr_gallery_mechanical_SMA_T.py>`:
+# superelastic transformation model of :ref:`SMA_T <sphx_glr_examples_mechanical_sma_t.py>`:
 # the reorientation of the martensite variants. It is what lets the model describe
 # the whole thermomechanical map of a shape memory alloy, from the superelastic loop
 # above :math:`A_f` to the shape memory effect below :math:`M_f`, where the
@@ -30,8 +30,11 @@ plt.rcParams["figure.figsize"] = (18, 8)
 # 1. :math:`Y^{Reo}` : stress limit for the onset of reorientation
 # 2. :math:`H^{Reo}` : reorientation kinematic hardening modulus (MPa)
 # 3. :math:`E_T^{Reo,max}` : maximum reorientation back-strain magnitude
-# 4-7. :math:`c_{\lambda}, p_{0,\lambda}, n_{\lambda}, \alpha_{\lambda}` : penalty
-#    function of the reorientation saturation
+# 4. :math:`c_{\lambda}` : threshold below which the saturation penalty of the
+#    reorientation is continued quadratically
+# 5. :math:`p_{0,\lambda}` : amplitude of the penalty
+# 6. :math:`n_{\lambda}` : exponent of the penalty
+# 7. :math:`\alpha_{\lambda}` : coefficient of the quadratic continuation
 #
 # With :math:`F = G = H = 1/2`, :math:`L = M = N = 3/2` and :math:`K = 0` the DFA
 # operator is the von Mises one and ``SMRAI`` coincides with ``SMRDI``.

@@ -19,9 +19,9 @@ The Contimech Library
 .. autofunction:: simcoon.curvature_ellipsoid
 .. autofunction:: simcoon.sigma_int
 .. autofunction:: simcoon.p_ikjl
-.. autofunction:: simcoon.auto_sym_dyadic
-.. autofunction:: simcoon.sym_dyadic
-.. autofunction:: simcoon.auto_dyadic
 .. autofunction:: simcoon.dyadic_4vectors_sym
 .. autofunction:: simcoon.auto_sym_dyadic_operator
 .. autofunction:: simcoon.sym_dyadic_operator
+
+The dyadic products of typed tensors (``dyadic``, ``auto_dyadic``, ``sym_dyadic``,
+``auto_sym_dyadic``) are documented with the :doc:`typed tensors <doc_tensor>`.

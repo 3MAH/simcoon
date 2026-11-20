@@ -37,6 +37,30 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation landing page on the microgen model (3MAH/microgen#154): cards
+  linking the gallery sections, a first script, install tabs and the 3MAH
+  ecosystem, with the shared `sphinx_rtd_theme` style (`docs/_static/custom.css`,
+  `sphinx-design`) and the gallery sections in reading order.
+- Gallery examples that draw no figure show their key equations as thumbnail,
+  rendered with LaTeX at build time (`docs/equation_thumbnails.py`).
+
+### Fixed
+
+- Documentation build: the Doxygen fallback of `docs/conf.py` creates its output
+  directory; the C++ maths and rotation pages list the functions of the `maths`
+  group (breathe cannot resolve grouped free functions by signature, and the
+  `random`, `stats` and `solvers` groups did not exist); reStructuredText errors in
+  `python_solver.rst`, `SMA_TR.py` and `hyperelastic_umat_identification.py`.
+- The typed dyadic products (`auto_dyadic`, `sym_dyadic`, `auto_sym_dyadic`) were
+  documented twice, in the contimech and the typed-tensor pages; they stay in the latter.
+- The MODUL gallery examples no longer write PNG files into `examples/mechanical/`
+  (sphinx-gallery captures the figures).
+- Local documentation build with an editable install: `docs/conf.py` imports simcoon
+  before sphinx-gallery captures stdout, so the rebuild-on-import no longer fails the
+  first example.
+
 ## [2.6.0] - 2026-11-19
 
 Batch kinematics and rotations for the finite-element loops of fedoo: `G_UdX_to_F` (with

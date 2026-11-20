@@ -1,6 +1,6 @@
-==================
+===================
 The Rotation Module
-==================
+===================
 
 The Rotation module provides comprehensive tools for 3D rotations in continuum mechanics
 applications. It provides a modern **Rotation class** (inspired by ``scipy.spatial.transform.Rotation``)
@@ -114,7 +114,7 @@ Factory Methods
    * - ``from_euler(seq, angles, degrees)``
      - Create from Euler angles (scipy convention, e.g. ``'ZXZ'``)
    * - ``from_rotvec(rotvec, degrees)``
-     - Create from rotation vector (axis × angle)
+     - Create from rotation vector (axis :math:`\times` angle)
    * - ``from_axis_angle(angle, axis, degrees)``
      - Create from angle and axis (1=x, 2=y, 3=z)
    * - ``random()``
@@ -162,15 +162,15 @@ Conversion Methods
    * - ``as_quat()``
      - Return quaternion [qx, qy, qz, qw]
    * - ``as_matrix()``
-     - Return 3×3 rotation matrix
+     - Return the 3x3 rotation matrix
    * - ``as_euler(conv, intrinsic, degrees)``
      - Return Euler angles [psi, theta, phi]
    * - ``as_rotvec(degrees)``
-     - Return rotation vector (axis × angle)
+     - Return rotation vector (axis :math:`\times` angle)
    * - ``as_voigt_stress_rotation(active)``
-     - Return 6×6 stress rotation matrix
+     - Return the 6x6 stress rotation matrix
    * - ``as_voigt_strain_rotation(active)``
-     - Return 6×6 strain rotation matrix
+     - Return the 6x6 strain rotation matrix
 
 Apply Methods
 -------------
@@ -186,7 +186,7 @@ Apply Methods
    * - ``apply(v, inverse)``
      - Rotate a 3D vector
    * - ``apply_tensor(m, inverse)``
-     - Rotate a 3×3 tensor: R·m·R\ :sup:`T`
+     - Rotate a 3x3 tensor: :math:`\mathbf{R}\,\mathbf{m}\,\mathbf{R}^T`
 
 **Voigt Notation (Continuum Mechanics):**
 
@@ -201,13 +201,13 @@ Apply Methods
    * - ``apply_strain(epsilon, active)``
      - Rotate 6-component strain vector
    * - ``apply_stiffness(L, active)``
-     - Rotate 6×6 stiffness matrix: QS·L·QS\ :sup:`T`
+     - Rotate a 6x6 stiffness matrix: :math:`Q_\sigma\,L\,Q_\sigma^T`
    * - ``apply_compliance(M, active)``
-     - Rotate 6×6 compliance matrix: QE·M·QE\ :sup:`T`
+     - Rotate a 6x6 compliance matrix: :math:`Q_\varepsilon\,M\,Q_\varepsilon^T`
    * - ``apply_strain_concentration(A, active)``
-     - Rotate 6×6 strain concentration tensor: QE·A·QS\ :sup:`T`
+     - Rotate a 6x6 strain concentration tensor: :math:`Q_\varepsilon\,A\,Q_\sigma^T`
    * - ``apply_stress_concentration(B, active)``
-     - Rotate 6×6 stress concentration tensor: QS·B·QE\ :sup:`T`
+     - Rotate a 6x6 stress concentration tensor: :math:`Q_\sigma\,B\,Q_\varepsilon^T`
 
 The ``active`` parameter controls whether the rotation is **active** (alibi, rotating the object)
 or **passive** (alias, rotating the coordinate system).
@@ -255,7 +255,7 @@ Operations
    * - ``r1 *= r2``
      - Compose in-place
    * - ``slerp_to(other, t)``
-     - Spherical linear interpolation (t ∈ [0, 1])
+     - Spherical linear interpolation (:math:`t \in [0, 1]`)
    * - ``equals(other, tol)``
      - Check equality within tolerance
    * - ``is_identity(tol)``
@@ -264,68 +264,11 @@ Operations
 Rotation Free Functions
 =======================
 
-The following C++ free functions provide direct rotation operations without creating a ``Rotation``
-object. They are used internally and available in the C++ API.
-
-Vector and Matrix Rotation
---------------------------
-
-.. doxygenfunction:: simcoon::rotate_vec(const arma::vec&, const arma::mat&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_vec(const arma::vec&, const double&, const int&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_mat(const arma::mat&, const arma::mat&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_mat(const arma::mat&, const double&, const int&)
-   :project: simcoon
-
-Stress and Strain Rotation
---------------------------
-
-.. doxygenfunction:: simcoon::rotate_stress(const arma::vec&, const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_stress(const arma::vec&, const arma::mat&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_strain(const arma::vec&, const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_strain(const arma::vec&, const arma::mat&, const bool&)
-   :project: simcoon
-
-Stiffness and Compliance Rotation
----------------------------------
-
-.. doxygenfunction:: simcoon::rotate_stiffness(const arma::mat&, const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_stiffness(const arma::mat&, const arma::mat&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_compliance(const arma::mat&, const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_compliance(const arma::mat&, const arma::mat&, const bool&)
-   :project: simcoon
-
-Strain and Stress Concentration Tensor Rotation
-------------------------------------------------
-
-.. doxygenfunction:: simcoon::rotate_strain_concentration(const arma::mat&, const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_strain_concentration(const arma::mat&, const arma::mat&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_stress_concentration(const arma::mat&, const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_stress_concentration(const arma::mat&, const arma::mat&, const bool&)
-   :project: simcoon
+The C++ free functions rotate without creating a ``Rotation`` object: ``rotate_vec``, ``rotate_mat``, ``rotate_stress``, ``rotate_strain``,
+``rotate_stiffness``, ``rotate_compliance``, ``rotate_strain_concentration`` and
+``rotate_stress_concentration``, each by a rotation matrix or by an angle about an axis.
+They are documented, with ``dR_drotvec``, ``dexp`` and ``dexp_inv``, with the other functions of the
+maths group, in :ref:`cpp-maths-functions`.
 
 Examples
 ========
@@ -465,8 +408,8 @@ For stress and strain tensors, simcoon uses Voigt notation:
 
    \boldsymbol{\varepsilon} = [\varepsilon_{11}, \varepsilon_{22}, \varepsilon_{33}, 2\varepsilon_{12}, 2\varepsilon_{13}, 2\varepsilon_{23}]^T
 
-The 6×6 rotation matrices :math:`Q_\sigma` (for stress) and :math:`Q_\varepsilon` (for strain)
-are related to the 3×3 rotation matrix :math:`R` and satisfy:
+The 6x6 rotation matrices :math:`Q_\sigma` (for stress) and :math:`Q_\varepsilon` (for strain)
+are related to the 3x3 rotation matrix :math:`R` and satisfy:
 
 .. math::
 

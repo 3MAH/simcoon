@@ -60,13 +60,13 @@ Loading control
 * ``mode='sinusoidal'`` interpolates the step sinusoidally instead of
   linearly; ``mode='tabular'`` follows a user table passed in memory:
 
-.. code-block:: python
+  .. code-block:: python
 
-    t = np.linspace(0.01, 1.0, 100)
-    e11 = 0.015 * np.sin(np.pi * t)
-    step = solver.StepMeca(control=['strain'] + ['zero'] * 5,
-                           mode='tabular',
-                           tabular=np.column_stack([t, e11]))
+      t = np.linspace(0.01, 1.0, 100)
+      e11 = 0.015 * np.sin(np.pi * t)
+      step = solver.StepMeca(control=['strain'] + ['zero'] * 5,
+                             mode='tabular',
+                             tabular=np.column_stack([t, e11]))
 
   In a saved path the table is the one input that is not JSON: ``save_path_json``
   writes it as ``<stem>_tab<k>.csv`` next to the JSON (``#`` header naming the

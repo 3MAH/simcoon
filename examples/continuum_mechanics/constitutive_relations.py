@@ -3,7 +3,7 @@ Constitutive Library Examples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
-# sphinx_gallery_thumbnail_path = 'images/thumb/sphx_glr_constitutive_relations_thumb.png'
+# sphinx_gallery_thumbnail_path = '_static/thumbnails/eq_constitutive_relations.png'
 
 ###################################################################################
 # This example demonstrates how to compute isotropic, cubic, transverse isotropic,

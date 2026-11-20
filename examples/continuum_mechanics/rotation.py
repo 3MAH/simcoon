@@ -8,6 +8,8 @@ so all scipy factory methods and operations are available directly.  Plain scipy
 C++ methods that accept rotations.
 """
 
+# sphinx_gallery_thumbnail_path = '_static/thumbnails/eq_rotation.png'
+
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
 import simcoon as sim
