@@ -40,6 +40,8 @@ EQUATIONS = {
 }
 
 _NAVY = "#24445c"
+_FONTSIZE = 26
+_MAX_WIDTH = 0.94
 
 
 def build(outdir):
@@ -54,8 +56,12 @@ def build(outdir):
         for stem, lines in EQUATIONS.items():
             fig = plt.figure(figsize=(4.0, 2.8), dpi=100)
             n = len(lines)
+            renderer = fig.canvas.get_renderer()
             for k, line in enumerate(lines):
-                fig.text(0.5, (n - k) / (n + 1), line, ha="center", va="center",
-                         fontsize=17, color=_NAVY)
+                text = fig.text(0.5, (n - k) / (n + 1), line, ha="center", va="center",
+                                fontsize=_FONTSIZE, color=_NAVY)
+                width = text.get_window_extent(renderer).width
+                if width > _MAX_WIDTH * fig.bbox.width:
+                    text.set_fontsize(_FONTSIZE * _MAX_WIDTH * fig.bbox.width / width)
             fig.savefig(os.path.join(outdir, f"eq_{stem}.png"), facecolor="white")
             plt.close(fig)
