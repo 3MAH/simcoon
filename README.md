@@ -1,47 +1,85 @@
-Simcoon
-=========
+<p align="center">
+  <a href="https://3mah.github.io/simcoon-docs/">
+    <img src="https://github.com/3MAH/3mah.github.io/blob/master/assets/images/logo_simcoon/simcoon_logo_text.png?raw=true" alt="simcoon" width="420">
+  </a>
+</p>
 
-[![Simcoon Logo](https://github.com/3MAH/3mah.github.io/blob/master/assets/images/logo_simcoon/simcoon_logo_text.png?raw=true)](https://github.com/3MAH/simcoon)
+<p align="center">
+  <b>Constitutive laws, material-point simulation and mean-field micromechanics for nonlinear and heterogeneous materials.</b>
+</p>
 
-About
------
+<p align="center">
+  <a href="https://3mah.github.io/simcoon-docs/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-24445c" alt="Documentation"></a>
+  <a href="https://pypi.org/project/simcoon/"><img src="https://img.shields.io/pypi/v/simcoon?color=a61b29" alt="PyPI"></a>
+  <a href="https://anaconda.org/set3mah/simcoon"><img src="https://img.shields.io/conda/vn/set3mah/simcoon?color=a61b29" alt="conda"></a>
+  <a href="https://github.com/3MAH/simcoon/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0"></a>
+</p>
 
-Simcoon is a free, open-source library for the simulation of multiphysics systems. Its primarily objective was the developement of constitutive models for the simulation of heterogeneous materials, but now goes beyond with tools to facilitate their full-field simulation. Together with [microgen](https://github.com/3MAH/microgen) for the CAD and meshing of heterogeneous materials and [fedoo](https://github.com/3MAH/fedoo) our Finite Element solver, we offer a comprehensive simulation set for the in-depth analysis of heterogeneous materials.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/3MAH/simcoon/master/docs/_static/hero.png" alt="Cyclic plasticity, adiabatic superelasticity and mean-field homogenization computed with simcoon" width="100%">
+</p>
 
-Simcoon is developed with the aim to be a high-quality scientific library to facilitate the analysis of the complex, non-linear behavior of systems. It integrates tools to simulate the response of composite material response and thus integrates several algorithms for the analysis of heterogeneous materials.
+**simcoon** is a C++ library with a Python interface. It provides constitutive
+laws (elastoplasticity, viscoelasticity, hyperelasticity, shape memory alloys,
+damage), a thermomechanical material-point solver under mixed strain and stress
+control, finite-strain kinematics with several objective rates, and mean-field
+homogenization of composites. Its laws serve as user materials in
+[fedoo](https://github.com/3MAH/fedoo), Abaqus and Ansys, on microstructures
+generated with [microgen](https://github.com/3MAH/microgen).
 
-Simcoon integrates
-- a easy way to handle geometrical non-linearities : Use of Lagrangian measures, Eulerian measures and cumulative strains considering several spins : Jaumann, Green-Naghdi, Xi-Meyers-Bruhns logarithmic. With this last measure, cumulative strain correspond to a logarithmic strain measure and is the standard measure utilized for our constitutive laws.
+- **Constitutive laws**: isotropic and kinematic hardening (Chaboche, Johnson-Cook),
+  anisotropic criteria, Prony viscoelasticity, hyperelastic potentials (Neo-Hookean,
+  Mooney-Rivlin, Ogden, Holzapfel-Gasser-Ogden), shape memory alloys with
+  transformation and reorientation.
+- **Modular laws**: compose elasticity, criteria, hardening, viscoelastic and damage
+  mechanisms from Python, without writing C++.
+- **Finite strain**: logarithmic strain transported by the polar rotation (log_R,
+  the default), Jaumann and Green-Naghdi rates, Kirchhoff stress, consistent tangents.
+- **Thermomechanics**: coupled heat equation at the material point, energy balance.
+- **Micromechanics**: Eshelby tensors, Mori-Tanaka and self-consistent schemes.
+- **Identification**: fit parameters with `scipy.optimize` and the simcoon parameter keys.
+- **Python and ML laws**: write a law in Python or plug a trained network into the same solver.
 
-Simcoon is a C++ library with emphasis on speed and ease-of-use, that offers a python interface to facilitate its use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ API to generate user material subroutine based on a library of functions. Also, Simcoon provides tools to analyse the behavior of material, considering loading at the material point level. Such tools include a thermomechanical solver and a software to predict effective properties of composites. Parameter identification can be performed using Python with scipy.optimize (e.g. differential_evolution) and the simcoon Parameter/Constant key system
+Hello, elastoplasticity
+-----------------------
 
-Simcoon is mainly developed by faculty and researchers from University of Bordeaux and the I2M Laboratory (Institut de d'Ingénierie et de Mécanique). Fruitful contribution came from the LEM3 laboratory in Metz, France, TU Bergakademie Freiberg in Germany and the TIMC-IMAG laboratory in Grenoble, France. It is released under the GNU General Public License: GPL, version 3.
+```python
+import numpy as np
+from simcoon import solver
 
-[![GitHub license](https://img.shields.io/badge/licence-GPL%203-blue.svg)](https://github.com/chemiskyy/simcoon/blob/master/LICENSE.txt)
+props = np.array([70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 0.3])  # E, nu, alpha, sigma_Y, k, m
+load = solver.StepMeca(control="stress", value=[450.0, 0, 0, 0, 0, 0], ninc=100)
+unload = solver.StepMeca(control="stress", value=[0.0, 0, 0, 0, 0, 0], ninc=100)
 
-Simcoon make use and therefore include the FTensor library (http://www.wlandry.net/Projects/FTensor) for convenience. FTensor is a library that handle complex tensor computations. FTensor is released under the GNU General Public License: GPL, version 2. You can get it there (but is is already included in simcoon): (https://bitbucket.org/wlandry/ftensor)
+res = solver.solve(solver.Block(steps=[load, unload], ncycle=3), "EPICP", props, nstatev=8)
+print(res["Strain"][0, -1], res["Stress"][0, -1])
+```
+
+`solver.solve` runs the loading blocks in memory and returns the whole history as
+numpy arrays. The [gallery of examples](https://3mah.github.io/simcoon-docs/examples/index.html)
+covers every family of laws, and the [list of constitutive laws](https://3mah.github.io/simcoon-docs/simulation/umat_catalog.html)
+gives their parameters.
 
 Documentation
---------------
+-------------
 
-Provider      | Status
---------      | ------
-Documentation | [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=plastic)](https://3mah.github.io/simcoon-docs/)
-
-
-Building doc :
-requires doxygen, sphinx, breathe
+The documentation is online at **https://3mah.github.io/simcoon-docs/**. To build it
+locally (Sphinx, breathe and doxygen; the gallery runs the examples):
 
 ```bash
-conda install -c conda-forge doxygen -y && pip install sphinx sphinx-rtd-theme breathe
+conda install -c conda-forge doxygen
+pip install -r docs/requirements.txt
+cd docs && make html   # then open _build/html/index.html
 ```
 
-```bash
-cd doxdocs && make html
-```
+The 3MAH ecosystem
+------------------
 
-open _build/index.html
-
+| | |
+|---|---|
+| [**microgen**](https://github.com/3MAH/microgen) | Geometry and periodic meshes of microstructures |
+| [**fedoo**](https://github.com/3MAH/fedoo) | Nonlinear finite elements and periodic homogenization |
+| **simcoon** | Constitutive laws and mean-field micromechanics |
 
 Installation
 ------------
@@ -196,6 +234,14 @@ pip install cython
 pip install --no-binary :all: numpy
 ```
 
+
+About
+-----
+
+simcoon is developed by the [3MAH](https://3mah.github.io/) group, mainly at
+Université Grenoble Alpes (TIMC) and the University of Bordeaux (I2M), with
+contributions from LEM3 (Metz) and TU Bergakademie Freiberg. It is released under
+the GNU General Public License, version 3.
 
 Authors
 -------
