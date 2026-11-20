@@ -37,6 +37,14 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-19
+
+Batch kinematics and rotations for the finite-element loops of fedoo: `G_UdX_to_F` (with
+`J = det F`), `rotvec_to_matrix` / `matrix_to_rotvec` and `dR_drotvec` on slice-last batches,
+one parallel call with the GIL released; `dexp` / `dexp_inv`, the left Jacobian of SO(3) and
+its inverse, for geometrically exact beams. `dR_drotvec` and `Rotation` are exact to rounding
+at small angles (#172). No API or ABI break.
+
 ### Added
 
 - Batch kinematics and rotation conversions on the slice-last layout, for the finite-element
@@ -793,7 +801,8 @@ See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.1).
 
 See the [release notes](https://github.com/3MAH/simcoon/releases/tag/2.0.0).
 
-[Unreleased]: https://github.com/3MAH/simcoon/compare/2.5.1...HEAD
+[Unreleased]: https://github.com/3MAH/simcoon/compare/2.6.0...HEAD
+[2.6.0]: https://github.com/3MAH/simcoon/compare/2.5.1...2.6.0
 [2.5.1]: https://github.com/3MAH/simcoon/compare/2.5.0...2.5.1
 [2.5.0]: https://github.com/3MAH/simcoon/compare/2.4.0...2.5.0
 [2.4.0]: https://github.com/3MAH/simcoon/compare/2.3.0...2.4.0
