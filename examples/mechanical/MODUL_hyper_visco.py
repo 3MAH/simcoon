@@ -172,5 +172,4 @@ plt.legend(loc="best")
 plt.title("Energy decomposition")
 
 plt.tight_layout()
-plt.savefig("MODUL_hyper_visco.png", dpi=120)
 plt.show()

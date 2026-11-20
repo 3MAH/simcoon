@@ -10,6 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+import datetime
 import mock
 import os
 import sys
@@ -35,14 +36,20 @@ import subprocess
 doxygen_xml_dir = os.path.join(os.path.dirname(__file__), "_build", "doxygen", "xml")
 if not os.path.exists(doxygen_xml_dir):
     print("Running Doxygen to generate XML for Breathe...")
+    os.makedirs(os.path.dirname(doxygen_xml_dir), exist_ok=True)
     subprocess.call("doxygen Doxyfile", shell=True, cwd=os.path.dirname(__file__))
 
 sphinx_gallery.EXAMPLES_DIR = os.path.abspath("../examples")
+
+sys.path.insert(0, os.path.dirname(__file__))
+import equation_thumbnails
+
+equation_thumbnails.build(os.path.join(os.path.dirname(__file__), "_static", "thumbnails"))
 print("Sphinx-Gallery examples dir:", sphinx_gallery.EXAMPLES_DIR)
 
 project = "Simcoon"
-copyright = "2025, 3MAH development team"
 author = "3MAH development team"
+copyright = f"2025-{datetime.date.today().year}, {author}"
 
 # Respect the release of simcoon
 # Default values
@@ -72,6 +79,7 @@ extensions = [
     "sphinx.ext.coverage",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
+    "sphinx_design",
     "sphinx_gallery.gen_gallery",
     "matplotlib.sphinxext.plot_directive",
     "breathe",
@@ -120,28 +128,24 @@ suppress_warnings = ["toc.not_included"]
 html_theme = "sphinx_rtd_theme"
 # html_theme = 'sphinxdoc'
 html_logo = "_static/simcoonLogos_ss_fond.png"
+html_title = f"simcoon {release}"
 
 
 html_theme_options = {
     "canonical_url": "https://3mah.github.io/simcoon-docs/",
-    # 'logo_only': False,
-    # 'display_version': True,
-    # 'prev_next_buttons_location': 'bottom',
+    "logo_only": True,
     "style_external_links": True,
-    # 'vcs_pageview_mode': '',
     "style_nav_header_background": "#24445C",
-    # Toc options
     "collapse_navigation": False,
-    # 'sticky_navigation': True,
-    # 'navigation_depth': 4,
-    # 'includehidden': True,
-    # 'titles_only': False
+    "navigation_depth": 3,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+html_show_sphinx = False
 
 # -- Sphinx Gallery Options
 sphinx_gallery_conf = {
@@ -151,6 +155,24 @@ sphinx_gallery_conf = {
     "gallery_dirs": ["examples"],
     # Pattern to search for example files
     "filename_pattern": r"\.py",
+    # Sections in reading order, from the material point to the composite.
+    "subsection_order": [
+        f"../examples/{category}"
+        for category in (
+            "mechanical",
+            "thermomechanical",
+            "hyperelasticity",
+            "continuum_mechanics",
+            "analysis",
+            "heterogeneous",
+            "identification",
+            "ml",
+            "solver",
+            "umats",
+            "umat_tutorial",
+            "data",
+        )
+    ],
     # Sort gallery example by file name instead of number of lines (default)
     # Use a dotted-path string instead of the imported class to keep this
     # configuration picklable.

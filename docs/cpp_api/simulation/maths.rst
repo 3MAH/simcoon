@@ -16,29 +16,18 @@ Overview
 The Maths module provides essential mathematical utilities for continuum mechanics
 simulations:
 
-- **Rotation**: Comprehensive 3D rotation tools including the new ``Rotation`` class
-  and Voigt notation transformations (see :doc:`rotation`)
-- **Random**: Random number generation utilities
-- **Statistics**: Statistical functions
-- **Numerical Solvers**: Root finding and optimization
+- **Rotation**: the ``Rotation`` class and the Voigt rotation helpers (see :doc:`rotation`)
+- **Random numbers and statistics**: random draws, probability distributions, peak functions
+- **Local solvers**: Newton and Fischer-Burmeister solvers of the return-mapping systems,
+  Lagrange penalty functions, quadratic roots
+- **Fixed-size kernels**: 3x3 spectral decompositions and fixed-order products used in
+  the per-point loops
 
-Random Number Generation
-========================
+.. _cpp-maths-functions:
 
-.. doxygengroup:: random
-   :project: simcoon
-   :content-only:
+Functions
+=========
 
-Statistics
-==========
-
-.. doxygengroup:: stats
-   :project: simcoon
-   :content-only:
-
-Numerical Solvers
-=================
-
-.. doxygengroup:: solvers
+.. doxygengroup:: maths
    :project: simcoon
    :content-only:

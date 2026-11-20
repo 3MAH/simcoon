@@ -4,6 +4,8 @@ Eshelby Tensor Examples
 This example demonstrates Eshelby tensor computations for various inclusion shapes.
 """
 
+# sphinx_gallery_thumbnail_path = '_static/thumbnails/eq_eshelby_tensors.png'
+
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt

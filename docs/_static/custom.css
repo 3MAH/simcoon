@@ -1,0 +1,66 @@
+/* simcoon documentation: sphinx_rtd_theme, shared with fedoo and microgen,
+   with the simcoon red as accent colour. */
+:root {
+  --sc-red: #a61b29;
+  --sc-red-dark: #7d141f;
+  --sc-navy: #24445c;
+  --sd-color-primary: #a61b29;
+  --sd-color-primary-highlight: #7d141f;
+  --sd-color-primary-text: #ffffff;
+  --sd-color-secondary: #24445c;
+  --sd-color-secondary-highlight: #1a3346;
+  --sd-color-secondary-text: #ffffff;
+}
+
+/* Logo on the navy side bar header */
+.wy-side-nav-search .wy-dropdown > a img.logo,
+.wy-side-nav-search > a img.logo {
+  max-width: 85%;
+  padding: 0.4em 0;
+}
+
+/* Links */
+.rst-content a:not(.sd-btn):not(.sd-stretched-link) { color: #1f6fa8; }
+.rst-content a:not(.sd-btn):not(.sd-stretched-link):hover { color: var(--sc-red-dark); }
+
+/* Landing page */
+.sc-tagline {
+  font-size: 1.25em;
+  color: #555;
+  margin-top: -0.6em;
+}
+.sc-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  margin-bottom: 1.5em;
+}
+.sc-buttons p { margin: 0; }
+
+/* Cards */
+.sd-card.sc-card {
+  border-radius: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.sd-card.sc-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--sc-red);
+  box-shadow: 0 6px 18px rgba(36, 68, 92, 0.18);
+}
+.sd-card.sc-card .sd-card-img-top {
+  height: 170px;
+  object-fit: contain;
+  background: #ffffff;
+  padding: 0.5em;
+}
+.sd-card.sc-card .sd-card-title { color: var(--sc-navy); }
+.sd-card.sc-card--current { border-top: 4px solid var(--sc-red); }
+
+/* Sphinx-Gallery thumbnails */
+.sphx-glr-thumbcontainer {
+  border-radius: 8px;
+}
+.sphx-glr-thumbcontainer:hover {
+  border-color: var(--sc-red) !important;
+  box-shadow: 0 0 10px rgba(166, 27, 41, 0.45) !important;
+}

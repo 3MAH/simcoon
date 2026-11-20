@@ -96,7 +96,7 @@ def build_props(x):
 
 ###############################################################################
 # Forward model: the MOORI UMAT through ``sim.solver``
-# ---------------------------------------------------
+# ----------------------------------------------------
 #
 # For one loading case we run the solver over the prescribed stretch ramp and
 # read the ``(lambda, P_11)`` trajectory straight from its global output.

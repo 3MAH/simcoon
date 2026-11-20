@@ -24,6 +24,8 @@ covariant, stiffness and compliance likewise on four indices, concentration
 tensors mixed.
 """
 
+# sphinx_gallery_thumbnail_path = '_static/thumbnails/eq_tensor_basis.png'
+
 import copy
 import pickle
 

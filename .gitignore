@@ -27,3 +27,4 @@ __pycache__/
 docs/_build/
 docs/examples/
 docs/sg_execution_times.rst
+docs/_static/thumbnails/eq_*.png

@@ -264,5 +264,4 @@ plt.title("Stress-driven Newton, one increment", size=12)
 plt.legend(loc="best", fontsize=9)
 
 plt.tight_layout()
-plt.savefig("MODUL_closest_point.png", dpi=120)
 plt.show()
