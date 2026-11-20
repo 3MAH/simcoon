@@ -45,6 +45,9 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   `sphinx-design`) and the gallery sections in reading order.
 - Gallery examples that draw no figure show their key equations as thumbnail,
   rendered with LaTeX at build time (`docs/equation_thumbnails.py`).
+- README on the same model: hero image computed with simcoon (`docs/hero.py`,
+  also on the documentation landing page), a first script, feature list and the 3MAH
+  ecosystem; the FTensor note and the stale documentation build steps are removed.
 
 ### Fixed
 
@@ -53,6 +56,7 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   group (breathe cannot resolve grouped free functions by signature, and the
   `random`, `stats` and `solvers` groups did not exist); reStructuredText errors in
   `python_solver.rst`, `SMA_TR.py` and `hyperelastic_umat_identification.py`.
+- The conda tab of the documentation landing page names the `set3mah` channel.
 - The typed dyadic products (`auto_dyadic`, `sym_dyadic`, `auto_sym_dyadic`) were
   documented twice, in the contimech and the typed-tensor pages; they stay in the latter.
 - The MODUL gallery examples no longer write PNG files into `examples/mechanical/`
