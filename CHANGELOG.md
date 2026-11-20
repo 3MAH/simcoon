@@ -57,6 +57,9 @@ Removals and renames scheduled for the next major version (breaking, kept in 2.x
   documented twice, in the contimech and the typed-tensor pages; they stay in the latter.
 - The MODUL gallery examples no longer write PNG files into `examples/mechanical/`
   (sphinx-gallery captures the figures).
+- Local documentation build with an editable install: `docs/conf.py` imports simcoon
+  before sphinx-gallery captures stdout, so the rebuild-on-import no longer fails the
+  first example.
 
 ## [2.6.0] - 2026-11-19
 

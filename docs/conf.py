@@ -17,6 +17,10 @@ import sys
 import matplotlib
 import importlib.util
 import sphinx_gallery
+
+# Imported before sphinx-gallery captures stdout: an editable install rebuilds
+# on first import and its cmake subprocess needs a real file descriptor.
+import simcoon  # noqa: F401
 # NOTE: avoid storing unpicklable objects (like classes/functions) in Sphinx
 # config values, otherwise Sphinx emits config.cache warnings when pickling the
 # environment.
